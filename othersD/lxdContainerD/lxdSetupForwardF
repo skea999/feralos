@@ -1,0 +1,11 @@
+#!/bin/bash
+USER_UID=1000 # Replace this with your container user UID
+RUNTIME_DIR=/run/user/$USER_UID
+mkdir -p $RUNTIME_DIR
+chmod 700 $RUNTIME_DIR
+chown $USER_UID:$USER_UID $RUNTIME_DIR
+ln -sf /mnt/wayland-socket $RUNTIME_DIR/wayland-0
+chown $USER_UID:$USER_UID $RUNTIME_DIR
+mkdir -p $RUNTIME_DIR/pulse
+ln -sf /mnt/pulse-native $RUNTIME_DIR/pulse/native
+chown $USER_UID:$USER_UID $RUNTIME_DIR/pulse/native
