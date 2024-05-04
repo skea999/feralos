@@ -39,85 +39,6 @@ functionsStartUi_messageBox () {
     dialog --colors --title "\Z1\Zb$functionsStartUi_messageBox_titleV " --msgbox "$functionsStartUi_messageBox_bodyTextV " 0 0
 }
 
-functionsStartUi_mirrorsBenchmark () {
-    #depends on distributionSpecificThingF; functionsCommon_log; functionsStartUi_benchmarkMirrorsA
-    functionsCommon_log "INFO" "Waiting for benchmark... "
-    local functionsStartUi_mirrorsBenchmark_urlV=$othersDistributionSpecificThings_urlV
-    local functionsStartUi_mirrorsBenchmark_regionsV=$(curl -s $functionsStartUi_mirrorsBenchmark_urlV | sed 's/<[^>]*>//g' | grep https:// | sed 's/\([A-Z]\)/ \1/g' | awk '{ s = ""; for (i = 2; i <= NF; i++) s = s $i " "; print s }')
-    local functionsStartUi_mirrorsBenchmark_linksV=$(curl -s $functionsStartUi_mirrorsBenchmark_urlV | sed 's/<[^>]*>//g' | grep https:// | sed 's/\([A-Z]\)/ \1/g' | awk '{print $1}')
-    
-        #SPEED_F="speed.txt"
-        #echo "" > $SPEED_F
-    
-    local functionsStartUi_mirrorsBenchmark_bestMirrorV
-    local functionsStartUi_mirrorsBenchmark_TargetPackageV=$othersDistributionSpecificThings_TargetPackageV
-
-    local functionsStartUi_mirrorsBenchmark_packageV
-    
-    local functionsStartUi_mirrorsBenchmark_pingV
-    local functionsStartUi_mirrorsBenchmark_formattedSpeedV
-    local functionsStartUi_mirrorsBenchmark_speedA
-
-
-    functionsStartUi_mirrorsBenchmark_findPackage () {
-        local functionsStartUi_mirrorsBenchmark_findPackage_listingUrlV=$othersDistributionSpecificThings_listingUrlV
-        local functionsStartUi_mirrorsBenchmark_desiredPackageV=$1
-        functionsStartUi_mirrorsBenchmark_packageV=$(curl -s $functionsStartUi_mirrorsBenchmark_findPackage_listingUrlV | sed 's/<[^>]*>//g' | grep $functionsStartUi_mirrorsBenchmark_desiredPackageV | grep "x86_64-musl.xbps " | awk '{print $1}' | head -n 1)
-    }
-    
-    functionsStartUi_mirrorsBenchmark_speedTest () {
-        local functionsStartUi_mirrorsBenchmark_speedTest_rootUrlV=$1
-        local functionsStartUi_mirrorsBenchmark_subPathV=$othersDistributionSpecificThings_subPathV
-
-        local functionsStartUi_mirrorsBenchmark_speedTest_urlV=${functionsStartUi_mirrorsBenchmark_speedTest_rootUrlV}${functionsStartUi_mirrorsBenchmark_subPathV}${functionsStartUi_mirrorsBenchmark_packageV}
-        local functionsStartUi_mirrorsBenchmark_speedTest_hostV=$(echo $functionsStartUi_mirrorsBenchmark_speedTest_rootUrlV | awk -F/ '{print $3}')
-        functionsStartUi_mirrorsBenchmark_pingV=`ping -c 1 ${functionsStartUi_mirrorsBenchmark_speedTest_hostV} | tail -1 | awk '{print $4}' | cut -d '/' -f 2 | bc -l`
-        local functionsStartUi_mirrorsBenchmark_speedTest_speedV=$(curl -qfs -w '%{speed_download}' -o /dev/null --url "$functionsStartUi_mirrorsBenchmark_speedTest_urlV")
-        functionsStartUi_mirrorsBenchmark_formattedSpeedV=$(numfmt --to=iec <<<"$functionsStartUi_mirrorsBenchmark_speedTest_speedV")
-    }
-    
-    #we have a function for this
-    local functionsStartUi_mirrorsBenchmark_saveIfsV=$IFS
-    IFS=$'\n'
-    functionsStartUi_mirrorsBenchmark_regionsV=($functionsStartUi_mirrorsBenchmark_regionsV)
-    functionsStartUi_mirrorsBenchmark_linksV=($functionsStartUi_mirrorsBenchmark_linksV)
-    IFS=$functionsStartUi_mirrorsBenchmark_saveIfsV
-
-    functionsStartUi_mirrorsBenchmark_findPackage $functionsStartUi_mirrorsBenchmark_TargetPackageV
-
-    local functionsStartUi_mirrorsBenchmark_oneRegionV
-    local functionsStartUi_mirrorsBenchmark_iV
-    for (( functionsStartUi_mirrorsBenchmark_iV=0; functionsStartUi_mirrorsBenchmark_iV<${#functionsStartUi_mirrorsBenchmark_linksV[@]}; functionsStartUi_mirrorsBenchmark_iV++ ))
-    do
-        functionsStartUi_mirrorsBenchmark_speedTest ${functionsStartUi_mirrorsBenchmark_linksV[$functionsStartUi_mirrorsBenchmark_iV]}
-        functionsStartUi_mirrorsBenchmark_oneRegionV=$(echo ${functionsStartUi_mirrorsBenchmark_regionsV[$functionsStartUi_mirrorsBenchmark_iV]} | sed 's/ //g')
-        
-        functionsStartUi_mirrorsBenchmark_speedA+=($(echo -e "${functionsStartUi_mirrorsBenchmark_linksV[$functionsStartUi_mirrorsBenchmark_iV]}\t$functionsStartUi_mirrorsBenchmark_formattedSpeedV\t$functionsStartUi_mirrorsBenchmark_pingV\t${functionsStartUi_mirrorsBenchmark_oneRegionV}" | awk '{print $1 " " $2 "B/s-ping:" $3 "ms_" $4}' | head -n -1))
-        #echo -e "${functionsStartUi_mirrorsBenchmark_linksV[$functionsStartUi_mirrorsBenchmark_iV]}\t$functionsStartUi_mirrorsBenchmark_formattedSpeedV\t$functionsStartUi_mirrorsBenchmark_pingV\t${functionsStartUi_mirrorsBenchmark_oneRegionV}" >> $SPEED_F
-        functionsCommon_log "WARN" "Speed for ${functionsStartUi_mirrorsBenchmark_linksV[$functionsStartUi_mirrorsBenchmark_iV]} is: ${functionsStartUi_mirrorsBenchmark_formattedSpeedV}B/s ping: ${functionsStartUi_mirrorsBenchmark_pingV}ms Region: $functionsStartUi_mirrorsBenchmark_oneRegionV"
-    done
-    
-    #sort file by speed
-    #for functionsStartUi_mirrorsBenchmark_iV in ${functionsStartUi_mirrorsBenchmark_speedA[@]} ; do
-    functionsStartUi_mirrorsBenchmark_saveIfsV=$IFS
-    IFS=$'\n' 
-    functionsStartUi_benchmarkMirrorsV=($(sort -r -n -k 2 <<<"${functionsStartUi_mirrorsBenchmark_speedA[*]}"))
-    IFS=$functionsStartUi_mirrorsBenchmark_saveIfsV
-        
-    functionsCommon_log "WARN" "$functionsStartUi_benchmarkMirrorsV"
-        #functionsStartUi_benchmarkMirrorsV+=$(echo -e "${functionsStartUi_mirrorsBenchmark_speedA}" | sort -r -n -k 2)
-    #done
-    #sort -r -n -k 2 -o $SPEED_F $SPEED_F 
-
-    functionsStartUi_mirrorsBenchmark_bestMirrorV=$(cat $functionsStartUi_benchmarkMirrorsV | awk '{print $1}') # | head -n 1
-    functionsCommon_log "WARN" "Best mirror is: $functionsStartUi_mirrorsBenchmark_bestMirrorV"
-    #echo "Best mirror is: $functionsStartUi_mirrorsBenchmark_bestMirrorV"
-    
-    #cat $SPEED_F | awk '{print $1 " " $2 "B/s-ping:" $3 "ms_" $4}' | head -n -1 > ${SPEED_F}"_new"
-    #cat ${SPEED_F}"_new" > $SPEED_F
-    #rm ${SPEED_F}"_new"
-}
-
 #old inputbox_f
 functionsStartUi_inputBox () {
     #depends on functionsCommon_log; 
@@ -451,7 +372,7 @@ functionsStartUi_choses () {
         functionsStartUi_restartCheck || continue 1
 
         #input desktop environment 
-        local functionsStartUi_choses_desktopEnvironmentsV=$'kde\ngnome\nxfce\nmate\ncinnamon\nlxde\nlxqt\nenlightenment\nnone'
+        local functionsStartUi_choses_desktopEnvironmentsV=$'gnome\nkde\nxfce\nmate\ncinnamon\nlxde\nlxqt\nenlightenment\nnone'
         functionsStartUi_menuSelect $functionsCommon_chosenDesktopEnvironmentFileV "Desktop Environment " "Desktop Environment " "$functionsStartUi_choses_desktopEnvironmentsV"
         functionsStartUi_restartCheck || continue 1
 

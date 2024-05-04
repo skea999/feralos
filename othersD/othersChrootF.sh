@@ -10,13 +10,13 @@ source /scriptFilesD/functionsD/functionsChrootD/functionsChrootF.sh
 
 
 
-fixBroadwellBug () {
-    #kernel fix
-    local KERNEL_CMD_FILE=/etc/dracut.conf.d/20-iommu-igfx-off.conf
-    functionsCommon_log "INFO" "Installing broadwell kernel fix in: $KERNEL_CMD_FILE"
-    touch $KERNEL_CMD_FILE
-    echo "intel_iommu=igfx_off" >> $KERNEL_CMD_FILE
-}
+# fixBroadwellBug () {
+#     #kernel fix
+#     local KERNEL_CMD_FILE=/etc/dracut.conf.d/20-iommu-igfx-off.conf
+#     functionsCommon_log "INFO" "Installing broadwell kernel fix in: $KERNEL_CMD_FILE"
+#     touch $KERNEL_CMD_FILE
+#     echo "intel_iommu=igfx_off" >> $KERNEL_CMD_FILE
+# }
 
 
 #Install video drivers function
@@ -193,7 +193,7 @@ EOF
 
 
 #installing 66 #how to make it a general function for all systems? with a check
-othersDistributionSpecificThings_install66
+# othersDistributionSpecificThings_install66
 
 #dbus
 othersDistributionSpecificThings_enableService "$othersDistributionSpecificThings_packagesDbusV" "dbus"
