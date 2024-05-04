@@ -96,7 +96,7 @@ functionsStart_choiceInChroot
 
 #entering chroot
 functionsCommon_log "INFO" "Entering chroot "
-chroot /mnt /bin/bash /scriptFilesD/othersD/othersChrootF.sh
+chroot /mnt /bin/sh /scriptFilesD/othersD/othersChrootF.sh
 
 functionsCommon_log "INFO" "Ultimate message "
 functionsStartUi_messageBox "Ska installer " "Installed successfull\nIf all is gone well umount /mnt with:\nsudo umount -R /mnt\nAnd than reboot\nRemember to execute other sccripts once system will boot \n\nThank you for using this script "

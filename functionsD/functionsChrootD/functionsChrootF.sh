@@ -123,7 +123,7 @@ functionsChroot_checkPackages () {
 functionsChroot_rootPermission () {
     #allow members of group wheel to execute any command
     functionsCommon_log "INFO" "Allow to users of the group wheel to execute any command "
-    functionsCommon_stringToFile "%wheel ALL=(ALL) ALL" "/etc/sudoers.d/99-wheel" 
+    functionsCommon_stringToFile "permit persist :wheel" "/etc/doas.conf" 
 }
 
 functionsChroot_setHostname () {
@@ -143,9 +143,6 @@ functionsChroot_setKeymap () {
     #setting keymap 
     functionsCommon_log "INFO" "Setting keymap "
     functionsCommon_retryIfCommandFails 'sed -i "s/#KEYMAP=\"es\"/KEYMAP=\"$(cat $functionsCommon_chosenKeymapFileV)\"/g" /etc/rc.conf'
-    #if you want a glibc environment than you need to configure locales
-    #echo $(cat $functionsCommon_chosenKeymapFileV) > /etc/default/libc-locales
-    #xbps-reconfigure -f glibc-locales
 }
 
 functionsChroot_setDns () {
@@ -161,26 +158,26 @@ functionsChroot_setFstab () {
     #fstab
     functionsCommon_log "INFO" "Setting fstab "
     functionsCommon_retryIfCommandFails "echo > /etc/fstab"
-    functionsCommon_stringToFile "/dev/voidvm/root     /                       btrfs    compress=zstd:3,autodefrag,ssd,subvol=@                                       0       1 " "/etc/fstab"
-    functionsCommon_stringToFile "/dev/voidvm/root     /swapfile               btrfs    compress=no,autodefrag,ssd,nodatacow,subvol=@swapfile                         0       0 " "/etc/fstab"
-    functionsCommon_stringToFile "/dev/voidvm/root     /home                   btrfs    compress=zstd:3,autodefrag,ssd,subvol=@home                                   0       0 " "/etc/fstab"
-    functionsCommon_stringToFile "/dev/voidvm/root     /opt                    btrfs    compress=zstd:3,autodefrag,ssd,subvol=@opt                                    0       0 " "/etc/fstab"
-    functionsCommon_stringToFile "/dev/voidvm/root     /root                   btrfs    compress=zstd:3,autodefrag,ssd,subvol=@root                                   0       0 " "/etc/fstab"
-    functionsCommon_stringToFile "/dev/voidvm/root     /srv                    btrfs    compress=no,autodefrag,ssd,nodev,noexec,nosuid,nodatacow,subvol=@srv          0       0 " "/etc/fstab"
-    functionsCommon_stringToFile "/dev/voidvm/root     /tmp                    btrfs    compress=zstd:3,autodefrag,ssd,noexec,nosuid,subvol=@tmp                      0       0 " "/etc/fstab"
-    functionsCommon_stringToFile "/dev/voidvm/root     /var                    btrfs    compress=zstd:3,autodefrag,ssd,subvol=@var                                    0       0 " "/etc/fstab"
-    functionsCommon_stringToFile "/dev/voidvm/root     /var/lib/ex             btrfs    compress=no,autodefrag,ssd,nodev,noexec,nosuid,nodatacow,subvol=@var-lib-ex   0       0 " "/etc/fstab"
-    functionsCommon_stringToFile "/dev/voidvm/root     /var/lib/flatpak        btrfs    compress=zstd:3,autodefrag,ssd,subvol=@var-lib-flatpak                        0       0 " "/etc/fstab"
-    functionsCommon_stringToFile "/dev/voidvm/root     /var/lib/libvirt        btrfs    compress=zstd:3,autodefrag,ssd,subvol=@var-lib-libvirt                        0       0 " "/etc/fstab"
-    functionsCommon_stringToFile "/dev/voidvm/root     /var/lib/lxd            btrfs    compress=zstd:3,autodefrag,ssd,subvol=@var-lib-lxd                            0       0 " "/etc/fstab"
-    functionsCommon_stringToFile "/dev/voidvm/root     /var/lib/containerd     btrfs    compress=zstd:3,autodefrag,ssd,subvol=@var-lib-containerd                     0       0 " "/etc/fstab"
-    functionsCommon_stringToFile "/dev/voidvm/root     /var/lib/docker         btrfs    compress=zstd:3,autodefrag,ssd,subvol=@var-lib-docker                         0       0 " "/etc/fstab"
-    functionsCommon_stringToFile "/dev/voidvm/root     /var/cache              btrfs    compress=zstd:3,autodefrag,ssd,subvol=@var-cache                              0       0 " "/etc/fstab"
-    functionsCommon_stringToFile "/dev/voidvm/root     /var/log                btrfs    compress=no,autodefrag,ssd,nodev,noexec,nosuid,nodatacow,subvol=@var-log      0       0 " "/etc/fstab"
-    functionsCommon_stringToFile "/dev/voidvm/root     /var/opt                btrfs    compress=zstd:3,autodefrag,ssd,subvol=@var-opt                                0       0 " "/etc/fstab"
-    functionsCommon_stringToFile "/dev/voidvm/root     /var/spool              btrfs    compress=no,autodefrag,ssd,nodev,noexec,nosuid,nodatacow,subvol=@var-spool    0       0 " "/etc/fstab"
-    functionsCommon_stringToFile "/dev/voidvm/root     /var/tmp                btrfs    compress=no,autodefrag,ssd,nodev,noexec,nosuid,nodatacow,subvol=@var-tmp      0       0 " "/etc/fstab"
-    functionsCommon_stringToFile "/dev/voidvm/root     /usr/local              btrfs    compress=zstd:3,autodefrag,ssd,subvol=@usr-local                              0       0 " "/etc/fstab"
+    functionsCommon_stringToFile "/dev/alpine/root     /                       btrfs    compress=zstd:3,autodefrag,ssd,subvol=@                                       0       1 " "/etc/fstab"
+    functionsCommon_stringToFile "/dev/alpine/root     /swapfile               btrfs    compress=no,autodefrag,ssd,nodatacow,subvol=@swapfile                         0       0 " "/etc/fstab"
+    functionsCommon_stringToFile "/dev/alpine/root     /home                   btrfs    compress=zstd:3,autodefrag,ssd,subvol=@home                                   0       0 " "/etc/fstab"
+    functionsCommon_stringToFile "/dev/alpine/root     /opt                    btrfs    compress=zstd:3,autodefrag,ssd,subvol=@opt                                    0       0 " "/etc/fstab"
+    functionsCommon_stringToFile "/dev/alpine/root     /root                   btrfs    compress=zstd:3,autodefrag,ssd,subvol=@root                                   0       0 " "/etc/fstab"
+    functionsCommon_stringToFile "/dev/alpine/root     /srv                    btrfs    compress=no,autodefrag,ssd,nodev,noexec,nosuid,nodatacow,subvol=@srv          0       0 " "/etc/fstab"
+    functionsCommon_stringToFile "/dev/alpine/root     /tmp                    btrfs    compress=zstd:3,autodefrag,ssd,noexec,nosuid,subvol=@tmp                      0       0 " "/etc/fstab"
+    functionsCommon_stringToFile "/dev/alpine/root     /var                    btrfs    compress=zstd:3,autodefrag,ssd,subvol=@var                                    0       0 " "/etc/fstab"
+    functionsCommon_stringToFile "/dev/alpine/root     /var/lib/ex             btrfs    compress=no,autodefrag,ssd,nodev,noexec,nosuid,nodatacow,subvol=@var-lib-ex   0       0 " "/etc/fstab"
+    functionsCommon_stringToFile "/dev/alpine/root     /var/lib/flatpak        btrfs    compress=zstd:3,autodefrag,ssd,subvol=@var-lib-flatpak                        0       0 " "/etc/fstab"
+    functionsCommon_stringToFile "/dev/alpine/root     /var/lib/libvirt        btrfs    compress=zstd:3,autodefrag,ssd,subvol=@var-lib-libvirt                        0       0 " "/etc/fstab"
+    functionsCommon_stringToFile "/dev/alpine/root     /var/lib/lxd            btrfs    compress=zstd:3,autodefrag,ssd,subvol=@var-lib-lxd                            0       0 " "/etc/fstab"
+    functionsCommon_stringToFile "/dev/alpine/root     /var/lib/containerd     btrfs    compress=zstd:3,autodefrag,ssd,subvol=@var-lib-containerd                     0       0 " "/etc/fstab"
+    functionsCommon_stringToFile "/dev/alpine/root     /var/lib/docker         btrfs    compress=zstd:3,autodefrag,ssd,subvol=@var-lib-docker                         0       0 " "/etc/fstab"
+    functionsCommon_stringToFile "/dev/alpine/root     /var/cache              btrfs    compress=zstd:3,autodefrag,ssd,subvol=@var-cache                              0       0 " "/etc/fstab"
+    functionsCommon_stringToFile "/dev/alpine/root     /var/log                btrfs    compress=no,autodefrag,ssd,nodev,noexec,nosuid,nodatacow,subvol=@var-log      0       0 " "/etc/fstab"
+    functionsCommon_stringToFile "/dev/alpine/root     /var/opt                btrfs    compress=zstd:3,autodefrag,ssd,subvol=@var-opt                                0       0 " "/etc/fstab"
+    functionsCommon_stringToFile "/dev/alpine/root     /var/spool              btrfs    compress=no,autodefrag,ssd,nodev,noexec,nosuid,nodatacow,subvol=@var-spool    0       0 " "/etc/fstab"
+    functionsCommon_stringToFile "/dev/alpine/root     /var/tmp                btrfs    compress=no,autodefrag,ssd,nodev,noexec,nosuid,nodatacow,subvol=@var-tmp      0       0 " "/etc/fstab"
+    functionsCommon_stringToFile "/dev/alpine/root     /usr/local              btrfs    compress=zstd:3,autodefrag,ssd,subvol=@usr-local                              0       0 " "/etc/fstab"
     functionsCommon_stringToFile "/dev/mapper/luks-$(blkid -o value -s UUID $(cat $functionsCommon_grubFileV))     /boot                   ext4     defaults                                                                      0       0 " "/etc/fstab"
     functionsCommon_stringToFile "UUID=$(blkid -o value -s UUID $(cat $functionsCommon_uefiFileV))                                            /boot/efi               vfat     defaults                                                                      0       0 " "/etc/fstab"
     functionsCommon_stringToFile "#tmpfs                                                   /tmp                    tmpfs    defaults,nosuid,nodev                                                         0       0" "/etc/fstab"
@@ -196,14 +193,14 @@ functionsChroot_setGrub () {
     #setting up grub to unlock the root partition
     functionsCommon_log "INFO" "Configuring grub to unlock encrypted /boot "
     functionsCommon_stringToFile "GRUB_DISABLE_OS_PROBER=false" "/etc/default/grub"
-    functionsCommon_stringToFile "GRUB_BACKGROUND=/boot/splash.png" "/etc/default/grub"
+    #functionsCommon_stringToFile "GRUB_BACKGROUND=/boot/splash.png" "/etc/default/grub"
     functionsCommon_stringToFile "GRUB_ENABLE_CRYPTODISK=y" "/etc/default/grub"
-    functionsCommon_retryIfCommandFails 'sed -i "s/GRUB_CMDLINE_LINUX_DEFAULT=\"loglevel=4\"/GRUB_CMDLINE_LINUX_DEFAULT=\"loglevel=0 rd.lvm.vg=voidvm rd.luks.uuid=$(blkid -o value -s UUID $(cat $functionsCommon_rootFileV)) \"/g" /etc/default/grub'
-    functionsCommon_retryIfCommandFails "cp /usr/share/void-artwork/splash.png /boot" #need to be changed because it work only on void
+    functionsCommon_retryIfCommandFails 'sed -i "s/GRUB_CMDLINE_LINUX_DEFAULT=\"loglevel=4\"/GRUB_CMDLINE_LINUX_DEFAULT=\"loglevel=0 rd.lvm.vg=alpine rd.luks.uuid=$(blkid -o value -s UUID $(cat $functionsCommon_rootFileV)) \"/g" /etc/default/grub'
+    #functionsCommon_retryIfCommandFails "cp /usr/share/void-artwork/splash.png /boot" #need to be changed because it work only on void
 
     #installing grub
     functionsCommon_log "INFO" "Installing grub to /boot "
-    functionsCommon_retryIfCommandFails 'grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=void --recheck'
+    functionsCommon_retryIfCommandFails 'grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=alpine --recheck'
 }
 
 functionsChroot_createKeyFile () {
@@ -216,7 +213,7 @@ functionsChroot_createKeyFile () {
     functionsCommon_retryIfCommandFails 'chmod 000 /etc/volume.key'
     functionsCommon_retryIfCommandFails 'chmod -R g-rwx,o-rwx /boot'
     functionsCommon_retryIfCommandFails 'chmod -R g-rwx,o-rwx /etc/volume.key'
-
+###################################################################################################################################################################################
     #setting keyfile in the initramfs for automatic unlocking of root partiton, this way you will enter the password once
     functionsCommon_log "INFO" "Configuring dracut with key and crypttab "
     functionsCommon_retryIfCommandFails 'echo > /etc/dracut.conf.d/10-crypt.conf'
