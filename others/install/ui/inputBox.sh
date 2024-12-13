@@ -3,24 +3,24 @@
 functionsStartUi_inputBox () {
     #depends on functionsCommon_log; 
 
-    local functionsStartUi_inputBox_resultFileV=$1
-    local functionsStartUi_inputBox_defaultValueV=$(cat $functionsStartUi_inputBox_resultFileV)
-    #touch $functionsStartUi_inputBox_resultFileV
-    echo "" > $functionsStartUi_inputBox_resultFileV
+    local resultFile=$1
+    local defaultValue=$(cat $resultFile)
+    #touch $resultFile
+    echo "" > $resultFile
 
-    local functionsStartUi_inputBox_returnValueV=
-    local functionsStartUi_inputBox_titleV=$2
-    local functionsStartUi_inputBox_bodyTextV=$3
+    local returnValue=
+    local title=$2
+    local bodyText=$3
 
-    local functionsStartUi_inputBox_appV=""
+    local app=""
 
 
-    dialog --colors --title "\Z1\Zb$functionsStartUi_inputBox_titleV " --inputbox "\Z1$functionsStartUi_inputBox_appV\n$functionsStartUi_inputBox_bodyTextV" 0 0 $functionsStartUi_inputBox_defaultValueV 2> $functionsStartUi_inputBox_resultFileV
-    functionsStartUi_inputBox_returnValueV=$?
+    dialog --colors --title "\Z1\Zb$title " --inputbox "\Z1$app\n$bodyText" 0 0 $defaultValue 2> $resultFile
+    returnValue=$?
 
-    functionsStartUi_inputBox_appV="Please try again"
+    app="Please try again"
 
-    functionsCommon_log "INFO" "$functionsStartUi_inputBox_titleV"
-    functionsCommon_log "WARN" "$(cat $functionsStartUi_inputBox_resultFileV)"
-    return $functionsStartUi_inputBox_returnValueV
+    functionsCommon_log "INFO" "$title"
+    functionsCommon_log "WARN" "$(cat $resultFile)"
+    return $returnValue
 }

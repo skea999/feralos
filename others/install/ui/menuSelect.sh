@@ -3,30 +3,30 @@
 functionsStartUi_menuSelect () {
     #depends on functionsCommon_log; 
 
-    local functionsStartUi_menuSelect_resultFileV=$1
-    local functionsStartUi_menuSelect_defaultValueV=$(cat $functionsStartUi_menuSelect_resultFileV)
-    #touch $functionsStartUi_menuSelect_resultFileV
-    echo "" > $functionsStartUi_menuSelect_resultFileV
+    local resultFile=$1
+    local defaultValue=$(cat $resultFile)
+    #touch $resultFile
+    echo "" > $resultFile
 
-    local functionsStartUi_menuSelect_titleV=$2
-    local functionsStartUi_menuSelect_bodyTextV=$3
-    local functionsStartUi_menuSelect_menuArgsV=${4}
+    local title=$2
+    local bodyText=$3
+    local menuArgs=${4}
 
-    local functionsStartUi_menuSelect_appV=""
-    local functionsStartUi_menuSelect_returnValueV=
-    local functionsStartUi_menuSelect_argsA=()
-    local functionsStartUi_menuSelect_iV
+    local app=""
+    local returnValue=
+    local args=()
+    local i
 
-    for functionsStartUi_menuSelect_iV in $functionsStartUi_menuSelect_menuArgsV ; do
-        functionsStartUi_menuSelect_argsA+=("$functionsStartUi_menuSelect_iV" "")
+    for i in $menuArgs ; do
+        args+=("$i" "")
     done
 
 
-    dialog --colors --title "\Z1\Zb$functionsStartUi_menuSelect_titleV " --default-item "$functionsStartUi_menuSelect_defaultValueV" --menu "\Z1$functionsStartUi_menuSelect_appV\nSelect a $functionsStartUi_menuSelect_bodyTextV " 0 0 0 "${functionsStartUi_menuSelect_argsA[@]}" 2> $functionsStartUi_menuSelect_resultFileV
-    functionsStartUi_menuSelect_returnValueV=$?
+    dialog --colors --title "\Z1\Zb$title " --default-item "$defaultValue" --menu "\Z1$app\nSelect a $bodyText " 0 0 0 "${args[@]}" 2> $resultFile
+    returnValue=$?
 
-    appV="Please try again "
-    functionsCommon_log "INFO" "$functionsStartUi_menuSelect_titleV"
-    functionsCommon_log "WARN" "$(cat $functionsStartUi_menuSelect_resultFileV)"
-    return $functionsStartUi_menuSelect_returnValueV
+    app="Please try again "
+    functionsCommon_log "INFO" "$title"
+    functionsCommon_log "WARN" "$(cat $resultFile)"
+    return $returnValue
 }
