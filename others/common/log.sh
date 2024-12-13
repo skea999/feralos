@@ -2,30 +2,30 @@
 
 #print a colored message, based on an argument taked as imput ("INFO" "ERROR" "WARNING"), like: functionsCommon_log "INFO" "commandToExecute"
 functionsCommon_log () {
-    local functionsCommon_log_typeV=$1
-    local functionsCommon_log_textV=$2
-    local functionsCommon_log_noColorV='\033[0m'
-    local functionsCommon_log_redColorV='\033[0;31m'
-    local functionsCommon_log_yellowColorV='\033[1;33m'
-    local functionsCommon_log_blueColorV='\033[1;34m'
-    local functionsCommon_log_colorV=$functionsCommon_log_noColorV
+    local type=$1
+    local text=$2
+    local noColor='\033[0m'
+    local redColor='\033[0;31m'
+    local yellowColor='\033[1;33m'
+    local blueColor='\033[1;34m'
+    local color=$noColor
 
 
-    case "$functionsCommon_log_typeV" in
+    case "$type" in
         "INFO")
-            functionsCommon_log_colorV=$functionsCommon_log_blueColorV
+            color=$blueColor
         ;;
         "WARN")
-            functionsCommon_log_colorV=$functionsCommon_log_yellowColorV
+            color=$yellowColor
         ;;
         "ERROR")
-            functionsCommon_log_colorV=$functionsCommon_log_redColorV
+            color=$redColor
         ;;
     esac
 
-    echo $functionsCommon_log_textV >> $functionsCommon_configurationLogFilePathV
+    echo $text >> $functionsCommon_configurationLogFilePathV
 
     echo
-    echo -e "${functionsCommon_log_colorV}$functionsCommon_log_textV${functionsCommon_log_noColorV}"
+    echo -e "${color}$text${noColor}"
     echo
 }

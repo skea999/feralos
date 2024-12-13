@@ -3,39 +3,39 @@
 functionsStartUi_softwareToInstall () {
     #depends on functionsCommon_log; 
     #non funziona il default, devo creare un nuovo file di appoggio con i valori di default e chiedere prima con yesNo se ripristinarli
-    local functionsStartUi_softwareToInstall_resultFileV=$1
+    local resultFile=$1
     
-    #touch $functionsStartUi_softwareToInstall_resultFileV
-    echo "" > $functionsStartUi_softwareToInstall_resultFileV
+    #touch $resultFile
+    echo "" > $resultFile
 
-    local functionsStartUi_softwareToInstall_titleV=$2
-    local functionsStartUi_softwareToInstall_bodyTextV=$3
-    local functionsStartUi_softwareToInstall_menuArgsV=$4
-    local functionsStartUi_softwareToInstall_selectedV=${functionsStartUi_softwareToInstall_menuArgsV}Selected
+    local title=$2
+    local bodyText=$3
+    local menuArgs=$4
+    local selected=${menuArgs}Selected
 
-    [[ ! -f $functionsStartUi_softwareToInstall_selectedV ]] && cp -ar $functionsStartUi_softwareToInstall_menuArgsV $functionsStartUi_softwareToInstall_selectedV
+    [[ ! -f $selected ]] && cp -ar $menuArgs $selected
 
-    local functionsStartUi_softwareToInstall_returnValueV=
-    local functionsStartUi_softwareToInstall_appV=""
-    local functionsStartUi_softwareToInstall_iV=
+    local returnValue=
+    local app=""
+    local i=
 
     
-    dialog --colors --title "\Z1\Zb$functionsStartUi_softwareToInstall_titleV " --checklist "\Z1$functionsStartUi_softwareToInstall_appV\nSelect a $functionsStartUi_softwareToInstall_bodyTextV " 0 0 0 $(cat $functionsStartUi_softwareToInstall_selectedV) 2> $functionsStartUi_softwareToInstall_resultFileV
-    functionsStartUi_softwareToInstall_returnValueV=$?
+    dialog --colors --title "\Z1\Zb$title " --checklist "\Z1$app\nSelect a $bodyText " 0 0 0 $(cat $selected) 2> $resultFile
+    returnValue=$?
 
-    functionsStartUi_softwareToInstall_appV="Please try again "
+    app="Please try again "
 
-    sed -i 's/on/off/g' $functionsStartUi_softwareToInstall_selectedV
+    sed -i 's/on/off/g' $selected
 
-    for functionsStartUi_softwareToInstall_iV in $(cat $functionsStartUi_softwareToInstall_resultFileV) ; do
-        sed -i "s/$functionsStartUi_softwareToInstall_iV $functionsStartUi_softwareToInstall_iV off/$functionsStartUi_softwareToInstall_iV $functionsStartUi_softwareToInstall_iV on/g" $functionsStartUi_softwareToInstall_selectedV
+    for i in $(cat $resultFile) ; do
+        sed -i "s/$i $i off/$i $i on/g" $selected
     done
 
-    functionsCommon_log "INFO" "$functionsStartUi_softwareToInstall_titleV"
-    functionsCommon_log "WARN" "$(cat $functionsStartUi_softwareToInstall_resultFileV)"
+    functionsCommon_log "INFO" "$title"
+    functionsCommon_log "WARN" "$(cat $resultFile)"
 
-    if [[ $functionsStartUi_softwareToInstall_returnValueV == 1 ]] ; then
-        cp -ar $functionsStartUi_softwareToInstall_menuArgsV $functionsStartUi_softwareToInstall_selectedV
+    if [[ $returnValue == 1 ]] ; then
+        cp -ar $menuArgs $selected
     fi
-    return $functionsStartUi_softwareToInstall_returnValueV
+    return $returnValue
 }
