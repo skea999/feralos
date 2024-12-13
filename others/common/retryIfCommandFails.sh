@@ -4,33 +4,33 @@
 functionsCommon_retryIfCommandFails () {
     #depends on functionsCommon_log; functionsCommon_stringToFile
 
-    local functionsCommon_retryIfCommandFails_commandToRunV=$1
-    local -i functionsCommon_retryIfCommandFails_returnValueV
-    local -i functionsCommon_retryIfCommandFails_numberRetryV=3
-    local -i functionsCommon_retryIfCommandFails_iV=1
+    local commandToRun=$1
+    local -i returnValue
+    local -i numberRetry=3
+    local -i i=1
 
 
-    functionsCommon_log "WARN" "Executing $functionsCommon_retryIfCommandFails_commandToRunV ... " $functionsCommon_configurationLogFilePathV
-    while [[ "$functionsCommon_retryIfCommandFails_returnValueV" !=  "0" ]] && [[ $functionsCommon_retryIfCommandFails_iV -le $functionsCommon_retryIfCommandFails_numberRetryV ]] ; do
+    functionsCommon_log "WARN" "Executing $commandToRun ... " $functionsCommon_configurationLogFilePathV
+    while [[ "$returnValue" !=  "0" ]] && [[ $i -le $numberRetry ]] ; do
         echo
-        eval "$functionsCommon_retryIfCommandFails_commandToRunV"
-        functionsCommon_retryIfCommandFails_returnValueV=$?
+        eval "$commandToRun"
+        returnValue=$?
         echo
-        if [ $functionsCommon_retryIfCommandFails_returnValueV != 0 ]; then
-            functionsCommon_log "ERROR" "$functionsCommon_retryIfCommandFails_commandToRunV"
-            functionsCommon_log "WARN" "Retrying $functionsCommon_retryIfCommandFails_iV time... "
+        if [ $returnValue != 0 ]; then
+            functionsCommon_log "ERROR" "$commandToRun"
+            functionsCommon_log "WARN" "Retrying $i time... "
             read -t 5 -p "Press enter to retry. I am going to wait for 5 seconds only ... "
         fi
-        if [ $functionsCommon_retryIfCommandFails_iV = $functionsCommon_retryIfCommandFails_numberRetryV ]; then
-            dialog --colors --default-button "yes" --yesno "\nDo you want to retry \n\Z1$functionsCommon_retryIfCommandFails_commandToRunV \n that gived an error $functionsCommon_retryIfCommandFails_iV times? " 0 0
+        if [ $i = $numberRetry ]; then
+            dialog --colors --default-button "yes" --yesno "\nDo you want to retry \n\Z1$commandToRun \n that gied an error $i times? " 0 0
             if [ $? = 1 ]; then
-                functionsCommon_stringToFile "Command $functionsCommon_retryIfCommandFails_commandToRunV gived an error, pls fix it. " $functionsCommon_logFailedCommandsFileV
+                functionsCommon_stringToFile "Command $commandToRun gied an error, pls fix it. " $functionsCommon_logFailedCommandsFileV
                 echo
             else
-                functionsCommon_retryIfCommandFails_iV=0
+                i=0
             fi
         fi
-        ((functionsCommon_retryIfCommandFails_iV=functionsCommon_retryIfCommandFails_iV+1))
-        #echo $iV
+        ((i=i+1))
+        #echo $i
     done
 }

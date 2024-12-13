@@ -2,29 +2,29 @@
 
 functionsStartUi_passwordBox () {
     #depends on functionsCommon_log
-    local functionsStartUi_passwordBox_firstV=
-    local functionsStartUi_passwordBox_secondV=
-    local functionsStartUi_passwordBox_resultFileV=$1
-    local functionsStartUi_passwordBox_defaultValueV=$(cat $functionsStartUi_passwordBox_resultFileV)
-    #touch $functionsStartUi_passwordBox_resultFileV
-    echo "" > $functionsStartUi_passwordBox_resultFileV
+    local first=
+    local second=
+    local resultFile=$1
+    local defaultValue=$(cat $resultFile)
+    #touch $resultFile
+    echo "" > $resultFile
 
-    local functionsStartUi_passwordBox_titleV=$2
-    local functionsStartUi_passwordBox_bodyTextV=$3
+    local title=$2
+    local bodyText=$3
 
-    local functionsStartUi_passwordBox_appV=""
+    local app=""
     
 
-    while [ "$functionsStartUi_passwordBox_firstV" =  "" -o "$functionsStartUi_passwordBox_firstV" != "$functionsStartUi_passwordBox_secondV" ]; do
-        functionsStartUi_passwordBox_firstV=$(dialog --colors --title "\Z1\Zb$functionsStartUi_passwordBox_titleV " --insecure --passwordbox "\Z1$functionsStartUi_passwordBox_appV\nEnter $functionsStartUi_passwordBox_bodyTextV password: " 0 0 $functionsStartUi_passwordBox_defaultValueV --output-fd 1)
+    while [ "$first" =  "" -o "$first" != "$second" ]; do
+        first=$(dialog --colors --title "\Z1\Zb$title " --insecure --passwordbox "\Z1$app\nEnter $bodyText password: " 0 0 $defaultValue --output-fd 1)
         functionsStartUi_restartCheck || return 1
 
-        functionsStartUi_passwordBox_secondV=$(dialog --colors --title "\Z1\Zb$functionsStartUi_passwordBox_titleV " --insecure --passwordbox "\Z1$functionsStartUi_passwordBox_appV\nEnter $functionsStartUi_passwordBox_bodyTextV password for the second time: " 0 0 $functionsStartUi_passwordBox_defaultValueV --output-fd 1)
+        second=$(dialog --colors --title "\Z1\Zb$title " --insecure --passwordbox "\Z1$app\nEnter $bodyText password for the second time: " 0 0 $defaultValue --output-fd 1)
         functionsStartUi_restartCheck || continue 
 
-        functionsStartUi_passwordBox_appV="Please try again"
+        app="Please try again"
     done
     functionsCommon_log "INFO" "Password setup succesfully "
-    echo $functionsStartUi_passwordBox_firstV > $functionsStartUi_passwordBox_resultFileV
+    echo $first > $resultFile
     return 0
 }
