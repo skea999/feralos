@@ -1,26 +1,28 @@
-#!/bin/sh
+#!/bin/bash
 
-functionsStartUi_inputBox () {
-    #depends on functionsCommon_log; 
+#source ./others/install/ui/inputBox.sh
 
-    local resultFile=$1
+ins_ui_inputBox () {
+    source ./others/common/log.sh
+
+    results=
     local defaultValue=$(cat $resultFile)
     #touch $resultFile
     echo "" > $resultFile
 
     local returnValue=
-    local title=$2
-    local bodyText=$3
+    local title=$1
+    local bodyText=$2
 
     local app=""
 
 
-    dialog --colors --title "\Z1\Zb$title " --inputbox "\Z1$app\n$bodyText" 0 0 $defaultValue 2> $resultFile
+    results=$(dialog --colors --title "\Z1\Zb$title " --inputbox "\Z1$app\n$bodyText" 0 0 $defaultValue)
     returnValue=$?
 
     app="Please try again"
 
-    functionsCommon_log "INFO" "$title"
-    functionsCommon_log "WARN" "$(cat $resultFile)"
+    com_log "INFO" "$title"
+    com_log "WARN" "$results"
     return $returnValue
 }

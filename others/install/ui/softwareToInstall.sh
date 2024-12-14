@@ -1,12 +1,15 @@
-#!/bin/sh
+#!/bin/bash
 
-functionsStartUi_softwareToInstall () {
-    #depends on functionsCommon_log; 
+#source ./others/install/ui/softwareToInstall.sh
+
+ins_ui_softwareToInstall () {
+    source ./others/common/log.sh
+
     #non funziona il default, devo creare un nuovo file di appoggio con i valori di default e chiedere prima con yesNo se ripristinarli
     local resultFile=$1
     
     #touch $resultFile
-    echo "" > $resultFile
+    results=
 
     local title=$2
     local bodyText=$3
@@ -20,7 +23,7 @@ functionsStartUi_softwareToInstall () {
     local i=
 
     
-    dialog --colors --title "\Z1\Zb$title " --checklist "\Z1$app\nSelect a $bodyText " 0 0 0 $(cat $selected) 2> $resultFile
+    results=$(dialog --colors --title "\Z1\Zb$title " --checklist "\Z1$app\nSelect a $bodyText " 0 0 0 $(cat $selected) )
     returnValue=$?
 
     app="Please try again "
@@ -31,8 +34,8 @@ functionsStartUi_softwareToInstall () {
         sed -i "s/$i $i off/$i $i on/g" $selected
     done
 
-    functionsCommon_log "INFO" "$title"
-    functionsCommon_log "WARN" "$(cat $resultFile)"
+    com_log "INFO" "$title"
+    com_log "WARN" "$(cat $resultFile)"
 
     if [[ $returnValue == 1 ]] ; then
         cp -ar $menuArgs $selected

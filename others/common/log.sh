@@ -1,7 +1,10 @@
-#!/bin/sh
+#!/bin/bash
 
+#source ./others/common/log.sh
 #print a colored message, based on an argument taked as imput ("INFO" "ERROR" "WARNING"), like: functionsCommon_log "INFO" "commandToExecute"
-functionsCommon_log () {
+com_log () {
+    source ./others/config/env.sh
+
     local type=$1
     local text=$2
     local noColor='\033[0m'
@@ -23,7 +26,7 @@ functionsCommon_log () {
         ;;
     esac
 
-    echo $text >> $functionsCommon_configurationLogFilePathV
+    echo $text >> $con_logFile
 
     echo
     echo -e "${color}$text${noColor}"

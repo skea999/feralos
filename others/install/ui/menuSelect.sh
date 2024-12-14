@@ -1,16 +1,18 @@
-#!/bin/sh
+#!/bin/bash
 
-functionsStartUi_menuSelect () {
-    #depends on functionsCommon_log; 
+#source ./others/install/ui/menuSelect.sh
 
-    local resultFile=$1
+ins_ui_menuSelect () {
+    source ./others/common/log.sh
+
+    results=
     local defaultValue=$(cat $resultFile)
     #touch $resultFile
     echo "" > $resultFile
 
-    local title=$2
-    local bodyText=$3
-    local menuArgs=${4}
+    local title=$1
+    local bodyText=$2
+    local menuArgs=${3}
 
     local app=""
     local returnValue=
@@ -22,11 +24,11 @@ functionsStartUi_menuSelect () {
     done
 
 
-    dialog --colors --title "\Z1\Zb$title " --default-item "$defaultValue" --menu "\Z1$app\nSelect a $bodyText " 0 0 0 "${args[@]}" 2> $resultFile
+    results=$(dialog --colors --title "\Z1\Zb$title " --default-item "$defaultValue" --menu "\Z1$app\nSelect a $bodyText " 0 0 0 "${args[@]}")
     returnValue=$?
 
     app="Please try again "
-    functionsCommon_log "INFO" "$title"
-    functionsCommon_log "WARN" "$(cat $resultFile)"
+    com_log "INFO" "$title"
+    com_log "WARN" "$results"
     return $returnValue
 }
