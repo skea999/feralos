@@ -1,7 +1,8 @@
-#!/bin/sh
+#!/bin/bash
 
+#source ./others/common/backupRestoreIFS.sh
 #it works now, need to be integrated
-functionsCommon_backupRestoreIFS () {
+com_backupRestoreIFS () {
     local savedIfs=$IFS
     local commandToRun=$1
     IFS=$'\n'
