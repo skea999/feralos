@@ -262,7 +262,7 @@ rc-update add killprocs shutdown
 rc-update add savecache shutdown
 
 ##############add packages##########
-apk add doas musl-locales lang tzdata kbd-bkeymaps grub-efi efibootmgr cryptsetup util-linux linux-lts btrfs-progs zstd uutils uutils-coreutils uutils-coreutils-hostname uutils-coreutils-more uutils-coreutils-stat grep findutils pciutils usbutils plasma-desktop-meta eudev udev-init-scripts dbus dbus-x11 kde-applications sddm flatpak cronie
+apk add doas musl-locales lang tzdata kbd-bkeymaps grub-efi efibootmgr cryptsetup util-linux linux-lts btrfs-progs zstd uutils uutils-coreutils uutils-coreutils-hostname uutils-coreutils-more uutils-coreutils-stat grep findutils pciutils usbutils plasma-desktop-meta eudev udev-init-scripts dbus dbus-x11 kde-applications sddm flatpak cronie chrony
 ####################################
 
 rc-update add udev sysinit
@@ -273,6 +273,9 @@ rc-update add dbus default
 rc-update add sddm default
 
 rc-update add cronie default
+rc-update add chronyd default
+
+
 
 echo "permit persist :wheel" > /etc/doas.d/doas.conf
 
