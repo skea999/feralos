@@ -47,4 +47,9 @@ cryptsetup luksFormat --type luks2 ${disk}3
 cryptsetup luksOpen ${disk}2 luks-$(blkid -o value -s UUID ${disk}2)
 cryptsetup luksOpen ${disk}3 luks-$(blkid -o value -s UUID ${disk}3)
 
+mkfs.vfat -F 32 ${disk}1
+fatlabel ${disk}1 EFI
+
+mkfs.ext4 -L grub /dev/mapper/luks-$(blkid -o value -s UUID ${disk}2)
+mkfs.btrfs -L root /dev/mapper/luks-$(blkid -o value -s UUID ${disk}3)
 
