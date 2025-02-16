@@ -374,6 +374,14 @@ echo fbcon >> /etc/modules
 echo tun >> /etc/modules
 echo "tun" >> /etc/modules-load.d/tun.conf
 
+ #echo "session optional pam_cgfs.so -c freezer,memory,name=systemd,unified" >> /etc/pam.d/system-login #?
+ #echo "lxc.idmap = u 0 100000 65536" >> /etc/incus/default.conf
+ #echo "lxc.idmap = g 0 100000 65536" >> /etc/incus/default.conf
+ #echo "systemd_container=yes" >>/etc/conf.d/incusd 
+ echo "root:100000:65536" >> /etc/subuid
+ echo "root:100000:65536" >> /etc/subgid
+
+
 #final staps
 mkinitfs -c /mnt/etc/mkinitfs/mkinitfs.conf -b /mnt/ $(ls /mnt/lib/modules/)
 grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=Alpine --recheck
