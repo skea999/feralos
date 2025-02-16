@@ -388,9 +388,16 @@ echo "export EDITOR=micro" >> /etc/profile
 chsh root -s /bin/zsh
 chsh ske -s /bin/zsh
 
+echo "* hard nofile 100000" >> /etc/security/limits.conf
+echo "* soft nofile 100000" >> /etc/security/limits.conf
+echo "root hard nofile 100000" >> /etc/security/limits.conf
+echo "root soft nofile 100000" >> /etc/security/limits.conf
+echo "ske hard nofile 524288" >> /etc/security/limits.conf
+echo "ske soft nofile 524288" >> /etc/security/limits.conf
+
 apk update
 apk upgrade
 
 #final staps
-mkinitfs -c /mnt/etc/mkinitfs/mkinitfs.conf -b /mnt/ $(ls /mnt/lib/modules/)
+mkinitfs -c /etc/mkinitfs/mkinitfs.conf -b / $(ls /lib/modules/)
 grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=Alpine --recheck
