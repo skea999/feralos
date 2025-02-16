@@ -262,7 +262,7 @@ rc-update add killprocs shutdown
 rc-update add savecache shutdown
 
 ##############add packages##########
-apk add doas musl-locales lang tzdata kbd-bkeymaps grub-efi efibootmgr cryptsetup linux-lts btrfs-progs zstd uutils uutils-coreutils uutils-coreutils-hostname uutils-coreutils-stat grep findutils pciutils usbutils plasma-desktop-meta eudev udev-init-scripts dbus dbus-x11 kde-applications sddm flatpak cronie chrony networkmanager networkmanager-cli networkmanager-tui networkmanager-wifi wpa_supplicant pipewire wireplumber bluez networkmanager-bluetooth pulseaudio-bluez samba amd-ucode mesa mesa-utils mesa-dri-gallium mesa-va-gallium mesa-vdpau-gallium xf86-video-amdgpu vulkan-loader vulkan-tools cups cups-filters libvirt-daemon qemu-img qemu-system-x86_64 qemu-modules virt-manager font-terminus incus incus-vm 
+apk add micro doas musl-locales lang tzdata kbd-bkeymaps grub-efi efibootmgr cryptsetup linux-lts btrfs-progs zstd uutils uutils-coreutils uutils-coreutils-hostname uutils-coreutils-stat grep findutils pciutils usbutils plasma-desktop-meta eudev udev-init-scripts dbus dbus-x11 kde-applications sddm flatpak cronie chrony networkmanager networkmanager-cli networkmanager-tui networkmanager-wifi wpa_supplicant pipewire wireplumber bluez networkmanager-bluetooth pulseaudio-bluez samba amd-ucode mesa mesa-utils mesa-dri-gallium mesa-va-gallium mesa-vdpau-gallium xf86-video-amdgpu vulkan-loader vulkan-tools cups cups-filters libvirt-daemon qemu-img qemu-system-x86_64 qemu-modules virt-manager font-terminus incus incus-vm 
 ####################################
 
 rc-update add udev sysinit
@@ -380,6 +380,10 @@ echo "tun" >> /etc/modules-load.d/tun.conf
  #echo "systemd_container=yes" >>/etc/conf.d/incusd 
  echo "root:100000:65536" >> /etc/subuid
  echo "root:100000:65536" >> /etc/subgid
+
+echo "alias ll=\'ls -lah\'" >> /etc/profile
+echo "alias nano=micro" >> /etc/profile
+echo "export EDITOR=micro" >> /etc/profile
 
 
 #final staps
