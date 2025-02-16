@@ -262,7 +262,7 @@ rc-update add killprocs shutdown
 rc-update add savecache shutdown
 
 ##############add packages##########
-apk add doas musl-locales lang tzdata kbd-bkeymaps grub-efi efibootmgr cryptsetup 
+apk add doas musl-locales lang tzdata kbd-bkeymaps grub-efi efibootmgr cryptsetup util-linux linux-lts
 ####################################
 
 echo "permit persist :wheel" > /etc/doas.d/doas.conf
@@ -301,6 +301,24 @@ cryptsetup luksAddKey ${disk}3 /etc/volume.key
 nano /etc/mkinitfs/mkinitfs.conf
 #add "ide scsi usb virtio ext4 btrfs nvme keymap cryptsetup cryptkey resume" like features="ata base cdrom usb virtio ext4 btrfs keymap kms mmc nvme cryptsetup cryptkey resume" be carefull order is important
 
+#echo "luks-$(blkid -o value -s UUID ${disk}3)   UUID=$(blkid -o value -s UUID ${disk}3)   /etc/volume.key   luks" >> /etc/crypttab
+#echo "luks-$(blkid -o value -s UUID ${disk}2)   UUID=$(blkid -o value -s UUID ${disk}2)   /etc/volume.key   luks" >> /etc/crypttab
+
+echo "target=luks-$(blkid -o value -s UUID ${disk}2)" >> /etc/conf.d/dmcrypt
+echo "source=\"${disk}2\"" >> /etc/conf.d/dmcrypt
+echo "key=\"/etc/volume.key\"" >> /etc/conf.d/dmcrypt
+
+echo "target=luks-$(blkid -o value -s UUID ${disk}3)" >> /etc/conf.d/dmcrypt
+echo "source=\"${disk}3\"" >> /etc/conf.d/dmcrypt
+echo "key=\"/etc/volume.key\"" >> /etc/conf.d/dmcrypt
+
+rc-update add dmcrypt boot
+
+#apk add linux-firmware-none 
+#dmesg | grep firmware
+#and than install needed firmware
 
 
+#final staps
 mkinitfs -c /mnt/etc/mkinitfs/mkinitfs.conf -b /mnt/ $(ls /mnt/lib/modules/)
+grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=Alpine --recheck
