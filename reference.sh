@@ -204,7 +204,7 @@ curl -LO ${mirror}/latest-stable/main/${arch}/apk-tools-static-${version}.apk
 tar -xzf apk-tools-static-*.apk
 ./sbin/apk.static -X ${mirror}/latest-stable/main -U --allow-untrusted -p ${chroot_dir} --initdb add alpine-base
 
-echo "8.8.8.8" > ${chroot_dir}/etc/resolv.conf
+echo "nameserver 8.8.8.8" > ${chroot_dir}/etc/resolv.conf
 
 mkdir -p ${chroot_dir}/etc/apk
 echo "${mirror}/${branch}/main" > ${chroot_dir}/etc/apk/repositories
@@ -228,3 +228,20 @@ rc-update add syslog boot
 rc-update add mount-ro shutdown
 rc-update add killprocs shutdown
 rc-update add savecache shutdown
+
+##############add packages##########
+apk add doas musl-locales lang tzdata
+####################################
+
+echo "permit persist :wheel" > /etc/doas.d/doas.conf
+
+echo "ske-nb" > /etc/hostname
+
+#locale -a
+cp /etc/profile.d/20locale.sh /etc/profile.d/20locale.sh.sh
+echo "export CHARSET=it_IT.UTF-8" > /etc/profile.d/20locale.sh.sh
+echo "export LANG=it_IT.UTF-8" >> /etc/profile.d/20locale.sh.sh
+echo "LC_COLLATE=it_IT.UTF-8" >> /etc/profile.d/20locale.sh.sh
+
+ln -s /usr/share/zoneinfo/Europe/Rome /etc/localtime
+
