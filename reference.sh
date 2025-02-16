@@ -318,6 +318,25 @@ rc-update add dmcrypt boot
 #dmesg | grep firmware
 #and than install needed firmware
 
+adduser ske
+
+adduser ske ske
+addgroup wheel
+adduser ske wheel
+addgroup lp
+adduser ske lp
+addgroup input
+adduser ske input
+addgroup cdrom
+adduser ske cdrom
+addgroup dialout
+adduser ske dialout
+addgroup video
+adduser ske video
+addgroup netdev
+adduser ske netdev
+addgroup users
+adduser ske users
 
 #final staps
 mkinitfs -c /mnt/etc/mkinitfs/mkinitfs.conf -b /mnt/ $(ls /mnt/lib/modules/)
