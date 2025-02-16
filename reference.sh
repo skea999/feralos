@@ -262,7 +262,7 @@ rc-update add killprocs shutdown
 rc-update add savecache shutdown
 
 ##############add packages##########
-apk add doas musl-locales lang tzdata kbd-bkeymaps grub-efi efibootmgr cryptsetup util-linux linux-lts btrfs-progs zstd uutils uutils-coreutils uutils-coreutils-hostname uutils-coreutils-more uutils-coreutils-stat grep findutils pciutils usbutils plasma-desktop-meta eudev udev-init-scripts dbus dbus-x11 kde-applications sddm flatpak cronie chrony networkmanager networkmanager-cli networkmanager-tui networkmanager-wifi wpa_supplicant pipewire wireplumber bluez networkmanager-bluetooth pulseaudio-bluez samba amd-ucode mesa mesa-utils mesa-dri-gallium mesa-va-gallium mesa-vdpau-gallium xf86-video-amdgpu vulkan-loader vulkan-tools cups cups-filters
+apk add doas musl-locales lang tzdata kbd-bkeymaps grub-efi efibootmgr cryptsetup util-linux linux-lts btrfs-progs zstd uutils uutils-coreutils uutils-coreutils-hostname uutils-coreutils-more uutils-coreutils-stat grep findutils pciutils usbutils plasma-desktop-meta eudev udev-init-scripts dbus dbus-x11 kde-applications sddm flatpak cronie chrony networkmanager networkmanager-cli networkmanager-tui networkmanager-wifi wpa_supplicant pipewire wireplumber bluez networkmanager-bluetooth pulseaudio-bluez samba amd-ucode mesa mesa-utils mesa-dri-gallium mesa-va-gallium mesa-vdpau-gallium xf86-video-amdgpu vulkan-loader vulkan-tools cups cups-filters libvirt-daemon qemu-img qemu-system-x86_64 qemu-modules virt-manager font-terminus
 ####################################
 
 rc-update add udev sysinit
@@ -279,7 +279,7 @@ rc-update add networkmanager default
 rc-update add bluetooth default
 rc-update add cupsd default
 
-
+rc-update add libvirtd default 
 
 echo "permit persist :wheel" > /etc/doas.d/doas.conf
 
@@ -355,7 +355,8 @@ addgroup plugdev
 adduser ske plugdev
 addgroup users
 adduser ske users
-
+addgroup libvirt
+adduser ske libvirt
 
 chattr +C /swapfile
 truncate -s 0 /swapfile/swapfile
@@ -367,7 +368,8 @@ mkswap /swapfile/swapfile
 
 echo amdgpu >> /etc/modules
 echo fbcon >> /etc/modules
-
+echo tun >> /etc/modules
+echo "tun" >> /etc/modules-load.d/tun.conf
 
 #final staps
 mkinitfs -c /mnt/etc/mkinitfs/mkinitfs.conf -b /mnt/ $(ls /mnt/lib/modules/)
