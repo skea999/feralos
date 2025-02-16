@@ -262,7 +262,7 @@ rc-update add killprocs shutdown
 rc-update add savecache shutdown
 
 ##############add packages##########
-apk add doas musl-locales lang tzdata kbd-bkeymaps grub-efi efibootmgr cryptsetup util-linux linux-lts
+apk add doas musl-locales lang tzdata kbd-bkeymaps grub-efi efibootmgr cryptsetup util-linux linux-lts btrfs-progs zstd
 ####################################
 
 echo "permit persist :wheel" > /etc/doas.d/doas.conf
@@ -337,6 +337,16 @@ addgroup netdev
 adduser ske netdev
 addgroup users
 adduser ske users
+
+
+chattr +C /swapfile
+truncate -s 0 /swapfile/swapfile
+fallocate -l 2G /swapfile/swapfile
+btrfs property set /swapfile compression none
+chmod 600 /swapfile/swapfile
+mkswap /swapfile/swapfile
+
+
 
 #final staps
 mkinitfs -c /mnt/etc/mkinitfs/mkinitfs.conf -b /mnt/ $(ls /mnt/lib/modules/)
