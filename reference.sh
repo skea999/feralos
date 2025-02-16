@@ -210,6 +210,32 @@ mkdir -p ${chroot_dir}/etc/apk
 echo "${mirror}/${branch}/main" > ${chroot_dir}/etc/apk/repositories
 echo "${mirror}/${branch}/community" >> ${chroot_dir}/etc/apk/repositories
 
+echo "/dev/mapper/luks-$(blkid -o value -s UUID ${disk}2)     /                       btrfs    compress=zstd:3,autodefrag,ssd,subvol=@                                       0       1 " > ${chroot_dir}/etc/fstab
+echo "/dev/mapper/luks-$(blkid -o value -s UUID ${disk}2)     /swapfile               btrfs    compress=no,autodefrag,ssd,nodatacow,subvol=@swapfile                         0       0 " >> ${chroot_dir}/etc/fstab
+echo "/dev/mapper/luks-$(blkid -o value -s UUID ${disk}2)     /home                   btrfs    compress=zstd:3,autodefrag,ssd,subvol=@home                                   0       0 " >> ${chroot_dir}/etc/fstab
+echo "/dev/mapper/luks-$(blkid -o value -s UUID ${disk}2)     /opt                    btrfs    compress=zstd:3,autodefrag,ssd,subvol=@opt                                    0       0 " >> ${chroot_dir}/etc/fstab
+echo "/dev/mapper/luks-$(blkid -o value -s UUID ${disk}2)     /root                   btrfs    compress=zstd:3,autodefrag,ssd,subvol=@root                                   0       0 " >> ${chroot_dir}/etc/fstab
+echo "/dev/mapper/luks-$(blkid -o value -s UUID ${disk}2)     /srv                    btrfs    compress=no,autodefrag,ssd,nodev,noexec,nosuid,nodatacow,subvol=@srv          0       0 " >> ${chroot_dir}/etc/fstab
+echo "/dev/mapper/luks-$(blkid -o value -s UUID ${disk}2)     /tmp                    btrfs    compress=zstd:3,autodefrag,ssd,noexec,nosuid,subvol=@tmp                      0       0 " >> ${chroot_dir}/etc/fstab
+echo "/dev/mapper/luks-$(blkid -o value -s UUID ${disk}2)     /var                    btrfs    compress=zstd:3,autodefrag,ssd,subvol=@var                                    0       0 " >> ${chroot_dir}/etc/fstab
+echo "/dev/mapper/luks-$(blkid -o value -s UUID ${disk}2)     /var/lib/ex             btrfs    compress=no,autodefrag,ssd,nodev,noexec,nosuid,nodatacow,subvol=@var-lib-ex   0       0 " >> ${chroot_dir}/etc/fstab
+echo "/dev/mapper/luks-$(blkid -o value -s UUID ${disk}2)     /var/lib/flatpak        btrfs    compress=zstd:3,autodefrag,ssd,subvol=@var-lib-flatpak                        0       0 " >> ${chroot_dir}/etc/fstab
+echo "/dev/mapper/luks-$(blkid -o value -s UUID ${disk}2)     /var/lib/libvirt        btrfs    compress=zstd:3,autodefrag,ssd,subvol=@var-lib-libvirt                        0       0 " >> ${chroot_dir}/etc/fstab
+echo "/dev/mapper/luks-$(blkid -o value -s UUID ${disk}2)     /var/lib/lxd            btrfs    compress=zstd:3,autodefrag,ssd,subvol=@var-lib-lxd                            0       0 " >> ${chroot_dir}/etc/fstab
+echo "/dev/mapper/luks-$(blkid -o value -s UUID ${disk}2)     /var/lib/containerd     btrfs    compress=zstd:3,autodefrag,ssd,subvol=@var-lib-containerd                     0       0 " >> ${chroot_dir}/etc/fstab
+echo "/dev/mapper/luks-$(blkid -o value -s UUID ${disk}2)     /var/lib/docker         btrfs    compress=zstd:3,autodefrag,ssd,subvol=@var-lib-docker                         0       0 " >> ${chroot_dir}/etc/fstab
+echo "/dev/mapper/luks-$(blkid -o value -s UUID ${disk}2)     /var/lib/podman         btrfs    compress=zstd:3,autodefrag,ssd,subvol=@var-lib-podman                         0       0 " >> ${chroot_dir}/etc/fstab
+echo "/dev/mapper/luks-$(blkid -o value -s UUID ${disk}2)     /var/cache              btrfs    compress=zstd:3,autodefrag,ssd,subvol=@var-cache                              0       0 " >> ${chroot_dir}/etc/fstab
+echo "/dev/mapper/luks-$(blkid -o value -s UUID ${disk}2)     /var/log                btrfs    compress=no,autodefrag,ssd,nodev,noexec,nosuid,nodatacow,subvol=@var-log      0       0 " >> ${chroot_dir}/etc/fstab
+echo "/dev/mapper/luks-$(blkid -o value -s UUID ${disk}2)     /var/opt                btrfs    compress=zstd:3,autodefrag,ssd,subvol=@var-opt                                0       0 " >> ${chroot_dir}/etc/fstab
+echo "/dev/mapper/luks-$(blkid -o value -s UUID ${disk}2)     /var/spool              btrfs    compress=no,autodefrag,ssd,nodev,noexec,nosuid,nodatacow,subvol=@var-spool    0       0 " >> ${chroot_dir}/etc/fstab
+echo "/dev/mapper/luks-$(blkid -o value -s UUID ${disk}2)     /var/tmp                btrfs    compress=no,autodefrag,ssd,nodev,noexec,nosuid,nodatacow,subvol=@var-tmp      0       0 " >> ${chroot_dir}/etc/fstab
+echo "/dev/mapper/luks-$(blkid -o value -s UUID ${disk}2)     /usr/local              btrfs    compress=zstd:3,autodefrag,ssd,subvol=@usr-local                              0       0 " >> ${chroot_dir}/etc/fstab
+echo "/dev/mapper/luks-$(blkid -o value -s UUID ${disk}2)     /boot                   ext4     defaults                                                                      0       0 " >> ${chroot_dir}/etc/fstab
+echo "UUID=$(blkid -o value -s UUID ${disk}1)                                            /boot/efi               vfat     defaults                                                                      0       0 " >> ${chroot_dir}/etc/fstab
+echo "#tmpfs                                                   /tmp                    tmpfs    defaults,nosuid,nodev                                                        0       0" >> ${chroot_dir}/etc/fstab
+echo "/swapfile/swapfile                                       none                    swap     defaults                                                                      0       0 " >> ${chroot_dir}/etc/fstab
+
 chroot ${chroot_dir} /bin/ash -l
 
 #########################Continue in chroot###############
@@ -236,6 +262,9 @@ apk add doas musl-locales lang tzdata kbd-bkeymaps
 echo "permit persist :wheel" > /etc/doas.d/doas.conf
 
 echo "ske-nb" > /etc/hostname
+echo "127.0.0.1 ske-nb ske-nb.localdomain" >> /etc/hosts
+echo "::1 ske-nb ske-nb.localdomain" >> /etc/hosts
+
 
 #locale -a
 cp /etc/profile.d/20locale.sh /etc/profile.d/20locale.sh.sh
@@ -246,7 +275,7 @@ echo "LC_COLLATE=it_IT.UTF-8" >> /etc/profile.d/20locale.sh.sh
 ln -s /usr/share/zoneinfo/Europe/Rome /etc/localtime
 
 echo "KEYMAP=\"/usr/share/bkeymaps/it/it.bmap.gz\"" >> /etc/conf.d/loadkmap
-rc-update add loadkmap default
+rc-update add loadkmap default #don't know if it is better to start thin on other runlevels
 
 
 
