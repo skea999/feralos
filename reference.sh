@@ -206,3 +206,25 @@ tar -xzf apk-tools-static-*.apk
 
 echo "8.8.8.8" > ${chroot_dir}/etc/resolv.conf
 
+mkdir -p ${chroot_dir}/etc/apk
+echo "${mirror}/${branch}/main" > ${chroot_dir}/etc/apk/repositories
+echo "${mirror}/${branch}/community" >> ${chroot_dir}/etc/apk/repositories
+
+chroot ${chroot_dir} /bin/ash -l
+
+#########################Continue in chroot###############
+
+rc-update add devfs sysinit
+rc-update add dmesg sysinit
+rc-update add mdev sysinit
+
+rc-update add hwclock boot
+rc-update add modules boot
+rc-update add sysctl boot
+rc-update add hostname boot
+rc-update add bootmisc boot
+rc-update add syslog boot
+
+rc-update add mount-ro shutdown
+rc-update add killprocs shutdown
+rc-update add savecache shutdown
