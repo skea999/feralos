@@ -230,7 +230,7 @@ rc-update add killprocs shutdown
 rc-update add savecache shutdown
 
 ##############add packages##########
-apk add doas musl-locales lang tzdata
+apk add doas musl-locales lang tzdata kbd-bkeymaps 
 ####################################
 
 echo "permit persist :wheel" > /etc/doas.d/doas.conf
@@ -244,4 +244,9 @@ echo "export LANG=it_IT.UTF-8" >> /etc/profile.d/20locale.sh.sh
 echo "LC_COLLATE=it_IT.UTF-8" >> /etc/profile.d/20locale.sh.sh
 
 ln -s /usr/share/zoneinfo/Europe/Rome /etc/localtime
+
+echo "KEYMAP=\"/usr/share/bkeymaps/it/it.bmap.gz\"" >> /etc/conf.d/loadkmap
+rc-update add loadkmap default
+
+
 
