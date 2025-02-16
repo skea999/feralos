@@ -262,7 +262,7 @@ rc-update add killprocs shutdown
 rc-update add savecache shutdown
 
 ##############add packages##########
-apk add doas musl-locales lang tzdata kbd-bkeymaps grub-efi efibootmgr cryptsetup util-linux linux-lts btrfs-progs zstd uutils uutils-coreutils uutils-coreutils-hostname uutils-coreutils-more uutils-coreutils-stat grep findutils pciutils usbutils plasma-desktop-meta eudev udev-init-scripts dbus dbus-x11 kde-applications sddm flatpak cronie chrony networkmanager networkmanager-cli networkmanager-tui networkmanager-wifi 
+apk add doas musl-locales lang tzdata kbd-bkeymaps grub-efi efibootmgr cryptsetup util-linux linux-lts btrfs-progs zstd uutils uutils-coreutils uutils-coreutils-hostname uutils-coreutils-more uutils-coreutils-stat grep findutils pciutils usbutils plasma-desktop-meta eudev udev-init-scripts dbus dbus-x11 kde-applications sddm flatpak cronie chrony networkmanager networkmanager-cli networkmanager-tui networkmanager-wifi wpa_supplicant samba amd-ucode mesa mesa-utils mesa-dri-gallium mesa-va-gallium xf86-video-amdgpu vulkan-loader vulkan-tools 
 ####################################
 
 rc-update add udev sysinit
@@ -360,6 +360,9 @@ btrfs property set /swapfile compression none
 chmod 600 /swapfile/swapfile
 mkswap /swapfile/swapfile
 
+
+echo amdgpu >> /etc/modules
+echo fbcon >> /etc/modules
 
 
 #final staps
