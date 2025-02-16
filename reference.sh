@@ -183,3 +183,10 @@ mount -t btrfs -o compress=zstd:3,autodefrag,ssd,subvol=@usr-local /dev/mapper/l
 
 
 
+mkdir /mnt/boot
+mount /dev/mapper/luks-$(blkid -o value -s UUID ${disk}2) /mnt/boot
+
+mkdir /mnt/boot/efi
+mount ${disk}1 /mnt/boot/efi
+
+
