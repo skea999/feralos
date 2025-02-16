@@ -256,7 +256,7 @@ rc-update add killprocs shutdown
 rc-update add savecache shutdown
 
 ##############add packages##########
-apk add doas musl-locales lang tzdata kbd-bkeymaps 
+apk add doas musl-locales lang tzdata kbd-bkeymaps grub-efi efibootmgr 
 ####################################
 
 echo "permit persist :wheel" > /etc/doas.d/doas.conf
@@ -277,5 +277,8 @@ ln -s /usr/share/zoneinfo/Europe/Rome /etc/localtime
 echo "KEYMAP=\"/usr/share/bkeymaps/it/it.bmap.gz\"" >> /etc/conf.d/loadkmap
 rc-update add loadkmap default #don't know if it is better to start thin on other runlevels
 
+echo "GRUB_DISABLE_OS_PROBER=false" >> /etc/default/grub
+echo "GRUB_ENABLE_CRYPTODISK=y" >> /etc/default/grub
+echo "GRUB_CMDLINE_LINUX_DEFAULT=\"loglevel=0 \"" /etc/default/grub #############
 
 
