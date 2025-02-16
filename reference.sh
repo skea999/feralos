@@ -255,6 +255,8 @@ rc-update add hostname boot
 rc-update add bootmisc boot
 rc-update add syslog boot
 
+rc-update add swap default
+
 rc-update add mount-ro shutdown
 rc-update add killprocs shutdown
 rc-update add savecache shutdown
@@ -283,7 +285,8 @@ rc-update add loadkmap default #don't know if it is better to start thin on othe
 
 echo "GRUB_DISABLE_OS_PROBER=false" >> /etc/default/grub
 echo "GRUB_ENABLE_CRYPTODISK=y" >> /etc/default/grub
-echo "GRUB_CMDLINE_LINUX_DEFAULT=\"loglevel=0 quiet rootfstype=btrfs modules=sd-mod,usb-storage,btrfs \"" /etc/default/grub #############
+echo "GRUB_CMDLINE_LINUX_DEFAULT=\"loglevel=0 quiet modules=sd-mod,usb-storage,ext4,btrfs,nvme cryptroot=UUID=$(blkid -o value -s UUID ${disk}3) cryptkey rootfstype=btrfs \"" >> /etc/default/grub #############
+echo "GRUB_PRELOAD_MODULES=\"luks cryptodisk part_gpt \""  >> /etc/default/grub 
 
 dd bs=1 count=64 if=/dev/urandom of=/etc/volume.key
 chmod 000 /etc/volume.key
@@ -294,3 +297,10 @@ cryptsetup luksAddKey ${disk}2 /etc/volume.key
 cryptsetup luksAddKey ${disk}3 /etc/volume.key
 
 
+##### this is not automatic### reference https://wiki.alpinelinux.org/wiki/Full_disk_encryption_secure_boot
+nano /etc/mkinitfs/mkinitfs.conf
+#add "ide scsi usb virtio ext4 btrfs nvme keymap cryptsetup cryptkey resume" like features="ata base cdrom usb virtio ext4 btrfs keymap kms mmc nvme cryptsetup cryptkey resume" be carefull order is important
+
+
+
+mkinitfs -c /mnt/etc/mkinitfs/mkinitfs.conf -b /mnt/ $(ls /mnt/lib/modules/)
