@@ -239,6 +239,10 @@ echo "/swapfile/swapfile                                       none             
 chroot ${chroot_dir} /bin/ash -l
 
 #########################Continue in chroot###############
+#to pass automatically from previous choices
+disk=/dev/vda
+
+##############
 
 rc-update add devfs sysinit
 rc-update add dmesg sysinit
@@ -256,7 +260,7 @@ rc-update add killprocs shutdown
 rc-update add savecache shutdown
 
 ##############add packages##########
-apk add doas musl-locales lang tzdata kbd-bkeymaps grub-efi efibootmgr 
+apk add doas musl-locales lang tzdata kbd-bkeymaps grub-efi efibootmgr cryptsetup 
 ####################################
 
 echo "permit persist :wheel" > /etc/doas.d/doas.conf
@@ -279,6 +283,14 @@ rc-update add loadkmap default #don't know if it is better to start thin on othe
 
 echo "GRUB_DISABLE_OS_PROBER=false" >> /etc/default/grub
 echo "GRUB_ENABLE_CRYPTODISK=y" >> /etc/default/grub
-echo "GRUB_CMDLINE_LINUX_DEFAULT=\"loglevel=0 \"" /etc/default/grub #############
+echo "GRUB_CMDLINE_LINUX_DEFAULT=\"loglevel=0 quiet rootfstype=btrfs modules=sd-mod,usb-storage,btrfs \"" /etc/default/grub #############
+
+dd bs=1 count=64 if=/dev/urandom of=/etc/volume.key
+chmod 000 /etc/volume.key
+chmod -R g-rwx,o-rwx /boot
+chmod -R g-rwx,o-rwx /etc/volume.key
+
+cryptsetup luksAddKey ${disk}2 /etc/volume.key
+cryptsetup luksAddKey ${disk}3 /etc/volume.key
 
 
