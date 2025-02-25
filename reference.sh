@@ -360,6 +360,8 @@ addgroup users
 adduser ske users
 addgroup libvirt
 adduser ske libvirt
+addgroup qemu
+adduser ske qemu
 
 chattr +C /swapfile
 truncate -s 0 /swapfile/swapfile
