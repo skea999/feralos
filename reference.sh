@@ -404,3 +404,9 @@ apk upgrade
 grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=Alpine --recheck
 mkinitfs -c /etc/mkinitfs/mkinitfs.conf -b / $(ls /lib/modules/)
 grub-mkconfig -o /boot/grub/grub.cfg
+
+exit
+
+umount -R /mnt
+
+reboot
