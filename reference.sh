@@ -15,6 +15,9 @@ version=2.14.6-r3
 disk=/dev/vda
 
 fdisk $disk
+
+###############################################################################
+
 g# create new GPT partition
 n# add new partition
 1# partition number
@@ -39,13 +42,23 @@ t# change partition type
 20# Linux filesystem
 w# write partition table and exit
 
-
+###############################################################################
 
 cryptsetup luksFormat --type luks1 ${disk}2
+
+###############################################################################
+
 cryptsetup luksFormat --type luks2 ${disk}3
 
+###############################################################################
+
 cryptsetup luksOpen ${disk}2 luks-$(blkid -o value -s UUID ${disk}2)
+
+###############################################################################
+
 cryptsetup luksOpen ${disk}3 luks-$(blkid -o value -s UUID ${disk}3)
+
+###############################################################################
 
 mkfs.vfat -F 32 ${disk}1
 fatlabel ${disk}1 EFI
@@ -204,6 +217,8 @@ curl -LO ${mirror}/latest-stable/main/${arch}/apk-tools-static-${version}.apk
 tar -xzf apk-tools-static-*.apk
 ./sbin/apk.static -X ${mirror}/latest-stable/main -U --allow-untrusted -p ${chroot_dir} --initdb add alpine-base
 
+###############################################################################
+
 echo "nameserver 8.8.8.8" > ${chroot_dir}/etc/resolv.conf
 
 mkdir -p ${chroot_dir}/etc/apk
@@ -238,6 +253,8 @@ echo "/swapfile/swapfile                                       none             
 
 chroot ${chroot_dir} /bin/ash -l
 
+###############################################################################
+
 #########################Continue in chroot###############
 #to pass automatically from previous choices
 disk=/dev/vda
@@ -264,6 +281,8 @@ rc-update add savecache shutdown
 ##############add packages##########
 apk add micro doas musl-locales lang tzdata kbd-bkeymaps grub-efi efibootmgr cryptsetup linux-lts btrfs-progs zstd uutils uutils-coreutils uutils-coreutils-hostname uutils-coreutils-stat grep findutils pciutils usbutils plasma-desktop-meta eudev udev-init-scripts dbus dbus-x11 kde-applications sddm flatpak cronie chrony networkmanager networkmanager-cli networkmanager-tui networkmanager-wifi wpa_supplicant pipewire wireplumber bluez networkmanager-bluetooth pulseaudio-bluez samba amd-ucode mesa mesa-utils mesa-dri-gallium mesa-va-gallium mesa-vdpau-gallium xf86-video-amdgpu vulkan-loader vulkan-tools cups cups-filters libvirt-daemon qemu-img qemu-system-x86_64 qemu-modules virt-manager font-terminus incus incus-vm zsh zsh-completions
 ####################################
+
+###############################################################################
 
 rc-update add udev sysinit
 rc-update add udev-trigger sysinit
@@ -308,17 +327,26 @@ echo "GRUB_CMDLINE_LINUX_DEFAULT=\"loglevel=0 quiet modules=sd-mod,usb-storage,e
 echo "GRUB_PRELOAD_MODULES=\"luks cryptodisk part_gpt \""  >> /etc/default/grub 
 
 dd bs=1 count=64 if=/dev/urandom of=/etc/volume.key
+
+###############################################################################
+
 chmod 000 /etc/volume.key
 chmod -R g-rwx,o-rwx /boot
 chmod -R g-rwx,o-rwx /etc/volume.key
 
 cryptsetup luksAddKey ${disk}2 /etc/volume.key
+
+###############################################################################
+
 cryptsetup luksAddKey ${disk}3 /etc/volume.key
 
+###############################################################################
 
 ##### this is not automatic### reference https://wiki.alpinelinux.org/wiki/Full_disk_encryption_secure_boot
 nano /etc/mkinitfs/mkinitfs.conf
 #add "ide scsi usb virtio ext4 btrfs nvme keymap cryptsetup cryptkey resume" like features="ata base cdrom usb virtio ext4 btrfs keymap kms mmc nvme cryptsetup cryptkey resume" be carefull order is important
+
+###############################################################################
 
 #echo "luks-$(blkid -o value -s UUID ${disk}3)   UUID=$(blkid -o value -s UUID ${disk}3)   /etc/volume.key   luks" >> /etc/crypttab
 #echo "luks-$(blkid -o value -s UUID ${disk}2)   UUID=$(blkid -o value -s UUID ${disk}2)   /etc/volume.key   luks" >> /etc/crypttab
@@ -338,6 +366,8 @@ rc-update add dmcrypt boot
 #and than install needed firmware
 
 adduser ske
+
+###############################################################################
 
 adduser ske ske
 addgroup wheel
@@ -398,7 +428,12 @@ echo "ske hard nofile 524288" >> /etc/security/limits.conf
 echo "ske soft nofile 524288" >> /etc/security/limits.conf
 
 apk update
+
+###############################################################################
+
 apk upgrade
+
+###############################################################################
 
 #final staps
 grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=Alpine --recheck
