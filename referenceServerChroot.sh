@@ -204,35 +204,23 @@ ${password}
 ${password}
 EOF
 
-adduser ske
-
-passwd ske << EOF
+adduser ske << EOF
 ${password}
 ${password}
 EOF
 
 adduser ske ske
-addgroup wheel
 adduser ske wheel
-addgroup lp
 adduser ske lp
-addgroup input
 adduser ske input
-addgroup cdrom
 adduser ske cdrom
-addgroup dialout
 adduser ske dialout
-addgroup video
 adduser ske video
-addgroup netdev
 adduser ske netdev
 addgroup plugdev
 adduser ske plugdev
-addgroup users
 adduser ske users
-addgroup libvirt
 adduser ske libvirt
-addgroup qemu
 adduser ske qemu
 
 echo amdgpu >> /etc/modules
@@ -275,7 +263,7 @@ apk upgrade
 
 #final staps
 echo "installing grub:"
-grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=Alpine --recheck
+grub-install --target=x86_64-efi --efi-directory=/boot/efi /dev/md0 --bootloader-id=Alpine --recheck --no-floppy
 echo "regenerating initramfs:"
 mkinitfs -c /etc/mkinitfs/mkinitfs.conf -b / $(ls /lib/modules/)
 echo "regenerating grub:"
