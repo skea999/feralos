@@ -39,34 +39,39 @@ else
 fi
 done
 
-firstPartitionSize=${disksMinSize}/4*2-512*1024*1024
-secondPartitionSize=$((${disksMinSize}/4*1))
+firstPartitionSize=$((${disksMinSize}/1024/4*2-512*1024))
+secondPartitionSize=$((${disksMinSize}/1024/4*1))
+
+echo "firstPartitionSize=${firstPartitionSize}"
+echo "secondPartitionSize=${secondPartitionSize}"
 
 for i in ${disk1} ${disk2} ; do
 
-sed -e 's/\s*\([\+0-9a-zA-Z]*\).*/\1/' << EOF  | fdisk ${i}
+echo "partitioning ${i}:"
+
+sed -e 's/\s*\([\+0-9a-zA-Z]*\).*/\1/' << EOF  | fdisk -W always ${i}
 g# create new GPT partition
 n# add new partition
 1# partition number
 # default - first sector 
 +512M# partition size
 t# change partition type
-1# partition number
 43# Linux raid
 n# add new partition
 2# partition number
 # default - first sector 
-+${firstPartitionSize}B# partition size
++${firstPartitionSize}K# partition size
 t# change partition type
 2# partition number
 43# Linux raid
 n# add new partition
 3# partition number
 # default - first sector 
-+${secondPartitionSize}B# partition size
++${secondPartitionSize}K# partition size
 t# change partition type
 3# partition number
 19# Linux swap / Solaris
+n# add new partition
 4# partition number
 # default - first sector 
 # partition size
@@ -76,31 +81,38 @@ t# change partition type
 w# write partition table and exit
 EOF
 
+echo "swap ${i}3:"
 mkswap -L swap-$(echo ${i} | cut -d'/' -f3) ${i}3
 
+echo "partition ${i}4:"
 mkfs.btrfs -L data-$(echo ${i} | cut -d'/' -f3) ${i}4
 
 done
 
 modprobe raid1
 
-mdadm --create --level=1 --metadata=1.0 --raid-devices=2 /dev/md0 ${disk1}1 ${disk2}1
+echo "making first raid:"
+mdadm --create --level=1 --metadata=1.0 --raid-devices=2 /dev/md0 ${disk1}1 ${disk2}1 --quiet
 
+echo "results first raid:"
 cat /proc/mdstat 
 
-mdadm --create --level=1 --raid-devices=2 /dev/md1 ${disk1}2 ${disk2}2
+echo "making second raid:"
+mdadm --create --level=1 --raid-devices=2 /dev/md1 ${disk1}2 ${disk2}2 --quiet
 
+echo "results second raid:"
 cat /proc/mdstat 
 
-sed -e 's/\s*\([\+0-9a-zA-Z]*\).*/\1/' << EOF  | fdisk /dev/md1
+echo "partitioning /dev/md1:"
+sed -e 's/\s*\([\+0-9a-zA-Z]*\).*/\1/' << EOF  | fdisk -W always /dev/md1
 g# create new GPT partition
 n# add new partition
 1# partition number
 # default - first sector 
 +512M# partition size
 t# change partition type
-1# partition number
 20# Linux filesystem
+n# add new partition
 2# partition number
 # default - first sector 
 # partition size
@@ -110,14 +122,17 @@ t# change partition type
 w# write partition table and exit
 EOF
 
+echo "partitionig 1 vfat /dev/md0"
 mkfs.vfat -F 32 /dev/md0
 fatlabel /dev/md0 EFI
 
+echo "partitionig btrfs /dev/md1p1"
 mkfs.btrfs -L boot /dev/md1p1
 
+echo "partitionig btrfs /dev/md1p2"
 mkfs.btrfs -L root /dev/md1p2
 
-
+echo "mounting btrfs /dev/md1p2"
 mount -o compress=zstd:3,autodefrag,ssd /dev/md1p2 ${chrootDir}
 
 btrfs subvolume create ${chrootDir}/@
