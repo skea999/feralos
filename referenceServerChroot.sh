@@ -64,13 +64,13 @@ echo 'alias mv="mv -v"' >> /etc/profile.d/alias.sh
 echo 'export EDITOR=micro' > /etc/profile.d/editor.sh
 chmod +x /etc/profile.d/editor.sh
 
+touch /etc/profile.d/console.sh
 tee /etc/profile.d/console.sh > /dev/null <<'EOF'
 COL_YEL="\[\e[1;33m\]"
 COL_GRA="\[\033[0;37m\]"
 COL_WHI="\[\033[0m\]"
 COL_GRE="\[\033[32;1m\]"
 COL_RED="\[\033[31;1m\]"
-
 
 if [ "$(whoami)" = "root" ] ; then
     _COL_USER=$COL_RED
@@ -128,6 +128,7 @@ ln -s /usr/share/zoneinfo/Europe/Rome /etc/localtime
 echo "KEYMAP=\"/usr/share/bkeymaps/it/it.bmap.gz\"" >> /etc/conf.d/loadkmap
 rc-update add loadkmap default #don't know if it is better to start thin on other runlevels
 
+touch /etc/apk/hooks/keep-old-kernel.hook
 tee /etc/apk/hooks/keep-old-kernel.hook > /dev/null <<'EOF'
 #!/bin/sh
 
@@ -159,13 +160,14 @@ EOF
 chmod +x /etc/apk/hooks/keep-old-kernel.hook
 
 
-initialGrubCmdLine=$(cat /etc/default/grub | grep "GRUB_CMDLINE_LINUX_DEFAULT=" | sed "s/GRUB_CMDLINE_LINUX_DEFAULT=//g" | sed "s/\"//g")
+# initialGrubCmdLine=$(cat /etc/default/grub | grep "GRUB_CMDLINE_LINUX_DEFAULT=" | sed "s/GRUB_CMDLINE_LINUX_DEFAULT=//g" | sed "s/\"//g")
 
-#additionalGrubCmdLineArgument=' cgroup_enable=cpuset cgroup_memory=1 cgroup_enable=memory'
-newGrubCmdLine="loglevel=0 quiet modules=sd-mod,usb-storage,btrfs,nvme rootfstype=btrfs"
+# #additionalGrubCmdLineArgument=' cgroup_enable=cpuset cgroup_memory=1 cgroup_enable=memory'
+# newGrubCmdLine="loglevel=0 quiet modules=sd-mod,usb-storage,btrfs,nvme rootfstype=btrfs"
 
-sed -i "s/${initialGrubCmdLine}/${newGrubCmdLine}/g" /etc/default/grub
+# sed -i "s/${initialGrubCmdLine}/${newGrubCmdLine}/g" /etc/default/grub
 
+echo "GRUB_CMDLINE_LINUX_DEFAULT=\"loglevel=0 quiet modules=sd-mod,usb-storage,btrfs,nvme rootfstype=btrfs\"" > /etc/default/grub
 echo "GRUB_DISABLE_OS_PROBER=false" >> /etc/default/grub
 echo "GRUB_PRELOAD_MODULES=\"part_gpt \""  >> /etc/default/grub 
 
@@ -202,7 +204,7 @@ ${password}
 ${password}
 EOF
 
-useradd -m ske
+adduser ske
 
 passwd ske << EOF
 ${password}
@@ -247,8 +249,8 @@ echo "zram" >> /etc/modules
 echo "root:100000:65536" >> /etc/subuid
 echo "root:100000:65536" >> /etc/subgid
 
-chsh root -s /bin/zsh
-chsh ske -s /bin/zsh
+# chsh root -s /bin/zsh
+# chsh ske -s /bin/zsh
 
 echo "* hard nofile 100000" >> /etc/security/limits.conf
 echo "* soft nofile 100000" >> /etc/security/limits.conf
@@ -272,8 +274,11 @@ apk update
 apk upgrade
 
 #final staps
+echo "installing grub:"
 grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=Alpine --recheck
+echo "regenerating initramfs:"
 mkinitfs -c /etc/mkinitfs/mkinitfs.conf -b / $(ls /lib/modules/)
+echo "regenerating grub:"
 grub-mkconfig -o /boot/grub/grub.cfg
 
 exit
