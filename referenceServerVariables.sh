@@ -5,7 +5,7 @@ disk1="/dev/vda"
 disk2="/dev/vdb"
 
 ############user and root passwords############
-password=hello
+password="helloAlpine3.22"
 
 
 ############common#########
