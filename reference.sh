@@ -14,10 +14,7 @@ version=2.14.6-r3
 ######### disk where to install alpine, find it with "fdsik -l"##########
 disk=/dev/vda
 
-fdisk $disk
-
-###############################################################################
-
+sed -e 's/\s*\([\+0-9a-zA-Z]*\).*/\1/' << EOF  | fdisk $disk
 g# create new GPT partition
 n# add new partition
 1# partition number
@@ -41,8 +38,7 @@ t# change partition type
 3# partition number
 20# Linux filesystem
 w# write partition table and exit
-
-###############################################################################
+EOF
 
 cryptsetup luksFormat --type luks1 ${disk}2
 
