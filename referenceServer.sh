@@ -98,7 +98,7 @@ echo "results first raid:"
 cat /proc/mdstat 
 
 echo "making second raid:"
-mdadm --create --level=1 --raid-devices=2 /dev/md1 ${disk1}2 ${disk2}2 --quiet
+mdadm --create --level=1 --raid-devices=2 /dev/md1 ${disk1}2 ${disk2}2 --quiet --force
 
 echo "results second raid:"
 cat /proc/mdstat 
@@ -306,4 +306,4 @@ rm -rf ${chrootDir}/referenceServerVariables.sh
 
 umount -R ${chrootDir}
 
-reboot
+#reboot
