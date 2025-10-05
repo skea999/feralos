@@ -92,7 +92,7 @@ done
 modprobe raid1
 
 echo "making first raid:"
-mdadm --create --level=1 --metadata=1.0 --raid-devices=2 /dev/md0 ${disk1}1 ${disk2}1 --quiet
+mdadm --create --level=1 --metadata=0.9 --raid-devices=2 /dev/md0 ${disk1}1 ${disk2}1 --quiet
 
 echo "results first raid:"
 cat /proc/mdstat 
