@@ -21,7 +21,6 @@ echo "LABEL=root     /srv                    btrfs    compress=no,autodefrag,ssd
 echo "LABEL=root     /tmp                    btrfs    compress=zstd:3,autodefrag,ssd,noexec,nosuid,subvol=@tmp                      0       0 " >> /etc/fstab
 echo "LABEL=root     /var                    btrfs    compress=zstd:3,autodefrag,ssd,subvol=@var                                    0       0 " >> /etc/fstab
 echo "LABEL=root     /var/lib/ex             btrfs    compress=no,autodefrag,ssd,nodev,noexec,nosuid,nodatacow,subvol=@var-lib-ex   0       0 " >> /etc/fstab
-echo "LABEL=root     /var/lib/flatpak        btrfs    compress=zstd:3,autodefrag,ssd,subvol=@var-lib-flatpak                        0       0 " >> /etc/fstab
 echo "LABEL=root     /var/lib/libvirt        btrfs    compress=zstd:3,autodefrag,ssd,subvol=@var-lib-libvirt                        0       0 " >> /etc/fstab
 echo "#LABEL=root     /var/lib/incus          btrfs    compress=zstd:3,autodefrag,ssd,subvol=@var-lib-incus                          0       0 " >> /etc/fstab
 echo "LABEL=root     /var/lib/containerd     btrfs    compress=zstd:3,autodefrag,ssd,subvol=@var-lib-containerd                     0       0 " >> /etc/fstab
@@ -34,7 +33,8 @@ echo "LABEL=root     /var/spool              btrfs    compress=no,autodefrag,ssd
 echo "LABEL=root     /var/tmp                btrfs    compress=no,autodefrag,ssd,nodev,noexec,nosuid,nodatacow,subvol=@var-tmp      0       0 " >> /etc/fstab
 echo "LABEL=root     /usr/local              btrfs    compress=zstd:3,autodefrag,ssd,subvol=@usr-local                              0       0 " >> /etc/fstab
 echo "LABEL=boot     /boot                   btrfs    defaults                                                                      0       0 " >> /etc/fstab
-echo "LABEL=EFI      /boot/efi               vfat     defaults                                                                      0       0 " >> /etc/fstab
+echo "LABEL=EFI$(echo ${disk1} | cut -d'/' -f3 | tr '[:lower:]' '[:upper:]')      /boot/efi               vfat     defaults                                                                      0       0 " >> /etc/fstab
+echo "LABEL=EFI$(echo ${disk2} | cut -d'/' -f3 | tr '[:lower:]' '[:upper:]')      /boot/efi2               vfat     defaults                                                                      0       0 " >> /etc/fstab
 echo "#tmpfs          /tmp                    tmpfs    defaults,nosuid,nodev                                                         0       0 " >> /etc/fstab
 echo "LABEL=swap-$(echo ${disk1} | cut -d'/' -f3)     none                    swap     defaults,sw                                                                    0       0 " >> /etc/fstab
 echo "LABEL=swap-$(echo ${disk2} | cut -d'/' -f3)     none                    swap     defaults,sw                                                                    0       0 " >> /etc/fstab
@@ -128,37 +128,108 @@ ln -s /usr/share/zoneinfo/Europe/Rome /etc/localtime
 echo "KEYMAP=\"/usr/share/bkeymaps/it/it.bmap.gz\"" >> /etc/conf.d/loadkmap
 rc-update add loadkmap default #don't know if it is better to start thin on other runlevels
 
-touch /etc/apk/hooks/keep-old-kernel.hook
-tee /etc/apk/hooks/keep-old-kernel.hook > /dev/null <<'EOF'
+touch /etc/apk/commit_hooks.d/keep-old-kernel.sh
+tee /etc/apk/commit_hooks.d/keep-old-kernel.sh > /dev/null <<'EOF'
 #!/bin/sh
 
-# This hook runs *before* any package upgrade.
-# It saves the kernel that is currently running as a single
-# fallback copy (vmlinuz-fallback / initramfs-fallback.img)
-# and removes any stray fallback files that might have been left
-# from a previous run, guaranteeing that only ONE old kernel is kept.
-#
-# Works with the default Alpine GRUB/Syslinux auto-detection,
-# so no custom menuentry is required.
+STAGE="${1}"
+targetCmd="upgrade"
+targetPkg="linux-lts" # Could be a placeholder for the installation script
 
-# Only act when the kernel package is about to be upgraded
-if [ "$APK_PACKAGE_NAME" = "linux" ]; then
-    # Check the current version
-    kernelVersion=$(uname -r)
-    # Only act if there are the files to copy
-    if [ -f "/boot/vmlinuz-${kernelVersion}" ] && [ -f "$CURRENT_INITRD" ]; then
-        # Overwrite any previous fallback copy
-        cp -f "/boot/vmlinuz-${kernelVersion}" "/boot/initramfs-${kernelVersion}.img"
-        cp -f "/boot/initramfs-${kernelVersion}.img" "/boot/initramfs-fallback.img"
+# This hook make a copy of the old kernel to fall back in case something appen
+
+# Execute the script before apk. Check if apk is doing a command defined in ${targetCmd} (possible command are: upgrade add del fix)
+if [ "${STAGE}" = "pre-commit" ] && [ "${APK_COMMAND}" = "${targetCmd}" ]; then
+    echo "Executing ${targetPkg}-keep-old-kernel.sh pre-commit hook because apk is doing the command ${targetCmd}..."
+    
+    # Simulate upgrade and if the package is upgraded than process the hook
+    if apk upgrade --simulate 2>&1 | grep -qE "(will be installed|is now available)" | grep -q "${targetPkg}"; then
+        echo "Package ${targetPkg} is beeing upgraded, proceed with the hook:"
+
+        # ---------- Functions here ----------
+
+        # -----------------------------------------------------------
+
+        # ---------- Script here ----------
+
+        # Check the current version
+        kernelVersion=$(uname -r)
+        # Only act if there are the files to copy
+        if [ -f "/boot/vmlinuz-${kernelVersion}" ] && [ -f "${CURRENT_INITRD}" ]; then
+            # Overwrite any previous fallback copy
+            cp -afX "/boot/vmlinuz-${kernelVersion}" "/boot/vmlinuz-fallback"
+            cp -afX "/boot/initramfs-${kernelVersion}.img" "/boot/initramfs-fallback.img"
+        else
+            echo "Warning: current kernel files not found - skipping fallback creation." 
+        fi
+        
+        # -----------------------------------------------------------
+        
     else
-        echo "Warning: current kernel files not found - skipping fallback creation." 
+        echo "Package ${targetPkg} is not beeing upgraded."
     fi
+
 fi
 exit 0
 EOF
 
-chmod +x /etc/apk/hooks/keep-old-kernel.hook
+chmod +x /etc/apk/commit_hooks.d/keep-old-kernel.sh
 
+
+touch /etc/apk/commit_hooks.d/copy-efi.sh
+tee /etc/apk/commit_hooks.d/copy-efi.sh > /dev/null <<'EOF'
+#!/bin/sh
+
+STAGE="${1}"
+targetCmd="upgrade"
+targetPkg="linux-lts"
+
+
+# This hook will do an rsync from /boot/efi to /boot/efi2 to make a sort of raid 1 on the efi partition
+
+# Execute the script after apk. Check if apk is doing a command defined in ${targetCmd} (possible command are: upgrade add del fix)
+if [ "${STAGE}" = "post-commit" ] && [ "${APK_COMMAND}" = "${targetCmd}" ]; then
+    echo "Executing ${targetPkg}-raid-efi.sh post-commit hook because apk is doing the command ${targetCmd}... "
+    
+    # Check apk log
+    latestLog=$(ls -t /var/log/apk/* | head -n 1)
+
+    # If the file exists
+    if [ -f "${latestLog}" ]; then
+        
+        # Select oly lines containing install or upgrade and than if those lines contain $targetPkg
+        if grep -qE "install|upgrade" "${latestLog}" | grep -q "${targetPkg}"; then
+            echo "Found ${targetPkg}. Executing script now... "
+            
+            # ---------- Functions here ----------
+
+            # -----------------------------------------------------------
+
+            # ---------- Script here ----------
+
+            # Check the current version
+            kernelVersion=$(uname -r)
+            # Only act if there are the files to copy
+            if [ -f "/boot/vmlinuz-${kernelVersion}" ] && [ -f "${CURRENT_INITRD}" ]; then
+                # Overwrite any previous fallback copy
+                rsync -a --delete /boot/efi/ /boot/efi2/
+            else
+                echo "Warning: current kernel files not found - skipping fallback creation." 
+            fi
+            
+            # -----------------------------------------------------------
+        else
+            echo "${targetPkg} not found. "
+        fi
+    else
+        echo "Warning: Log file not found. "
+    fi
+fi
+
+exit 0
+EOF
+
+chmod +x /etc/apk/commit_hooks.d/copy-efi.sh
 
 # initialGrubCmdLine=$(cat /etc/default/grub | grep "GRUB_CMDLINE_LINUX_DEFAULT=" | sed "s/GRUB_CMDLINE_LINUX_DEFAULT=//g" | sed "s/\"//g")
 
@@ -263,7 +334,9 @@ apk upgrade
 
 #final staps
 echo "installing grub:"
-grub-install --target=x86_64-efi --efi-directory=/boot/efi /dev/md0 --bootloader-id=Alpine --recheck --no-floppy
+grub-install --target=x86_64-efi --efi-directory=/boot/efi2 ${disk2} --bootloader-id=Alpine2 --recheck --no-floppy
+grub-install --target=x86_64-efi --efi-directory=/boot/efi ${disk1} --bootloader-id=Alpine1 --recheck --no-floppy
+
 echo "regenerating initramfs:"
 mkinitfs -c /etc/mkinitfs/mkinitfs.conf -b / $(ls /lib/modules/)
 echo "regenerating grub:"
