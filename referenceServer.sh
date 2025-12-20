@@ -60,6 +60,8 @@ secondPartitionSize=$((${disksMinSize}/1024/4*1))
 echo "firstPartitionSize=${firstPartitionSize}"
 echo "secondPartitionSize=${secondPartitionSize}"
 
+mdadm --stop /dev/md*
+
 for i in ${disk1} ${disk2} ; do
 
 echo "partitioning ${i}:"
@@ -112,7 +114,7 @@ done
 modprobe raid1
 
 echo "making second raid:"
-mdadm --create --level=1 --raid-devices=2 /dev/md0 ${disk1}2 ${disk2}2 --quiet --force
+echo "y" | mdadm --create --level=1 --raid-devices=2 /dev/md0 ${disk1}2 ${disk2}2 --quiet --force
 
 echo "results second raid:"
 cat /proc/mdstat 
