@@ -295,6 +295,7 @@ adduser ske plugdev
 adduser ske users
 adduser ske libvirt
 adduser ske qemu
+adduser ske kvm
 
 echo amdgpu >> /etc/modules
 echo fbcon >> /etc/modules
