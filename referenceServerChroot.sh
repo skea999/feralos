@@ -128,6 +128,8 @@ ln -s /usr/share/zoneinfo/Europe/Rome /etc/localtime
 echo "KEYMAP=\"/usr/share/bkeymaps/it/it.bmap.gz\"" >> /etc/conf.d/loadkmap
 rc-update add loadkmap default #don't know if it is better to start thin on other runlevels
 
+mkdir -p /etc/apk/commit_hooks.d/
+
 touch /etc/apk/commit_hooks.d/keep-old-kernel.sh
 tee /etc/apk/commit_hooks.d/keep-old-kernel.sh > /dev/null <<'EOF'
 #!/bin/sh
