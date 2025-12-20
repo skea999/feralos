@@ -3,7 +3,7 @@
 #userCheck=$(id -u)
 #[ "$userCheck" != "0" ] && echo "This script must be run from root. " 0 0 && exit 1
 
-[ "$(id -u)" != "0" ] && echo "This script must be run from root. " 0 0 && exit 1
+[ "$(id -u)" != "0" ] && echo "This script must be run from root. --------------------------------------------" 0 0 && exit 1
 
 chmod +x ./referenceServerChroot.sh
 chmod +x ./referenceServerVariables.sh
@@ -16,7 +16,7 @@ apt install -y mdadm btrfs-progs curl tar dosfstools
 apkVersion=$(curl -sSf https://dl-cdn.alpinelinux.org/alpine/latest-stable/main/x86_64/ | sed -n 's/.*apk-tools-static-\(.*\)\.apk.*/\1/p' )
 
 if [[ "${disk1}" == "${disk2}" ]]; then
-    echo "Error: disk1 and disk2 contain the same value ('${disk1}')."
+    echo "Error: disk1 and disk2 contain the same value ('${disk1}').--------------------------------------------"
     exit 1
 fi
 
@@ -42,14 +42,14 @@ diskSizeBytes="$(fdisk -l ${i} | grep -i "^Disk ${i}:" | tr ',' '\n' | grep -i '
 diskSizeGiB=$(awk "BEGIN { printf \"%.0f\", ${diskSizeBytes}/1024/1024/1024 }")
 
 if (( diskSizeGiB < 8 )); then
-    echo "Error: Disk  is smaller than the required 8 GiB."
+    echo "Error: Disk  is smaller than the required 8 GiB.--------------------------------------------"
     exit 1
 else
     if (( diskSizeBytes < disksMinSize )); then
-        echo "Disk ${i} is smaller (${diskSizeBytes}) → updating disksMinSize (${disksMinSize})"
+        echo "Disk ${i} is smaller (${diskSizeBytes}) → updating disksMinSize (${disksMinSize})--------------------------------------------"
         disksMinSize=${diskSizeBytes}
     else
-        echo "The already taken disk is already the smaller (or equal) value (${disksMinSize})"
+        echo "The already taken disk is already the smaller (or equal) value (${disksMinSize})--------------------------------------------"
     fi
 fi
 done
@@ -57,14 +57,14 @@ done
 firstPartitionSize=$((${disksMinSize}/1024/4*2-512*1024))
 secondPartitionSize=$((${disksMinSize}/1024/4*1))
 
-echo "firstPartitionSize=${firstPartitionSize}"
-echo "secondPartitionSize=${secondPartitionSize}"
+echo "firstPartitionSize=${firstPartitionSize}--------------------------------------------"
+echo "secondPartitionSize=${secondPartitionSize}--------------------------------------------"
 
-mdadm --stop /dev/md*
+mdadm --stop /dev/md?p*
 
 for i in ${disk1} ${disk2} ; do
 
-echo "partitioning ${i}:"
+echo "partitioning ${i}:--------------------------------------------"
 
 sed -e 's/\s*\([\+0-9a-zA-Z]*\).*/\1/' << EOF  | fdisk -W always ${i}
 g# create new GPT partition
@@ -98,14 +98,14 @@ t# change partition type
 w# write partition table and exit
 EOF
 
-echo "EFI ${i}1:"
+echo "EFI ${i}1:--------------------------------------------"
 mkfs.vfat -F 32 ${i}1
 fatlabel ${i}1 EFI$(echo ${i} | cut -d'/' -f3 | tr '[:lower:]' '[:upper:]')
 
-echo "swap ${i}3:"
+echo "swap ${i}3:--------------------------------------------"
 mkswap -L swap-$(echo ${i} | cut -d'/' -f3) ${i}3
 
-echo "partition ${i}4:"
+echo "partition ${i}4:--------------------------------------------"
 mkfs.btrfs -L data-$(echo ${i} | cut -d'/' -f3) ${i}4
 
 done
@@ -113,13 +113,13 @@ done
 
 modprobe raid1
 
-echo "making second raid:"
+echo "making second raid:--------------------------------------------"
 echo "y" | mdadm --create --level=1 --raid-devices=2 /dev/md0 ${disk1}2 ${disk2}2 --quiet --force
 
-echo "results second raid:"
+echo "results second raid:--------------------------------------------"
 cat /proc/mdstat 
 
-echo "partitioning /dev/md0:"
+echo "partitioning /dev/md0:--------------------------------------------"
 sed -e 's/\s*\([\+0-9a-zA-Z]*\).*/\1/' << EOF  | fdisk -W always /dev/md0
 g# create new GPT partition
 n# add new partition
@@ -138,13 +138,13 @@ t# change partition type
 w# write partition table and exit
 EOF
 
-echo "partitionig btrfs /dev/md0p1"
+echo "partitionig btrfs /dev/md0p1--------------------------------------------"
 mkfs.btrfs -L boot /dev/md0p1
 
-echo "partitionig btrfs /dev/md0p2"
+echo "partitionig btrfs /dev/md0p2--------------------------------------------"
 mkfs.btrfs -L root /dev/md0p2
 
-echo "mounting btrfs /dev/md0p2"
+echo "mounting btrfs /dev/md0p2--------------------------------------------"
 mount -o compress=zstd:3,autodefrag,ssd /dev/md0p2 ${chrootDir}
 
 btrfs subvolume create ${chrootDir}/@
@@ -168,8 +168,11 @@ btrfs subvolume create ${chrootDir}/@var-spool
 btrfs subvolume create ${chrootDir}/@var-tmp
 btrfs subvolume create ${chrootDir}/@usr-local
 
-
+echo "umount ${chrootDir}: --------------------------------------------"
 umount ${chrootDir}
+echo "$(mount | grep mnt)"
+
+echo "mount: --------------------------------------------"
 
 mount -t btrfs -o compress=zstd:3,autodefrag,ssd,subvol=@ /dev/md0p2 ${chrootDir}
 
@@ -290,6 +293,9 @@ mkdir ${chrootDir}/dev
 mount --rbind /dev ${chrootDir}/dev && mount --make-rslave ${chrootDir}/dev
 mkdir ${chrootDir}/proc
 mount --rbind /proc ${chrootDir}/proc && mount --make-rslave ${chrootDir}/proc
+
+echo "mount results: --------------------------------------------"
+echo "$(mount | grep mnt)"
 
 
 ##########forse è meglio con itarball se ci sono#########
