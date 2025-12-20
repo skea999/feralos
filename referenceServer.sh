@@ -60,7 +60,9 @@ secondPartitionSize=$((${disksMinSize}/1024/4*1))
 echo "firstPartitionSize=${firstPartitionSize}--------------------------------------------"
 echo "secondPartitionSize=${secondPartitionSize}--------------------------------------------"
 
+echo "stopping all possible partitions: --------------------------------------------"
 mdadm --stop /dev/md?p*
+swapoff -a
 
 for i in ${disk1} ${disk2} ; do
 
