@@ -257,7 +257,7 @@ initialMkinitLine=$(cat /etc/mkinitfs/mkinitfs.conf | grep "features=" | sed "s/
 
 newMkinitLine="ata base cdrom usb virtio btrfs keymap kms mmc nvme resume raid"
 
-sed -i "s/${initialGrubCmdLine}/${newGrubCmdLine}/g" /etc/mkinitfs/mkinitfs.conf
+sed -i "s/${initialMkinitLine}/${newMkinitLine}/g" /etc/mkinitfs/mkinitfs.conf
 
 
 echo "systemd_container=yes" >> /etc/conf.d/lxc
