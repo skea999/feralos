@@ -242,7 +242,7 @@ chmod +x /etc/apk/commit_hooks.d/copy-efi.sh
 
 echo "GRUB_CMDLINE_LINUX_DEFAULT=\"loglevel=0 quiet modules=sd-mod,usb-storage,btrfs,nvme rootfstype=btrfs\"" > /etc/default/grub
 echo "GRUB_DISABLE_OS_PROBER=false" >> /etc/default/grub
-echo "GRUB_PRELOAD_MODULES=\"part_gpt \""  >> /etc/default/grub 
+echo "GRUB_PRELOAD_MODULES=\"mdraid1x part_gpt \""  >> /etc/default/grub 
 
 
 
@@ -255,7 +255,7 @@ initialMkinitLine=$(cat /etc/mkinitfs/mkinitfs.conf | grep "features=" | sed "s/
 # additionalMkinitLine=' btrfs nvme resume raid raid'
 # newMkinitLine="${initialMkinitLine} ${additionalMkinitLine}"
 
-newMkinitLine="ata base cdrom usb virtio btrfs keymap kms mmc nvme resume raid"
+newMkinitLine="ata base ide scsi cdrom usb virtio btrfs keymap kms mmc nvme resume raid mdadm"
 
 sed -i "s/${initialMkinitLine}/${newMkinitLine}/g" /etc/mkinitfs/mkinitfs.conf
 
