@@ -61,7 +61,7 @@ echo "firstPartitionSize=${firstPartitionSize}----------------------------------
 echo "secondPartitionSize=${secondPartitionSize}--------------------------------------------"
 
 echo "stopping all possible partitions: --------------------------------------------"
-mdadm --stop /dev/md?p*
+mdadm --stop /dev/md?
 swapoff -a
 
 for i in ${disk1} ${disk2} ; do
@@ -116,7 +116,7 @@ done
 modprobe raid1
 
 echo "making second raid:--------------------------------------------"
-echo "y" | mdadm --create --level=1 --raid-devices=2 /dev/md0 ${disk1}2 ${disk2}2 --quiet --force
+echo "y" | mdadm --create --level=1 --metadata=1.0 --raid-devices=2 /dev/md0 ${disk1}2 ${disk2}2 --quiet --force
 
 echo "results second raid:--------------------------------------------"
 cat /proc/mdstat 
