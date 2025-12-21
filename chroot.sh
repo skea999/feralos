@@ -240,7 +240,7 @@ chmod +x /etc/apk/commit_hooks.d/copy-efi.sh
 
 # sed -i "s/${initialGrubCmdLine}/${newGrubCmdLine}/g" /etc/default/grub
 
-echo "GRUB_CMDLINE_LINUX_DEFAULT=\"loglevel=0 quiet modules=sd-mod,usb-storage,fat,ext4,btrfs,nvme,raid1 rootfstype=btrfs\"" > /etc/default/grub
+echo "GRUB_CMDLINE_LINUX_DEFAULT=\"loglevel=0 quiet modules=sd-mod,usb-storage,fat,ext4,btrfs,nvme,raid1 rootfstype=btrfs rootflags=subvol=@\"" > /etc/default/grub
 echo "GRUB_DISABLE_OS_PROBER=false" >> /etc/default/grub
 echo "GRUB_PRELOAD_MODULES=\"fat ext4 btrfs mdraid1x part_gpt \""  >> /etc/default/grub 
 
