@@ -337,8 +337,8 @@ apk upgrade
 
 #final staps
 echo "installing grub:"
-grub-install --target=x86_64-efi --efi-directory=/boot/efi2 ${disk2} --bootloader-id=Alpine2 --recheck --no-floppy --removable
-grub-install --target=x86_64-efi --efi-directory=/boot/efi ${disk1} --bootloader-id=Alpine1 --recheck --no-floppy --removable
+grub-install --target=x86_64-efi --efi-directory=/boot/efi2 --bootloader-id=Alpine2 --recheck --no-floppy --removable
+grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=Alpine1 --recheck --no-floppy --removable
 
 echo "regenerating initramfs:"
 mkinitfs -c /etc/mkinitfs/mkinitfs.conf -b / $(ls /lib/modules/)
