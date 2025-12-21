@@ -116,7 +116,8 @@ done
 modprobe raid1
 
 echo "making second raid:--------------------------------------------"
-echo "y" | mdadm --create --level=1 --metadata=1.0 --raid-devices=2 /dev/md0 ${disk1}2 ${disk2}2 --quiet --force
+echo "y" | mdadm --create --level=1 --raid-devices=2 /dev/md0 ${disk1}2 ${disk2}2 --quiet --force
+# --metadata=1.0
 
 echo "results second raid:--------------------------------------------"
 cat /proc/mdstat 
@@ -141,7 +142,7 @@ w# write partition table and exit
 EOF
 
 echo "partitionig btrfs /dev/md0p1--------------------------------------------"
-mkfs.ext4 -L boot /dev/md0p1
+mkfs.btrfs -L boot /dev/md0p1
 
 echo "partitionig btrfs /dev/md0p2--------------------------------------------"
 mkfs.btrfs -L root /dev/md0p2
