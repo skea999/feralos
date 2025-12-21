@@ -5,10 +5,10 @@
 
 [ "$(id -u)" != "0" ] && echo "This script must be run from root. --------------------------------------------" 0 0 && exit 1
 
-chmod +x ./referenceServerChroot.sh
-chmod +x ./referenceServerVariables.sh
+chmod +x ./chroot.sh
+chmod +x ./variables.sh
 
-. ./referenceServerVariables.sh
+. ./variables.sh
 
 apt update
 apt install -y mdadm btrfs-progs curl tar dosfstools
@@ -310,17 +310,17 @@ tar -xzf apk-tools-static-*.apk
 
 mdadm --detail --scan > ${chrootDir}/etc/mdadm.conf
 
-cp ./referenceServerChroot.sh ${chrootDir}/referenceServerChroot.sh
-cp ./referenceServerVariables.sh ${chrootDir}/referenceServerVariables.sh
+cp ./chroot.sh ${chrootDir}/chroot.sh
+cp ./variables.sh ${chrootDir}/variables.sh
 
-chmod +x ${chrootDir}/referenceServerChroot.sh
-chmod +x ${chrootDir}/referenceServerVariables.sh
+chmod +x ${chrootDir}/chroot.sh
+chmod +x ${chrootDir}/variables.sh
 
-chroot ${chrootDir} /bin/ash /referenceServerChroot.sh
+chroot ${chrootDir} /bin/ash /chroot.sh
 
 
-rm -rf ${chrootDir}/referenceServerChroot.sh
-rm -rf ${chrootDir}/referenceServerVariables.sh
+rm -rf ${chrootDir}/chroot.sh
+rm -rf ${chrootDir}/variables.sh
 
 umount -R ${chrootDir}
 

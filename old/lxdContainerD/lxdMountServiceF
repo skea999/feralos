@@ -1,9 +1,0 @@
-[Unit]
-After=sysinit.target
-
-[Service]
-Type=oneshot
-ExecStart=/opt/setup-forward-symlinks.sh
-
-[Install]
-WantedBy=multi-user.target
