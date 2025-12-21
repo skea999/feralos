@@ -1,6 +1,6 @@
 #! /bin/sh
 
-. /referenceServerVariables.sh
+. /variables.sh
 
 ##############
 
