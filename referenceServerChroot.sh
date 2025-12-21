@@ -240,9 +240,9 @@ chmod +x /etc/apk/commit_hooks.d/copy-efi.sh
 
 # sed -i "s/${initialGrubCmdLine}/${newGrubCmdLine}/g" /etc/default/grub
 
-echo "GRUB_CMDLINE_LINUX_DEFAULT=\"loglevel=0 quiet modules=sd-mod,usb-storage,ext4,btrfs,nvme,mdraid1x,part_gpt rootfstype=btrfs\"" > /etc/default/grub
+echo "GRUB_CMDLINE_LINUX_DEFAULT=\"loglevel=0 quiet modules=sd-mod,usb-storage,fat,ext4,btrfs,nvme,raid1 rootfstype=btrfs\"" > /etc/default/grub
 echo "GRUB_DISABLE_OS_PROBER=false" >> /etc/default/grub
-echo "GRUB_PRELOAD_MODULES=\"ext4 btrfs mdraid1x part_gpt \""  >> /etc/default/grub 
+echo "GRUB_PRELOAD_MODULES=\"fat ext4 btrfs mdraid1x part_gpt \""  >> /etc/default/grub 
 
 
 
@@ -255,7 +255,7 @@ initialMkinitLine=$(cat /etc/mkinitfs/mkinitfs.conf | grep "features=" | sed "s/
 # additionalMkinitLine=' btrfs nvme resume raid raid'
 # newMkinitLine="${initialMkinitLine} ${additionalMkinitLine}"
 
-newMkinitLine="ata base ide scsi cdrom usb virtio ext4 btrfs keymap kms mmc nvme resume raid mdadm"
+newMkinitLine="ata base ide scsi cdrom usb virtio fat ext4 btrfs keymap kms mmc nvme resume raid mdadm"
 
 sed -i "s/${initialMkinitLine}/${newMkinitLine}/g" /etc/mkinitfs/mkinitfs.conf
 
@@ -337,8 +337,8 @@ apk upgrade
 
 #final staps
 echo "installing grub:"
-grub-install --target=x86_64-efi --efi-directory=/boot/efi2 ${disk2} --bootloader-id=Alpine2 --recheck --no-floppy
-grub-install --target=x86_64-efi --efi-directory=/boot/efi ${disk1} --bootloader-id=Alpine1 --recheck --no-floppy
+grub-install --target=x86_64-efi --efi-directory=/boot/efi2 ${disk2} --bootloader-id=Alpine2 --recheck --no-floppy --removable
+grub-install --target=x86_64-efi --efi-directory=/boot/efi ${disk1} --bootloader-id=Alpine1 --recheck --no-floppy --removable
 
 echo "regenerating initramfs:"
 mkinitfs -c /etc/mkinitfs/mkinitfs.conf -b / $(ls /lib/modules/)
