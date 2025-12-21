@@ -32,7 +32,7 @@ echo "LABEL=root     /var/opt                btrfs    compress=zstd:3,autodefrag
 echo "LABEL=root     /var/spool              btrfs    compress=no,autodefrag,ssd,nodev,noexec,nosuid,nodatacow,subvol=@var-spool    0       0 " >> /etc/fstab
 echo "LABEL=root     /var/tmp                btrfs    compress=no,autodefrag,ssd,nodev,noexec,nosuid,nodatacow,subvol=@var-tmp      0       0 " >> /etc/fstab
 echo "LABEL=root     /usr/local              btrfs    compress=zstd:3,autodefrag,ssd,subvol=@usr-local                              0       0 " >> /etc/fstab
-echo "LABEL=boot     /boot                   btrfs    defaults                                                                      0       0 " >> /etc/fstab
+echo "LABEL=boot     /boot                   ext4    defaults                                                                      0       0 " >> /etc/fstab
 echo "LABEL=EFI$(echo ${disk1} | cut -d'/' -f3 | tr '[:lower:]' '[:upper:]')      /boot/efi               vfat     defaults                                                                      0       0 " >> /etc/fstab
 echo "LABEL=EFI$(echo ${disk2} | cut -d'/' -f3 | tr '[:lower:]' '[:upper:]')      /boot/efi2               vfat     defaults                                                                      0       0 " >> /etc/fstab
 echo "#tmpfs          /tmp                    tmpfs    defaults,nosuid,nodev                                                         0       0 " >> /etc/fstab
@@ -240,9 +240,9 @@ chmod +x /etc/apk/commit_hooks.d/copy-efi.sh
 
 # sed -i "s/${initialGrubCmdLine}/${newGrubCmdLine}/g" /etc/default/grub
 
-echo "GRUB_CMDLINE_LINUX_DEFAULT=\"loglevel=0 quiet modules=sd-mod,usb-storage,btrfs,nvme rootfstype=btrfs\"" > /etc/default/grub
+echo "GRUB_CMDLINE_LINUX_DEFAULT=\"loglevel=0 quiet modules=sd-mod,usb-storage,ext4,btrfs,nvme,mdraid1x,part_gpt rootfstype=btrfs\"" > /etc/default/grub
 echo "GRUB_DISABLE_OS_PROBER=false" >> /etc/default/grub
-echo "GRUB_PRELOAD_MODULES=\"mdraid1x part_gpt \""  >> /etc/default/grub 
+echo "GRUB_PRELOAD_MODULES=\"ext4 btrfs mdraid1x part_gpt \""  >> /etc/default/grub 
 
 
 
@@ -255,7 +255,7 @@ initialMkinitLine=$(cat /etc/mkinitfs/mkinitfs.conf | grep "features=" | sed "s/
 # additionalMkinitLine=' btrfs nvme resume raid raid'
 # newMkinitLine="${initialMkinitLine} ${additionalMkinitLine}"
 
-newMkinitLine="ata base ide scsi cdrom usb virtio btrfs keymap kms mmc nvme resume raid mdadm"
+newMkinitLine="ata base ide scsi cdrom usb virtio ext4 btrfs keymap kms mmc nvme resume raid mdadm"
 
 sed -i "s/${initialMkinitLine}/${newMkinitLine}/g" /etc/mkinitfs/mkinitfs.conf
 
