@@ -141,7 +141,7 @@ w# write partition table and exit
 EOF
 
 echo "partitionig btrfs /dev/md0p1--------------------------------------------"
-mkfs.btrfs -L boot /dev/md0p1
+mkfs.ext4 -L boot /dev/md0p1
 
 echo "partitionig btrfs /dev/md0p2--------------------------------------------"
 mkfs.btrfs -L root /dev/md0p2
@@ -274,7 +274,8 @@ mount -t btrfs -o compress=zstd:3,autodefrag,ssd,subvol=@usr-local /dev/md0p2 ${
 
 
 mkdir ${chrootDir}/boot
-mount -t btrfs -o compress=no,autodefrag,ssd /dev/md0p1 ${chrootDir}/boot
+#mount -t btrfs -o compress=no,autodefrag,ssd /dev/md0p1 ${chrootDir}/boot
+mount /dev/md0p1 ${chrootDir}/boot
 
 mkdir ${chrootDir}/boot/efi
 mount ${disk1}1 ${chrootDir}/boot/efi
