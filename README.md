@@ -1,6 +1,6 @@
 # Skea Installer
 
-This is a simple script for installing Alpine Linux with a raid 1 and btrfs / with subvolumes.
+This is a simple script for installing Alpine Linux and Incus as an hypervisor with a raid 1 and btrfs / with subvolumes.
 
 This script is simply hackable, enjoy it.
 
