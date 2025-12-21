@@ -102,7 +102,9 @@ EOF
 
 echo "EFI ${i}1:--------------------------------------------"
 mkfs.vfat -F 32 ${i}1
+echo "label EFI ${i}1:--------------------------------------------"
 fatlabel ${i}1 EFI$(echo ${i} | cut -d'/' -f3 | tr '[:lower:]' '[:upper:]')
+fatlabel ${i}1
 
 echo "swap ${i}3:--------------------------------------------"
 mkswap -L swap-$(echo ${i} | cut -d'/' -f3) ${i}3
