@@ -32,7 +32,7 @@ echo "LABEL=root     /var/opt                btrfs    compress=zstd:3,autodefrag
 echo "LABEL=root     /var/spool              btrfs    compress=no,autodefrag,ssd,nodev,noexec,nosuid,nodatacow,subvol=@var-spool    0       0 " >> /etc/fstab
 echo "LABEL=root     /var/tmp                btrfs    compress=no,autodefrag,ssd,nodev,noexec,nosuid,nodatacow,subvol=@var-tmp      0       0 " >> /etc/fstab
 echo "LABEL=root     /usr/local              btrfs    compress=zstd:3,autodefrag,ssd,subvol=@usr-local                              0       0 " >> /etc/fstab
-echo "LABEL=boot     /boot                   ext4    defaults                                                                      0       0 " >> /etc/fstab
+echo "LABEL=boot     /boot                   btrfs    defaults                                                                      0       0 " >> /etc/fstab
 echo "LABEL=EFI$(echo ${disk1} | cut -d'/' -f3 | tr '[:lower:]' '[:upper:]')      /boot/efi               vfat     defaults                                                                      0       0 " >> /etc/fstab
 echo "LABEL=EFI$(echo ${disk2} | cut -d'/' -f3 | tr '[:lower:]' '[:upper:]')      /boot/efi2               vfat     defaults                                                                      0       0 " >> /etc/fstab
 echo "#tmpfs          /tmp                    tmpfs    defaults,nosuid,nodev                                                         0       0 " >> /etc/fstab
@@ -109,6 +109,8 @@ rc-update add chronyd default
 rc-update add dbus default
 
 rc-update add incusd default 
+rc-update add btrfs-scan boot
+
 
 echo "permit persist :wheel" > /etc/doas.d/doas.conf
 
@@ -240,9 +242,9 @@ chmod +x /etc/apk/commit_hooks.d/copy-efi.sh
 
 # sed -i "s/${initialGrubCmdLine}/${newGrubCmdLine}/g" /etc/default/grub
 
-echo "GRUB_CMDLINE_LINUX_DEFAULT=\"loglevel=0 quiet modules=sd-mod,usb-storage,fat,ext4,btrfs,nvme,raid1 rootfstype=btrfs rootflags=subvol=@\"" > /etc/default/grub
+echo "GRUB_CMDLINE_LINUX_DEFAULT=\"loglevel=0 quiet modules=sd-mod,usb-storage,fat,btrfs,nvme,raid1 rootfstype=btrfs rootflags=subvol=@\"" > /etc/default/grub
 echo "GRUB_DISABLE_OS_PROBER=false" >> /etc/default/grub
-echo "GRUB_PRELOAD_MODULES=\"fat ext4 btrfs mdraid1x part_gpt \""  >> /etc/default/grub 
+echo "GRUB_PRELOAD_MODULES=\"fat btrfs mdraid1x part_gpt \""  >> /etc/default/grub 
 
 
 
@@ -255,7 +257,7 @@ initialMkinitLine=$(cat /etc/mkinitfs/mkinitfs.conf | grep "features=" | sed "s/
 # additionalMkinitLine=' btrfs nvme resume raid raid'
 # newMkinitLine="${initialMkinitLine} ${additionalMkinitLine}"
 
-newMkinitLine="ata base ide scsi cdrom usb virtio fat ext4 btrfs keymap kms mmc nvme resume raid mdadm"
+newMkinitLine="ata base ide scsi cdrom usb virtio fat btrfs keymap kms mmc nvme resume raid mdadm"
 
 sed -i "s/${initialMkinitLine}/${newMkinitLine}/g" /etc/mkinitfs/mkinitfs.conf
 
@@ -297,6 +299,7 @@ adduser ske libvirt
 adduser ske qemu
 adduser ske kvm
 
+echo btrfs >> /etc/modules
 echo amdgpu >> /etc/modules
 echo fbcon >> /etc/modules
 echo tun >> /etc/modules

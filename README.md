@@ -31,6 +31,7 @@ Download a tar file from here
 Go to download, right click, open terminal here
 tar -xvf gab-void-linux-installer.tar
 cd gab-void-linux-installer
+change variables.sh with your values
 sudo su
 chmod +x start.sh
 bash start.sh
