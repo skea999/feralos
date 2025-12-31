@@ -1,0 +1,87 @@
+chrootDir: "/mnt"
+
+# Default system runlevels
+defaultRunlevels:
+  sysinit: ["devfs", "dmesg", "mdev"]
+  boot: ["hwclock", "modules", "sysctl", "hostname", "bootmisc", "syslog"]
+  shutdown: ["mount-ro", "killprocs", "savecache"]
+
+# Fixed system packages
+standardPackages:
+  - micro
+  - doas
+  - mdadm
+  - musl-locales
+  - lang
+  - tzdata
+  - kbd-bkeymaps
+  - grub-efi
+  - efibootmgr
+  - linux-lts
+  - btrfs-progs
+  - zstd
+  - cronie
+  - chrony
+  - dbus
+  - network-extras
+  - uutils
+  - uutils-coreutils
+  - grep
+  - findutils
+
+# 1. Disk Layouts Definitions
+diskLayouts:
+  btrfsStandardServer:
+    packages: ["mdadm", "btrfs-progs", "grub-efi", "efibootmgr"]
+    modules: ["raid1", "btrfs"]
+    mkinitfs: ["raid", "mdadm", "btrfs"]
+  btrfsStandard: 
+    packages: ["btrfs-progs", "grub-efi", "efibootmgr"]
+    modules: ["btrfs"]
+    mkinitfs: ["btrfs"]
+
+# 2. Desktop Environments Definitions
+desktopEnvironments:
+  kde:
+    packages: ["plasma", "sddm", "konsole", "dolphin", "dbus-x11", "desktop-file-utils"]
+    services: {"sddm": "default", "dbus": "default"}
+    groups: ["video", "input"]
+
+# 3. Video Drivers Definitions
+videoDrivers:
+  amdgpu:
+    packages: ["xf86-video-amdgpu", "mesa-dri-gallium", "mesa-va-gallium", "vulkan-loader"]
+    modules: ["amdgpu"]
+    grub: ["amdgpu.dc=1"]
+  nvidia:
+    packages: ["nvidia-lts", "nvidia-libs"]
+    modules: ["nvidia", "nvidia-modeset"]
+  intel:
+    packages: ["xf86-video-intel", "mesa-dri-intel"]
+
+# Dynamic logic: if a package is in the install list, apply these changes
+packageLogic:
+  incus-feature:
+    groups: ["incus-admin"]
+    services: {"incusd": "default"}
+    modules: ["tun", "tap", "veth"]
+  qemu-system-x86_64:
+    groups: ["kvm", "qemu"]
+    modules: ["kvm-amd", "kvm-intel"]
+  zram-init:
+    services: {"zram-init": "default"}
+    modules: ["zram"]
+  mdadm:
+    services: {"mdadm": "boot", "mdadm-raid": "boot"}
+    mkinitfsFeatures: ["raid", "mdadm"]
+  btrfs-progs:
+    services: {"btrfs-scan": "boot"}
+    modules: ["btrfs"]
+    mkinitfsFeatures: ["btrfs"]
+  mesa-vulkan-layers:
+    grubCmdline: ["amdgpu.dc=1"]
+  doas:
+    groups: ["wheel"]
+    # Possiamo anche aggiungere la creazione automatica del file config qui se volessimo
+  sudo:
+    groups: ["wheel"]
