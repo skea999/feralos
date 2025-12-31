@@ -1,0 +1,81 @@
+package utility
+
+import "fmt"
+
+func ApplyRules(conf *Config) {
+	u := &conf.User
+	i := &conf.Internal
+
+	fmt.Println("[DEBUG] Starting dynamic rule application...")
+
+	if layout, ok := i.DiskLayouts[u.DiskLayout]; ok {
+		fmt.Printf("[DEBUG] Applying Disk Layout: %s\n", u.DiskLayout)
+		applyRule(u, layout)
+	}
+
+	if de, ok := i.DesktopEnvironments[u.DesktopEnvironment]; ok {
+		fmt.Printf("[DEBUG] Applying Desktop: %s\n", u.DesktopEnvironment)
+		applyRule(u, de)
+	}
+
+	if gpu, ok := i.VideoDrivers[u.VideoDriver]; ok {
+		fmt.Printf("[DEBUG] Applying Driver: %s\n", u.VideoDriver)
+		applyRule(u, gpu)
+	}
+
+	u.AllPackages = appendUnique(u.AllPackages, i.StandardPackages...)
+	u.AllPackages = appendUnique(u.AllPackages, u.ExtraPackages...)
+
+	processed := make(map[string]bool)
+	for {
+		added := false
+		for _, pkg := range u.AllPackages {
+			if !processed[pkg] {
+				if rule, found := i.PackageLogic[pkg]; found {
+					fmt.Printf("[DEBUG] Applying logic for package: %s\n", pkg)
+					applyRule(u, rule)
+					added = true
+				}
+				processed[pkg] = true
+			}
+		}
+		if !added {
+			break
+		}
+	}
+}
+
+func applyRule(u *UserVariables, rule DynamicPackageRules) {
+	// Use uppercase fields from the struct
+	u.AllPackages = appendUnique(u.AllPackages, rule.Packages...)
+	u.UserGroups = appendUnique(u.UserGroups, rule.Groups...)
+	u.Modules = appendUnique(u.Modules, rule.Modules...)
+	u.GrubCmdline = appendUnique(u.GrubCmdline, rule.GrubCmdline...)
+	u.MkinitfsFeatures = appendUnique(u.MkinitfsFeatures, rule.MkinitfsFeatures...)
+
+	for svc, level := range rule.Services {
+		if u.Runlevels[level] == nil {
+			u.Runlevels[level] = []string{}
+		}
+		u.Runlevels[level] = appendUnique(u.Runlevels[level], svc)
+	}
+}
+
+func appendUnique(slice []string, items ...string) []string {
+	for _, item := range items {
+		if item == "" {
+			continue
+		}
+		exists := false
+		for _, s := range slice {
+			if s == item {
+				exists = true
+				break
+			}
+		}
+		if !exists {
+			slice = append(slice, item)
+		}
+	}
+	return slice
+}
