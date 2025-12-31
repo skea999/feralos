@@ -23,13 +23,9 @@ fi
 # for i in ${disk1} ${disk2} ; do
 # if [[ "${i}" == *"nvme"* ]] ;
 # then
-# echo $(cat /scriptv/DISK_V)p1 > /scriptv/EFI_V
-# echo $(cat /scriptv/DISK_V)p2 > /scriptv/GRUB_V
-# echo $(cat /scriptv/DISK_V)p3 > /scriptv/ROOT_V
+# partitionSpacer="p"
 # else
-# echo $(cat /scriptv/DISK_V)1 > /scriptv/EFI_V
-# echo $(cat /scriptv/DISK_V)2 > /scriptv/GRUB_V
-# echo $(cat /scriptv/DISK_V)3 > /scriptv/ROOT_V
+# partitionSpacer=""
 # fi
 # done
 
