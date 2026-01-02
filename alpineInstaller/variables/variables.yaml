@@ -1,0 +1,44 @@
+variables:
+  unettended: true 
+  # Disk Configuration
+  disks:
+    - "/dev/nvme0n1"
+  
+  # User and Security
+  userName: "ske"
+  password: "helloAlpine3.23"
+  
+  # System Identity
+  hostname: "alpineHypervisor1"
+  timezone: "Europe/Rome"
+  locale: "it_IT.UTF-8"
+  
+  # Repository and Architecture
+  mirror: "https://dl-cdn.alpinelinux.org/alpine"
+  arch: "x86_64"
+  branch: "latest-stable"
+  
+  # Layout 
+  diskLayout: "btrfsStandardServer" # Options defined in internalRules
+  desktopEnvironment: "kde"         # Options: none, kde
+  videoDriver: "amdgpu"             # Options: none, amdgpu, nvidia, intel
+
+  # Extra Packages
+  # Adding these will trigger dynamic rules (groups, services, etc.)
+  extraPackages:
+    - mesa
+    - mesa-utils
+    - mesa-dri-gallium
+    - mesa-va-gallium
+    - mesa-vdpau-gallium
+    - xf86-video-amdgpu
+    - vulkan-loader
+    - vulkan-tools
+    - incus-feature
+    - incus-feature-vm
+    - incus-feature-client
+    - incus-feature-utils
+    - qemu-system-x86_64
+    - qemu-img
+    - qemu-modules
+    - zram-init
