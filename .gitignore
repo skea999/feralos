@@ -36,3 +36,26 @@ temp/
 # Agent installer backups (not the version/manifest files)
 .opencode/.backups/
 
+# Test harness artifacts
+tests/harness/work/
+tests/harness/iso/
+tests/harness/coverage.out
+tests/harness/skea-harness
+tests/artifacts/*
+!tests/artifacts/.gitkeep
+tests/artifacts/harness/*
+!tests/artifacts/harness/.gitkeep
+tests/artifacts/harness/cache/*
+!tests/artifacts/harness/cache/.gitkeep
+tests/artifacts/harness/prepare/*
+!tests/artifacts/harness/prepare/.gitkeep
+tests/artifacts/harness/runs/*
+!tests/artifacts/harness/runs/.gitkeep
+tests/artifacts/harness/state/*
+!tests/artifacts/harness/state/.gitkeep
+*.qcow2
+*.iso
+
+# Reference repos (not part of this project)
+references/skeaSimpleServer/
+

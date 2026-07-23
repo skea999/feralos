@@ -1,0 +1,8 @@
+{
+  "servers": {
+    "skea-harness": {
+      "type": "stdio",
+      "command": "/ABSOLUTE/PATH/TO/REPO/installer/tools/harness/runMcp.sh"
+    }
+  }
+}
