@@ -1,0 +1,66 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": [
+    "opencode-rules@latest",
+    "agents-opencode"
+  ],
+  "permission": {
+    "external_directory": "deny",
+    "doom_loop": "deny"
+  },
+  "agent": {
+    "planner": {},
+    "review": {},
+    "code-reviewer": {
+      "model": "opencode-go/deepseek-v4-flash"
+    },
+    "researcher": {},
+    "debugger": {},
+    "test-automator": {},
+    "information-scan": {
+      "model": "opencode-go/deepseek-v4-flash"
+    },
+    "vulnerability-scan": {
+      "model": "opencode-go/deepseek-v4-flash"
+    },
+    "codebase": {},
+    "docs": {},
+    "documentation-engineer": {},
+    "performance-engineer": {},
+    "refactoring-specialist": {},
+    "blogger": {},
+    "brutal-critic": {},
+    "em-advisor": {},
+    "legal-advisor": {},
+    "penetration-tester": {},
+    "security-auditor": {},
+    "orchestrator": {
+      "permission": {
+        "task": {
+          "*": "deny",
+          "planner": "allow",
+          "codebase": "allow",
+          "review": "allow",
+          "code-reviewer": "allow",
+          "vulnerability-scan": "allow",
+          "information-scan": "allow",
+          "debugger": "allow",
+          "test-automator": "allow",
+          "performance-engineer": "allow",
+          "refactoring-specialist": "allow",
+          "docs": "allow",
+          "documentation-engineer": "allow",
+          "researcher": "allow",
+          "blogger": "allow",
+          "brutal-critic": "allow",
+          "legal-advisor": "allow",
+          "em-advisor": "allow",
+          "penetration-tester": "allow",
+          "security-auditor": "allow",
+          "explore": "allow",
+          "general": "allow"
+        }
+      }
+    }
+  }
+}

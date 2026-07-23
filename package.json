@@ -1,0 +1,15 @@
+{
+  "name": "skea-store",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "lint": "echo 'Override in stack decision - see AGENTS.md#Stack'",
+    "typecheck": "echo 'Override in stack decision - see AGENTS.md#Stack'",
+    "test": "echo 'Override in stack decision - see AGENTS.md#Stack'",
+    "test:e2e": "echo 'Override in stack decision - see AGENTS.md#Stack'",
+    "test:static": "echo 'Override in stack decision - see AGENTS.md#Stack'",
+    "test:security": "echo 'Override in stack decision - see AGENTS.md#Stack'",
+    "build": "echo 'Override in stack decision - see AGENTS.md#Stack'"
+  },
+  "devDependencies": {}
+}

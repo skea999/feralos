@@ -1,0 +1,251 @@
+{
+  "version": 1,
+  "skills": {
+    "angular-developer": {
+      "source": "angular/skills",
+      "sourceType": "github",
+      "skillPath": "angular-developer/SKILL.md",
+      "computedHash": "c5958947eaf0e79954dcb7690eb09ed3dec546b009fe730681b937ad072d0b58"
+    },
+    "ansible-principal-engineer": {
+      "source": "mOdrA40/claude-codex-skills-directory",
+      "sourceType": "github",
+      "skillPath": "devops-skills/ansible-mastery-skill/SKILL.md",
+      "computedHash": "cabc7d7269a67f5086a4c78c592647fdad3812dbded21887a494689005e2b169"
+    },
+    "api-and-interface-design": {
+      "source": "addyosmani/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/api-and-interface-design/SKILL.md",
+      "computedHash": "0fabf9c3fc2577eab57833f660efef943b78d5c6ae5f0d8e82b600cc22563dbc"
+    },
+    "aws-s3": {
+      "source": "BagelHole/DevOps-Security-Agent-Skills",
+      "sourceType": "github",
+      "skillPath": "infrastructure/cloud-aws/aws-s3/SKILL.md",
+      "computedHash": "9aea7b285579ab489d28bbc0cf47be8a51bb5acb8adb252d05e2a6d229acab94"
+    },
+    "ci-cd-and-automation": {
+      "source": "addyosmani/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ci-cd-and-automation/SKILL.md",
+      "computedHash": "f927700883a2b0f47d150d6ba27faf9006046641404480167d0b860564d11176"
+    },
+    "code-review-and-quality": {
+      "source": "addyosmani/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/code-review-and-quality/SKILL.md",
+      "computedHash": "31afa3c52991ed84a1f0b97d5a9dc9f1ada08307108e88c3102de7c41a50c0a4"
+    },
+    "code-simplification": {
+      "source": "addyosmani/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/code-simplification/SKILL.md",
+      "computedHash": "aa9393832e77d2a89d91a8004dfb9d32670f4dcb46f2fd873c1dcad53e1f1f61"
+    },
+    "container-scanning": {
+      "source": "BagelHole/DevOps-Security-Agent-Skills",
+      "sourceType": "github",
+      "skillPath": "security/scanning/container-scanning/SKILL.md",
+      "computedHash": "fcf1bd4ae20080723ee647c545e4313a3cefdd704e83182f1329e7b7a44e59a1"
+    },
+    "context-engineering": {
+      "source": "addyosmani/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/context-engineering/SKILL.md",
+      "computedHash": "1296ce5de6ca27323e8ad6dba640744770bc868c8cf49d0934b484c553c80243"
+    },
+    "context7": {
+      "source": "intellectronica/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/context7/SKILL.md",
+      "computedHash": "4e1e101b21c5be62420caffed99a5c11281ff48bfd208411b8714a14f8c82eab"
+    },
+    "dast-scanning": {
+      "source": "BagelHole/DevOps-Security-Agent-Skills",
+      "sourceType": "github",
+      "skillPath": "security/scanning/dast-scanning/SKILL.md",
+      "computedHash": "33605f68f86bfe833659a56511a869c4054c1bafebfd771e20a728523d98e73c"
+    },
+    "debugging-and-error-recovery": {
+      "source": "addyosmani/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/debugging-and-error-recovery/SKILL.md",
+      "computedHash": "00f95b1754573cbc5f01e3cec5b40759dcd0be97b3abcaffec05fb70422e5bc6"
+    },
+    "dependency-scanning": {
+      "source": "BagelHole/DevOps-Security-Agent-Skills",
+      "sourceType": "github",
+      "skillPath": "security/scanning/dependency-scanning/SKILL.md",
+      "computedHash": "ce56b870409d4be814ab0a98129f9ebc55198a542d36fb28875d5b343bebadd2"
+    },
+    "deprecation-and-migration": {
+      "source": "addyosmani/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/deprecation-and-migration/SKILL.md",
+      "computedHash": "3671326de345b4a60a19c6d665bd0c3c6761792df0b553cf54200901d8f756b2"
+    },
+    "docker-expert": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "skillPath": "skills/docker-expert/SKILL.md",
+      "computedHash": "7be30b1c18b91628dcd8437a89e7e20acce76bae4349533e4ebdeb376a660bcb"
+    },
+    "git-workflow-and-versioning": {
+      "source": "addyosmani/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/git-workflow-and-versioning/SKILL.md",
+      "computedHash": "f4687d5f0edc5693f1414546cd02909b22f4de61ef89d17254ed1ee7cdcffab5"
+    },
+    "grill-with-docs": {
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/grill-with-docs/SKILL.md",
+      "computedHash": "eb0e91e84277283dc2b23ed544399e53afd6b5287e5b6929f25fe8aa608e164b"
+    },
+    "helm-charts": {
+      "source": "BagelHole/DevOps-Security-Agent-Skills",
+      "sourceType": "github",
+      "skillPath": "devops/orchestration/helm-charts/SKILL.md",
+      "computedHash": "8a705451d4ba403727b82154c4306d1dbf3c5ea4d66e021622ab08436325c91d"
+    },
+    "idea-refine": {
+      "source": "addyosmani/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/idea-refine/SKILL.md",
+      "computedHash": "525f928bccf704e28f5be90f55d0bba94517e566034a45b92b71e2ae11a7ad0b"
+    },
+    "improve-codebase-architecture": {
+      "source": "anomalyco/opencode",
+      "sourceType": "github",
+      "skillPath": ".opencode/skills/improve-codebase-architecture/SKILL.md",
+      "computedHash": "f79b3acdcad4d793694f1c40ed861639e1a548e34c17b7f8458b553dd981735b"
+    },
+    "incremental-implementation": {
+      "source": "addyosmani/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/incremental-implementation/SKILL.md",
+      "computedHash": "27a55fa6a8ca32d2f16198ad0585511ba41c489a527c9a4b51c96ad7f1a3ffce"
+    },
+    "interview-me": {
+      "source": "addyosmani/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/interview-me/SKILL.md",
+      "computedHash": "85726440a832ced82cc55c5b550daba3f693db1013d771dc7b8e41c6b565ba8e"
+    },
+    "opentelemetry": {
+      "source": "BagelHole/DevOps-Security-Agent-Skills",
+      "sourceType": "github",
+      "skillPath": "devops/observability/opentelemetry/SKILL.md",
+      "computedHash": "1db334366ac3dfcdc03de392b9ebc49c21f03a8b68aec6ab4bb978552a8fd80e"
+    },
+    "performance-optimization": {
+      "source": "addyosmani/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/performance-optimization/SKILL.md",
+      "computedHash": "e143bfc3b19f8009b3399bdd96deba13e4edb6cdbd9f7f30b570ba5ea49e3613"
+    },
+    "planning-and-task-breakdown": {
+      "source": "addyosmani/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/planning-and-task-breakdown/SKILL.md",
+      "computedHash": "c0d5b44e73aca912582038b8a663cdb9efb043e4c2b024a89d47808e23b134c9"
+    },
+    "postgresql": {
+      "source": "BagelHole/DevOps-Security-Agent-Skills",
+      "sourceType": "github",
+      "skillPath": "infrastructure/databases/postgresql/SKILL.md",
+      "computedHash": "1a3dcc8804a791a1ca3286a34f8b841c8d179f59303840516634113bdb9dd0c1"
+    },
+    "python-packaging": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "skillPath": "skills/python-packaging/SKILL.md",
+      "computedHash": "20fb0c24b3393789593e2837be768e1ef90d2933cfea95b8b83a81c4fa308be0"
+    },
+    "python-patterns": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "skillPath": "skills/python-patterns/SKILL.md",
+      "computedHash": "325c440af961e5ba42b102d124b7c244b0e2b6358b6eead156a2dd2511691a3b"
+    },
+    "python-performance-optimization": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "skillPath": "skills/python-performance-optimization/SKILL.md",
+      "computedHash": "19f4d97c641fa66361023a2abc0da356bbb2a9d74896de31ee41bea2bd227e38"
+    },
+    "python-testing-patterns": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "skillPath": "skills/python-testing-patterns/SKILL.md",
+      "computedHash": "e41f63b75e114be9d53aad279836a62a1a822ccb21342769d6a3c3dbc9836c19"
+    },
+    "redis": {
+      "source": "BagelHole/DevOps-Security-Agent-Skills",
+      "sourceType": "github",
+      "skillPath": "infrastructure/databases/redis/SKILL.md",
+      "computedHash": "db7354b1421f77ce18279afb53e73162e444ee805636712797e7af7767fed8d0"
+    },
+    "sast-scanning": {
+      "source": "BagelHole/DevOps-Security-Agent-Skills",
+      "sourceType": "github",
+      "skillPath": "security/scanning/sast-scanning/SKILL.md",
+      "computedHash": "f04b941e9a9fb0ee7b8b23037310e758b97c8d989dee10741beb0a9410f889c0"
+    },
+    "security-and-hardening": {
+      "source": "addyosmani/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/security-and-hardening/SKILL.md",
+      "computedHash": "d93979be45e9303a59f68dd1be0d976fbafe59b8e23c32d3c6f609f1e6c81373"
+    },
+    "shipping-and-launch": {
+      "source": "addyosmani/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/shipping-and-launch/SKILL.md",
+      "computedHash": "59adff2e4da83a3e01f9944f2cfb1bb50b8b98f1c39ec376032b13c6ae2096fa"
+    },
+    "source-driven-development": {
+      "source": "addyosmani/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/source-driven-development/SKILL.md",
+      "computedHash": "c8af82fc8af511521f7881fecd312752c14af3081e933388414e1c5da108d2fe"
+    },
+    "spec-driven-development": {
+      "source": "addyosmani/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/spec-driven-development/SKILL.md",
+      "computedHash": "a646faab486907990abf2b5faa329e168e11b83c8a64f68ca2a8568ec3984276"
+    },
+    "subagent-driven-development": {
+      "source": "practicalswan/agent-skills",
+      "sourceType": "github",
+      "skillPath": "subagent-driven-development/SKILL.md",
+      "computedHash": "1ccd06d5cf803d8aed7d1fef06da0bab4993f710afd605c82fd9148c5981512a"
+    },
+    "test-driven-development": {
+      "source": "addyosmani/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/test-driven-development/SKILL.md",
+      "computedHash": "909cbc5298acd30d064ba014463ebdecbabc253caf7986ba8cc25633af86f3df"
+    },
+    "unit-testing-test-generate": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "skillPath": "skills/unit-testing-test-generate/SKILL.md",
+      "computedHash": "85b82f753f26abb8a1d4c235adb3927331b991320b69b99a99937180b89f728d"
+    },
+    "vulnerability-scanning": {
+      "source": "BagelHole/DevOps-Security-Agent-Skills",
+      "sourceType": "github",
+      "skillPath": "security/scanning/vulnerability-scanning/SKILL.md",
+      "computedHash": "2333d5e8bb325ccdab365e83670626a5cf79304bc229bbe662e0e34bcdd2b6cf"
+    },
+    "webapp-testing": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "skillPath": "skills/webapp-testing/SKILL.md",
+      "computedHash": "dcf03629ed19658f2edec0d54d2b63fd5c07ca23e8f533d4895739302a50cdc0"
+    }
+  }
+}

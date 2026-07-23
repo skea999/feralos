@@ -1,0 +1,89 @@
+{
+  "goal": "Build Skea — a new Linux distribution based on Alpine, focused on memory safety and security",
+  "status": "active",
+  "phase": "Phase 1: Installer",
+  "active_goals": [
+    "Finish btrfsStandardServer layout in Go (Phase 1)",
+    "Implement btrfsStandard (single disk) layout (Phase 1)",
+    "Build generator (interactive + standalone) (Phase 1)",
+    "Add test suite (Phase 1)",
+    "Plan Dinit integration (Phase 2)",
+    "Design custom Skea repository (Phase 2)"
+  ],
+  "decisions": [
+    {
+      "date": "2026-07-23",
+      "decision": "Skea is a new distribution, not just an installer",
+      "rationale": "Goal is a complete distro with memory safety focus, Dinit, custom repos"
+    },
+    {
+      "date": "2026-07-23",
+      "decision": "Standard core, pluggable data architecture",
+      "rationale": "Installer logic never changes, only data (YAML + Go layouts) changes"
+    },
+    {
+      "date": "2026-07-23",
+      "decision": "Essential packages hardcoded in Go",
+      "rationale": "Non-negotiable core must always be present"
+    },
+    {
+      "date": "2026-07-23",
+      "decision": "Storage layouts as Go packages",
+      "rationale": "Easier to maintain than YAML, still modular"
+    },
+    {
+      "date": "2026-07-23",
+      "decision": "Generator can run standalone or integrated",
+      "rationale": "Supports both interactive and unattended modes"
+    },
+    {
+      "date": "2026-07-23",
+      "decision": "Use Nix for glibc and alternative software",
+      "rationale": "Access Nixpkgs without polluting base Alpine system"
+    },
+    {
+      "date": "2026-07-23",
+      "decision": "Dinit will replace OpenRC in Phase 2",
+      "rationale": "Better dependency handling, parallel startup, modern init"
+    },
+    {
+      "date": "2026-07-23",
+      "decision": "Custom repository for Skea services",
+      "rationale": "Skea-specific packages not upstream in Alpine"
+    },
+    {
+      "date": "2026-07-23",
+      "decision": "Keep shell scripts as reference",
+      "rationale": "Useful for debugging and verifying Go implementation"
+    }
+  ],
+  "risks": [
+    {
+      "risk": "NVMe disk naming varies across hardware",
+      "severity": "medium",
+      "mitigation": "Use blockdev for size detection, fdisk for partitioning"
+    },
+    {
+      "risk": "APK hooks may fail silently",
+      "severity": "low",
+      "mitigation": "Validate hook files exist, log execution output"
+    },
+    {
+      "risk": "Nix integration may conflict with APK",
+      "severity": "medium",
+      "mitigation": "Use separate /nix prefix, avoid PATH conflicts"
+    },
+    {
+      "risk": "Dinit migration may break existing services",
+      "severity": "medium",
+      "mitigation": "Phase 2 only, after installer is stable"
+    }
+  ],
+  "next_actions": [
+    "Verify Go btrfsStandardServer produces identical fstab to shell script",
+    "Test on real hardware with 2x NVMe",
+    "Implement btrfsStandard layout",
+    "Build generator with interactive questions",
+    "Document memory-safe alternatives in detail"
+  ]
+}
