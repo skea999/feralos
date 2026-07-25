@@ -1,4 +1,4 @@
-package utility
+package config
 
 import (
 	"fmt"
@@ -67,10 +67,26 @@ func LoadConfig(userPath string) (*Config, error) {
 		return nil, err
 	}
 
-	iData, err := os.ReadFile("internalRules.yaml")
-	if err != nil {
-		return nil, fmt.Errorf("error reading internalRules.yaml: %w", err)
+	// Look for internalRules.yaml in src/variables/ directory
+	// This file contains the dynamic rules and is not user-editable
+	iPaths := []string{
+		"src/variables/internalRules.yaml",  // From project root
+		"variables/internalRules.yaml",       // From src/
+		"../variables/internalRules.yaml",    // From src/utils/
 	}
+	
+	var iData []byte
+	for _, p := range iPaths {
+		if data, err := os.ReadFile(p); err == nil {
+			iData = data
+			break
+		}
+	}
+	
+	if iData == nil {
+		return nil, fmt.Errorf("cannot find internalRules.yaml in any expected location")
+	}
+	
 	if err := yaml.Unmarshal(iData, &conf.Internal); err != nil {
 		return nil, err
 	}
@@ -80,5 +96,19 @@ func LoadConfig(userPath string) (*Config, error) {
 		conf.User.Runlevels[k] = v
 	}
 
+	return conf, nil
+}
+
+// LoadTemplate loads only the user variables from a template file.
+// Used by the generator to populate defaults without needing internalRules.yaml.
+func LoadTemplate(templatePath string) (*Config, error) {
+	conf := &Config{}
+	uData, err := os.ReadFile(templatePath)
+	if err != nil {
+		return nil, fmt.Errorf("error reading %s: %w", templatePath, err)
+	}
+	if err := yaml.Unmarshal(uData, conf); err != nil {
+		return nil, err
+	}
 	return conf, nil
 }

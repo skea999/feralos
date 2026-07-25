@@ -1,7 +1,8 @@
 package hostPhase
 
 import (
-	"alpineInstaller/utility"
+	"alpineInstaller/utils/config"
+	"alpineInstaller/utils/files"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,7 +11,7 @@ import (
 
 // PrepareChrootEnv writes all configuration files from Host to Guest
 // before entering the chroot environment.
-func PrepareChrootEnv(conf *utility.Config) error {
+func PrepareChrootEnv(conf *config.Config) error {
 	// u = User variables (from variables.yaml + dynamic runtime)
 	// i = Internal system rules (from internalRules.yaml)
 	u := conf.User
@@ -21,24 +22,24 @@ func PrepareChrootEnv(conf *utility.Config) error {
 
 	// 1. Networking & DNS
 	fmt.Println("[DEBUG] Injecting network and DNS configuration")
-	if err := utility.WriteFileInChroot(chroot, "/etc/resolv.conf", "nameserver 208.67.222.222\nnameserver 208.67.220.220\n"); err != nil {
+	if err := files.WriteFileInChroot(chroot, "/etc/resolv.conf", "nameserver 208.67.222.222\nnameserver 208.67.220.220\n"); err != nil {
 		return fmt.Errorf("failed to write resolv.conf: %w", err)
 	}
-	if err := utility.WriteFileInChroot(chroot, "/etc/hostname", u.Hostname+"\n"); err != nil {
+	if err := files.WriteFileInChroot(chroot, "/etc/hostname", u.Hostname+"\n"); err != nil {
 		return fmt.Errorf("failed to write hostname: %w", err)
 	}
 	hostsContent := fmt.Sprintf("127.0.0.1 %s %s.localdomain\n::1 %s %s.localdomain\n", u.Hostname, u.Hostname, u.Hostname, u.Hostname)
-	if err := utility.WriteFileInChroot(chroot, "/etc/hosts", hostsContent); err != nil {
+	if err := files.WriteFileInChroot(chroot, "/etc/hosts", hostsContent); err != nil {
 		return fmt.Errorf("failed to write hosts: %w", err)
 	}
 
 	// 2. Localization
 	fmt.Println("[DEBUG] Setting up localization and keyboard layout")
 	localeContent := fmt.Sprintf("export CHARSET=%s\nexport LANG=%s\nLC_COLLATE=%s\n", u.Locale, u.Locale, u.Locale)
-	if err := utility.WriteFileInChroot(chroot, "/etc/profile.d/20locale.sh", localeContent); err != nil {
+	if err := files.WriteFileInChroot(chroot, "/etc/profile.d/20locale.sh", localeContent); err != nil {
 		return fmt.Errorf("failed to write locale config: %w", err)
 	}
-	if err := utility.WriteFileInChroot(chroot, "/etc/conf.d/loadkmap", "KEYMAP=\"/usr/share/bkeymaps/it/it.bmap.gz\"\n"); err != nil {
+	if err := files.WriteFileInChroot(chroot, "/etc/conf.d/loadkmap", "KEYMAP=\"/usr/share/bkeymaps/it/it.bmap.gz\"\n"); err != nil {
 		return fmt.Errorf("failed to write keymap config: %w", err)
 	}
 
@@ -51,13 +52,13 @@ root soft nofile 100000
 %s hard nofile 524288
 %s soft nofile 524288
 `, u.UserName, u.UserName)
-	if err := utility.WriteFileInChroot(chroot, "/etc/security/limits.conf", limits); err != nil {
+	if err := files.WriteFileInChroot(chroot, "/etc/security/limits.conf", limits); err != nil {
 		return fmt.Errorf("failed to write limits.conf: %w", err)
 	}
-	if err := utility.WriteFileInChroot(chroot, "/etc/subuid", "root:100000:65536\n"); err != nil {
+	if err := files.WriteFileInChroot(chroot, "/etc/subuid", "root:100000:65536\n"); err != nil {
 		return fmt.Errorf("failed to write subuid: %w", err)
 	}
-	if err := utility.WriteFileInChroot(chroot, "/etc/subgid", "root:100000:65536\n"); err != nil {
+	if err := files.WriteFileInChroot(chroot, "/etc/subgid", "root:100000:65536\n"); err != nil {
 		return fmt.Errorf("failed to write subgid: %w", err)
 	}
 
@@ -67,7 +68,7 @@ root soft nofile 100000
 		return fmt.Errorf("failed to create /etc/apk directory: %w", err)
 	}
 	repoContent := fmt.Sprintf("%s/%s/main\n%s/%s/community\n", u.Mirror, u.Branch, u.Mirror, u.Branch)
-	if err := utility.WriteFileInChroot(chroot, "/etc/apk/repositories", repoContent); err != nil {
+	if err := files.WriteFileInChroot(chroot, "/etc/apk/repositories", repoContent); err != nil {
 		return fmt.Errorf("failed to write repositories: %w", err)
 	}
 
@@ -84,10 +85,10 @@ alias apk="apk --progress"
 alias untar="tar xzvkf"
 alias mv="mv -v"
 `
-	if err := utility.WriteFileInChroot(chroot, "/etc/profile.d/alias.sh", aliasContent); err != nil {
+	if err := files.WriteFileInChroot(chroot, "/etc/profile.d/alias.sh", aliasContent); err != nil {
 		return fmt.Errorf("failed to write alias.sh: %w", err)
 	}
-	if err := utility.WriteFileInChroot(chroot, "/etc/profile.d/editor.sh", "export EDITOR=micro\n"); err != nil {
+	if err := files.WriteFileInChroot(chroot, "/etc/profile.d/editor.sh", "export EDITOR=micro\n"); err != nil {
 		return fmt.Errorf("failed to write editor.sh: %w", err)
 	}
 
@@ -98,7 +99,7 @@ else
     PS1="\[\033[32;1m\]\u\[\033[0m\]@\[\033[1;33m\]\h\[\033[0m\]:\w> "
 fi
 `
-	if err := utility.WriteFileInChroot(chroot, "/etc/profile.d/console.sh", ps1Content); err != nil {
+	if err := files.WriteFileInChroot(chroot, "/etc/profile.d/console.sh", ps1Content); err != nil {
 		return fmt.Errorf("failed to write console.sh: %w", err)
 	}
 
@@ -107,14 +108,14 @@ fi
 	if err := os.MkdirAll(filepath.Join(chroot, "/etc/doas.d"), 0755); err != nil {
 		return fmt.Errorf("failed to create /etc/doas.d directory: %w", err)
 	}
-	if err := utility.WriteFileInChroot(chroot, "/etc/doas.d/doas.conf", "permit persist :wheel\n"); err != nil {
+	if err := files.WriteFileInChroot(chroot, "/etc/doas.d/doas.conf", "permit persist :wheel\n"); err != nil {
 		return fmt.Errorf("failed to write doas.conf: %w", err)
 	}
 
 	// 7. Kernel Modules
 	// Now using the unified u.Modules list populated by ApplyRules
 	fmt.Println("[DEBUG] Writing kernel modules configuration")
-	if err := utility.WriteFileInChroot(chroot, "/etc/modules", strings.Join(u.Modules, "\n")+"\n"); err != nil {
+	if err := files.WriteFileInChroot(chroot, "/etc/modules", strings.Join(u.Modules, "\n")+"\n"); err != nil {
 		return fmt.Errorf("failed to write /etc/modules: %w", err)
 	}
 
@@ -124,7 +125,7 @@ fi
 	}
 	for _, mod := range u.Modules {
 		if mod == "raid1" {
-			if err := utility.WriteFileInChroot(chroot, "/etc/modules-load.d/raid1.conf", "raid1\n"); err != nil {
+			if err := files.WriteFileInChroot(chroot, "/etc/modules-load.d/raid1.conf", "raid1\n"); err != nil {
 				return fmt.Errorf("failed to write raid1.conf: %w", err)
 			}
 		}
@@ -135,21 +136,21 @@ fi
 
 	// Grub Cmdline from u.GrubCmdline (unified list)
 	grubConfig := fmt.Sprintf("GRUB_CMDLINE_LINUX_DEFAULT=\"%s\"\nGRUB_DISABLE_OS_PROBER=false\nGRUB_PRELOAD_MODULES=\"fat btrfs mdraid1x part_gpt\"\n", strings.Join(u.GrubCmdline, " "))
-	if err := utility.WriteFileInChroot(chroot, "/etc/default/grub", grubConfig); err != nil {
+	if err := files.WriteFileInChroot(chroot, "/etc/default/grub", grubConfig); err != nil {
 		return fmt.Errorf("failed to write GRUB config: %w", err)
 	}
 
 	// Mkinitfs Features from u.MkinitfsFeatures (unified list)
-	if err := utility.WriteFileInChroot(chroot, "/etc/mkinitfs/mkinitfs.conf", fmt.Sprintf("features=\"%s\"\n", strings.Join(u.MkinitfsFeatures, " "))); err != nil {
+	if err := files.WriteFileInChroot(chroot, "/etc/mkinitfs/mkinitfs.conf", fmt.Sprintf("features=\"%s\"\n", strings.Join(u.MkinitfsFeatures, " "))); err != nil {
 		return fmt.Errorf("failed to write mkinitfs config: %w", err)
 	}
 
 	// 10. Service Configs (ZRAM & LXC)
 	fmt.Println("[DEBUG] Writing ZRAM and LXC service configurations")
-	if err := utility.WriteFileInChroot(chroot, "/etc/conf.d/zram-init", "load_on_start=yes\nunload_on_stop=yes\nnum_devices=1\ntype0=swap\nsize0=8000\n"); err != nil {
+	if err := files.WriteFileInChroot(chroot, "/etc/conf.d/zram-init", "load_on_start=yes\nunload_on_stop=yes\nnum_devices=1\ntype0=swap\nsize0=8000\n"); err != nil {
 		return fmt.Errorf("failed to write zram-init config: %w", err)
 	}
-	if err := utility.WriteFileInChroot(chroot, "/etc/conf.d/lxc", "systemd_container=yes\n"); err != nil {
+	if err := files.WriteFileInChroot(chroot, "/etc/conf.d/lxc", "systemd_container=yes\n"); err != nil {
 		return fmt.Errorf("failed to write LXC config: %w", err)
 	}
 

@@ -1,7 +1,8 @@
 package btrfsStandardServer
 
 import (
-	"alpineInstaller/utility"
+	"alpineInstaller/utils/config"
+	"alpineInstaller/utils/shell"
 	"fmt"
 	"os"
 	"os/exec"
@@ -16,7 +17,7 @@ type Subvolume struct {
 	NoCoW   bool
 }
 
-func RunBtrfsSetup(conf *utility.Config) error {
+func RunBtrfsSetup(conf *config.Config) error {
 	u := &conf.User
 	i := &conf.Internal
 
@@ -35,8 +36,8 @@ func RunBtrfsSetup(conf *utility.Config) error {
 	// 2. Cleanup environment
 	fmt.Println("[INFO] Stopping existing RAIDs and swaps...")
 	// Best effort — these may fail if no existing RAID/swap
-	_, _ = utility.RunCommand("mdadm", "--stop", "/dev/md?")
-	_, _ = utility.RunCommand("swapoff", "-a")
+	_, _ = shell.RunCommand("mdadm", "--stop", "/dev/md?")
+	_, _ = shell.RunCommand("swapoff", "-a")
 
 	// 3. Dynamic size calculation
 	minSizeBytes, err := getMinDiskSize(d1, d2)
@@ -64,22 +65,22 @@ func RunBtrfsSetup(conf *utility.Config) error {
 		}
 
 		suffix := strings.ToLower(disk[strings.LastIndex(disk, "/")+1:])
-		if _, err := utility.RunCommand("mkfs.vfat", "-F", "32", disk+"1"); err != nil {
+		if _, err := shell.RunCommand("mkfs.vfat", "-F", "32", disk+"1"); err != nil {
 			return fmt.Errorf("failed to format EFI on %s: %w", disk, err)
 		}
-		if _, err := utility.RunCommand("fatlabel", disk+"1", "EFI"+strings.ToUpper(suffix)); err != nil {
+		if _, err := shell.RunCommand("fatlabel", disk+"1", "EFI"+strings.ToUpper(suffix)); err != nil {
 			return fmt.Errorf("failed to label EFI on %s: %w", disk, err)
 		}
-		if _, err := utility.RunCommand("mkswap", "-L", "swap-"+suffix, disk+"3"); err != nil {
+		if _, err := shell.RunCommand("mkswap", "-L", "swap-"+suffix, disk+"3"); err != nil {
 			return fmt.Errorf("failed to create swap on %s: %w", disk, err)
 		}
-		if _, err := utility.RunCommand("mkfs.btrfs", "-f", "-L", "data-"+suffix, disk+"4"); err != nil {
+		if _, err := shell.RunCommand("mkfs.btrfs", "-f", "-L", "data-"+suffix, disk+"4"); err != nil {
 			return fmt.Errorf("failed to format data on %s: %w", disk, err)
 		}
 	}
 
 	// 5. RAID Creation
-	if _, err := utility.RunCommand("modprobe", "raid1"); err != nil {
+	if _, err := shell.RunCommand("modprobe", "raid1"); err != nil {
 		return fmt.Errorf("failed to load raid1 module: %w", err)
 	}
 	fmt.Println("[INFO] Creating RAID1 /dev/md0...")
@@ -99,10 +100,10 @@ func RunBtrfsSetup(conf *utility.Config) error {
 		return fmt.Errorf("fdisk failed on /dev/md0: %w", err)
 	}
 
-	if _, err := utility.RunCommand("mkfs.btrfs", "-f", "-L", "boot", "/dev/md0p1"); err != nil {
+	if _, err := shell.RunCommand("mkfs.btrfs", "-f", "-L", "boot", "/dev/md0p1"); err != nil {
 		return fmt.Errorf("failed to format boot partition: %w", err)
 	}
-	if _, err := utility.RunCommand("mkfs.btrfs", "-f", "-L", "root", "/dev/md0p2"); err != nil {
+	if _, err := shell.RunCommand("mkfs.btrfs", "-f", "-L", "root", "/dev/md0p2"); err != nil {
 		return fmt.Errorf("failed to format root partition: %w", err)
 	}
 
@@ -123,7 +124,7 @@ func RunBtrfsSetup(conf *utility.Config) error {
 	u.Runlevels["boot"] = append(u.Runlevels["boot"], "mdadm", "mdadm-raid", "btrfs-scan")
 
 	mdadmCmd := fmt.Sprintf("mdadm --detail --scan > %s/etc/mdadm.conf", i.ChrootDir)
-	if _, err := utility.RunCommand("sh", "-c", mdadmCmd); err != nil {
+	if _, err := shell.RunCommand("sh", "-c", mdadmCmd); err != nil {
 		fmt.Printf("[WARNING] Could not generate mdadm.conf: %v\n", err)
 	}
 
@@ -134,7 +135,7 @@ func RunBtrfsSetup(conf *utility.Config) error {
 func getMinDiskSize(d1, d2 string) (int64, error) {
 	var minSize int64 = 9223372036854775807
 	for _, d := range []string{d1, d2} {
-		out, err := utility.RunCommand("blockdev", "--getsize64", d)
+		out, err := shell.RunCommand("blockdev", "--getsize64", d)
 		if err != nil {
 			return 0, err
 		}
@@ -164,15 +165,15 @@ func setupSubvolumesAndMounts(chroot string, d1 string, d2 string) error {
 	}
 
 	// Create Subvolumes
-	if _, err := utility.RunCommand("mount", "-o", "compress=zstd:3,autodefrag,ssd", "/dev/md0p2", chroot); err != nil {
+	if _, err := shell.RunCommand("mount", "-o", "compress=zstd:3,autodefrag,ssd", "/dev/md0p2", chroot); err != nil {
 		return fmt.Errorf("failed to mount btrfs root: %w", err)
 	}
 	for _, s := range subvols {
-		if _, err := utility.RunCommand("btrfs", "subvolume", "create", chroot+"/"+s.Name); err != nil {
+		if _, err := shell.RunCommand("btrfs", "subvolume", "create", chroot+"/"+s.Name); err != nil {
 			return fmt.Errorf("failed to create subvolume %s: %w", s.Name, err)
 		}
 	}
-	if _, err := utility.RunCommand("umount", chroot); err != nil {
+	if _, err := shell.RunCommand("umount", chroot); err != nil {
 		return fmt.Errorf("failed to unmount btrfs root: %w", err)
 	}
 
@@ -189,14 +190,14 @@ func setupSubvolumesAndMounts(chroot string, d1 string, d2 string) error {
 			opts += ",nodatacow"
 		}
 
-		if _, err := utility.RunCommand("mount", "-t", "btrfs", "-o", opts, "/dev/md0p2", target); err != nil {
+		if _, err := shell.RunCommand("mount", "-t", "btrfs", "-o", opts, "/dev/md0p2", target); err != nil {
 			return fmt.Errorf("failed to mount subvolume %s: %w", s.Name, err)
 		}
 		if s.NoCoW {
-			if _, err := utility.RunCommand("chattr", "+C", target); err != nil {
+			if _, err := shell.RunCommand("chattr", "+C", target); err != nil {
 				return fmt.Errorf("failed to set NoCoW on %s: %w", target, err)
 			}
-			if _, err := utility.RunCommand("btrfs", "property", "set", target, "compression", "none"); err != nil {
+			if _, err := shell.RunCommand("btrfs", "property", "set", target, "compression", "none"); err != nil {
 				return fmt.Errorf("failed to disable compression on %s: %w", target, err)
 			}
 		}
@@ -206,19 +207,19 @@ func setupSubvolumesAndMounts(chroot string, d1 string, d2 string) error {
 	if err := os.MkdirAll(chroot+"/boot", 0755); err != nil {
 		return fmt.Errorf("failed to create /boot directory: %w", err)
 	}
-	if _, err := utility.RunCommand("mount", "/dev/md0p1", chroot+"/boot"); err != nil {
+	if _, err := shell.RunCommand("mount", "/dev/md0p1", chroot+"/boot"); err != nil {
 		return fmt.Errorf("failed to mount boot: %w", err)
 	}
 	if err := os.MkdirAll(chroot+"/boot/efi", 0755); err != nil {
 		return fmt.Errorf("failed to create /boot/efi directory: %w", err)
 	}
-	if _, err := utility.RunCommand("mount", d1+"1", chroot+"/boot/efi"); err != nil {
+	if _, err := shell.RunCommand("mount", d1+"1", chroot+"/boot/efi"); err != nil {
 		return fmt.Errorf("failed to mount EFI1: %w", err)
 	}
 	if err := os.MkdirAll(chroot+"/boot/efi2", 0755); err != nil {
 		return fmt.Errorf("failed to create /boot/efi2 directory: %w", err)
 	}
-	if _, err := utility.RunCommand("mount", d2+"1", chroot+"/boot/efi2"); err != nil {
+	if _, err := shell.RunCommand("mount", d2+"1", chroot+"/boot/efi2"); err != nil {
 		return fmt.Errorf("failed to mount EFI2: %w", err)
 	}
 
@@ -228,13 +229,13 @@ func setupSubvolumesAndMounts(chroot string, d1 string, d2 string) error {
 	if err := os.MkdirAll(chroot+"/data/data-"+s1, 0755); err != nil {
 		return fmt.Errorf("failed to create data dir for %s: %w", s1, err)
 	}
-	if _, err := utility.RunCommand("mount", "-t", "btrfs", "-o", "compress=zstd:3,autodefrag,ssd", d1+"4", chroot+"/data/data-"+s1); err != nil {
+	if _, err := shell.RunCommand("mount", "-t", "btrfs", "-o", "compress=zstd:3,autodefrag,ssd", d1+"4", chroot+"/data/data-"+s1); err != nil {
 		return fmt.Errorf("failed to mount data partition %s: %w", s1, err)
 	}
 	if err := os.MkdirAll(chroot+"/data/data-"+s2, 0755); err != nil {
 		return fmt.Errorf("failed to create data dir for %s: %w", s2, err)
 	}
-	if _, err := utility.RunCommand("mount", "-t", "btrfs", "-o", "compress=zstd:3,autodefrag,ssd", d2+"4", chroot+"/data/data-"+s2); err != nil {
+	if _, err := shell.RunCommand("mount", "-t", "btrfs", "-o", "compress=zstd:3,autodefrag,ssd", d2+"4", chroot+"/data/data-"+s2); err != nil {
 		return fmt.Errorf("failed to mount data partition %s: %w", s2, err)
 	}
 

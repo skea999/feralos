@@ -1,4 +1,4 @@
-# Skea Installer
+# FeralOS Installer
 
 This is a simple script for installing Alpine Linux and Incus as an hypervisor with a raid 1 and btrfs / with subvolumes.
 

@@ -1,8 +1,11 @@
-package utility
+package logic
 
-import "fmt"
+import (
+	"alpineInstaller/utils/config"
+	"fmt"
+)
 
-func ApplyRules(conf *Config) {
+func ApplyRules(conf *config.Config) {
 	u := &conf.User
 	i := &conf.Internal
 
@@ -45,7 +48,7 @@ func ApplyRules(conf *Config) {
 	}
 }
 
-func applyRule(u *UserVariables, rule DynamicPackageRules) {
+func applyRule(u *config.UserVariables, rule config.DynamicPackageRules) {
 	// Use uppercase fields from the struct
 	u.AllPackages = appendUnique(u.AllPackages, rule.Packages...)
 	u.UserGroups = appendUnique(u.UserGroups, rule.Groups...)

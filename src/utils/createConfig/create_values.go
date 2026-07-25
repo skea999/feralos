@@ -1,6 +1,7 @@
-package utility
+package createConfig
 
 import (
+	"alpineInstaller/utils/config"
 	"bufio"
 	"fmt"
 	"os"
@@ -8,7 +9,7 @@ import (
 )
 
 // PromptForConfig uses EXCLUSIVELY the values present in conf as defaults.
-func PromptForConfig(conf *Config) {
+func PromptForConfig(conf *config.Config) {
 	if conf.User.Unattended {
 		fmt.Println("[INFO] Unattended mode active in YAML file. Skipping wizard.")
 		return
@@ -60,7 +61,7 @@ func PromptForConfig(conf *Config) {
 	conf.User.ExtraPackages = strings.Fields(pkgInput)
 }
 
-func validateOrDie(conf *Config) {
+func validateOrDie(conf *config.Config) {
 	// If hostname is empty, it means the YAML file was malformed or missing
 	if conf.User.Hostname == "" || conf.User.UserName == "" {
 		fmt.Println("[CRITICAL ERROR] variables.yaml file does not contain required fields.")

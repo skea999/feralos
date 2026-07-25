@@ -1,5 +1,5 @@
 {
-  "goal": "Build Skea — a new Linux distribution based on Alpine, focused on memory safety and security",
+  "goal": "Build FeralOS — a new Linux distribution based on Alpine, focused on memory safety and security",
   "status": "active",
   "phase": "Phase 1: Installer",
   "active_goals": [
@@ -8,12 +8,12 @@
     "Build generator (interactive + standalone) (Phase 1)",
     "Add test suite (Phase 1)",
     "Plan Dinit integration (Phase 2)",
-    "Design custom Skea repository (Phase 2)"
+    "Design custom FeralOS repository (Phase 2)"
   ],
   "decisions": [
     {
       "date": "2026-07-23",
-      "decision": "Skea is a new distribution, not just an installer",
+      "decision": "FeralOS is a new distribution, not just an installer",
       "rationale": "Goal is a complete distro with memory safety focus, Dinit, custom repos"
     },
     {
@@ -48,8 +48,8 @@
     },
     {
       "date": "2026-07-23",
-      "decision": "Custom repository for Skea services",
-      "rationale": "Skea-specific packages not upstream in Alpine"
+      "decision": "Custom repository for FeralOS services",
+      "rationale": "FeralOS-specific packages not upstream in Alpine"
     },
     {
       "date": "2026-07-23",

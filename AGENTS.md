@@ -1,13 +1,13 @@
 # Project Context
 
 **Stack**: Go 1.22 (installer) + Shell (legacy reference) + YAML config
-**Project**: Skea — new Linux distribution based on Alpine Linux
+**Project**: FeralOS — new Linux distribution based on Alpine Linux
 **Focus**: Memory safety, security, modern components
 **Status**: Installer development (Phase 1)
 
 ## Distribution Vision
 
-Skea is a new Linux distribution based on Alpine Linux, focused on memory safety and security. It replaces traditional C components with modern alternatives (uutils, micro, doas). For software not in Alpine repos or requiring glibc, **Nix** is used. After the installer is stable, **Dinit** will replace OpenRC, and a **custom repository** will be created for Skea services.
+FeralOS is a new Linux distribution based on Alpine Linux, focused on memory safety and security. It replaces traditional C components with modern alternatives (uutils, micro, doas). For software not in Alpine repos or requiring glibc, **Nix** is used. After the installer is stable, **Dinit** will replace OpenRC, and a **custom repository** will be created for FeralOS services.
 
 ## Workflow
 
@@ -26,7 +26,7 @@ State: `state/session-state.json`.
 .agents\skills\session-memory\scripts\memory.ps1 stats
 
 # End
-.agents\skills\session-memory\scripts\memory.ps1 save "summary" "Today: X, next: Y" -Tags @("installer","go","skea")
+.agents\skills\session-memory\scripts\memory.ps1 save "summary" "Today: X, next: Y" -Tags @("installer","go","feralos")
 ```
 
 ### Final verification
@@ -49,20 +49,41 @@ Pre-commit: secrets scan + lint-staged (post-stack).
 
 ```bash
 # Build Go installer
-cd src && go build -o ../alpine-installer .
+cd src && go build -o ../feralos_installer .
 
 # Build Go generator
-cd src/generator && go build -o ../../generator .
+cd src/utils/createConfig/createValues && go build -o ../../../../feralos_create_config .
 
 # Run installer (requires root + live environment)
-sudo ./alpine-installer -config variables.yaml
+sudo ./feralos_installer -config variables.yaml
 
 # Run generator (interactive or standalone)
-./generator
+./feralos_create_config
 
 # Run tests (when available)
 cd src && go test ./...
 ```
+
+## Test Artifacts
+
+Output from test runs goes to `tests/artifacts/` with naming convention:
+```
+tests/artifacts/(program-name)-(timestamp)/
+```
+
+Example:
+```bash
+# Generator test output
+./feralos_create_config -file tests/artifacts/feralos_create_config-20260725_000300/variables.yaml
+
+# Installer test output (if applicable)
+./feralos_installer -config tests/artifacts/feralos_installer-20260725_000300/config.yaml
+```
+
+**Rules:**
+- Directory name: `<binary-name>-<YYYYMMDD_HHMMSS>`
+- All artifacts are gitignored (only `.gitkeep` files tracked)
+- Never commit test outputs to repository
 
 ## Lint (WSL / Native)
 
@@ -140,7 +161,7 @@ External skills:
 ## Project Structure
 
 ```
-skeaAlpineInstaller/
+feralos_installer/
 ├── src/                          # Go installer (primary)
 │   ├── main.go                   # Installer entry point
 │   ├── go.mod                    # Go module definition
@@ -148,33 +169,34 @@ skeaAlpineInstaller/
 │   ├── variables/
 │   │   ├── variables.yaml        # Template with defaults
 │   │   └── internalRules.yaml    # Dynamic rules
-│   ├── installer/
-│   │   ├── utility/              # Config, exec, files, logic
-│   │   │   ├── config.go
-│   │   │   ├── exec.go
-│   │   │   ├── files.go
-│   │   │   ├── logic.go
-│   │   │   ├── make_variables.go
-│   │   │   └── makeVariables/
-│   │   │       └── main.go       # Standalone generator
-│   │   ├── hostPhase/            # Host-side operations
-│   │   │   ├── disks/            # Storage layouts (Go packages)
-│   │   │   │   ├── btrfsStandardServer/
-│   │   │   │   │   ├── partitioning.go
-│   │   │   │   │   └── fstab.go
-│   │   │   │   └── btrfsStandard/
-│   │   │   │       ├── partitioning.go
-│   │   │   │       └── fstab.go
-│   │   │   ├── bootstrap.go
-│   │   │   ├── bind_mounts.go
-│   │   │   ├── chroot_preparation.go
-│   │   │   └── hooks.go
-│   │   └── chrootPhase/          # Chroot configuration
-│   │       └── configurator.go
+│   ├── utils/                    # Shared utilities (sub-packages)
+│   │   ├── config/               # Config types + LoadConfig
+│   │   │   └── config.go
+│   │   ├── shell/                # Command execution (RunCommand, RunChrootCommand)
+│   │   │   └── shell.go
+│   │   ├── files/                # File operations (WriteFileInChroot)
+│   │   │   └── files.go
+│   │   ├── logic/                # Dynamic rule application
+│   │   │   └── logic.go
+│   │   └── createConfig/         # Configuration wizard + generator
+│   │       ├── create_values.go  # Interactive wizard (PromptForConfig)
+│   │       └── createValues/
+│   │           └── main.go       # Standalone generator
+│   ├── hostPhase/            # Host-side operations
+│   │   ├── disks/            # Storage layouts (Go packages)
+│   │   │   ├── btrfsStandardServer/
+│   │   │   │   ├── partitioning.go
+│   │   │   │   └── fstab.go
+│   │   │   └── btrfsStandard/
+│   │   │       ├── partitioning.go
+│   │   │       └── fstab.go
+│   │   ├── bootstrap.go
+│   │   ├── bind_mounts.go
+│   │   ├── chroot_preparation.go
+│   │   └── hooks.go
+│   └── chrootPhase/          # Chroot configuration
+│       └── configurator.go
 ├── internal/                     # Shell scripts (reference)
-│   ├── start.sh
-│   ├── variables.sh
-│   └── chroot.sh
 ├── docs/
 ├── state/
 ├── handoff/
@@ -190,13 +212,13 @@ skeaAlpineInstaller/
 | Phase 1 | Generator (interactive + standalone) | Planned |
 | Phase 1 | Test suite + CI | Planned |
 | Phase 2 | Dinit init system | Planned |
-| Phase 2 | Custom Skea repository | Planned |
+| Phase 2 | Custom FeralOS repository | Planned |
 | Phase 2 | Nix integration | Planned |
 | Phase 2 | Full distribution release | Planned |
 
 ## Memory-Safe Alternatives
 
-| Traditional (C) | Skea Alternative | Language |
+| Traditional (C) | FeralOS Alternative | Language |
 |-----------------|------------------|----------|
 | coreutils | uutils-coreutils | Rust |
 | vim/nano | micro | Go |

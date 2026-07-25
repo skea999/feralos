@@ -1,7 +1,8 @@
 package btrfsStandard
 
 import (
-	"alpineInstaller/utility"
+	"alpineInstaller/utils/config"
+	"alpineInstaller/utils/shell"
 	"fmt"
 	"os"
 	"os/exec"
@@ -15,7 +16,7 @@ type Subvolume struct {
 	NoCoW   bool
 }
 
-func RunBtrfsSetup(conf *utility.Config) error {
+func RunBtrfsSetup(conf *config.Config) error {
 	u := &conf.User
 	i := &conf.Internal
 
@@ -27,7 +28,7 @@ func RunBtrfsSetup(conf *utility.Config) error {
 	fmt.Printf("[INFO] Starting single disk partitioning (Standard): %s\n", targetDisk)
 
 	// 1. Cleanup environment (Swap)
-	if _, err := utility.RunCommand("swapoff", "-a"); err != nil {
+	if _, err := shell.RunCommand("swapoff", "-a"); err != nil {
 		return fmt.Errorf("failed to disable swap: %w", err)
 	}
 
@@ -43,16 +44,16 @@ func RunBtrfsSetup(conf *utility.Config) error {
 
 	// 3. Formatting and Labeling
 	fmt.Println("[INFO] Formatting partitions...")
-	if _, err := utility.RunCommand("mkfs.vfat", "-F", "32", targetDisk+"1"); err != nil {
+	if _, err := shell.RunCommand("mkfs.vfat", "-F", "32", targetDisk+"1"); err != nil {
 		return fmt.Errorf("failed to format EFI partition: %w", err)
 	}
-	if _, err := utility.RunCommand("fatlabel", targetDisk+"1", "EFI"); err != nil {
+	if _, err := shell.RunCommand("fatlabel", targetDisk+"1", "EFI"); err != nil {
 		return fmt.Errorf("failed to label EFI partition: %w", err)
 	}
-	if _, err := utility.RunCommand("mkswap", "-L", "swap", targetDisk+"2"); err != nil {
+	if _, err := shell.RunCommand("mkswap", "-L", "swap", targetDisk+"2"); err != nil {
 		return fmt.Errorf("failed to create swap: %w", err)
 	}
-	if _, err := utility.RunCommand("mkfs.btrfs", "-f", "-L", "root", targetDisk+"3"); err != nil {
+	if _, err := shell.RunCommand("mkfs.btrfs", "-f", "-L", "root", targetDisk+"3"); err != nil {
 		return fmt.Errorf("failed to format root partition: %w", err)
 	}
 
@@ -86,15 +87,15 @@ func setupSubvolumesAndMounts(chroot string, disk string) error {
 	}
 
 	// Temporary mount of btrfs root to create subvolumes
-	if _, err := utility.RunCommand("mount", disk+"3", chroot); err != nil {
+	if _, err := shell.RunCommand("mount", disk+"3", chroot); err != nil {
 		return fmt.Errorf("failed to mount btrfs root: %w", err)
 	}
 	for _, s := range subvols {
-		if _, err := utility.RunCommand("btrfs", "subvolume", "create", chroot+"/"+s.Name); err != nil {
+		if _, err := shell.RunCommand("btrfs", "subvolume", "create", chroot+"/"+s.Name); err != nil {
 			return fmt.Errorf("failed to create subvolume %s: %w", s.Name, err)
 		}
 	}
-	if _, err := utility.RunCommand("umount", chroot); err != nil {
+	if _, err := shell.RunCommand("umount", chroot); err != nil {
 		return fmt.Errorf("failed to unmount btrfs root: %w", err)
 	}
 
@@ -112,16 +113,16 @@ func setupSubvolumesAndMounts(chroot string, disk string) error {
 			opts += ",nodatacow"
 		}
 
-		if _, err := utility.RunCommand("mount", "-t", "btrfs", "-o", opts, disk+"3", target); err != nil {
+		if _, err := shell.RunCommand("mount", "-t", "btrfs", "-o", opts, disk+"3", target); err != nil {
 			return fmt.Errorf("failed to mount subvolume %s: %w", s.Name, err)
 		}
 
 		// Apply NoCoW attribute if requested (important for VM/DB performance)
 		if s.NoCoW {
-			if _, err := utility.RunCommand("chattr", "+C", target); err != nil {
+			if _, err := shell.RunCommand("chattr", "+C", target); err != nil {
 				return fmt.Errorf("failed to set NoCoW attribute on %s: %w", target, err)
 			}
-			if _, err := utility.RunCommand("btrfs", "property", "set", target, "compression", "none"); err != nil {
+			if _, err := shell.RunCommand("btrfs", "property", "set", target, "compression", "none"); err != nil {
 				return fmt.Errorf("failed to disable compression on %s: %w", target, err)
 			}
 		}
@@ -131,7 +132,7 @@ func setupSubvolumesAndMounts(chroot string, disk string) error {
 	if err := os.MkdirAll(chroot+"/boot/efi", 0755); err != nil {
 		return fmt.Errorf("failed to create /boot/efi directory: %w", err)
 	}
-	if _, err := utility.RunCommand("mount", disk+"1", chroot+"/boot/efi"); err != nil {
+	if _, err := shell.RunCommand("mount", disk+"1", chroot+"/boot/efi"); err != nil {
 		return fmt.Errorf("failed to mount EFI partition: %w", err)
 	}
 

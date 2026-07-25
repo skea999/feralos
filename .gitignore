@@ -54,3 +54,7 @@ tests/artifacts/**/*
 
 # Reference repos (not part of this project)
 references/skeaSimpleServer/
+
+# Compiled binaries
+feralos_installer
+feralos_create_config

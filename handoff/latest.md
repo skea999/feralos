@@ -5,7 +5,7 @@
 
 ## Project Vision
 
-**Skea** is a new Linux distribution based on Alpine Linux, focused on **memory safety** and **security**. It replaces traditional C components with modern alternatives (uutils, micro, doas). For software not in Alpine repos or requiring glibc, **Nix** is used. After the installer is stable, **Dinit** will replace OpenRC, and a **custom repository** will be created for Skea services.
+**FeralOS** is a new Linux distribution based on Alpine Linux, focused on **memory safety** and **security**. It replaces traditional C components with modern alternatives (uutils, micro, doas). For software not in Alpine repos or requiring glibc, **Nix** is used. After the installer is stable, **Dinit** will replace OpenRC, and a **custom repository** will be created for FeralOS services.
 
 ## Current Focus
 
@@ -29,7 +29,7 @@ Phase 1: Go installer for Alpine Linux with RAID1 + Btrfs. Primary layout (`btrf
 
 ### Phase 2 (Distribution)
 1. Dinit init system (replace OpenRC)
-2. Custom Skea repository
+2. Custom FeralOS repository
 3. Nix integration (glibc + alternatives)
 4. Full distribution release
 
@@ -67,11 +67,11 @@ Phase 1: Go installer for Alpine Linux with RAID1 + Btrfs. Primary layout (`btrf
 - **Generator** can run standalone or integrated
 - **Nix** for glibc and alternative software
 - **Dinit** will replace OpenRC in Phase 2
-- **Custom repository** for Skea-specific services
+- **Custom repository** for FeralOS-specific services
 
 ## Memory-Safe Alternatives
 
-| Traditional (C) | Skea Alternative | Language |
+| Traditional (C) | FeralOS Alternative | Language |
 |-----------------|------------------|----------|
 | coreutils | uutils-coreutils | Rust |
 | vim/nano | micro | Go |

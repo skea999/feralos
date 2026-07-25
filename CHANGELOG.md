@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Skea will be documented in this file.
+All notable changes to FeralOS will be documented in this file.
 
 ## [Unreleased]
 
@@ -17,7 +17,7 @@ All notable changes to Skea will be documented in this file.
 ### Changed
 - Migrated from monolithic shell script to modular Go architecture
 - Separated host phase and chroot phase into distinct packages
-- Project vision: from installer to full Skea distribution
+- Project vision: from installer to full FeralOS distribution
 
 ### Planned (Phase 1)
 - btrfsStandard layout (single disk)
@@ -26,7 +26,7 @@ All notable changes to Skea will be documented in this file.
 
 ### Planned (Phase 2)
 - Dinit init system (replace OpenRC)
-- Custom Skea repository
+- Custom FeralOS repository
 - Nix package manager integration
 - Full distribution release
 

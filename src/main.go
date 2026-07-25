@@ -10,7 +10,10 @@ import (
 	"alpineInstaller/hostPhase"
 	"alpineInstaller/hostPhase/disks/btrfsStandard"
 	"alpineInstaller/hostPhase/disks/btrfsStandardServer"
-	"alpineInstaller/utility"
+	"alpineInstaller/utils/config"
+	"alpineInstaller/utils/createConfig"
+	"alpineInstaller/utils/shell"
+	"alpineInstaller/utils/logic"
 )
 
 func main() {
@@ -31,12 +34,12 @@ func main() {
 
 	// 3. Load Configurations
 	fmt.Println("[INFO] Step 1: Loading configuration files...")
-	conf, err := utility.LoadConfig(*userConfigPath)
+	conf, err := config.LoadConfig(*userConfigPath)
 	if err != nil {
 		// If error is that file doesn't exist, proceed with empty struct for wizard
 		if os.IsNotExist(err) {
 			fmt.Println("[WARN] No configuration file found. Starting with defaults...")
-			conf = &utility.Config{}
+			conf = &config.Config{}
 			// Initialize minimum required fields if needed
 		} else {
 			log.Fatalf("[ERROR] Configuration loading failed: %v", err)
@@ -44,12 +47,12 @@ func main() {
 	}
 
 	// 3.1. Run Wizard (skips automatically if unattended: true)
-	utility.PromptForConfig(conf)
+	createConfig.PromptForConfig(conf)
 
 	// 4. Apply Dynamic Rules
 	// Iterate over packages and inject necessary groups, modules, and services
 	fmt.Println("[INFO] Step 2: Applying dynamic package logic...")
-	utility.ApplyRules(conf)
+	logic.ApplyRules(conf)
 
 	// 5. Check Host Tools (Dependencies needed on Mint Live)
 	fmt.Println("[INFO] Step 3: Checking host dependencies...")
@@ -122,11 +125,11 @@ func checkHostDependencies() error {
 	deps := []string{"mdadm", "btrfs-progs", "curl", "tar", "dosfstools", "rsync"}
 
 	fmt.Println("[DEBUG] Updating apt and installing required host tools")
-	if _, err := utility.RunCommand("apt", "update"); err != nil {
+	if _, err := shell.RunCommand("apt", "update"); err != nil {
 		return fmt.Errorf("apt update failed: %w", err)
 	}
 
 	args := append([]string{"install", "-y"}, deps...)
-	_, err := utility.RunCommand("apt", args...)
+	_, err := shell.RunCommand("apt", args...)
 	return err
 }

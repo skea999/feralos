@@ -1,7 +1,7 @@
 package hostPhase
 
 import (
-	"alpineInstaller/utility"
+	"alpineInstaller/utils/shell"
 	"fmt"
 	"os"
 )
@@ -19,12 +19,12 @@ func MountVirtualFilesystems(chroot string) error {
 		}
 
 		// We use rbind to ensure all sub-mounts are included
-		if _, err := utility.RunCommand("mount", "--rbind", dir, target); err != nil {
+		if _, err := shell.RunCommand("mount", "--rbind", dir, target); err != nil {
 			return err
 		}
 
 		// Rslave ensures that mount changes in host don't propagate to chroot and vice-versa in a way that breaks things
-		if _, err := utility.RunCommand("mount", "--make-rslave", target); err != nil {
+		if _, err := shell.RunCommand("mount", "--make-rslave", target); err != nil {
 			return err
 		}
 	}
@@ -38,7 +38,7 @@ func UmountVirtualFilesystems(chroot string) error {
 	dirs := []string{"/dev", "/proc", "/sys"}
 	for i := len(dirs) - 1; i >= 0; i-- {
 		// Best effort — cleanup may fail for various reasons
-		_, _ = utility.RunCommand("umount", "-R", chroot+dirs[i])
+		_, _ = shell.RunCommand("umount", "-R", chroot+dirs[i])
 	}
 	return nil
 }

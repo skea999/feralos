@@ -1,10 +1,10 @@
-# Skea Alpine Installer — Domain Vocabulary
+# FeralOS Installer — Domain Vocabulary
 
 Consistent terminology for code, docs, and conversations.
 
 ## Project Vision
 
-**Skea** is a new Linux distribution based on Alpine Linux, focused on **memory safety** and **security**. It uses modern, secure components replacing traditional C software, while keeping Alpine's package repositories. For software not available in Alpine repos or requiring glibc, **Nix** is used as a secondary package manager.
+**FeralOS** is a new Linux distribution based on Alpine Linux, focused on **memory safety** and **security**. It uses modern, secure components replacing traditional C software, while keeping Alpine's package repositories. For software not available in Alpine repos or requiring glibc, **Nix** is used as a secondary package manager.
 
 ## Core Terms
 
@@ -35,7 +35,7 @@ _Avoid_: rule engine, logic processor
 
 ## Distribution Architecture
 
-**Skea Distribution**
+**FeralOS Distribution**
 New Linux distribution based on Alpine Linux. Not minimal — includes full desktop and server capabilities. Uses Alpine's package repositories with additional custom repository.
 _Avoid_: Alpine fork, custom Alpine
 
@@ -53,7 +53,7 @@ Future init system replacement for OpenRC. Service manager with better dependenc
 _Avoid_: init, service manager (in generic context)
 
 **Custom Repository**
-New Alpine-style repository created for Skea-specific services and packages not upstream in Alpine. Added to APK sources alongside Alpine repos.
+New Alpine-style repository created for FeralOS-specific services and packages not upstream in Alpine. Added to APK sources alongside Alpine repos.
 _Avoid_: local repo, private repo
 
 ## Disk Layout
@@ -133,7 +133,7 @@ _Avoid_: compressed swap, ram-swap
 
 ## Memory-Safe Alternatives
 
-| Traditional (C) | Skea Alternative | Language |
+| Traditional (C) | FeralOS Alternative | Language |
 |-----------------|------------------|----------|
 | coreutils | uutils-coreutils | Rust |
 | vim/nano | micro | Go |
@@ -155,7 +155,7 @@ _Note: Some C components remain when no memory-safe alternative exists or when t
 | `src/variables.yaml` | User config (generated) |
 | `src/variables/variables.yaml` | Template with defaults |
 | `src/variables/internalRules.yaml` | Dynamic rules |
-| `src/installer/utility/` | Config, exec, files, logic |
+| `src/utils/` | Config, exec, files, logic |
 | `src/installer/hostPhase/` | Host operations |
 | `src/installer/hostPhase/disks/` | Storage layouts (Go packages) |
 | `src/installer/chrootPhase/` | Chroot configuration |

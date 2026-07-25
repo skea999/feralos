@@ -1,13 +1,14 @@
 package hostPhase
 
 import (
-	"alpineInstaller/utility"
+	"alpineInstaller/utils/config"
+	"alpineInstaller/utils/shell"
 	"fmt"
 	"strings"
 )
 
 // BootstrapAlpine downloads apk-tools-static and initializes the Alpine base system.
-func BootstrapAlpine(conf *utility.Config) error {
+func BootstrapAlpine(conf *config.Config) error {
 	// u = User variables (mirror, branch, arch)
 	// i = Internal system rules (chrootDir)
 	u := conf.User
@@ -20,7 +21,7 @@ func BootstrapAlpine(conf *utility.Config) error {
 
 	// Command to find the latest version of apk-tools-static from the repository index
 	findCmd := fmt.Sprintf("curl -sSf %s/ | sed -n 's/.*apk-tools-static-\\(.*\\)\\.apk.*/\\1/p' | head -n1", repoURL)
-	apkVersion, err := utility.RunCommand("sh", "-c", findCmd)
+	apkVersion, err := shell.RunCommand("sh", "-c", findCmd)
 	if err != nil {
 		return fmt.Errorf("failed to detect apk-tools-static version: %w", err)
 	}
@@ -30,26 +31,26 @@ func BootstrapAlpine(conf *utility.Config) error {
 	fullURL := fmt.Sprintf("%s/%s", repoURL, apkFileName)
 
 	fmt.Printf("[DEBUG] Downloading %s\n", apkFileName)
-	if _, err := utility.RunCommand("curl", "-LO", fullURL); err != nil {
+	if _, err := shell.RunCommand("curl", "-LO", fullURL); err != nil {
 		return fmt.Errorf("failed to download apk-static: %w", err)
 	}
 
 	fmt.Println("[DEBUG] Extracting apk-tools-static")
-	if _, err := utility.RunCommand("tar", "-xzf", apkFileName); err != nil {
+	if _, err := shell.RunCommand("tar", "-xzf", apkFileName); err != nil {
 		return fmt.Errorf("failed to extract apk-static: %w", err)
 	}
 
 	fmt.Println("[INFO] Initializing Alpine base system into target...")
 	// We use i.ChrootDir for the destination path (-p)
-	_, err = utility.RunCommand("./sbin/apk.static",
+	_, err = shell.RunCommand("./sbin/apk.static",
 		"-X", repoURL,
 		"-U", "--allow-untrusted",
 		"-p", i.ChrootDir,
 		"--initdb", "add", "alpine-base")
 
 	// Cleanup the downloaded files
-	_, _ = utility.RunCommand("rm", apkFileName)
-	_, _ = utility.RunCommand("rm", "-rf", "sbin")
+	_, _ = shell.RunCommand("rm", apkFileName)
+	_, _ = shell.RunCommand("rm", "-rf", "sbin")
 
 	return err
 }

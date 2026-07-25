@@ -1,4 +1,4 @@
-# Tasks — Skea Store
+# Tasks — FeralOS Store
 
 **Milestone**: *Select and insert*
 **Updated**: {{YYYY-MM-DD}}

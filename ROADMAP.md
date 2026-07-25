@@ -1,7 +1,7 @@
 # Roadmap
 
 **Status**: Active Development
-**Distribution**: Skea (based on Alpine Linux)
+**Distribution**: FeralOS (based on Alpine Linux)
 
 ## Phases
 
@@ -9,7 +9,7 @@
 Build a standard, hackable Go installer for Alpine Linux with RAID1 + Btrfs.
 
 ### Phase 2 — Distribution
-Transform the installer output into a complete Skea distribution with Dinit, custom repos, and Nix integration.
+Transform the installer output into a complete FeralOS distribution with Dinit, custom repos, and Nix integration.
 
 ---
 
@@ -29,9 +29,9 @@ Transform the installer output into a complete Skea distribution with Dinit, cus
 | Ver | Target | Status | What |
 |-----|--------|--------|------|
 | v2.0 | — | Planned | Dinit init system (replace OpenRC) |
-| v2.1 | — | Planned | Custom Skea repository |
+| v2.1 | — | Planned | Custom FeralOS repository |
 | v2.2 | — | Planned | Nix integration (glibc + alternatives) |
-| v2.3 | — | Planned | Full Skea distribution release |
+| v2.3 | — | Planned | Full FeralOS distribution release |
 
 ---
 
@@ -56,7 +56,7 @@ Transform the installer output into a complete Skea distribution with Dinit, cus
 | Feature | Prio | Status | Notes |
 |---------|------|--------|-------|
 | Dinit init system | P0 | Planned | Replace OpenRC |
-| Custom Skea repository | P0 | Planned | Alpine-style repo for Skea services |
+| Custom FeralOS repository | P0 | Planned | Alpine-style repo for FeralOS services |
 | Nix package manager | P1 | Planned | glibc + alternative software |
 | Memory-safe components | P1 | Planned | uutils, micro, doas (already in Phase 1) |
 | Full desktop environment | P2 | Planned | KDE/other DEs |

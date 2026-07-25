@@ -1,7 +1,7 @@
 package hostPhase
 
 import (
-	"alpineInstaller/utility"
+	"alpineInstaller/utils/files"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -63,7 +63,7 @@ if [ "${STAGE}" = "pre-commit" ] && [ "${APK_COMMAND}" = "${targetCmd}" ]; then
 fi
 exit 0`
 
-	if err := utility.WriteFileInChroot(chrootDir, "/etc/apk/commit_hooks.d/keep-old-kernel.sh", kernelHook); err != nil {
+	if err := files.WriteFileInChroot(chrootDir, "/etc/apk/commit_hooks.d/keep-old-kernel.sh", kernelHook); err != nil {
 		return fmt.Errorf("failed to write kernel hook: %w", err)
 	}
 	if err := os.Chmod(filepath.Join(hookDir, "keep-old-kernel.sh"), 0755); err != nil {
@@ -126,7 +126,7 @@ fi
 
 exit 0`
 
-		if err := utility.WriteFileInChroot(chrootDir, "/etc/apk/commit_hooks.d/copy-efi.sh", efiHook); err != nil {
+		if err := files.WriteFileInChroot(chrootDir, "/etc/apk/commit_hooks.d/copy-efi.sh", efiHook); err != nil {
 			return fmt.Errorf("failed to write EFI hook: %w", err)
 		}
 		if err := os.Chmod(filepath.Join(hookDir, "copy-efi.sh"), 0755); err != nil {

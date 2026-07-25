@@ -1,13 +1,13 @@
 package btrfsStandard
 
 import (
-	"alpineInstaller/utility"
+	"alpineInstaller/utils/config"
 	"fmt"
 	"os"
 	"strings"
 )
 
-func GenerateFstab(conf *utility.Config) error {
+func GenerateFstab(conf *config.Config) error {
 	u := conf.User
 	i := conf.Internal
 

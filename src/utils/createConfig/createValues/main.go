@@ -1,7 +1,8 @@
 package main
 
 import (
-	"alpineInstaller/utility"
+	"alpineInstaller/utils/config"
+	"alpineInstaller/utils/createConfig"
 	"flag"
 	"fmt"
 	"log"
@@ -18,11 +19,11 @@ func main() {
 	// 1. Find the required template
 	// Try common paths to ensure we find it
 	templatePaths := []string{
-		"variables/variables.yaml",
-		"alpineInstaller/variables/variables.yaml",        // If run from project root
-		"../variables/variables.yaml",                     // If run from installer/utility/
-		"../../variables/variables.yaml",                  // If run from installer/utility/makeVariables/
-		"/usr/local/share/alpineInstaller/variables.yaml", // Hypothetical system path
+		"src/variables/variables.yaml",                     // If run from project root
+		"variables/variables.yaml",                          // If run from src/
+		"../variables/variables.yaml",                       // If run from src/utils/createConfig/
+		"../../variables/variables.yaml",                    // If run from src/utils/createConfig/createValues/
+		"/usr/local/share/feralos/variables.yaml",           // Hypothetical system path
 	}
 
 	var templatePath string
@@ -39,15 +40,15 @@ func main() {
 
 	fmt.Printf("[INFO] Loading defaults from template: %s\n", templatePath)
 
-	// 2. Load data
-	conf, err := utility.LoadConfig(templatePath)
+	// 2. Load data (template only, no internalRules needed)
+	conf, err := config.LoadTemplate(templatePath)
 	if err != nil {
 		log.Fatalf("[ERROR] Error loading template: %v", err)
 	}
 
 	// 3. Wizard (Defaults taken from just loaded YAML file)
 	conf.User.Unattended = false
-	utility.PromptForConfig(conf)
+	createConfig.PromptForConfig(conf)
 
 	// 4. Save
 	if err := saveConfigStandalone(conf, *userFilePath); err != nil {
@@ -57,7 +58,7 @@ func main() {
 	fmt.Printf("[SUCCESS] New file generated: %s\n", *userFilePath)
 }
 
-func saveConfigStandalone(conf *utility.Config, filename string) error {
+func saveConfigStandalone(conf *config.Config, filename string) error {
 	dir := filepath.Dir(filename)
 	if dir != "." {
 		if err := os.MkdirAll(dir, 0755); err != nil {
@@ -65,7 +66,7 @@ func saveConfigStandalone(conf *utility.Config, filename string) error {
 		}
 	}
 	yamlData := struct {
-		Variables utility.UserVariables `yaml:"variables"`
+		Variables config.UserVariables `yaml:"variables"`
 	}{
 		Variables: conf.User,
 	}

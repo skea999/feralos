@@ -1,4 +1,4 @@
-# PROJECT — Skea Distribution
+# PROJECT — FeralOS Distribution
 
 **Status**: Active Development
 **Stack**: Go 1.22 (installer) + Shell (legacy) + YAML config
@@ -6,11 +6,11 @@
 
 ## Vision
 
-**Skea** is a new Linux distribution based on Alpine Linux, focused on **memory safety** and **security**. It replaces traditional C components with modern, secure alternatives while keeping Alpine's package repositories. For software not available in Alpine or requiring glibc, **Nix** is used as a secondary package manager.
+**FeralOS** is a new Linux distribution based on Alpine Linux, focused on **memory safety** and **security**. It replaces traditional C components with modern, secure alternatives while keeping Alpine's package repositories. For software not available in Alpine or requiring glibc, **Nix** is used as a secondary package manager.
 
-The installer is the first step — once stable, Skea will:
+The installer is the first step — once stable, FeralOS will:
 1. Replace OpenRC with **Dinit** as init system
-2. Create a **custom repository** for Skea-specific services
+2. Create a **custom repository** for FeralOS-specific services
 3. Ship as a complete, bootable distribution
 
 ## Users
@@ -39,9 +39,9 @@ Go-based installer that:
 4. Configures system via chroot
 
 ### Phase 2: Distribution (future)
-Complete Skea distribution with:
+Complete FeralOS distribution with:
 1. Dinit replacing OpenRC
-2. Custom repository for Skea services
+2. Custom repository for FeralOS services
 3. Nix for glibc/alternative software
 4. Full desktop and server capabilities
 
@@ -101,7 +101,7 @@ Each layout handles:
 
 ## Memory-Safe Alternatives
 
-| Traditional (C) | Skea Alternative | Language |
+| Traditional (C) | FeralOS Alternative | Language |
 |-----------------|------------------|----------|
 | coreutils | uutils-coreutils | Rust |
 | vim/nano | micro | Go |
@@ -198,7 +198,7 @@ Installation complete
 | Phase 1 | Generator (interactive + standalone) | Planned |
 | Phase 1 | Test suite + CI | Planned |
 | Phase 2 | Dinit init system | Planned |
-| Phase 2 | Custom Skea repository | Planned |
+| Phase 2 | Custom FeralOS repository | Planned |
 | Phase 2 | Nix integration | Planned |
 | Phase 2 | Full distribution release | Planned |
 
