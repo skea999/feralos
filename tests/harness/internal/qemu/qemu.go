@@ -211,6 +211,14 @@ func CreateOverlay(qemuImgBinary, backingFile, overlayPath string) error {
 	return nil
 }
 
+func ResizeDisk(qemuImgBinary, diskPath, size string) error {
+	cmd := exec.Command(qemuImgBinary, "resize", diskPath, size)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("resize disk %s to %s: %w: %s", diskPath, size, err, string(output))
+	}
+	return nil
+}
+
 func StartSoftwareTPM(cfg SoftwareTPMConfig) error {
 	if cfg.StartTimeout <= 0 {
 		cfg.StartTimeout = 10 * time.Second

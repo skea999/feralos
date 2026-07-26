@@ -1,0 +1,97 @@
+package chrootPhase
+
+import (
+	"alpineInstaller/utils/config"
+	"alpineInstaller/utils/files"
+	"alpineInstaller/utils/shell"
+	"fmt"
+)
+
+// SetupServices configures OpenRC runlevels, aliases, editor, pager, and console prompt.
+// These are commands that must run inside the chroot.
+func SetupServices(conf *config.Config) error {
+	chroot := conf.Internal.ChrootDir
+	u := conf.User
+
+	// 1. OpenRC Runlevels
+	fmt.Println("[INFO] Configuring OpenRC services...")
+	setupRunlevels(chroot, u.Runlevels)
+
+	// 2. Symlink aliases to fish and bash
+	fmt.Println("[INFO] Configuring shell symlinks...")
+	if _, err := shell.RunChrootCommand(chroot, "ln -sfn /etc/profile.d/alias.sh /etc/fish/conf.d/alias.fish"); err != nil {
+		fmt.Printf("[WARNING] Failed to symlink fish alias: %v\n", err)
+	}
+	if _, err := shell.RunChrootCommand(chroot, "ln -sfn /etc/profile.d/alias.sh /etc/bash/alias.sh"); err != nil {
+		fmt.Printf("[WARNING] Failed to symlink bash alias: %v\n", err)
+	}
+
+	// 3. Editor symlink
+	if _, err := shell.RunChrootCommand(chroot, "ln -sfn /etc/profile.d/editor.sh /etc/bash/editor.sh"); err != nil {
+		fmt.Printf("[WARNING] Failed to symlink bash editor: %v\n", err)
+	}
+
+	// 4. Pager (sed must run inside chroot)
+	fmt.Println("[INFO] Configuring pager...")
+	if _, err := shell.RunChrootCommand(chroot, "sed -i 's/PAGER=less/PAGER=bat/g' /etc/profile"); err != nil {
+		fmt.Printf("[WARNING] Failed to set pager: %v\n", err)
+	}
+	if err := files.WriteFileInChroot(chroot, "/etc/fish/conf.d/pager.fish", "set -gx PAGER bat\n"); err != nil {
+		return fmt.Errorf("failed to write pager.fish: %w", err)
+	}
+	if err := files.WriteFileInChroot(chroot, "/etc/bash/pager.sh", "export PAGER=bat\n"); err != nil {
+		return fmt.Errorf("failed to write pager.sh: %w", err)
+	}
+
+	// 5. Timezone symlink (must run inside chroot)
+	fmt.Printf("[INFO] Setting timezone to %s\n", u.Timezone)
+	if _, err := shell.RunChrootCommand(chroot, fmt.Sprintf("ln -sf /usr/share/zoneinfo/%s /etc/localtime", u.Timezone)); err != nil {
+		return fmt.Errorf("failed to set timezone: %w", err)
+	}
+
+	// 6. Remove mkinitfs (we use booster)
+	fmt.Println("[INFO] Removing mkinitfs...")
+	if _, err := shell.RunChrootCommand(chroot, "apk del mkinitfs 2>/dev/null || true"); err != nil {
+		fmt.Printf("[WARNING] Failed to remove mkinitfs: %v\n", err)
+	}
+	if _, err := shell.RunChrootCommand(chroot, "rm -f /etc/kernel-hooks.d/50-secureboot.hook"); err != nil {
+		fmt.Printf("[WARNING] Failed to remove old secureboot hook: %v\n", err)
+	}
+
+	// 7. Add additional kernel modules (append, don't overwrite)
+	fmt.Println("[INFO] Adding additional kernel modules...")
+	additionalModules := []string{"btrfs", "amdgpu", "fbcon", "tun", "tap", "8021q", "r8169", "bridge", "bonding", "br_netfilter", "veth", "overlay", "zstd", "zstd_compress", "binfmt_misc", "zsmalloc"}
+	for _, mod := range additionalModules {
+		if _, err := shell.RunChrootCommand(chroot, fmt.Sprintf("grep -q '^%s$' /etc/modules || echo '%s' >> /etc/modules", mod, mod)); err != nil {
+			fmt.Printf("[WARNING] Failed to add module %s: %v\n", mod, err)
+		}
+	}
+
+	// 8. Earlyoom service
+	fmt.Println("[INFO] Enabling earlyoom service...")
+	if _, err := shell.RunChrootCommand(chroot, "rc-update add earlyoom default"); err != nil {
+		fmt.Printf("[WARNING] Failed to add earlyoom to default: %v\n", err)
+	}
+
+	// 9. Smartd config
+	fmt.Println("[INFO] Configuring smartd...")
+	if err := files.WriteFileInChroot(chroot, "/etc/smartd.conf", "DEVICESCAN -a -o on -S on -s (S/../.././02|L/../../6/03) -W 4,40,45\n"); err != nil {
+		return fmt.Errorf("failed to write smartd.conf: %w", err)
+	}
+
+	// 10. APK audit cron job
+	fmt.Println("[INFO] Configuring APK audit cron...")
+	if _, err := shell.RunChrootCommand(chroot, "echo '0 4 * * 0 /usr/bin/apk audit --full --quiet || true' >> /etc/crontabs/root"); err != nil {
+		fmt.Printf("[WARNING] Failed to write cron job: %v\n", err)
+	}
+
+	return nil
+}
+
+func setupRunlevels(chroot string, levels map[string][]string) {
+	for level, services := range levels {
+		for _, svc := range services {
+			_, _ = shell.RunChrootCommand(chroot, fmt.Sprintf("rc-update add %s %s", svc, level))
+		}
+	}
+}

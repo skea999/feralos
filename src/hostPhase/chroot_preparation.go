@@ -131,27 +131,20 @@ fi
 		}
 	}
 
-	// 9. Bootloader Config Files (GRUB & MKINITFS)
-	fmt.Println("[DEBUG] Writing unified GRUB and MKINITFS configs")
-
-	// Grub Cmdline from u.GrubCmdline (unified list)
-	grubConfig := fmt.Sprintf("GRUB_CMDLINE_LINUX_DEFAULT=\"%s\"\nGRUB_DISABLE_OS_PROBER=false\nGRUB_PRELOAD_MODULES=\"fat btrfs mdraid1x part_gpt\"\n", strings.Join(u.GrubCmdline, " "))
-	if err := files.WriteFileInChroot(chroot, "/etc/default/grub", grubConfig); err != nil {
-		return fmt.Errorf("failed to write GRUB config: %w", err)
-	}
-
-	// Mkinitfs Features from u.MkinitfsFeatures (unified list)
-	if err := files.WriteFileInChroot(chroot, "/etc/mkinitfs/mkinitfs.conf", fmt.Sprintf("features=\"%s\"\n", strings.Join(u.MkinitfsFeatures, " "))); err != nil {
-		return fmt.Errorf("failed to write mkinitfs config: %w", err)
-	}
-
-	// 10. Service Configs (ZRAM & LXC)
+	// 9. Service Configs (ZRAM & LXC)
 	fmt.Println("[DEBUG] Writing ZRAM and LXC service configurations")
 	if err := files.WriteFileInChroot(chroot, "/etc/conf.d/zram-init", "load_on_start=yes\nunload_on_stop=yes\nnum_devices=1\ntype0=swap\nsize0=8000\n"); err != nil {
 		return fmt.Errorf("failed to write zram-init config: %w", err)
 	}
 	if err := files.WriteFileInChroot(chroot, "/etc/conf.d/lxc", "systemd_container=yes\n"); err != nil {
 		return fmt.Errorf("failed to write LXC config: %w", err)
+	}
+
+	// 10. Bridging sysctl (for QEMU/Incus)
+	fmt.Println("[DEBUG] Writing bridging sysctl")
+	bridgingConf := "net.ipv4.conf.all.bc_forwarding=1\nnet.ipv4.conf.default.bc_forwarding=1\n"
+	if err := files.WriteFileInChroot(chroot, "/etc/sysctl.d/bridging.conf", bridgingConf); err != nil {
+		return fmt.Errorf("failed to write bridging sysctl: %w", err)
 	}
 
 	return nil

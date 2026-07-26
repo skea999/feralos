@@ -52,9 +52,8 @@ tests/artifacts/**/*
 *.qcow2
 *.iso
 
-# Reference repos (not part of this project)
-references/skeaSimpleServer/
-
 # Compiled binaries
 feralos_installer
 feralos_create_config
+references
+!references/.gitkeep

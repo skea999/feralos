@@ -12,35 +12,32 @@ import (
 	"alpineInstaller/hostPhase/disks/btrfsStandardServer"
 	"alpineInstaller/utils/config"
 	"alpineInstaller/utils/createConfig"
-	"alpineInstaller/utils/shell"
 	"alpineInstaller/utils/logic"
+	"alpineInstaller/utils/shell"
 )
 
 func main() {
 	// 1. Initial Permission Check
-	// The installer must write to block devices and perform mounts
 	if os.Geteuid() != 0 {
 		log.Fatal("[ERROR] This installer must be run with root privileges.")
 	}
 
 	// 2. Parse Flags
-	// Allow user to specify a custom path for user variables
 	userConfigPath := flag.String("config", "variables.yaml", "Path to the user variables.yaml file")
 	flag.Parse()
 
 	fmt.Println("--------------------------------------------------")
-	fmt.Println("       ALPINE LINUX INSTALLER (Go Version)        ")
+	fmt.Println("       FERALOS INSTALLER (Go Version)             ")
+	fmt.Println("       LUKS + Btrfs RAID1 + booster + UKI         ")
 	fmt.Println("--------------------------------------------------")
 
 	// 3. Load Configurations
 	fmt.Println("[INFO] Step 1: Loading configuration files...")
 	conf, err := config.LoadConfig(*userConfigPath)
 	if err != nil {
-		// If error is that file doesn't exist, proceed with empty struct for wizard
 		if os.IsNotExist(err) {
 			fmt.Println("[WARN] No configuration file found. Starting with defaults...")
 			conf = &config.Config{}
-			// Initialize minimum required fields if needed
 		} else {
 			log.Fatalf("[ERROR] Configuration loading failed: %v", err)
 		}
@@ -50,17 +47,16 @@ func main() {
 	createConfig.PromptForConfig(conf)
 
 	// 4. Apply Dynamic Rules
-	// Iterate over packages and inject necessary groups, modules, and services
 	fmt.Println("[INFO] Step 2: Applying dynamic package logic...")
 	logic.ApplyRules(conf)
 
-	// 5. Check Host Tools (Dependencies needed on Mint Live)
+	// 5. Check Host Tools
 	fmt.Println("[INFO] Step 3: Checking host dependencies...")
 	if err := checkHostDependencies(); err != nil {
 		log.Fatalf("[ERROR] Missing host tools: %v", err)
 	}
 
-	// 6. Disk Partitioning & RAID Setup
+	// 6. Disk Partitioning & LUKS Setup
 	fmt.Printf("[INFO] Selected Disk Layout: %s\n", conf.User.DiskLayout)
 
 	if len(conf.User.Disks) == 0 {
@@ -81,36 +77,49 @@ func main() {
 	}
 
 	// 7. Bind Mounts (Virtual Filesystems)
-	// Preparing /dev, /proc, /sys for chroot
-	fmt.Println("[INFO] Step 5: Mounting virtual filesystems...")
+	fmt.Println("[INFO] Step 4: Mounting virtual filesystems...")
 	if err := hostPhase.MountVirtualFilesystems(conf.Internal.ChrootDir); err != nil {
 		log.Fatalf("[ERROR] Bind mounts failed: %v", err)
 	}
 
 	// 8. Alpine Bootstrap
-	// Downloading and extracting the base Alpine rootfs
-	fmt.Println("[INFO] Step 6: Bootstrapping Alpine base system...")
+	fmt.Println("[INFO] Step 5: Bootstrapping Alpine base system...")
 	if err := hostPhase.BootstrapAlpine(conf); err != nil {
 		log.Fatalf("[ERROR] Bootstrap failed: %v", err)
 	}
 
 	// 9. Host Side Preparation
-	// Writing config files (network, modules, grub, limits) from Host to Guest
-	fmt.Println("[INFO] Step 7: Preparing configuration files from host...")
+	fmt.Println("[INFO] Step 6: Preparing configuration files from host...")
 	if err := hostPhase.PrepareChrootEnv(conf); err != nil {
 		log.Fatalf("[ERROR] Chroot prep failed: %v", err)
 	}
 
-	// 10. Inject APK Hooks
-	// Setup kernel fallback and EFI sync scripts
-	fmt.Println("[INFO] Step 8: Injecting APK commit hooks...")
+	// 10. Write Booster Config (booster.yaml + kernel cmdline)
+	fmt.Println("[INFO] Step 7: Writing booster configuration...")
+	if err := hostPhase.WriteBoosterConfig(conf); err != nil {
+		log.Fatalf("[ERROR] Booster config failed: %v", err)
+	}
+
+	// 11. Write Booster Hook (kernel upgrade hook)
+	fmt.Println("[INFO] Step 8: Writing booster kernel hook...")
+	if err := hostPhase.WriteBoosterHook(conf.Internal.ChrootDir); err != nil {
+		log.Fatalf("[ERROR] Booster hook failed: %v", err)
+	}
+
+	// 12. Write Secureboot Config
+	fmt.Println("[INFO] Step 9: Writing secureboot hook config...")
+	if err := hostPhase.WriteSecurebootConf(conf.Internal.ChrootDir); err != nil {
+		log.Fatalf("[ERROR] Secureboot config failed: %v", err)
+	}
+
+	// 13. Inject APK Hooks
+	fmt.Println("[INFO] Step 10: Injecting APK commit hooks...")
 	if err := hostPhase.InjectApkHooks(conf.Internal.ChrootDir); err != nil {
 		log.Fatalf("[ERROR] Hooks injection failed: %v", err)
 	}
 
-	// 11. Chroot Phase (Final Internal Configuration)
-	// Running apk add, adding users, setting up runlevels, grub-install
-	fmt.Println("[INFO] Step 9: Entering Chroot for final configuration...")
+	// 14. Chroot Phase (Final Internal Configuration)
+	fmt.Println("[INFO] Step 11: Entering Chroot for final configuration...")
 	if err := chrootPhase.Run(conf); err != nil {
 		log.Fatalf("[ERROR] Chroot phase failed: %v", err)
 	}
@@ -120,9 +129,9 @@ func main() {
 	fmt.Println("--------------------------------------------------")
 }
 
-// checkHostDependencies ensures the Live environment has the necessary tools
+// checkHostDependencies ensures the Live environment has the necessary tools.
 func checkHostDependencies() error {
-	deps := []string{"mdadm", "btrfs-progs", "curl", "tar", "dosfstools", "rsync"}
+	deps := []string{"btrfs-progs", "cryptsetup", "curl", "tar", "dosfstools", "rsync", "efitools", "sbsigntool"}
 
 	fmt.Println("[DEBUG] Updating apt and installing required host tools")
 	if _, err := shell.RunCommand("apt", "update"); err != nil {

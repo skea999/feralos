@@ -3,10 +3,10 @@
   "status": "active",
   "phase": "Phase 1: Installer",
   "active_goals": [
-    "Finish btrfsStandardServer layout in Go (Phase 1)",
-    "Implement btrfsStandard (single disk) layout (Phase 1)",
+    "Rewrite btrfsStandard for LUKS + booster + UKI (Phase 1)",
     "Build generator (interactive + standalone) (Phase 1)",
     "Add test suite (Phase 1)",
+    "Test installer on real hardware (Phase 1)",
     "Plan Dinit integration (Phase 2)",
     "Design custom FeralOS repository (Phase 2)"
   ],
@@ -55,6 +55,51 @@
       "date": "2026-07-23",
       "decision": "Keep shell scripts as reference",
       "rationale": "Useful for debugging and verifying Go implementation"
+    },
+    {
+      "date": "2026-07-26",
+      "decision": "Use booster instead of mkinitfs for initramfs",
+      "rationale": "booster is faster, simpler, and supports LUKS2 natively"
+    },
+    {
+      "date": "2026-07-26",
+      "decision": "Use signed UKI instead of GRUB",
+      "rationale": "Unified Kernel Image enables Secure Boot without GRUB complexity"
+    },
+    {
+      "date": "2026-07-26",
+      "decision": "LUKS encryption on RAID and Swap partitions",
+      "rationale": "Full disk encryption for security, matching reference installer"
+    },
+    {
+      "date": "2026-07-26",
+      "decision": "Btrfs RAID1 on LUKS (not mdadm)",
+      "rationale": "Btrfs native RAID1 is simpler and more reliable than mdadm"
+    },
+    {
+      "date": "2026-07-26",
+      "decision": "booster/uki/hardening are installer-level, not layout-specific",
+      "rationale": "These are standard components used by all disk layouts"
+    },
+    {
+      "date": "2026-07-26",
+      "decision": "If a module has chroot commands, entire module goes in chrootPhase",
+      "rationale": "Don't split modules across hostPhase/chrootPhase - keep related code together"
+    },
+    {
+      "date": "2026-07-26",
+      "decision": "Split chrootPhase into logical modules",
+      "rationale": "packages.go, services.go, users.go, dmcrypt.go, hardening.go, uki.go, zswap.go for easier review"
+    },
+    {
+      "date": "2026-07-26",
+      "decision": "zswap is a separate module with enableZswap toggle",
+      "rationale": "No disk dependencies, pure memory optimization, toggleable via config"
+    },
+    {
+      "date": "2026-07-26",
+      "decision": "Improved logging for debugging",
+      "rationale": "Show command execution and results (stdout/stderr) in debug mode"
     }
   ],
   "risks": [
@@ -77,13 +122,28 @@
       "risk": "Dinit migration may break existing services",
       "severity": "medium",
       "mitigation": "Phase 2 only, after installer is stable"
+    },
+    {
+      "risk": "LUKS password handling must be secure",
+      "severity": "high",
+      "mitigation": "Use stdin pipe to cryptsetup, never log passwords"
+    },
+    {
+      "risk": "booster version compatibility",
+      "severity": "low",
+      "mitigation": "Pin booster version in APK add"
+    },
+    {
+      "risk": "Boot failure after installation",
+      "severity": "high",
+      "mitigation": "Debug kernel cmdline, booster initramfs, and UKI generation"
     }
   ],
   "next_actions": [
-    "Verify Go btrfsStandardServer produces identical fstab to shell script",
-    "Test on real hardware with 2x NVMe",
-    "Implement btrfsStandard layout",
+    "Debug boot failure (kernel cmdline, booster initramfs, UKI generation)",
+    "Test installer on real hardware with 2x NVMe",
     "Build generator with interactive questions",
+    "Add test suite",
     "Document memory-safe alternatives in detail"
   ]
 }

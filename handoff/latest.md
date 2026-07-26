@@ -9,23 +9,30 @@
 
 ## Current Focus
 
-Phase 1: Go installer for Alpine Linux with RAID1 + Btrfs. Primary layout (`btrfsStandardServer`) is in progress.
+Phase 1: Go installer for Alpine Linux with RAID1 + Btrfs. Both layouts (`btrfsStandardServer` and `btrfsStandard`) are implemented. Boot testing is in progress.
 
 ## What's Working
 
 - Shell script installer (`internal/start.sh`) — full reference implementation
 - Go installer: config loading, dynamic rules, host phase (partitioning, bootstrap, hooks), chroot phase
-- Dual-disk RAID1 layout with Btrfs subvolumes
+- **btrfsStandardServer**: Dual-disk RAID1 layout with Btrfs subvolumes (21 subvolumes)
+- **btrfsStandard**: Single-disk layout with swapfile (25 subvolumes)
+- LUKS2 encryption on root and swap partitions
+- booster initramfs (replaces mkinitfs)
+- Signed UKI (Unified Kernel Image) for Secure Boot
 - APK hooks for kernel fallback and EFI sync
+- Interactive wizard and standalone generator
+- QEMU-based test harness
+- Non-interactive mode for automated testing
+- Improved logging (command execution + results)
 
 ## What's Next
 
 ### Phase 1 (Installer)
-1. Verify Go `btrfsStandardServer` produces identical fstab to shell script
+1. Debug boot failure (kernel cmdline, booster initramfs, UKI generation)
 2. Test on real hardware with 2x NVMe
-3. Implement `btrfsStandard` (single disk) layout
-4. Build generator (interactive + standalone)
-5. Add test suite
+3. Add test suite
+4. Complete CI/CD pipeline
 
 ### Phase 2 (Distribution)
 1. Dinit init system (replace OpenRC)
@@ -48,12 +55,17 @@ Phase 1: Go installer for Alpine Linux with RAID1 + Btrfs. Primary layout (`btrf
 | File | Purpose |
 |------|---------|
 | `src/main.go` | Installer entry point |
-| `src/generator/main.go` | Value generator (planned) |
-| `src/variables.yaml` | User config (runtime) |
+| `src/utils/config/config.go` | Config types + LoadConfig |
+| `src/utils/shell/shell.go` | RunCommand, RunChrootCommand, RunCommandStrict |
 | `src/variables/variables.yaml` | Template with defaults |
 | `src/variables/internalRules.yaml` | Dynamic rules |
-| `src/installer/hostPhase/disks/` | Storage layouts (Go packages) |
-| `internal/start.sh` | Reference shell script |
+| `src/hostPhase/` | Host-side operations (writes files, NO chroot commands) |
+| `src/chrootPhase/` | Chroot operations (runs INSIDE chroot) |
+| `src/hostPhase/disks/` | Storage layouts (Go packages) |
+| `setup.sh` | Automated setup script |
+| `tests/harness/` | QEMU-based test harness |
+| `docs/INSTALLER.md` | Installer architecture documentation |
+| `docs/USAGE.md` | Usage guide and configuration |
 | `docs/PROJECT.md` | Distribution vision, architecture |
 | `CONTEXT.md` | Domain vocabulary |
 
@@ -68,6 +80,12 @@ Phase 1: Go installer for Alpine Linux with RAID1 + Btrfs. Primary layout (`btrf
 - **Nix** for glibc and alternative software
 - **Dinit** will replace OpenRC in Phase 2
 - **Custom repository** for FeralOS-specific services
+- **booster** instead of mkinitfs for initramfs
+- **Signed UKI** instead of GRUB for boot
+- **LUKS2** encryption on RAID and Swap partitions
+- **Btrfs RAID1** on LUKS (not mdadm)
+- **Phase separation**: hostPhase (writes files) vs chrootPhase (runs commands)
+- **Module isolation**: Each functionality is a separate module
 
 ## Memory-Safe Alternatives
 
@@ -77,6 +95,8 @@ Phase 1: Go installer for Alpine Linux with RAID1 + Btrfs. Primary layout (`btrf
 | vim/nano | micro | Go |
 | sudo | doas | C (minimal) |
 | openrc | dinit (future) | C++ |
+| grep (GNU) | ripgrep (optional) | Rust |
+| find (GNU) | fd (optional) | Rust |
 
 ---
 

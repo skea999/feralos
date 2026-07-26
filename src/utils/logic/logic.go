@@ -49,12 +49,10 @@ func ApplyRules(conf *config.Config) {
 }
 
 func applyRule(u *config.UserVariables, rule config.DynamicPackageRules) {
-	// Use uppercase fields from the struct
 	u.AllPackages = appendUnique(u.AllPackages, rule.Packages...)
 	u.UserGroups = appendUnique(u.UserGroups, rule.Groups...)
 	u.Modules = appendUnique(u.Modules, rule.Modules...)
-	u.GrubCmdline = appendUnique(u.GrubCmdline, rule.GrubCmdline...)
-	u.MkinitfsFeatures = appendUnique(u.MkinitfsFeatures, rule.MkinitfsFeatures...)
+	u.KernelCmdline = appendUnique(u.KernelCmdline, rule.KernelCmdline...)
 
 	for svc, level := range rule.Services {
 		if u.Runlevels[level] == nil {

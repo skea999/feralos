@@ -1,0 +1,152 @@
+package hostPhase
+
+import (
+	"alpineInstaller/utils/config"
+	"alpineInstaller/utils/files"
+	"fmt"
+	"os"
+	"path/filepath"
+)
+
+// WriteBoosterConfig writes /etc/booster.yaml and /etc/kernel/cmdline into the chroot.
+// booster replaces mkinitfs for initramfs generation.
+func WriteBoosterConfig(conf *config.Config) error {
+	chroot := conf.Internal.ChrootDir
+	u := conf.User
+
+	fmt.Println("[INFO] Writing booster configuration...")
+
+	// 1. /etc/booster.yaml
+	boosterYaml := `compression: zstd
+enable_lvm: false
+enable_mdraid: false
+network:
+  dhcp: off
+modules: dm_mod,dm_crypt,crc32c_cryptoapi,zstd,btrfs,efivarfs,nvme
+modules_force_load: dm_mod,dm_crypt,crc32c_cryptoapi,zstd,btrfs,efivarfs,nvme
+mount_timeout: 3m
+extra_files: busybox,mount,btrfs
+append_all_modaliases: true
+`
+	if err := files.WriteFileInChroot(chroot, "/etc/booster.yaml", boosterYaml); err != nil {
+		return fmt.Errorf("failed to write booster.yaml: %w", err)
+	}
+
+	// 2. /etc/kernel/cmdline
+	kernelCmdline := ""
+	for i, arg := range u.KernelCmdline {
+		if i > 0 {
+			kernelCmdline += " "
+		}
+		kernelCmdline += arg
+	}
+	if err := files.WriteFileInChroot(chroot, "/etc/kernel/cmdline", kernelCmdline+"\n"); err != nil {
+		return fmt.Errorf("failed to write kernel cmdline: %w", err)
+	}
+
+	return nil
+}
+
+// WriteBoosterHook writes /etc/kernel-hooks.d/50-booster.hook into the chroot.
+// This hook rebuilds the booster initramfs and creates a signed UKI on kernel upgrades.
+func WriteBoosterHook(chroot string) error {
+	fmt.Println("[INFO] Writing booster kernel hook...")
+
+	hookDir := filepath.Join(chroot, "/etc/kernel-hooks.d")
+	if err := os.MkdirAll(hookDir, 0755); err != nil {
+		return fmt.Errorf("failed to create kernel-hooks.d: %w", err)
+	}
+
+	hookContent := `#!/bin/sh
+FLAVOR="$1"
+NEW_VERSION="$2"
+tmpdir=$(mktemp -d)
+trap 'rm -rf "${tmpdir}"' EXIT
+
+# Build booster initramfs
+booster build --force --kernel-version "${NEW_VERSION}-${FLAVOR}" "${tmpdir}/initramfs"
+
+# Read secureboot config
+signing_key="/etc/uefi-keys/db.key"
+signing_cert="/etc/uefi-keys/db.crt"
+output_dir="/boot/efi/Alpine"
+output_name="linux-${FLAVOR}.efi"
+
+if [ -f /etc/kernel-hooks.d/secureboot.conf ]; then
+    . /etc/kernel-hooks.d/secureboot.conf
+fi
+
+# Create output directory
+mkdir -p "${output_dir}"
+
+# Build signed UKI with optional microcode
+if [ -f /boot/amd-ucode.img ]; then
+  efi-mkuki \
+      -c "${cmdline}" \
+      -o "${output_dir}/${output_name}" \
+      "/boot/vmlinuz-${FLAVOR}" \
+      /boot/amd-ucode.img \
+      "${tmpdir}/initramfs"
+elif [ -f /boot/intel-ucode.img ]; then
+  efi-mkuki \
+      -c "${cmdline}" \
+      -o "${output_dir}/${output_name}" \
+      "/boot/vmlinuz-${FLAVOR}" \
+      /boot/intel-ucode.img \
+      "${tmpdir}/initramfs"
+else
+  efi-mkuki \
+      -c "${cmdline}" \
+      -o "${output_dir}/${output_name}" \
+      "/boot/vmlinuz-${FLAVOR}" \
+      "${tmpdir}/initramfs"
+fi
+
+# Sign the UKI for Secure Boot
+sbsign --key "${signing_key}" --cert "${signing_cert}" \
+    --output "${output_dir}/${output_name}" \
+    "${output_dir}/${output_name}"
+
+# Backup old UKI before overwriting
+if [ -f "${output_dir}/${output_name}" ]; then
+    cp -af "${output_dir}/${output_name}" "${output_dir}/linux-${FLAVOR}-backup.efi"
+fi
+
+# Also create fallback boot entry
+mkdir -p "${output_dir}/../EFI/BOOT"
+cp -af "${output_dir}/${output_name}" "${output_dir}/../EFI/BOOT/BOOTX64.EFI"
+
+# Mirror to secondary ESP
+if [ -d /boot/efi2 ]; then
+    cp -af /boot/efi/. /boot/efi2/
+    mkdir -p /boot/efi2/EFI/BOOT
+fi
+`
+	hookPath := filepath.Join(hookDir, "50-booster.hook")
+	if err := files.WriteFileInChroot(chroot, "/etc/kernel-hooks.d/50-booster.hook", hookContent); err != nil {
+		return fmt.Errorf("failed to write booster hook: %w", err)
+	}
+	if err := os.Chmod(hookPath, 0755); err != nil {
+		return fmt.Errorf("failed to chmod booster hook: %w", err)
+	}
+
+	return nil
+}
+
+// WriteSecurebootConf writes /etc/kernel-hooks.d/secureboot.conf into the chroot.
+func WriteSecurebootConf(chroot string) error {
+	fmt.Println("[INFO] Writing secureboot hook config...")
+
+	confContent := `cmdline="$(cat /etc/kernel/cmdline)"
+signing_cert="/etc/uefi-keys/db.crt"
+signing_key="/etc/uefi-keys/db.key"
+output_dir="/boot/efi/Alpine"
+output_name="linux-{flavor}.efi"
+backup=yes
+`
+	if err := files.WriteFileInChroot(chroot, "/etc/kernel-hooks.d/secureboot.conf", confContent); err != nil {
+		return fmt.Errorf("failed to write secureboot.conf: %w", err)
+	}
+
+	return nil
+}

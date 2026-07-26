@@ -2,43 +2,107 @@ chrootDir: "/mnt"
 
 # Default system runlevels
 defaultRunlevels:
-  sysinit: ["devfs", "dmesg", "mdev"]
-  boot: ["hwclock", "modules", "sysctl", "hostname", "bootmisc", "syslog"]
+  sysinit: ["devfs", "dmesg", "sysctl", "sysfs"]
+  boot: ["hwclock", "modules", "hostname", "bootmisc", "binfmt", "fsck", "rsyslog", "root", "procfs", "loadkmap", "localmount", "dmcrypt", "btrfs-scan", "udev", "udev-trigger", "udev-settle"]
+  default: ["swap", "cronie", "chronyd", "dbus", "sshd", "cgroups", "smartd", "acpid", "irqbalance", "fwupd", "udev-postmount", "earlyoom"]
   shutdown: ["mount-ro", "killprocs", "savecache"]
 
-# Fixed system packages
+# Fixed system packages — matches reference skeaSimpleServer exactly
 standardPackages:
-  - micro
+  # Core
   - doas
-  - mdadm
   - musl-locales
   - lang
   - tzdata
   - kbd-bkeymaps
-  - grub-efi
+  - font-terminus
+  # Secure Boot / UKI
+  - efi-mkkeys
+  - efitools
+  - openssl
+  - ca-certificates
+  - secureboot-hook
+  - systemd-efistub
   - efibootmgr
+  # Filesystem / Crypto
+  - e2fsprogs
   - linux-lts
   - btrfs-progs
+  - cryptsetup
   - zstd
+  # Services
   - cronie
   - chrony
   - dbus
-  - network-extras
+  - shadow
+  - eudev
+  - udev-init-scripts
+  - openssh
+  - mount
+  - sed
+  - blkid
+  - grep
+  # Containers / Virtualization
+  - qemu-img
+  - qemu-system-x86_64
+  - qemu-modules
+  - incus-feature
+  - incus-feature-vm
+  - incus-feature-client
+  - incus-feature-utils
+  # Network
+  - bridge
+  - bridge-utils
+  - vlan
+  # Hardware
+  - pciutils
+  - usbutils
+  - cpufrequtils
+  - smartmontools
+  # Logging
+  - rsyslog
+  - logrotate
+  # Shell
+  - fish
+  - fish-tools
+  # Initramfs (booster replaces mkinitfs)
+  - booster
+  # Firmware
+  - fwupd
+  - fwupd-openrc
+  - fwupd-efi
+  # Monitoring
+  - rasdaemon
+  - acpid
+  - ethtool
+  - irqbalance
+  - lm_sensors
+  - dmidecode
+  # Memory-safe alternatives
   - uutils
   - uutils-coreutils
-  - grep
-  - findutils
+  - uutils-coreutils-hostname
+  - uutils-coreutils-stat
+  - micro
+  - bottom
+  - bandwhich
+  - sd
+  - gping
+  - procs
+  - viddy
+  - ripgrep
+  - fd
+  - dust
+  - bat
 
 # 1. Disk Layouts Definitions
 diskLayouts:
   btrfsStandardServer:
-    packages: ["mdadm", "btrfs-progs", "grub-efi", "efibootmgr"]
-    modules: ["raid1", "btrfs"]
-    mkinitfs: ["raid", "mdadm", "btrfs"]
-  btrfsStandard: 
-    packages: ["btrfs-progs", "grub-efi", "efibootmgr"]
-    modules: ["btrfs"]
-    mkinitfs: ["btrfs"]
+    packages: ["btrfs-progs", "cryptsetup", "efibootmgr"]
+    modules: ["dm_mod", "dm_crypt", "crc32c_cryptoapi", "zstd", "btrfs", "efivarfs", "nvme"]
+  btrfsStandard:
+    packages: ["btrfs-progs", "cryptsetup", "efibootmgr"]
+    modules: ["dm_mod", "dm_crypt", "crc32c_cryptoapi", "zstd", "btrfs", "efivarfs", "nvme"]
 
 # 2. Desktop Environments Definitions
 desktopEnvironments:
@@ -46,13 +110,16 @@ desktopEnvironments:
     packages: ["plasma", "sddm", "konsole", "dolphin", "dbus-x11", "desktop-file-utils"]
     services: {"sddm": "default", "dbus": "default"}
     groups: ["video", "input"]
+  niri:
+    packages: ["niri", "greetd", "greetd-regreet", "greetd-openrc", "foot", "xdg-desktop-portal-wlr", "pipewire", "polkit-elogind"]
+    services: {"greetd": "default"}
+    groups: ["video", "input"]
 
 # 3. Video Drivers Definitions
 videoDrivers:
   amdgpu:
     packages: ["xf86-video-amdgpu", "mesa-dri-gallium", "mesa-va-gallium", "vulkan-loader"]
     modules: ["amdgpu"]
-    grub: ["amdgpu.dc=1"]
   nvidia:
     packages: ["nvidia-lts", "nvidia-libs"]
     modules: ["nvidia", "nvidia-modeset"]
@@ -71,17 +138,10 @@ packageLogic:
   zram-init:
     services: {"zram-init": "default"}
     modules: ["zram"]
-  mdadm:
-    services: {"mdadm": "boot", "mdadm-raid": "boot"}
-    mkinitfsFeatures: ["raid", "mdadm"]
   btrfs-progs:
     services: {"btrfs-scan": "boot"}
     modules: ["btrfs"]
-    mkinitfsFeatures: ["btrfs"]
-  mesa-vulkan-layers:
-    grubCmdline: ["amdgpu.dc=1"]
   doas:
     groups: ["wheel"]
-    # We could also add automatic creation of the config file here if we wanted
   sudo:
     groups: ["wheel"]

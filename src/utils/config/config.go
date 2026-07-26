@@ -20,6 +20,7 @@ type UserVariables struct {
 	Hostname           string   `yaml:"hostname"`
 	Timezone           string   `yaml:"timezone"`
 	Locale             string   `yaml:"locale"`
+	Keymap             string   `yaml:"keymap"`
 	Mirror             string   `yaml:"mirror"`
 	Arch               string   `yaml:"arch"`
 	Branch             string   `yaml:"branch"`
@@ -27,14 +28,23 @@ type UserVariables struct {
 	DiskLayout         string   `yaml:"diskLayout"`
 	DesktopEnvironment string   `yaml:"desktopEnvironment"`
 	VideoDriver        string   `yaml:"videoDriver"`
+	SshAuthorizedKey   string   `yaml:"sshAuthorizedKey"`
+
+	// Feature toggles
+	EnableEncryption  bool `yaml:"enableEncryption"`
+	EnableSecureboot  bool `yaml:"enableSecureboot"`
+	EnableTPM         bool `yaml:"enableTPM"`
+	EnableHardening   bool `yaml:"enableHardening"`
+	EnableZswap       bool `yaml:"enableZswap"`
+	EnableNix         bool `yaml:"enableNix"`
+	EnableDebug       bool `yaml:"enableDebug"`
 
 	// Runtime fields
-	UserGroups       []string
-	Runlevels        map[string][]string
-	AllPackages      []string
-	Modules          []string
-	GrubCmdline      []string
-	MkinitfsFeatures []string
+	UserGroups    []string
+	Runlevels     map[string][]string
+	AllPackages   []string
+	Modules       []string
+	KernelCmdline []string
 }
 
 type InternalRules struct {
@@ -49,12 +59,11 @@ type InternalRules struct {
 
 // Ensure the field is named "Packages" to match logic.go
 type DynamicPackageRules struct {
-	Packages         []string          `yaml:"packages"` // <--- Field must exist here
-	Groups           []string          `yaml:"groups"`
-	Services         map[string]string `yaml:"services"`
-	Modules          []string          `yaml:"modules"`
-	GrubCmdline      []string          `yaml:"grubCmdline"`
-	MkinitfsFeatures []string          `yaml:"mkinitfsFeatures"`
+	Packages      []string          `yaml:"packages"`
+	Groups        []string          `yaml:"groups"`
+	Services      map[string]string `yaml:"services"`
+	Modules       []string          `yaml:"modules"`
+	KernelCmdline []string          `yaml:"kernelCmdline"`
 }
 
 func LoadConfig(userPath string) (*Config, error) {

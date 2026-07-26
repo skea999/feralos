@@ -657,12 +657,10 @@ func (service *Service) RunInstall(ctx context.Context, cfg RunConfig) (RunResul
 	installScript := `set -eu
 cd ` + shellQuote(remoteRepoRoot) + `
 chmod +x ./setup.sh
-chmod +x ./installer/*.sh
 
 echo '=== harness preflight ==='
 ls -l /dev/vdb /dev/vdc
-curl -fsSL ` + shellQuote(strings.TrimRight(cfg.AlpineMirror, "/")+"/latest-stable/main/x86_64/") + ` >/dev/null
-echo 'harness preflight: disks and mirror are reachable'
+echo 'harness preflight: disks are available'
 
 setupStatus=0
 env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u all_proxy -u no_proxy -u NO_PROXY \
@@ -670,17 +668,13 @@ env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u al
 	SKEA_HARNESS_LOCAL_REPO="$(pwd)" \
 	SKEA_RUNTIME_OVERRIDES_FILE="$(pwd)/.skea-harness-overrides.sh" \
 	SKEA_NONINTERACTIVE=1 \
-	SKEA_NONINTERACTIVE_DECISION=stop \
+	SKEA_NONINTERACTIVE_DECISION=ignore \
 	bash ./setup.sh < ./.skea-harness-setup-input.txt || setupStatus=$?
 
 if [ "$setupStatus" -ne 0 ]; then
-	latest=$(ls -dt /tmp/skea-installer.* 2>/dev/null | head -1 || true)
+	latest=$(ls -dt /tmp/feralos-installer.* 2>/dev/null | head -1 || true)
 	if [ -n "$latest" ]; then
 		echo "=== latest setup clone: $latest ==="
-		if [ -f "$latest/installer/installationScript.log" ]; then
-			echo "=== $latest/installer/installationScript.log ==="
-			cat "$latest/installer/installationScript.log"
-		fi
 	fi
 	exit "$setupStatus"
 fi
@@ -1907,20 +1901,24 @@ func writeHarnessRuntimeOverrides(cfg RunConfig, keyPair guest.KeyPair, outputPa
 
 func writeHarnessSetupInput(cfg RunConfig, keyPair guest.KeyPair, outputPath, alpineMirror string) error {
 	answers := []string{
-		"/dev/vdb",
-		"/dev/vdc",
-		"yes",
-		"yes",
-		map[bool]string{true: "yes", false: "no"}[cfg.EnableTPM],
-		cfg.InstalledPassword,
-		cfg.InstalledUser,
-		"Europe/Rome",
-		"it",
-		"it",
-		"",
-		alpineMirror,
-		"",
-		"yes",
+		"/dev/vdb",                           // Primary disk
+		"/dev/vdc",                           // Secondary disk
+		"yes",                                // Enable LUKS2 encryption
+		"yes",                                // Enable Secure Boot
+		map[bool]string{true: "yes", false: "no"}[cfg.EnableTPM], // Enable TPM2
+		"yes",                                // Enable security hardening
+		"yes",                                // Enable zswap
+		"no",                                 // Enable Nix
+		cfg.InstalledPassword,                // Password
+		cfg.InstalledUser,                    // Username
+		"Europe/Rome",                        // Timezone
+		"it",                                 // Locale
+		"it",                                 // Keymap
+		"btrfsStandard",                      // Disk layout
+		"",                                   // SSH public key
+		alpineMirror,                         // Mirror
+		"",                                   // Branch
+		"yes",                                // Confirm installation
 	}
 
 	blob := strings.Join(answers, "\n") + "\n"
@@ -1961,7 +1959,7 @@ mkdir -p "$destination"
 
 tar \
 	--exclude='./.git' \
-	--exclude='./artifacts' \
+	--exclude='./tests/artifacts' \
 	--exclude='./.skea-harness-bin' \
 	--exclude='./.skea-harness-overrides.sh' \
 	--exclude='./.skea-harness-setup-input.txt' \
@@ -1969,7 +1967,7 @@ tar \
 `
 
 	if err := os.WriteFile(outputPath, []byte(content), 0o755); err != nil {
-		return fmt.Errorf("write harness setup git shim: %w", err)
+		return fmt.Errorf("write harness git shim: %w", err)
 	}
 
 	return nil
@@ -1981,7 +1979,7 @@ set -eu
 
 if [ $# -gt 0 ]; then
 	case "$1" in
-		./setup.sh|setup.sh|./installer/start.sh|installer/start.sh|start.sh)
+		./setup.sh|setup.sh)
 			exec 3>&2
 			export BASH_XTRACEFD=3
 			exec /bin/bash -x "$@"
@@ -1993,7 +1991,7 @@ exec /bin/bash "$@"
 `
 
 	if err := os.WriteFile(outputPath, []byte(content), 0o755); err != nil {
-		return fmt.Errorf("write harness setup bash shim: %w", err)
+		return fmt.Errorf("write harness bash shim: %w", err)
 	}
 
 	return nil
@@ -2036,13 +2034,13 @@ func resolveHarnessAlpineMirror(cfg RunConfig) (string, error) {
 		return strings.TrimRight(cfg.AlpineMirror, "/"), nil
 	}
 
-	baseVariablesPath := filepath.Join(cfg.RepoRoot, "installer", "variables.sh")
+	baseVariablesPath := filepath.Join(cfg.RepoRoot, "src", "variables", "variables.yaml")
 	baseData, err := os.ReadFile(baseVariablesPath)
 	if err != nil {
 		return "", fmt.Errorf("read %s: %w", baseVariablesPath, err)
 	}
 
-	pattern := regexp.MustCompile(`(?m)^mirror=("([^"]*)"|'([^']*)')\s*$`)
+	pattern := regexp.MustCompile(`(?m)^  mirror:\s*("([^"]*)"|'([^']*)')\s*$`)
 	matches := pattern.FindStringSubmatch(string(baseData))
 	if len(matches) == 0 {
 		return defaultAlpineMirrorURL, nil
@@ -2447,8 +2445,11 @@ func createRepositoryArchive(repoRoot, archivePath string) error {
 
 	cmd := exec.Command(
 		"tar",
-		"--exclude=./artifacts",
+		"--exclude=./tests/artifacts",
 		"--exclude=./.git",
+		"--exclude=*.sock",
+		"--exclude=*.qcow2",
+		"--exclude=*.iso",
 		"-czf",
 		archivePath,
 		"-C",

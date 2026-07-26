@@ -17,6 +17,23 @@ FeralOS is a new Linux distribution based on Alpine Linux, focused on memory saf
 
 State: `state/session-state.json`.
 
+### Installer Development Workflow
+
+1. **Understand Requirements**: Read CONTEXT.md, ROADMAP.md, and reference shell scripts
+2. **Plan Implementation**: Break down into hostPhase/chrootPhase modules
+3. **Implement Module**: Write Go code following naming conventions
+4. **Test Locally**: Build and test on live environment
+5. **Test with Harness**: Use QEMU-based harness for automated testing
+6. **Review**: Code review, security scan, documentation update
+7. **Commit**: Conventional commit format
+
+### Key Decisions
+
+- **Phase Separation**: hostPhase (writes files) vs chrootPhase (runs commands)
+- **Module Isolation**: Each functionality is a separate module
+- **Data-Driven**: Installer logic never changes, only YAML/Go layouts change
+- **Security First**: LUKS2, Secure Boot, AppArmor, sysctl hardening
+
 ## Session
 
 ```powershell
@@ -128,6 +145,10 @@ cd src && GOFLAGS=-buildvcs=false golangci-lint run ./...
 - Essential packages hardcoded in Go
 - Optional packages + rules in YAML
 - Parser always same code, only data changes
+- booster replaces mkinitfs for initramfs
+- Signed UKI replaces GRUB for boot
+- LUKS2 encryption on RAID and Swap partitions
+- Btrfs RAID1 on LUKS (not mdadm)
 
 ## Agents
 
@@ -154,6 +175,8 @@ External skills:
 ## Docs
 
 - `docs/PROJECT.md` — distribution vision, architecture, milestones
+- `docs/INSTALLER.md` — installer architecture and components
+- `docs/USAGE.md` — usage guide and configuration
 - `CONTEXT.md` — domain vocabulary (memory safety, Nix, Dinit)
 - `ROADMAP.md` — milestones and pipeline
 - `CHANGELOG.md` — version history
@@ -182,20 +205,30 @@ feralos_installer/
 │   │       ├── create_values.go  # Interactive wizard (PromptForConfig)
 │   │       └── createValues/
 │   │           └── main.go       # Standalone generator
-│   ├── hostPhase/            # Host-side operations
+│   ├── hostPhase/            # Host-side operations (writes files, NO chroot commands)
 │   │   ├── disks/            # Storage layouts (Go packages)
 │   │   │   ├── btrfsStandardServer/
 │   │   │   │   ├── partitioning.go
-│   │   │   │   └── fstab.go
+│   │   │   │   ├── fstab.go
+│   │   │   │   └── luks.go
 │   │   │   └── btrfsStandard/
 │   │   │       ├── partitioning.go
 │   │   │       └── fstab.go
+│   │   ├── booster.go        # booster.yaml + kernel cmdline + hooks
 │   │   ├── bootstrap.go
 │   │   ├── bind_mounts.go
 │   │   ├── chroot_preparation.go
 │   │   └── hooks.go
-│   └── chrootPhase/          # Chroot configuration
-│       └── configurator.go
+│   └── chrootPhase/          # Chroot operations (runs INSIDE chroot)
+│       ├── configurator.go   # Run() principal
+│       ├── packages.go       # apk add, TPM packages
+│       ├── services.go       # OpenRC, aliases, symlinks, timezone
+│       ├── users.go          # User creation, groups, SSH, shell
+│       ├── dmcrypt.go        # LUKS swap keyfile + luksAddKey
+│       ├── hardening.go      # AppArmor, sysctl, chmod, sed
+│       ├── uki.go            # booster build, efi-mkuki, sbsign
+│       ├── zswap.go          # zswap compressed swap (optional)
+│       └── utils.go          # getPartitionSpacer, getDiskSuffix
 ├── internal/                     # Shell scripts (reference)
 ├── docs/
 ├── state/
@@ -207,10 +240,10 @@ feralos_installer/
 
 | Phase | Milestone | Status |
 |-------|-----------|--------|
-| Phase 1 | Go installer: btrfsStandardServer | In Progress |
-| Phase 1 | Go installer: btrfsStandard | Planned |
-| Phase 1 | Generator (interactive + standalone) | Planned |
-| Phase 1 | Test suite + CI | Planned |
+| Phase 1 | Go installer: btrfsStandardServer | Completed |
+| Phase 1 | Go installer: btrfsStandard | Completed |
+| Phase 1 | Generator (interactive + standalone) | Completed |
+| Phase 1 | Test suite + CI | In Progress |
 | Phase 2 | Dinit init system | Planned |
 | Phase 2 | Custom FeralOS repository | Planned |
 | Phase 2 | Nix integration | Planned |
@@ -229,4 +262,4 @@ feralos_installer/
 
 ---
 
-*Updated: 2026-07-23*
+*Updated: 2026-07-26*
