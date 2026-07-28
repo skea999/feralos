@@ -10,6 +10,7 @@ import (
 // BuildAndDeployUKI builds a signed Unified Kernel Image and deploys it to both EFI partitions.
 // This replaces GRUB entirely — the system boots directly from the UKI.
 func BuildAndDeployUKI(conf *config.Config) error {
+	shell.SetCaller("uki")
 	chroot := conf.Internal.ChrootDir
 	u := conf.User
 
@@ -32,7 +33,7 @@ func BuildAndDeployUKI(conf *config.Config) error {
 	fmt.Printf("[DEBUG] Microcode: %s\n", ucodeImg)
 
 	// 2. Generate EFI keys
-	if _, err := shell.RunChrootCommand(chroot, fmt.Sprintf("efi-mkkeys -s 'FeralOS Server' -o /etc/uefi-keys")); err != nil {
+	if _, err := shell.RunChrootCommand(chroot, "efi-mkkeys -s 'FeralOS Server' -o /etc/uefi-keys"); err != nil {
 		return fmt.Errorf("efi-mkkeys failed: %w", err)
 	}
 
@@ -68,8 +69,14 @@ func BuildAndDeployUKI(conf *config.Config) error {
 		return fmt.Errorf("failed to mirror to efi2: %w", err)
 	}
 
-	// 8. Create EFI boot entries
-	if len(u.Disks) >= 2 {
+	// 8. Create EFI boot entries (only when running on an EFI-capable host;
+	//    on a BIOS runner the chroot has no /sys/firmware/efi so efibootmgr
+	//    cannot write NVRAM entries.  The BOOTX64.EFI fallback handles boot).
+	efiAvail := false
+	if _, err := shell.RunCommand("test", "-d", "/sys/firmware/efi"); err == nil {
+		efiAvail = true
+	}
+	if efiAvail && len(u.Disks) >= 2 {
 		d1 := u.Disks[0]
 		d2 := u.Disks[1]
 		sp1 := getPartitionSpacer(d1)
@@ -83,11 +90,17 @@ func BuildAndDeployUKI(conf *config.Config) error {
 		if _, err := shell.RunChrootCommand(chroot, fmt.Sprintf("efibootmgr --disk %s --part 1 --create --label 'Alpine Linux Backup' --loader /Alpine/linux-lts.efi --verbose || true", d2+sp2)); err != nil {
 			fmt.Printf("[WARNING] efibootmgr backup failed: %v\n", err)
 		}
+	} else if !efiAvail {
+		fmt.Println("[INFO] Skipping efibootmgr: no EFI firmware detected (BIOS runner)")
 	}
 
-	// 9. Show boot entries
-	if _, err := shell.RunChrootCommand(chroot, "efibootmgr -v || true"); err != nil {
-		fmt.Printf("[WARNING] efibootmgr listing failed: %v\n", err)
+	// 9. Show boot entries (only when EFI is available)
+	if efiAvail {
+		if _, err := shell.RunChrootCommand(chroot, "efibootmgr -v || true"); err != nil {
+			fmt.Printf("[WARNING] efibootmgr listing failed: %v\n", err)
+		}
+	} else {
+		fmt.Println("[INFO] Skipping efibootmgr: no EFI firmware detected (BIOS runner)")
 	}
 
 	return nil

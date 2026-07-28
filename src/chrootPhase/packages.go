@@ -10,6 +10,7 @@ import (
 // InstallPackages installs all required packages inside the chroot.
 // Includes base packages, optional packages, and TPM packages if enabled.
 func InstallPackages(conf *config.Config) error {
+	shell.SetCaller("packages")
 	chroot := conf.Internal.ChrootDir
 	u := conf.User
 

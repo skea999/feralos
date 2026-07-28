@@ -74,6 +74,10 @@ type RunConfig struct {
 	TargetMemoryMiB     int
 	CPUs                int
 	EnableTPM           bool
+	EnableSecureboot    bool
+	EnableHardening     bool
+	EnableZswap         bool
+	EnableNix           bool
 	EnableKVM           bool
 	DiskSize            string
 	AlpineMirror        string
@@ -896,8 +900,8 @@ func prepareSetupModeVars(varsPath, ovmfCodePath string) error {
 		func() error { return typeChar("minus") },
 		func() error { return typeChar("d") },
 		func() error { return typeChar("spc") },
-		func() error { return sendKey("shift", "p"); time.Sleep(80 * time.Millisecond); return nil },
-		func() error { return sendKey("shift", "k"); time.Sleep(80 * time.Millisecond); return nil },
+		func() error { if err := sendKey("shift", "p"); err != nil { return err }; time.Sleep(80 * time.Millisecond); return nil },
+		func() error { if err := sendKey("shift", "k"); err != nil { return err }; time.Sleep(80 * time.Millisecond); return nil },
 		func() error { return typeChar("ret") },
 	}
 
@@ -1900,21 +1904,27 @@ func writeHarnessRuntimeOverrides(cfg RunConfig, keyPair guest.KeyPair, outputPa
 }
 
 func writeHarnessSetupInput(cfg RunConfig, keyPair guest.KeyPair, outputPath, alpineMirror string) error {
+	yn := func(b bool) string {
+		if b {
+			return "yes"
+		}
+		return "no"
+	}
 	answers := []string{
 		"/dev/vdb",                           // Primary disk
 		"/dev/vdc",                           // Secondary disk
 		"yes",                                // Enable LUKS2 encryption
-		"yes",                                // Enable Secure Boot
+		yn(cfg.EnableSecureboot),             // Enable Secure Boot
 		map[bool]string{true: "yes", false: "no"}[cfg.EnableTPM], // Enable TPM2
-		"yes",                                // Enable security hardening
-		"yes",                                // Enable zswap
-		"no",                                 // Enable Nix
+		yn(cfg.EnableHardening),              // Enable security hardening
+		yn(cfg.EnableZswap),                  // Enable zswap
+		yn(cfg.EnableNix),                    // Enable Nix
 		cfg.InstalledPassword,                // Password
 		cfg.InstalledUser,                    // Username
 		"Europe/Rome",                        // Timezone
 		"it",                                 // Locale
 		"it",                                 // Keymap
-		"btrfsStandard",                      // Disk layout
+		"btrfsStandardServer",                 // Disk layout
 		"",                                   // SSH public key
 		alpineMirror,                         // Mirror
 		"",                                   // Branch

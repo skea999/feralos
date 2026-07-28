@@ -8,6 +8,7 @@ import (
 
 // MountVirtualFilesystems performs rbind and make-rslave for dev, proc and sys
 func MountVirtualFilesystems(chroot string) error {
+	shell.SetCaller("mount")
 	fmt.Printf("[INFO] Mounting virtual filesystems to %s...\n", chroot)
 
 	dirs := []string{"/dev", "/proc", "/sys"}

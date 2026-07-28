@@ -6,23 +6,34 @@ All notable changes to FeralOS will be documented in this file.
 
 ### Added
 - Go installer with btrfsStandardServer layout (2-disk RAID1)
+- Go installer with btrfsStandard layout (single disk, swapfile)
 - Dynamic rules engine (internalRules.yaml + logic.go)
 - APK hooks for kernel fallback and EFI sync
-- GRUB dual EFI installation
 - Btrfs subvolume creation with mount options
 - Fstab generation per layout
 - Interactive command execution with retry/ignore/abort
 - Config loading from YAML
+- Generator (interactive + standalone)
+- QEMU-based test harness with runner + target VMs
+- Non-interactive mode for automated testing
+- LUKS keyfile auto-unlock for headless boot (rd.luks.key)
+- Improved logging with module context and timestamps
+
+### Fixed
+- Pointer copy bug in configurator.go, hardening.go, zswap.go (u := conf.User → u := &conf.User)
+- zswap cmdline flow: now appends to KernelCmdline slice, not overwrite file
+- dmcrypt skips for btrfsStandard (uses swapfile, no swap partition)
+- Harness hardcoded feature toggles: added EnableSecureboot/EnableHardening/EnableZswap/EnableNix to RunConfig
+- efibootmgr guarded with EFI availability check (no error on BIOS runner)
+- Harness disk layout changed to btrfsStandardServer (matches RAID1 verification)
+- Unreachable code in harness service.go (shift key sleep)
+- booster per-device keyfile args: rd.luks.key=/keyfile:luks-<uuid> for multi-device LUKS
 
 ### Changed
 - Migrated from monolithic shell script to modular Go architecture
 - Separated host phase and chroot phase into distinct packages
-- Project vision: from installer to full FeralOS distribution
-
-### Planned (Phase 1)
-- btrfsStandard layout (single disk)
-- Generator (interactive + standalone)
-- Test suite + CI
+- Console output via console=ttyS0,115200 in kernel cmdline
+- Keyfile generation added as Step 6 in main.go (between bootstrap and chroot prep)
 
 ### Planned (Phase 2)
 - Dinit init system (replace OpenRC)

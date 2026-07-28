@@ -9,6 +9,7 @@ import (
 
 // BootstrapAlpine downloads apk-tools-static and initializes the Alpine base system.
 func BootstrapAlpine(conf *config.Config) error {
+	shell.SetCaller("bootstrap")
 	// u = User variables (mirror, branch, arch)
 	// i = Internal system rules (chrootDir)
 	u := conf.User

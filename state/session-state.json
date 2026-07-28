@@ -3,73 +3,42 @@
   "status": "active",
   "phase": "Phase 1: Installer",
   "active_goals": [
-    "Rewrite btrfsStandard for LUKS + booster + UKI (Phase 1)",
-    "Build generator (interactive + standalone) (Phase 1)",
-    "Add test suite (Phase 1)",
+    "Fix boot failure — target now boots kernel, LUKS keyfile auto-unlock implemented, booster per-device keyfile args fixed",
+    "Complete harness test pass (all verification checks green)",
     "Test installer on real hardware (Phase 1)",
     "Plan Dinit integration (Phase 2)",
     "Design custom FeralOS repository (Phase 2)"
   ],
   "decisions": [
     {
-      "date": "2026-07-23",
-      "decision": "FeralOS is a new distribution, not just an installer",
-      "rationale": "Goal is a complete distro with memory safety focus, Dinit, custom repos"
+      "date": "2026-07-28",
+      "decision": "LUKS keyfile embedded in initramfs for auto-unlock",
+      "rationale": "booster waits for interactive passphrase in QEMU headless — keyfile in initramfs enables automatic unlock. Per-device args required for multi-LUKS layouts."
     },
     {
-      "date": "2026-07-23",
-      "decision": "Standard core, pluggable data architecture",
-      "rationale": "Installer logic never changes, only data (YAML + Go layouts) changes"
+      "date": "2026-07-28",
+      "decision": "efibootmgr guarded with EFI availability check",
+      "rationale": "Runner VM is BIOS-only Debian, no /sys/firmware/efi. EFI entries are written by target VM on first boot via BOOTX64.EFI fallback."
     },
     {
-      "date": "2026-07-23",
-      "decision": "Essential packages hardcoded in Go",
-      "rationale": "Non-negotiable core must always be present"
+      "date": "2026-07-28",
+      "decision": "Harness uses btrfsStandardServer layout",
+      "rationale": "Verification checks expect RAID1 with 2 LUKS devices — btrfsStandardServer matches this, btrfsStandard doesn't."
     },
     {
-      "date": "2026-07-23",
-      "decision": "Storage layouts as Go packages",
-      "rationale": "Easier to maintain than YAML, still modular"
-    },
-    {
-      "date": "2026-07-23",
-      "decision": "Generator can run standalone or integrated",
-      "rationale": "Supports both interactive and unattended modes"
-    },
-    {
-      "date": "2026-07-23",
-      "decision": "Use Nix for glibc and alternative software",
-      "rationale": "Access Nixpkgs without polluting base Alpine system"
-    },
-    {
-      "date": "2026-07-23",
-      "decision": "Dinit will replace OpenRC in Phase 2",
-      "rationale": "Better dependency handling, parallel startup, modern init"
-    },
-    {
-      "date": "2026-07-23",
-      "decision": "Custom repository for FeralOS services",
-      "rationale": "FeralOS-specific packages not upstream in Alpine"
-    },
-    {
-      "date": "2026-07-23",
-      "decision": "Keep shell scripts as reference",
-      "rationale": "Useful for debugging and verifying Go implementation"
+      "date": "2026-07-27",
+      "decision": "Console output via console=ttyS0,115200 in kernel cmdline",
+      "rationale": "QEMU target needs serial console to see boot output and debug failures."
     },
     {
       "date": "2026-07-26",
-      "decision": "Use booster instead of mkinitfs for initramfs",
+      "decision": "booster instead of mkinitfs for initramfs",
       "rationale": "booster is faster, simpler, and supports LUKS2 natively"
     },
     {
       "date": "2026-07-26",
-      "decision": "Use signed UKI instead of GRUB",
+      "decision": "Signed UKI instead of GRUB",
       "rationale": "Unified Kernel Image enables Secure Boot without GRUB complexity"
-    },
-    {
-      "date": "2026-07-26",
-      "decision": "LUKS encryption on RAID and Swap partitions",
-      "rationale": "Full disk encryption for security, matching reference installer"
     },
     {
       "date": "2026-07-26",
@@ -78,28 +47,8 @@
     },
     {
       "date": "2026-07-26",
-      "decision": "booster/uki/hardening are installer-level, not layout-specific",
-      "rationale": "These are standard components used by all disk layouts"
-    },
-    {
-      "date": "2026-07-26",
-      "decision": "If a module has chroot commands, entire module goes in chrootPhase",
-      "rationale": "Don't split modules across hostPhase/chrootPhase - keep related code together"
-    },
-    {
-      "date": "2026-07-26",
       "decision": "Split chrootPhase into logical modules",
       "rationale": "packages.go, services.go, users.go, dmcrypt.go, hardening.go, uki.go, zswap.go for easier review"
-    },
-    {
-      "date": "2026-07-26",
-      "decision": "zswap is a separate module with enableZswap toggle",
-      "rationale": "No disk dependencies, pure memory optimization, toggleable via config"
-    },
-    {
-      "date": "2026-07-26",
-      "decision": "Improved logging for debugging",
-      "rationale": "Show command execution and results (stdout/stderr) in debug mode"
     }
   ],
   "risks": [
@@ -119,30 +68,21 @@
       "mitigation": "Use separate /nix prefix, avoid PATH conflicts"
     },
     {
-      "risk": "Dinit migration may break existing services",
-      "severity": "medium",
-      "mitigation": "Phase 2 only, after installer is stable"
-    },
-    {
-      "risk": "LUKS password handling must be secure",
-      "severity": "high",
-      "mitigation": "Use stdin pipe to cryptsetup, never log passwords"
-    },
-    {
-      "risk": "booster version compatibility",
-      "severity": "low",
-      "mitigation": "Pin booster version in APK add"
-    },
-    {
       "risk": "Boot failure after installation",
       "severity": "high",
-      "mitigation": "Debug kernel cmdline, booster initramfs, and UKI generation"
+      "status": "mitigated",
+      "mitigation": "LUKS keyfile auto-unlock, console=ttyS0,115200, per-device keyfile args"
+    },
+    {
+      "risk": "efibootmgr not available on BIOS runner",
+      "severity": "low",
+      "status": "mitigated",
+      "mitigation": "Guarded with EFI check, BOOTX64.EFI fallback handles boot"
     }
   ],
   "next_actions": [
-    "Debug boot failure (kernel cmdline, booster initramfs, UKI generation)",
-    "Test installer on real hardware with 2x NVMe",
-    "Build generator with interactive questions",
+    "Run full harness test and verify all checks pass",
+    "Test on real hardware with 2x NVMe",
     "Add test suite",
     "Document memory-safe alternatives in detail"
   ]

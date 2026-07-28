@@ -25,7 +25,7 @@ network:
 modules: dm_mod,dm_crypt,crc32c_cryptoapi,zstd,btrfs,efivarfs,nvme
 modules_force_load: dm_mod,dm_crypt,crc32c_cryptoapi,zstd,btrfs,efivarfs,nvme
 mount_timeout: 3m
-extra_files: busybox,mount,btrfs
+extra_files: busybox,mount,btrfs,/keyfile
 append_all_modaliases: true
 `
 	if err := files.WriteFileInChroot(chroot, "/etc/booster.yaml", boosterYaml); err != nil {

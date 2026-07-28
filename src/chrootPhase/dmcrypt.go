@@ -10,14 +10,22 @@ import (
 
 // SetupDmcryptSwap configures LUKS swap with dmcrypt for auto-unlock at boot.
 // Creates a keyfile, adds it to LUKS swap partitions, and writes /etc/conf.d/dmcrypt.
+// Only applies to btrfsStandardServer (2 disks with swap partitions).
+// btrfsStandard uses swapfile — no dmcrypt needed.
 func SetupDmcryptSwap(conf *config.Config) error {
-	chroot := conf.Internal.ChrootDir
 	u := conf.User
+
+	// Skip for single-disk layouts (btrfsStandard uses swapfile)
+	if u.DiskLayout == "btrfsStandard" {
+		fmt.Println("[INFO] btrfsStandard layout: skipping dmcrypt (uses swapfile)")
+		return nil
+	}
 
 	if len(u.Disks) < 2 {
 		return fmt.Errorf("dmcrypt swap requires at least 2 disks")
 	}
 
+	chroot := conf.Internal.ChrootDir
 	d1 := u.Disks[0]
 	d2 := u.Disks[1]
 	sp1 := getPartitionSpacer(d1)

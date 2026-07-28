@@ -19,6 +19,7 @@ func SetupZswap(conf *config.Config) error {
 	}
 
 	chroot := conf.Internal.ChrootDir
+	u := &conf.User
 
 	// Check if swap is configured in fstab
 	swapCheck, _ := shell.RunChrootCommand(chroot, "grep -c 'swap' /etc/fstab 2>/dev/null || echo 0")
@@ -30,15 +31,10 @@ func SetupZswap(conf *config.Config) error {
 
 	fmt.Println("[INFO] Configuring zswap...")
 
-	// 1. Append zswap cmdline args
+	// 1. Append zswap cmdline args to KernelCmdline slice
+	// (configurator.go writes the final combined cmdline to /etc/kernel/cmdline)
 	zswapCmdline := "zswap.enabled=1 zswap.compressor=zstd zswap.zpool=zsmalloc zswap.max_pool_percent=50 zswap.non_same_page_filled_pages_enabled=1"
-
-	currentCmdline, _ := shell.RunChrootCommand(chroot, "cat /etc/kernel/cmdline")
-	currentCmdline = strings.TrimSpace(currentCmdline)
-	newCmdline := currentCmdline + " " + zswapCmdline
-	if err := files.WriteFileInChroot(chroot, "/etc/kernel/cmdline", newCmdline+"\n"); err != nil {
-		return fmt.Errorf("failed to write zswap cmdline: %w", err)
-	}
+	u.KernelCmdline = append(u.KernelCmdline, zswapCmdline)
 
 	// 2. Write zswap sysctl
 	zswapSysctl := `vm.swappiness=100

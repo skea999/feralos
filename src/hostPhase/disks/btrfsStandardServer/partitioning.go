@@ -18,6 +18,7 @@ type Subvolume struct {
 }
 
 func RunBtrfsSetup(conf *config.Config) error {
+	shell.SetCaller("disks")
 	u := &conf.User
 	i := &conf.Internal
 
@@ -160,7 +161,7 @@ func RunBtrfsSetup(conf *config.Config) error {
 	raidUUID2, _ := LuksUUID(d2 + getPartitionSpacer(d2) + "2")
 
 	kernelCmdline := fmt.Sprintf(
-		"rd.luks.name=%s=luks-%s rd.luks.name=%s=luks-%s root=UUID=%s rootfstype=btrfs rootflags=subvol=@,device=/dev/mapper/luks-%s rootdelay=30 rootwait",
+		"rd.luks.name=%s=luks-%s rd.luks.name=%s=luks-%s root=UUID=%s rootfstype=btrfs rootflags=subvol=@,device=/dev/mapper/luks-%s rootdelay=30 rootwait console=ttyS0,115200",
 		raidUUID1, raidUUID1,
 		raidUUID2, raidUUID2,
 		getBtrfsUUID(luksRAID1),

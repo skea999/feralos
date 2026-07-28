@@ -11,8 +11,8 @@ import (
 // This is the main orchestrator that calls modular functions.
 // hostPhase has already written config files; chrootPhase runs commands.
 func Run(conf *config.Config) error {
-	u := conf.User
-	i := conf.Internal
+	u := &conf.User
+	i := &conf.Internal
 	chroot := i.ChrootDir
 
 	fmt.Println("[INFO] Starting ChrootPhase.Run...")

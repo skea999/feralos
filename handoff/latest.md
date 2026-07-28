@@ -9,27 +9,30 @@
 
 ## Current Focus
 
-Phase 1: Go installer for Alpine Linux with RAID1 + Btrfs. Both layouts (`btrfsStandardServer` and `btrfsStandard`) are implemented. Boot testing is in progress.
+Phase 1: Go installer boot is now functional. Target boots kernel, LUKS auto-unlock via keyfile in initramfs. Harness test in progress — previous run timed out (likely waiting for target SSH). Next step: re-run test and verify all checks.
 
 ## What's Working
 
 - Shell script installer (`internal/start.sh`) — full reference implementation
-- Go installer: config loading, dynamic rules, host phase (partitioning, bootstrap, hooks), chroot phase
+- Go installer: config loading, dynamic rules, host phase, chroot phase
 - **btrfsStandardServer**: Dual-disk RAID1 layout with Btrfs subvolumes (21 subvolumes)
 - **btrfsStandard**: Single-disk layout with swapfile (25 subvolumes)
 - LUKS2 encryption on root and swap partitions
+- **LUKS keyfile auto-unlock** — embedded in initramfs via `rd.luks.key=/keyfile:luks-<uuid>`
 - booster initramfs (replaces mkinitfs)
 - Signed UKI (Unified Kernel Image) for Secure Boot
+- Serial console output (`console=ttyS0,115200`)
+- efibootmgr guarded for BIOS runners
 - APK hooks for kernel fallback and EFI sync
 - Interactive wizard and standalone generator
-- QEMU-based test harness
+- QEMU-based test harness with feature toggles
 - Non-interactive mode for automated testing
-- Improved logging (command execution + results)
+- Improved logging with module context
 
 ## What's Next
 
 ### Phase 1 (Installer)
-1. Debug boot failure (kernel cmdline, booster initramfs, UKI generation)
+1. Complete harness test pass (all verification checks green)
 2. Test on real hardware with 2x NVMe
 3. Add test suite
 4. Complete CI/CD pipeline
@@ -59,14 +62,15 @@ Phase 1: Go installer for Alpine Linux with RAID1 + Btrfs. Both layouts (`btrfsS
 | `src/utils/shell/shell.go` | RunCommand, RunChrootCommand, RunCommandStrict |
 | `src/variables/variables.yaml` | Template with defaults |
 | `src/variables/internalRules.yaml` | Dynamic rules |
-| `src/hostPhase/` | Host-side operations (writes files, NO chroot commands) |
-| `src/chrootPhase/` | Chroot operations (runs INSIDE chroot) |
+| `src/hostPhase/` | Host-side operations |
+| `src/hostPhase/keyfile.go` | LUKS keyfile generation + embedding |
+| `src/hostPhase/booster.go` | booster.yaml + kernel cmdline |
+| `src/chrootPhase/` | Chroot operations |
 | `src/hostPhase/disks/` | Storage layouts (Go packages) |
 | `setup.sh` | Automated setup script |
 | `tests/harness/` | QEMU-based test harness |
 | `docs/INSTALLER.md` | Installer architecture documentation |
 | `docs/USAGE.md` | Usage guide and configuration |
-| `docs/PROJECT.md` | Distribution vision, architecture |
 | `CONTEXT.md` | Domain vocabulary |
 
 ## Decisions Made
@@ -86,6 +90,9 @@ Phase 1: Go installer for Alpine Linux with RAID1 + Btrfs. Both layouts (`btrfsS
 - **Btrfs RAID1** on LUKS (not mdadm)
 - **Phase separation**: hostPhase (writes files) vs chrootPhase (runs commands)
 - **Module isolation**: Each functionality is a separate module
+- **LUKS keyfile** embedded in initramfs for headless auto-unlock
+- **Per-device keyfile args** required for multi-LUKS layouts (booster requirement)
+- **EFI guarded** — efibootmgr skipped on BIOS runner, BOOTX64.EFI fallback handles boot
 
 ## Memory-Safe Alternatives
 

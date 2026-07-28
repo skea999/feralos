@@ -21,7 +21,7 @@ variables:
   branch: "latest-stable"
 
   # Layout
-  diskLayout: "btrfsStandardServer" # Options defined in internalRules
+  diskLayout: "btrfsStandard" # Options defined in internalRules
   desktopEnvironment: "none"        # Options: none, kde
   videoDriver: "none"               # Options: none, amdgpu, nvidia, intel
 
@@ -30,11 +30,11 @@ variables:
 
   # Feature Toggles
   enableEncryption: true
-  enableSecureboot: true
-  enableTPM: true
-  enableHardening: true
-  enableZswap: true
-  enableNix: true
+  enableSecureboot: false
+  enableTPM: false
+  enableHardening: false
+  enableZswap: false
+  enableNix: false
   enableDebug: false
 
   # Extra Packages

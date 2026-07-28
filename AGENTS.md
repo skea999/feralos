@@ -262,4 +262,22 @@ feralos_installer/
 
 ---
 
-*Updated: 2026-07-26*
+*Updated: 2026-07-28*
+
+### 2026-07-28 02:30 - LUKS Keyfile Auto-Unlock + Boot Fixes
+**Agent:** codebase
+**Summary:** Fixed boot failure — target now boots kernel with LUKS auto-unlock
+- Added `hostPhase/keyfile.go`: generates random keyfile, adds to LUKS partitions, embeds in initramfs
+- Per-device keyfile args (`rd.luks.key=/keyfile:luks-<uuid>`) for multi-LUKS layouts (booster requirement)
+- Guarded `efibootmgr` with EFI availability check (BIOS runner has no `/sys/firmware/efi`)
+- Changed harness to `btrfsStandardServer` (matches RAID1 verification checks)
+- Fixed unreachable code in harness service.go (shift key sleep)
+- Build + vet + lint all pass (0 issues)
+
+### 2026-07-27 22:30 - Console Output + Feature Toggles
+**Agent:** codebase
+**Summary:** Added serial console and harness feature control
+- Added `console=ttyS0,115200` to kernel cmdline (both layouts)
+- Added `EnableSecureboot`, `EnableHardening`, `EnableZswap`, `EnableNix` to harness `RunConfig`
+- Harness CLI flags: `--enable-secureboot=false` etc.
+- Previous bugs fixed: pointer copy, zswap cmdline, dmcrypt skip

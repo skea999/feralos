@@ -9,6 +9,7 @@ import (
 // LuksFormat encrypts a partition with LUKS2.
 // Uses stdin pipe to pass password securely (matches reference shell behavior).
 func LuksFormat(device, password string) error {
+	shell.SetCaller("luks")
 	fmt.Printf("[INFO] LUKS2 format: %s\n", device)
 
 	// cryptsetup luksFormat --type luks2 -v -c aes-xts-plain64 -s 512 --hash sha512 --iter-time 5000 --use-urandom -q --key-file -

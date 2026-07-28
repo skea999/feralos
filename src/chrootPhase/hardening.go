@@ -18,7 +18,7 @@ func WriteHardening(conf *config.Config) error {
 	}
 
 	chroot := conf.Internal.ChrootDir
-	u := conf.User
+	u := &conf.User
 
 	fmt.Println("[INFO] Applying kernel hardening...")
 

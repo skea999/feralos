@@ -10,6 +10,7 @@ import (
 // SetupServices configures OpenRC runlevels, aliases, editor, pager, and console prompt.
 // These are commands that must run inside the chroot.
 func SetupServices(conf *config.Config) error {
+	shell.SetCaller("services")
 	chroot := conf.Internal.ChrootDir
 	u := conf.User
 

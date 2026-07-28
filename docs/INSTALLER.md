@@ -21,6 +21,7 @@ src/
 │   ├── bind_mounts.go               # Virtual filesystem mounts (/dev, /proc, /sys)
 │   ├── booster.go                   # booster.yaml + kernel cmdline + hooks
 │   ├── chroot_preparation.go        # Write config files into chroot
+│   ├── keyfile.go                   # LUKS keyfile generation + embedding
 │   ├── hooks.go                     # APK hooks injection
 │   └── disks/                       # Storage layouts (Go packages)
 │       ├── btrfsStandard/           # Single disk, LUKS, swapfile, 25 subvolumes
@@ -93,7 +94,15 @@ src/
    - Initialize Alpine base system into target
    - Configure APK repositories
 
-7. **Prepare Chroot Environment** (`chroot_preparation.go`)
+7. **Generate LUKS Keyfile** (`keyfile.go`)
+   - Generate random 2KB keyfile via `dd if=/dev/urandom`
+   - Add keyfile to all LUKS root partitions via `cryptsetup luksAddKey`
+   - Copy keyfile to `/keyfile` (initramfs) and `/etc/luks-keyfile` (persistence)
+   - Generate per-device kernel cmdline args: `rd.luks.key=/keyfile:luks-<uuid>`
+   - **Why**: Booster requires interactive passphrase in QEMU headless; keyfile in initramfs enables automatic unlock
+   - **Multi-LUKS**: With 2+ LUKS devices, booster requires per-device keyfile spec
+
+8. **Prepare Chroot Environment** (`chroot_preparation.go`)
    - Write networking config (resolv.conf, hostname, hosts)
    - Write localization config (locale, keymap)
    - Write system limits and subuid/subgid
