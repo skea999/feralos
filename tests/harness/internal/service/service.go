@@ -80,6 +80,7 @@ type RunConfig struct {
 	EnableNix           bool
 	EnableKVM           bool
 	DiskSize            string
+	DiskLayout          string
 	AlpineMirror        string
 	InstalledUser       string
 	InstalledPassword   string
@@ -1379,9 +1380,11 @@ func (service *Service) Verify(ctx context.Context, cfg VerifyConfig) (VerifyRes
 	}
 
 	if storageCheck, ok := result.Checks["storage_layout"]; ok {
-		if !hasHealthyBtrfsRaid1Layout(storageCheck.Detail) {
+		isRaid1 := hasHealthyBtrfsRaid1Layout(storageCheck.Detail)
+		isSingle := hasHealthyBtrfsSingleLayout(storageCheck.Detail)
+		if !isRaid1 && !isSingle {
 			storageCheck.Pass = false
-			storageCheck.Detail = storageCheck.Detail + "\nExpected a mounted Btrfs root backed by two unlocked LUKS devices, with Data,RAID1 and Metadata,RAID1 profiles"
+			storageCheck.Detail = storageCheck.Detail + "\nExpected a mounted Btrfs root backed by LUKS — either RAID1 (2 devices, RAID1 profiles) or Single (1 device, single data, DUP metadata)"
 			result.Checks["storage_layout"] = storageCheck
 			result.Success = false
 		}
@@ -1400,10 +1403,11 @@ func (service *Service) Verify(ctx context.Context, cfg VerifyConfig) (VerifyRes
 		// both btrfs RAID1 members share the same UUID).
 		hasRoot := strings.Contains(cmdlineCheck.Detail, "root=UUID=") ||
 			strings.Contains(cmdlineCheck.Detail, "root=/dev/mapper/luks-")
-		hasDualLuksName := strings.Count(cmdlineCheck.Detail, "rd.luks.name=") >= 2
-		if !hasRoot || !hasDualLuksName {
+		// Accept 1 or 2 rd.luks.name entries — btrfsStandard has 1, btrfsStandardServer has 2.
+		hasLuksName := strings.Count(cmdlineCheck.Detail, "rd.luks.name=") >= 1
+		if !hasRoot || !hasLuksName {
 			cmdlineCheck.Pass = false
-			cmdlineCheck.Detail = cmdlineCheck.Detail + "\nExpected /etc/kernel/cmdline to define root=UUID=<btrfs UUID> or root=/dev/mapper/luks-<uuid> and rd.luks.name for both encrypted root devices"
+			cmdlineCheck.Detail = cmdlineCheck.Detail + "\nExpected /etc/kernel/cmdline to define root=UUID=<btrfs UUID> or root=/dev/mapper/luks-<uuid> and rd.luks.name for encrypted root device(s)"
 			result.Checks["kernel_cmdline"] = cmdlineCheck
 			result.Success = false
 		}
@@ -1486,7 +1490,8 @@ func (service *Service) Verify(ctx context.Context, cfg VerifyConfig) (VerifyRes
 
 func hasHealthyBtrfsRaid1Layout(detail string) bool {
 	lowerDetail := strings.ToLower(detail)
-	hasMountedBtrfsRoot := regexp.MustCompile(`(?m)^/dev/mapper/luks-[^ ]+ / btrfs `).MatchString(detail)
+	// Accept both /dev/mapper/luks-* and /dev/dm-* in the mount line
+	hasMountedBtrfsRoot := regexp.MustCompile(`(?m)^/dev/(mapper/luks-|dm-)[^ ]+ / btrfs `).MatchString(detail)
 	hasEncryptedRootDevices := strings.Count(detail, "/dev/mapper/luks-") >= 2
 	hasTwoBtrfsDevices := len(regexp.MustCompile(`(?m)^\s*devid\s+[0-9]+`).FindAllString(detail, -1)) >= 2
 	hasRaid1ProfileHeader := regexp.MustCompile(`(?m)^Id Path\s+RAID1\s+RAID1(?:\s+RAID1)?(?:\s|$)`).MatchString(detail)
@@ -1495,6 +1500,33 @@ func hasHealthyBtrfsRaid1Layout(detail string) bool {
 	hasMissingDevice := strings.Contains(lowerDetail, " is missing")
 
 	return hasMountedBtrfsRoot && hasEncryptedRootDevices && hasTwoBtrfsDevices && hasDataRaid1 && hasMetadataRaid1 && !hasMissingDevice
+}
+
+// hasHealthyBtrfsSingleLayout validates a single-disk btrfs layout (btrfsStandard):
+// one LUKS device, single data profile, DUP metadata.
+func hasHealthyBtrfsSingleLayout(detail string) bool {
+	// Accept both /dev/mapper/luks-* and /dev/dm-* in the mount line
+	hasMountedBtrfsRoot := regexp.MustCompile(`(?m)^/dev/(mapper/luks-|dm-)[^ ]+ / btrfs `).MatchString(detail)
+	// Extract only the mapper section (between ===mapper=== and ===mounts===)
+	mapperStart := strings.Index(detail, "===mapper===")
+	mapperEnd := strings.Index(detail, "===mounts===")
+	hasOneEncryptedDevice := false
+	if mapperStart >= 0 && mapperEnd > mapperStart {
+		mapperSection := detail[mapperStart:mapperEnd]
+		hasOneEncryptedDevice = strings.Count(mapperSection, "/dev/mapper/luks-") == 1
+	}
+	hasOneBtrfsDevice := len(regexp.MustCompile(`(?m)^\s*devid\s+[0-9]+`).FindAllString(detail, -1)) == 1
+
+	// Match the btrfs_usage -T table header: "Id Path      single   DUP"
+	hasSingleProfile := regexp.MustCompile(`(?m)Id\s+Path\s+single\s+DUP`).MatchString(detail)
+	// Also check for "Data ratio:\t\t      1.00" and "Metadata ratio:\t\t      2.00"
+	hasSingleDataRatio := strings.Contains(detail, "Data ratio:") && strings.Contains(detail, "1.00")
+	hasDupMetadataRatio := strings.Contains(detail, "Metadata ratio:") && strings.Contains(detail, "2.00")
+
+	hasSingleData := hasSingleProfile || hasSingleDataRatio
+	hasDupMetadata := hasSingleProfile || hasDupMetadataRatio
+
+	return hasMountedBtrfsRoot && hasOneEncryptedDevice && hasOneBtrfsDevice && hasSingleData && hasDupMetadata
 }
 
 func hasClevisTPM2Bindings(detail string, expectedDevices int) bool {
@@ -1924,7 +1956,7 @@ func writeHarnessSetupInput(cfg RunConfig, keyPair guest.KeyPair, outputPath, al
 		"Europe/Rome",                        // Timezone
 		"it",                                 // Locale
 		"it",                                 // Keymap
-		"btrfsStandardServer",                 // Disk layout
+		cfg.DiskLayout,                       // Disk layout
 		keyPair.PublicKey,                     // SSH public key
 		alpineMirror,                         // Mirror
 		"",                                   // Branch
