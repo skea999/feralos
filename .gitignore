@@ -55,5 +55,6 @@ tests/artifacts/**/*
 # Compiled binaries
 feralos_installer
 feralos_create_config
+feralos_harness
 references
 !references/.gitkeep
