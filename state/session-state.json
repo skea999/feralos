@@ -3,9 +3,8 @@
   "status": "active",
   "phase": "Phase 1: Installer",
   "active_goals": [
-    "Run harness test to verify LUKS passphrase injection now works (socket path fix applied)",
-    "Complete harness test pass (all verification checks green)",
-    "Test installer on real hardware (Phase 1)",
+    "Harness test pass — ALL 15 CHECKS PASS (2026-07-29)",
+    "Test installer on real hardware with 2x NVMe (Phase 1)",
     "Plan Dinit integration (Phase 2)",
     "Design custom FeralOS repository (Phase 2)"
   ],
@@ -92,8 +91,8 @@
     }
   ],
   "next_actions": [
-    "Run full harness test and verify LUKS injection + all checks pass",
     "Test on real hardware with 2x NVMe",
+    "Enable Secure Boot and TPM harness tests",
     "Add test suite",
     "Document memory-safe alternatives in detail"
   ]

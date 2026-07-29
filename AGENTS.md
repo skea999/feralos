@@ -264,6 +264,19 @@ feralos_installer/
 
 *Updated: 2026-07-29*
 
+### 2026-07-29 21:06 - Full Harness Test Pass (15/15 checks)
+**Agent:** codebase
+**Summary:** Fixed networking, SSH key delivery, and post-install — all verification checks pass
+- **Root cause 1**: No `/etc/network/interfaces` → networking service fails → no IP → SSH unreachable
+- **Fix 1**: Added `DefaultNetworkInterface` to config + variables.yaml, created `/etc/network/interfaces` in `services.go`
+- **Root cause 2**: SSH key empty in `setup-input.txt` → `authorized_keys` never written
+- **Fix 2**: Pass `keyPair.PublicKey` instead of `""` in `writeHarnessSetupInput`
+- **Root cause 3**: `setup.sh` ignores `SKEA_RUNTIME_OVERRIDES_FILE` → harness overrides lost
+- **Fix 3**: `setup.sh` now sources `.skea-harness-overrides.sh` when present
+- **Root cause 4**: Post-install script runs missing files (`debug.sh`, guides) unconditionally
+- **Fix 4**: Fixed `debug.sh` path to `tests/harness/debug.sh`, added existence checks before running
+- All 15 verification checks pass: booster, fstab, hostname, incus, user, kernel cmdline, network, secureboot config, sshd, storage layout RAID1+LUKS2+btrfs, subvolumes, tpm, UKI artifacts
+
 ### 2026-07-29 03:15 - Harness Serial Socket Path Length Fix
 **Agent:** codebase
 **Summary:** Fixed LUKS passphrase injection — root cause was Unix socket path too long
