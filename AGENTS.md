@@ -262,7 +262,17 @@ feralos_installer/
 
 ---
 
-*Updated: 2026-07-29*
+*Updated: 2026-07-30*
+
+### 2026-07-30 00:45 - Layout-Aware Verification Checks
+**Agent:** codebase
+**Summary:** Both btrfsStandard and btrfsStandardServer pass all 17 verification checks
+- Added `hasHealthyBtrfsSingleLayout()` for btrfsStandard (1 LUKS device, single data, DUP metadata)
+- Fixed `hasHealthyBtrfsRaid1Layout()` mount regex to accept `/dev/dm-*` (not just `/dev/mapper/luks-*`)
+- Fixed mapper section extraction — was counting `/dev/mapper/luks-*` from btrfs_show section, causing false "2 devices" on single-disk layout
+- Accept 1+ `rd.luks.name` entries in `kernel_cmdline` check (btrfsStandard has 1, btrfsStandardServer has 2)
+- Added `layout_test.go` unit test with real verify output
+- Committed `fcea001`, pushed to main
 
 ### 2026-07-29 21:06 - Full Harness Test Pass (15/15 checks)
 **Agent:** codebase

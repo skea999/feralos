@@ -3,12 +3,22 @@
   "status": "active",
   "phase": "Phase 1: Installer",
   "active_goals": [
-    "Harness test pass — ALL 15 CHECKS PASS (2026-07-29)",
+    "Harness test pass — ALL 17 CHECKS PASS for both layouts (2026-07-30)",
     "Test installer on real hardware with 2x NVMe (Phase 1)",
     "Plan Dinit integration (Phase 2)",
     "Design custom FeralOS repository (Phase 2)"
   ],
   "decisions": [
+    {
+      "date": "2026-07-30",
+      "decision": "Made verification checks layout-aware",
+      "rationale": "btrfsStandard has 1 LUKS device with single data + DUP metadata, not RAID1. Added hasHealthyBtrfsSingleLayout() to validate single-disk layouts alongside existing RAID1 check."
+    },
+    {
+      "date": "2026-07-30",
+      "decision": "Accept /dev/dm-* in mount line regex for storage_layout check",
+      "rationale": "btrfs mount shows /dev/dm-0 (device-mapper name) not /dev/mapper/luks-* (symlink). Both exist on RAID1 but only dm-* on single-disk."
+    },
     {
       "date": "2026-07-29",
       "decision": "Shortened serial socket filename from target-serial.sock to tser.sock",
@@ -26,8 +36,8 @@
     },
     {
       "date": "2026-07-28",
-      "decision": "Harness uses btrfsStandardServer layout",
-      "rationale": "Verification checks expect RAID1 with 2 LUKS devices — btrfsStandardServer matches this, btrfsStandard doesn't."
+      "decision": "Harness uses btrfsStandardServer layout (default)",
+      "rationale": "Verification checks expect RAID1 with 2 LUKS devices — btrfsStandardServer matches this, btrfsStandard doesn't. Now both pass via layout-aware checks."
     },
     {
       "date": "2026-07-27",
