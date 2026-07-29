@@ -5,7 +5,11 @@
     "agents-opencode"
   ],
   "permission": {
-    "external_directory": "deny",
+    "*": "allow",
+    "external_directory": {
+      "*": "ask",
+      "~/Progetti/*": "allow"
+    },
     "doom_loop": "deny"
   },
   "agent": {
@@ -23,7 +27,11 @@
     "vulnerability-scan": {
       "model": "opencode-go/deepseek-v4-flash"
     },
-    "codebase": {},
+    "codebase": {
+      "permission": {
+        "bash": "allow"
+      }
+    },
     "docs": {},
     "documentation-engineer": {},
     "performance-engineer": {},
