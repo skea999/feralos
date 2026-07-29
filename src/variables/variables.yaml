@@ -28,6 +28,9 @@ variables:
   # SSH (optional)
   sshAuthorizedKey: ""
 
+  # Network
+  defaultNetworkInterface: "eth0"
+
   # Feature Toggles
   enableEncryption: true
   enableSecureboot: false

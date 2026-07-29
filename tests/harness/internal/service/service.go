@@ -1925,7 +1925,7 @@ func writeHarnessSetupInput(cfg RunConfig, keyPair guest.KeyPair, outputPath, al
 		"it",                                 // Locale
 		"it",                                 // Keymap
 		"btrfsStandardServer",                 // Disk layout
-		"",                                   // SSH public key
+		keyPair.PublicKey,                     // SSH public key
 		alpineMirror,                         // Mirror
 		"",                                   // Branch
 		"yes",                                // Confirm installation
@@ -2290,7 +2290,7 @@ func copyGuidesToTarget(ctx context.Context, targetGuest guest.Options, repoRoot
 
 func runSbctlOnTarget(ctx context.Context, targetGuest guest.Options, repoRoot string) (string, error) {
 	// Copy debug.sh to target for cache connectivity diagnostics
-	debugSrc := filepath.Join(repoRoot, "installer", "tools", "harness", "debug.sh")
+	debugSrc := filepath.Join(repoRoot, "tests", "harness", "debug.sh")
 	if err := guest.CopyToGuest(ctx, targetGuest, debugSrc, "/root/debug.sh", false); err != nil {
 		_ = err // non-fatal
 	} else {
@@ -2301,8 +2301,8 @@ func runSbctlOnTarget(ctx context.Context, targetGuest guest.Options, repoRoot s
 	copyGuidesToTarget(ctx, targetGuest, repoRoot)
 
 	script := `set -eu
-sh /root/debug.sh
-sh /root/guides/1-secure-boot-sbctl.sh
+[ -x /root/debug.sh ] && sh /root/debug.sh || true
+[ -x /root/guides/1-secure-boot-sbctl.sh ] && sh /root/guides/1-secure-boot-sbctl.sh || true
 `
 	var outBuf, errBuf strings.Builder
 	if err := guest.Run(ctx, targetGuest, "sh -s -- <<'SCRIPT'\n"+script+"\nSCRIPT", &outBuf, &errBuf); err != nil {

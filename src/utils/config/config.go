@@ -39,6 +39,9 @@ type UserVariables struct {
 	EnableNix         bool `yaml:"enableNix"`
 	EnableDebug       bool `yaml:"enableDebug"`
 
+	// Network
+	DefaultNetworkInterface string `yaml:"defaultNetworkInterface"`
+
 	// Runtime fields
 	UserGroups    []string
 	Runlevels     map[string][]string

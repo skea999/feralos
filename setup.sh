@@ -320,6 +320,23 @@ fi
 
 echo "Configuration written to variables.yaml"
 
+# Source harness overrides if present (adds sshAuthorizedKey, defaultNetworkInterface, etc.)
+if [ -n "${SKEA_RUNTIME_OVERRIDES_FILE:-}" ] && [ -f "${SKEA_RUNTIME_OVERRIDES_FILE}" ]; then
+    echo "Applying harness overrides from ${SKEA_RUNTIME_OVERRIDES_FILE}..."
+    . "${SKEA_RUNTIME_OVERRIDES_FILE}"
+    # Apply overrides to variables.yaml
+    if [ -n "${sshAuthorizedKey:-}" ]; then
+        set_var "sshAuthorizedKey" "$sshAuthorizedKey"
+    fi
+    if [ -n "${defaultNetworkInterface:-}" ]; then
+        set_var "defaultNetworkInterface" "$defaultNetworkInterface"
+    fi
+    if [ -n "${extraKernelArgs:-}" ]; then
+        echo "Extra kernel args: ${extraKernelArgs}"
+    fi
+    echo "Harness overrides applied."
+fi
+
 echo
 echo "Compiling installer..."
 echo

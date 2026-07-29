@@ -18,6 +18,14 @@ func SetupServices(conf *config.Config) error {
 	fmt.Println("[INFO] Configuring OpenRC services...")
 	setupRunlevels(chroot, u.Runlevels)
 
+	// 2. Networking configuration
+	if u.DefaultNetworkInterface != "" {
+		fmt.Printf("[INFO] Configuring network interface %s...\n", u.DefaultNetworkInterface)
+		if err := setupNetworking(chroot, u.DefaultNetworkInterface); err != nil {
+			return fmt.Errorf("networking setup failed: %w", err)
+		}
+	}
+
 	// 2. Symlink aliases to fish and bash
 	fmt.Println("[INFO] Configuring shell symlinks...")
 	if _, err := shell.RunChrootCommand(chroot, "ln -sfn /etc/profile.d/alias.sh /etc/fish/conf.d/alias.fish"); err != nil {
@@ -95,4 +103,25 @@ func setupRunlevels(chroot string, levels map[string][]string) {
 			_, _ = shell.RunChrootCommand(chroot, fmt.Sprintf("rc-update add %s %s", svc, level))
 		}
 	}
+}
+
+func setupNetworking(chroot, iface string) error {
+	// Create /etc/network/interfaces with loopback and DHCP on specified interface
+	interfacesContent := fmt.Sprintf(`auto lo
+iface lo inet loopback
+
+auto %s
+iface %s inet dhcp
+`, iface, iface)
+
+	if err := files.WriteFileInChroot(chroot, "/etc/network/interfaces", interfacesContent); err != nil {
+		return fmt.Errorf("failed to write /etc/network/interfaces: %w", err)
+	}
+
+	// Ensure networking service is enabled
+	if _, err := shell.RunChrootCommand(chroot, "rc-update add networking default"); err != nil {
+		fmt.Printf("[WARNING] Failed to add networking to default runlevel: %v\n", err)
+	}
+
+	return nil
 }
