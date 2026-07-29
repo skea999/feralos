@@ -978,7 +978,7 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg RunConfig, 
 	// Setup Mode, allowing sbctl to enroll Secure Boot certificates.
 
 	targetSerialLog := filepath.Join(runDir, "target-serial.log")
-	targetSerialSocketPath := filepath.Join(runDir, "target-serial.sock")
+	targetSerialSocketPath := filepath.Join(runDir, "tser.sock")
 	targetQemuLog := filepath.Join(runDir, "target-qemu.log")
 	targetQMPPath := filepath.Join(runDir, "target-qmp.sock")
 	targetFirmwareLog := filepath.Join(runDir, "target-firmware.log")
@@ -1521,7 +1521,7 @@ func (service *Service) WriteSerial(_ context.Context, cfg SerialWriteConfig) (S
 		return SerialWriteResult{}, err
 	}
 
-	socketPath := filepath.Join(runDir, "target-serial.sock")
+	socketPath := filepath.Join(runDir, "tser.sock")
 	if _, err := os.Stat(socketPath); err != nil {
 		return SerialWriteResult{}, fmt.Errorf("target serial socket %s: %w", socketPath, err)
 	}
@@ -2204,6 +2204,7 @@ func waitForTargetSSH(ctx context.Context, instance *qemu.Instance, opts guest.O
 			promptVisible := promptCount > 0
 			promptRetryDue := promptVisible && unlockAttempts < 4 && (lastPromptUnlock.IsZero() || time.Since(lastPromptUnlock) >= 5*time.Second)
 			if promptRetryDue {
+				fmt.Fprintf(os.Stderr, "harness: LUKS prompt detected (count=%d, attempt=%d), injecting passphrase\n", promptCount, unlockAttempts+1)
 				// Send one passphrase per LUKS device so all KDF operations start
 				// concurrently. Sequential injection creates a seconds-long gap
 				// between dm-devices appearing, which causes btrfs RAID1
@@ -2257,7 +2258,10 @@ func tpmQEMUArgs(socketPath string) []string {
 func sendBootPassphrase(serialSocketPath, qmpPath, passphrase string) error {
 	if strings.TrimSpace(serialSocketPath) != "" {
 		if err := qemu.WriteSerialChunks(serialSocketPath, 200*time.Millisecond, passphrase, "\r"); err == nil {
+			fmt.Fprintf(os.Stderr, "harness: passphrase sent via serial socket\n")
 			return nil
+		} else {
+			fmt.Fprintf(os.Stderr, "harness: serial socket passphrase failed: %v, falling back to QMP\n", err)
 		}
 	}
 

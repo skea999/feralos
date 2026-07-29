@@ -3,13 +3,18 @@
   "status": "active",
   "phase": "Phase 1: Installer",
   "active_goals": [
-    "Fix boot failure — target now boots kernel, LUKS keyfile auto-unlock implemented, booster per-device keyfile args fixed",
+    "Run harness test to verify LUKS passphrase injection now works (socket path fix applied)",
     "Complete harness test pass (all verification checks green)",
     "Test installer on real hardware (Phase 1)",
     "Plan Dinit integration (Phase 2)",
     "Design custom FeralOS repository (Phase 2)"
   ],
   "decisions": [
+    {
+      "date": "2026-07-29",
+      "decision": "Shortened serial socket filename from target-serial.sock to tser.sock",
+      "rationale": "Unix socket path was 108 chars — 1 over Linux sun_path[108] limit (107 chars + null terminator), causing EINVAL on every connect(). Shortened to 96 chars."
+    },
     {
       "date": "2026-07-28",
       "decision": "LUKS keyfile embedded in initramfs for auto-unlock",
@@ -78,10 +83,16 @@
       "severity": "low",
       "status": "mitigated",
       "mitigation": "Guarded with EFI check, BOOTX64.EFI fallback handles boot"
+    },
+    {
+      "risk": "Unix socket path too long for sun_path[108]",
+      "severity": "high",
+      "status": "mitigated",
+      "mitigation": "Shortened socket filename from target-serial.sock to tser.sock (96 chars vs 108)"
     }
   ],
   "next_actions": [
-    "Run full harness test and verify all checks pass",
+    "Run full harness test and verify LUKS injection + all checks pass",
     "Test on real hardware with 2x NVMe",
     "Add test suite",
     "Document memory-safe alternatives in detail"

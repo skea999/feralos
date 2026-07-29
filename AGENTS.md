@@ -262,7 +262,18 @@ feralos_installer/
 
 ---
 
-*Updated: 2026-07-28*
+*Updated: 2026-07-29*
+
+### 2026-07-29 03:15 - Harness Serial Socket Path Length Fix
+**Agent:** codebase
+**Summary:** Fixed LUKS passphrase injection — root cause was Unix socket path too long
+- **Root cause**: `target-serial.sock` path was 108 chars — 1 over Linux `sun_path[108]` limit (107 chars + null terminator), causing `EINVAL` on every `connect()` attempt
+- **Fix**: Renamed `target-serial.sock` → `tser.sock` in `service.go` (2 locations: line 981, line 1524)
+- New path is 96 chars — well within limit
+- Also added diagnostic logging to `sendBootPassphrase` and `waitForTargetSSH` (stderr)
+- Added delays in `WriteSerialChunks` (200ms before write, 500ms after) for chardev settling
+- Rebuilt harness binary with all fixes
+- Secondary finding: both LUKS prompts detected on retry boot (count=2) — injection should work now
 
 ### 2026-07-28 02:30 - LUKS Keyfile Auto-Unlock + Boot Fixes
 **Agent:** codebase

@@ -88,46 +88,38 @@ func main() {
 		log.Fatalf("[ERROR] Bootstrap failed: %v", err)
 	}
 
-	// 9. Generate LUKS keyfile and embed in initramfs
-	fmt.Println("[INFO] Step 6: Generating LUKS keyfile for auto-unlock...")
-	keyfileArgs, err := hostPhase.GenerateAndEmbedKeyfile(conf)
-	if err != nil {
-		log.Fatalf("[ERROR] Keyfile generation failed: %v", err)
-	}
-	conf.User.KernelCmdline = append(conf.User.KernelCmdline, keyfileArgs...)
-
-	// 10. Host Side Preparation
-	fmt.Println("[INFO] Step 7: Preparing configuration files from host...")
+	// 9. Host Side Preparation
+	fmt.Println("[INFO] Step 6: Preparing configuration files from host...")
 	if err := hostPhase.PrepareChrootEnv(conf); err != nil {
 		log.Fatalf("[ERROR] Chroot prep failed: %v", err)
 	}
 
-	// 11. Write Booster Config (booster.yaml + kernel cmdline)
-	fmt.Println("[INFO] Step 8: Writing booster configuration...")
+	// 10. Write Booster Config (booster.yaml + kernel cmdline)
+	fmt.Println("[INFO] Step 7: Writing booster configuration...")
 	if err := hostPhase.WriteBoosterConfig(conf); err != nil {
 		log.Fatalf("[ERROR] Booster config failed: %v", err)
 	}
 
-	// 12. Write Booster Hook (kernel upgrade hook)
-	fmt.Println("[INFO] Step 9: Writing booster kernel hook...")
+	// 11. Write Booster Hook (kernel upgrade hook)
+	fmt.Println("[INFO] Step 8: Writing booster kernel hook...")
 	if err := hostPhase.WriteBoosterHook(conf.Internal.ChrootDir); err != nil {
 		log.Fatalf("[ERROR] Booster hook failed: %v", err)
 	}
 
-	// 13. Write Secureboot Config
-	fmt.Println("[INFO] Step 10: Writing secureboot hook config...")
+	// 12. Write Secureboot Config
+	fmt.Println("[INFO] Step 9: Writing secureboot hook config...")
 	if err := hostPhase.WriteSecurebootConf(conf.Internal.ChrootDir); err != nil {
-		log.Fatalf("[ERROR] Secureboot config failed: %v", err)
+		log.Fatalf("[ERROR] Secureboot hook config failed: %v", err)
 	}
 
-	// 14. Inject APK Hooks
-	fmt.Println("[INFO] Step 11: Injecting APK commit hooks...")
+	// 13. Inject APK Hooks
+	fmt.Println("[INFO] Step 10: Injecting APK commit hooks...")
 	if err := hostPhase.InjectApkHooks(conf.Internal.ChrootDir); err != nil {
 		log.Fatalf("[ERROR] Hooks injection failed: %v", err)
 	}
 
-	// 15. Chroot Phase (Final Internal Configuration)
-	fmt.Println("[INFO] Step 12: Entering Chroot for final configuration...")
+	// 14. Chroot Phase (Final Internal Configuration)
+	fmt.Println("[INFO] Step 11: Entering Chroot for final configuration...")
 	if err := chrootPhase.Run(conf); err != nil {
 		log.Fatalf("[ERROR] Chroot phase failed: %v", err)
 	}

@@ -436,6 +436,9 @@ func WriteSerialChunks(socketPath string, pause time.Duration, chunks ...string)
 	}
 	defer conn.Close()
 
+	// Let the chardev settle after accepting the connection before sending data.
+	time.Sleep(200 * time.Millisecond)
+
 	for index, chunk := range chunks {
 		if err := conn.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
 			return fmt.Errorf("set serial write deadline: %w", err)
@@ -447,6 +450,12 @@ func WriteSerialChunks(socketPath string, pause time.Duration, chunks ...string)
 			time.Sleep(pause)
 		}
 	}
+
+	// Keep the connection open so QEMU's event loop has time to read the
+	// data from the socket buffer and forward it to the serial port input.
+	// Without this delay the deferred conn.Close() can fire before QEMU
+	// drains the socket, silently losing the keystrokes.
+	time.Sleep(500 * time.Millisecond)
 
 	return nil
 }
