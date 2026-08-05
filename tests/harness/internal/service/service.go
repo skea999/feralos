@@ -569,8 +569,8 @@ func (service *Service) RunInstall(ctx context.Context, cfg RunConfig) (RunResul
 		return RunResult{}, err
 	}
 
-	harnessOverridesPath := filepath.Join(runDir, ".skea-harness-overrides.sh")
-	if err := writeHarnessRuntimeOverrides(cfg, keyPair, harnessOverridesPath); err != nil {
+	varsPath := filepath.Join(runDir, "variables.yaml")
+	if err := writeHarnessVariables(cfg, keyPair, varsPath, alpineCacheServer.GuestURL); err != nil {
 		_ = runnerInstance.Kill()
 		active.Status = "failed"
 		active.Error = err.Error()
@@ -578,24 +578,7 @@ func (service *Service) RunInstall(ctx context.Context, cfg RunConfig) (RunResul
 		return RunResult{}, err
 	}
 
-	if err := guest.CopyToGuest(ctx, runnerGuest, harnessOverridesPath, remoteRepoRoot, false); err != nil {
-		_ = runnerInstance.Kill()
-		active.Status = "failed"
-		active.Error = err.Error()
-		_ = stateStore.Save(active)
-		return RunResult{}, err
-	}
-
-	setupInputPath := filepath.Join(runDir, ".skea-harness-setup-input.txt")
-	if err := writeHarnessSetupInput(cfg, keyPair, setupInputPath, alpineCacheServer.GuestURL); err != nil {
-		_ = runnerInstance.Kill()
-		active.Status = "failed"
-		active.Error = err.Error()
-		_ = stateStore.Save(active)
-		return RunResult{}, err
-	}
-
-	if err := guest.CopyToGuest(ctx, runnerGuest, setupInputPath, remoteRepoRoot, false); err != nil {
+	if err := guest.CopyToGuest(ctx, runnerGuest, varsPath, remoteRepoRoot, false); err != nil {
 		_ = runnerInstance.Kill()
 		active.Status = "failed"
 		active.Error = err.Error()
@@ -684,7 +667,7 @@ setupStatus=0
 env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u all_proxy -u no_proxy -u NO_PROXY \
 	sudo env PATH="$(pwd)/.skea-harness-bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
 	SKEA_HARNESS_LOCAL_REPO="$(pwd)" \
-	bash ./setup.sh -config "$(pwd)/src/variables/variables.yaml" || setupStatus=$?
+	bash ./setup.sh -config "$(pwd)/variables.yaml" || setupStatus=$?
 
 if [ "$setupStatus" -ne 0 ]; then
 	exit "$setupStatus"
@@ -1951,65 +1934,80 @@ func exportUnencryptedPEMKey(srcPath, dstPath string) error {
 	return nil
 }
 
-func writeHarnessRuntimeOverrides(cfg RunConfig, keyPair guest.KeyPair, outputPath string) error {
-	content := []string{
-		fmt.Sprintf("sshAuthorizedKey=\"%s\"", escapeDoubleQuotes(keyPair.PublicKey)),
-		"defaultNetworkInterface=\"eth0\"",
-		"extraKernelArgs=\"console=ttyS0,115200 booster.log=debug,console\"",
-		// Data disks for btrfs RAID1 (vdc, vdd) and ZFS (vde, vdf)
-		"btrfsDisk1=\"/dev/vdc\"",
-		"btrfsDisk2=\"/dev/vdd\"",
-		"zfsDisk1=\"/dev/vde\"",
-		"zfsDisk2=\"/dev/vdf\"",
-	}
-
-	blob := strings.Join(content, "\n") + "\n"
-	if err := os.WriteFile(outputPath, []byte(blob), 0o600); err != nil {
-		return fmt.Errorf("write harness runtime overrides: %w", err)
-	}
-
-	return nil
-}
-
-func writeHarnessSetupInput(cfg RunConfig, keyPair guest.KeyPair, outputPath, alpineMirror string) error {
+func writeHarnessVariables(cfg RunConfig, keyPair guest.KeyPair, outputPath, alpineMirror string) error {
 	yn := func(b bool) string {
 		if b {
-			return "yes"
+			return "true"
 		}
-		return "no"
+		return "false"
 	}
-	answers := []string{
-		"/dev/vdb", // Primary disk
-	}
+
+	disk1 := "/dev/vdb"
+	disk2 := "/dev/vdb"
 	if cfg.DiskLayout == "btrfsStandardServer" {
-		answers = append(answers, "/dev/vdc") // Secondary disk (RAID1 only)
-	} else {
-		answers = append(answers, "/dev/vdb") // Same as primary for single-disk (setup.sh skips duplicates)
+		disk2 = "/dev/vdc"
 	}
-	answers = append(answers,
-		"yes",                                // Enable LUKS2 encryption
-		yn(cfg.EnableSecureboot),             // Enable Secure Boot
-		map[bool]string{true: "yes", false: "no"}[cfg.EnableTPM], // Enable TPM2
-		yn(cfg.EnableHardening),              // Enable security hardening
-		yn(cfg.EnableZswap),                  // Enable zswap
-		yn(cfg.EnableNix),                    // Enable Nix
-		cfg.InstalledPassword,                // Password
-		cfg.InstalledUser,                    // Username
-		"Europe/Rome",                        // Timezone
-		"it",                                 // Locale
-		"it",                                 // Keymap
-		cfg.DiskLayout,                       // Disk layout
-		keyPair.PublicKey,                     // SSH public key
-		alpineMirror,                         // Mirror
-		"",                                   // Branch
-		"yes",                                // Confirm installation
+
+	sshKey := escapeDoubleQuotes(keyPair.PublicKey)
+	content := fmt.Sprintf(`variables:
+  unattended: true
+
+  disks:
+    - "%s"
+    - "%s"
+
+  userName: "%s"
+  password: '%s'
+  hostname: "skea-server"
+  timezone: "Europe/Rome"
+  locale: "it"
+  keymap: "it"
+
+  mirror: "%s"
+  arch: "x86_64"
+  branch: "latest-stable"
+
+  diskLayout: "%s"
+  desktopEnvironment: "none"
+  videoDriver: "none"
+
+  sshAuthorizedKey: "%s"
+  defaultNetworkInterface: "eth0"
+
+  enableEncryption: true
+  enableSecureboot: %s
+  enableTPM: %s
+  enableHardening: %s
+  enableZswap: %s
+  enableNix: %s
+  enableDebug: false
+
+  extraPackages:
+    - incus-feature
+    - incus-feature-vm
+    - incus-feature-client
+    - incus-feature-utils
+    - qemu-system-x86_64
+    - qemu-img
+    - qemu-modules
+    - zram-init
+`,
+		disk1, disk2,
+		cfg.InstalledUser,
+		escapeDoubleQuotes(cfg.InstalledPassword),
+		alpineMirror,
+		cfg.DiskLayout,
+		sshKey,
+		yn(cfg.EnableSecureboot),
+		yn(cfg.EnableTPM),
+		yn(cfg.EnableHardening),
+		yn(cfg.EnableZswap),
+		yn(cfg.EnableNix),
 	)
 
-	blob := strings.Join(answers, "\n") + "\n"
-	if err := os.WriteFile(outputPath, []byte(blob), 0o600); err != nil {
-		return fmt.Errorf("write harness setup input: %w", err)
+	if err := os.WriteFile(outputPath, []byte(content), 0o600); err != nil {
+		return fmt.Errorf("write harness variables: %w", err)
 	}
-
 	return nil
 }
 
