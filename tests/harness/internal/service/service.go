@@ -409,16 +409,21 @@ func (service *Service) RunInstall(ctx context.Context, cfg RunConfig) (RunResul
 	if err := qemu.CreateDisk(cfg.QemuImgBinary, disk1Path, cfg.DiskSize); err != nil {
 		return RunResult{}, err
 	}
-	if err := qemu.CreateDisk(cfg.QemuImgBinary, disk2Path, cfg.DiskSize); err != nil {
-		return RunResult{}, err
+	// Only create second install disk for RAID1 layouts (btrfsStandardServer)
+	if cfg.DiskLayout == "btrfsStandardServer" {
+		if err := qemu.CreateDisk(cfg.QemuImgBinary, disk2Path, cfg.DiskSize); err != nil {
+			return RunResult{}, err
+		}
 	}
 	// Data disks (btrfs RAID1 + ZFS)
 	extraDiskSize := "8G"
 	if err := qemu.CreateDisk(cfg.QemuImgBinary, btrfsDisk1Path, extraDiskSize); err != nil {
 		return RunResult{}, err
 	}
-	if err := qemu.CreateDisk(cfg.QemuImgBinary, btrfsDisk2Path, extraDiskSize); err != nil {
-		return RunResult{}, err
+	if cfg.DiskLayout == "btrfsStandardServer" {
+		if err := qemu.CreateDisk(cfg.QemuImgBinary, btrfsDisk2Path, extraDiskSize); err != nil {
+			return RunResult{}, err
+		}
 	}
 	if err := qemu.CreateDisk(cfg.QemuImgBinary, zfsDisk1Path, extraDiskSize); err != nil {
 		return RunResult{}, err
@@ -475,12 +480,20 @@ func (service *Service) RunInstall(ctx context.Context, cfg RunConfig) (RunResul
 		"-device", "virtio-net-pci,netdev=net0",
 		"-drive", "if=virtio,format=qcow2,file=" + cfg.RunnerImage,
 		"-drive", "if=virtio,format=qcow2,file=" + disk1Path,
-		"-drive", "if=virtio,format=qcow2,file=" + disk2Path,
-		"-drive", "if=virtio,format=qcow2,file=" + btrfsDisk1Path,
-		"-drive", "if=virtio,format=qcow2,file=" + btrfsDisk2Path,
-		"-drive", "if=virtio,format=qcow2,file=" + zfsDisk1Path,
-		"-drive", "if=virtio,format=qcow2,file=" + zfsDisk2Path,
 	}
+	if cfg.DiskLayout == "btrfsStandardServer" {
+		runnerArgs = append(runnerArgs, "-drive", "if=virtio,format=qcow2,file="+disk2Path)
+	}
+	runnerArgs = append(runnerArgs,
+		"-drive", "if=virtio,format=qcow2,file="+btrfsDisk1Path,
+	)
+	if cfg.DiskLayout == "btrfsStandardServer" {
+		runnerArgs = append(runnerArgs, "-drive", "if=virtio,format=qcow2,file="+btrfsDisk2Path)
+	}
+	runnerArgs = append(runnerArgs,
+		"-drive", "if=virtio,format=qcow2,file="+zfsDisk1Path,
+		"-drive", "if=virtio,format=qcow2,file="+zfsDisk2Path,
+	)
 	if cfg.EnableKVM {
 		runnerArgs = append(runnerArgs, "-enable-kvm")
 	}
@@ -1003,18 +1016,30 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg RunConfig, 
 			"-device", "virtio-net-pci,netdev=net0",
 		"-drive", "if=none,id=targetdisk1,format=qcow2,file=" + disk1Path,
 		"-device", "virtio-blk-pci,drive=targetdisk1,bootindex=1",
-		"-drive", "if=none,id=targetdisk2,format=qcow2,file=" + disk2Path,
-		"-device", "virtio-blk-pci,drive=targetdisk2,bootindex=2",
+	}
+	if cfg.DiskLayout == "btrfsStandardServer" {
+		args = append(args,
+			"-drive", "if=none,id=targetdisk2,format=qcow2,file="+disk2Path,
+			"-device", "virtio-blk-pci,drive=targetdisk2,bootindex=2",
+		)
+	}
+	args = append(args,
 		// Data disks (btrfs + ZFS)
-		"-drive", "if=none,id=btrfsdisk1,format=qcow2,file=" + btrfsDisk1Path,
+		"-drive", "if=none,id=btrfsdisk1,format=qcow2,file="+btrfsDisk1Path,
 		"-device", "virtio-blk-pci,drive=btrfsdisk1",
-		"-drive", "if=none,id=btrfsdisk2,format=qcow2,file=" + btrfsDisk2Path,
-		"-device", "virtio-blk-pci,drive=btrfsdisk2",
-		"-drive", "if=none,id=zfsdisk1,format=qcow2,file=" + zfsDisk1Path,
+	)
+	if cfg.DiskLayout == "btrfsStandardServer" {
+		args = append(args,
+			"-drive", "if=none,id=btrfsdisk2,format=qcow2,file="+btrfsDisk2Path,
+			"-device", "virtio-blk-pci,drive=btrfsdisk2",
+		)
+	}
+	args = append(args,
+		"-drive", "if=none,id=zfsdisk1,format=qcow2,file="+zfsDisk1Path,
 		"-device", "virtio-blk-pci,drive=zfsdisk1",
-		"-drive", "if=none,id=zfsdisk2,format=qcow2,file=" + zfsDisk2Path,
+		"-drive", "if=none,id=zfsdisk2,format=qcow2,file="+zfsDisk2Path,
 		"-device", "virtio-blk-pci,drive=zfsdisk2",
-		}
+	)
 		if includeTPM {
 			// QEMU 10 tpmdev emulator connects to the swtpm --ctrl socket (not
 			// the --server socket). QEMU provides its data fd via CMD_SET_DATAFD.
@@ -1223,6 +1248,11 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg RunConfig, 
 			active.Error = tpmErr.Error()
 			_ = stateStore.Save(active)
 			return RunResult{}, tpmErr
+		}
+		// Second boot successfully bound LUKS to TPM — verification boot
+		// must NOT fall back to passphrase injection.
+		if strings.Contains(tpmDiag, "TPM binding complete") {
+			tpmBindingSuccessful = true
 		}
 
 		// Reboot after TPM binding
@@ -1469,7 +1499,9 @@ func (service *Service) Verify(ctx context.Context, cfg VerifyConfig) (VerifyRes
 				serialCheck.Detail = fmt.Sprintf("read %s: %v", serialPath, err)
 				result.Success = false
 			} else if strings.Contains(string(data), "Enter passphrase for ") {
-				serialCheck.Detail = "target serial log contains a LUKS prompt after the Clevis binding reboot, but second-boot SSH still became ready; booster can leave prompt text behind while token unlock wins"
+				serialCheck.Pass = false
+				serialCheck.Detail = "target serial log contains a LUKS passphrase prompt after the Clevis binding reboot — TPM auto-unlock did NOT work (password was required)"
+				result.Success = false
 			} else if serialOffset > 0 {
 				serialCheck.Detail = fmt.Sprintf("target reached SSH after the Clevis binding reboot without any visible LUKS prompt text (checked from byte offset %d)", serialOffset)
 			}
@@ -1953,8 +1985,14 @@ func writeHarnessSetupInput(cfg RunConfig, keyPair guest.KeyPair, outputPath, al
 		return "no"
 	}
 	answers := []string{
-		"/dev/vdb",                           // Primary disk
-		"/dev/vdc",                           // Secondary disk
+		"/dev/vdb", // Primary disk
+	}
+	if cfg.DiskLayout == "btrfsStandardServer" {
+		answers = append(answers, "/dev/vdc") // Secondary disk (RAID1 only)
+	} else {
+		answers = append(answers, "") // No secondary disk for single-disk layouts
+	}
+	answers = append(answers,
 		"yes",                                // Enable LUKS2 encryption
 		yn(cfg.EnableSecureboot),             // Enable Secure Boot
 		map[bool]string{true: "yes", false: "no"}[cfg.EnableTPM], // Enable TPM2
@@ -1971,7 +2009,7 @@ func writeHarnessSetupInput(cfg RunConfig, keyPair guest.KeyPair, outputPath, al
 		alpineMirror,                         // Mirror
 		"",                                   // Branch
 		"yes",                                // Confirm installation
-	}
+	)
 
 	blob := strings.Join(answers, "\n") + "\n"
 	if err := os.WriteFile(outputPath, []byte(blob), 0o600); err != nil {

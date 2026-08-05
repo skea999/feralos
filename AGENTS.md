@@ -264,6 +264,17 @@ feralos_installer/
 
 *Updated: 2026-08-05*
 
+### 2026-08-05 03:15 - Strict TPM Verification + Layout-Aware Disks
+**Agent:** codebase
+**Summary:** Harness now verifies TPM auto-unlock without password fallback; creates only needed disks
+- Made `tpmBindingSuccessful` true after 2nd-boot Clevis binding succeeds → verification boot has NO password fallback
+- `tpm_auto_unlock` check now FAILS if "Enter passphrase" appears in serial log after Clevis reboot
+- Harness creates only 1 install disk for btrfsStandard, 2 for btrfsStandardServer (was always 2)
+- `writeHarnessSetupInput` passes `/dev/vdc` only for btrfsStandardServer
+- QEMU args (runner + target) conditional on layout
+- btrfsStandard: 18/18 with Secure Boot + TPM (TPM auto-unlock confirmed, no password)
+- btrfsStandardServer: TPM auto-unlock check fails — 2-device RAID1 doesn't auto-unlock (PCR7 mismatch or booster/clevis path issue), needs investigation
+
 ### 2026-08-05 02:00 - TPM Auto-Unlock + Secure Boot Enrollment
 **Agent:** codebase
 **Summary:** Both layouts pass all 18 checks with Secure Boot + TPM enabled

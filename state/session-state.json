@@ -3,7 +3,7 @@
   "status": "active",
   "phase": "Phase 1: Installer",
   "active_goals": [
-    "Harness test pass — ALL 18 CHECKS PASS for both layouts with Secure Boot + TPM (2026-08-05)",
+    "Fix btrfsStandardServer TPM auto-unlock (2-device RAID1 doesn't auto-unlock, needs PCR7/booster/clevis investigation) (2026-08-05)",
     "Test installer on real hardware with 2x NVMe (Phase 1)",
     "Plan Dinit integration (Phase 2)",
     "Design custom FeralOS repository (Phase 2)"
