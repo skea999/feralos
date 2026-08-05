@@ -4,9 +4,9 @@
 # Builds the Go installer and runs it.
 #
 # Usage:
-#   sudo bash setup.sh                          # Interactive — Go installer prompts
-#   sudo bash setup.sh -config variables.yaml   # Non-interactive — pass config file
-#   sudo bash setup.sh --test /path/to/repo     # Test mode — use local repo
+#   sudo bash setup.sh                                    # Interactive
+#   sudo bash setup.sh --test /path/to/repo -config file  # Test (harness)
+#   sudo bash setup.sh -config file.yaml                  # Non-interactive
 #
 
 set -euo pipefail
@@ -27,27 +27,30 @@ while [ $# -gt 0 ]; do
             testRepo="$2"; shift 2 ;;
         *)
             echo "Unknown option: $1"
-            echo "Usage: setup.sh [-config file.yaml] [--test /path/to/repo]"
+            echo "Usage: setup.sh [--test /path/to/repo] [-config file.yaml]"
             exit 1 ;;
     esac
 done
 
+# --- Validate ---
 if [ "$(id -u)" != "0" ]; then
     echo "ERROR: Run as root — sudo bash setup.sh"
     exit 1
 fi
 
+if [ "$testMode" = true ] && [ -z "$configFile" ]; then
+    echo "ERROR: --test requires -config <file.yaml>"
+    exit 1
+fi
+
 # --- Locate repository ---
 if [ "$testMode" = true ]; then
-    # Test mode: use local repo (harness copies repo to runner)
     installDir="$testRepo"
     echo "[TEST] Using local repo: $installDir"
 elif [ -n "${SKEA_HARNESS_LOCAL_REPO:-}" ] && [ -d "$SKEA_HARNESS_LOCAL_REPO/src" ]; then
-    # Harness mode: local repo already available
     installDir="$SKEA_HARNESS_LOCAL_REPO"
     echo "[HARNESS] Using local repo: $installDir"
 else
-    # Manual mode: clone or update
     installDir="/tmp/feralos-installer"
     if [ -d "$installDir/.git" ]; then
         echo "Updating repository..."
@@ -74,10 +77,8 @@ go build -o "$installDir/feralos_installer" .
 echo
 cd "$installDir"
 if [ -n "$configFile" ]; then
-    # Non-interactive: pass config file to Go installer
     ./feralos_installer -config "$configFile"
 else
-    # Interactive: Go installer prompts for configuration
     ./feralos_installer
 fi
 
