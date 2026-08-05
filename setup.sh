@@ -207,15 +207,15 @@ printf "Secondary disk (for RAID1) [%s]: " "$disk2Default"
 read -r disk2Input || true
 [ -z "$disk2Input" ] && disk2Input="$disk2Default"
 
-if [ "$disk1Input" = "$disk2Input" ]; then
-    echo "ERROR: Primary and secondary disks must be different."
-    exit 1
-fi
-
 # Rewrite the disks list in YAML
 sed -i "/^  disks:/,/^[^ ]/{/^  disks:/!{/^  *- /d;};}" "$variablesFile"
-sed -i "/^  disks:/a\\    - \"${disk1Input}\"" "$variablesFile"
-sed -i "/^  disks:/a\\    - \"${disk2Input}\"" "$variablesFile"
+# Only add secondary disk if it's different from primary (RAID1 layouts)
+if [ "$disk2Input" != "$disk1Input" ]; then
+    sed -i "/^  disks:/a\\    - \"${disk1Input}\"" "$variablesFile"
+    sed -i "/^  disks:/a\\    - \"${disk2Input}\"" "$variablesFile"
+else
+    sed -i "/^  disks:/a\\    - \"${disk1Input}\"" "$variablesFile"
+fi
 
 echo
 echo "=== Feature Toggles ==="
