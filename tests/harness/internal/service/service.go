@@ -667,6 +667,7 @@ setupStatus=0
 env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u all_proxy -u no_proxy -u NO_PROXY \
 	sudo env PATH="$(pwd)/.skea-harness-bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
 	SKEA_HARNESS_LOCAL_REPO="$(pwd)" \
+	SKEA_NONINTERACTIVE=1 SKEA_NONINTERACTIVE_DECISION=ignore \
 	bash ./setup.sh --test "$(pwd)" -config "$(pwd)/variables.yaml" || setupStatus=$?
 
 if [ "$setupStatus" -ne 0 ]; then
