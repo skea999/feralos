@@ -32,10 +32,7 @@ func BuildAndDeployUKI(conf *config.Config) error {
 	}
 	fmt.Printf("[DEBUG] Microcode: %s\n", ucodeImg)
 
-	// 2. Generate EFI keys
-	if _, err := shell.RunChrootCommand(chroot, "efi-mkkeys -s 'FeralOS Server' -o /etc/uefi-keys"); err != nil {
-		return fmt.Errorf("efi-mkkeys failed: %w", err)
-	}
+	// 2. EFI keys are generated in InstallPackages (before secureboot-hook runs)
 
 	// 3. Build booster initramfs
 	if _, err := shell.RunChrootCommand(chroot, "ALPINE_KERNEL=$(ls /lib/modules/ | head -1) && booster build --force --kernel-version \"${ALPINE_KERNEL}\" /boot/booster-lts.img"); err != nil {

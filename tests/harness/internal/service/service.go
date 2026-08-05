@@ -1439,11 +1439,21 @@ func (service *Service) Verify(ctx context.Context, cfg VerifyConfig) (VerifyRes
 				result.Success = false
 			}
 		}
-		if bindingCheck, ok := result.Checks["clevis_bindings"]; ok && !hasClevisTPM2Bindings(bindingCheck.Detail, 2) {
-			bindingCheck.Pass = false
-			bindingCheck.Detail = bindingCheck.Detail + "\nExpected Clevis TPM2 bindings on both encrypted root volumes"
-			result.Checks["clevis_bindings"] = bindingCheck
-			result.Success = false
+		if bindingCheck, ok := result.Checks["clevis_bindings"]; ok {
+			// Determine expected binding count from the storage layout:
+			// btrfsStandard has 1 LUKS device, btrfsStandardServer has 2.
+			expectedBindings := 1
+			if storageCheck, ok := result.Checks["storage_layout"]; ok {
+				if hasHealthyBtrfsRaid1Layout(storageCheck.Detail) {
+					expectedBindings = 2
+				}
+			}
+			if !hasClevisTPM2Bindings(bindingCheck.Detail, expectedBindings) {
+				bindingCheck.Pass = false
+				bindingCheck.Detail = bindingCheck.Detail + fmt.Sprintf("\nExpected Clevis TPM2 bindings on %d encrypted root volume(s)", expectedBindings)
+				result.Checks["clevis_bindings"] = bindingCheck
+				result.Success = false
+			}
 		}
 		if cfg.RunDir != "" {
 			serialCheck := CheckResult{Pass: true, Detail: "target reached SSH after the Clevis binding reboot without fallback passphrase injection"}
@@ -2305,7 +2315,7 @@ func sendBootPassphrase(serialSocketPath, qmpPath, passphrase string) error {
 }
 
 func copyGuidesToTarget(ctx context.Context, targetGuest guest.Options, repoRoot string) {
-	guideDir := filepath.Join(repoRoot, "guides")
+	guideDir := filepath.Join(repoRoot, "src", "firstBoot")
 	guideEntries, err := os.ReadDir(guideDir)
 	if err != nil {
 		return
@@ -2316,6 +2326,8 @@ func copyGuidesToTarget(ctx context.Context, targetGuest guest.Options, repoRoot
 			localPath := filepath.Join(guideDir, entry.Name())
 			remotePath := filepath.Join("/root/guides", entry.Name())
 			_ = guest.CopyToGuest(ctx, targetGuest, localPath, remotePath, false)
+			// Ensure script is executable on target
+			_ = guest.Run(ctx, targetGuest, "chmod +x "+remotePath, io.Discard, io.Discard)
 		}
 	}
 }

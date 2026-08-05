@@ -20,6 +20,19 @@ func InstallPackages(conf *config.Config) error {
 		return fmt.Errorf("apk update failed: %w", err)
 	}
 
+	// Install key-generation tools first so we can generate EFI keys before
+	// secureboot-hook's post-install script runs (it needs /etc/uefi-keys/*).
+	if _, err := shell.RunChrootCommand(chroot, "apk add efi-mkkeys efitools openssl"); err != nil {
+		return fmt.Errorf("failed to install key-generation tools: %w", err)
+	}
+
+	// Generate EFI keys early so secureboot-hook can sign during package install.
+	if u.EnableSecureboot {
+		if _, err := shell.RunChrootCommand(chroot, "efi-mkkeys -s 'FeralOS Server' -o /etc/uefi-keys"); err != nil {
+			return fmt.Errorf("efi-mkkeys failed: %w", err)
+		}
+	}
+
 	// Add TPM packages if enabled
 	tpmPackages := ""
 	if u.EnableTPM {
