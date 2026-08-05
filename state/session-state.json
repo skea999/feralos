@@ -3,7 +3,7 @@
   "status": "active",
   "phase": "Phase 1: Installer",
   "active_goals": [
-    "Harness test pass — ALL 17 CHECKS PASS for both layouts (2026-07-30)",
+    "Harness test pass — ALL 18 CHECKS PASS for both layouts with Secure Boot + TPM (2026-08-05)",
     "Test installer on real hardware with 2x NVMe (Phase 1)",
     "Plan Dinit integration (Phase 2)",
     "Design custom FeralOS repository (Phase 2)"

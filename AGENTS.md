@@ -262,7 +262,18 @@ feralos_installer/
 
 ---
 
-*Updated: 2026-07-30*
+*Updated: 2026-08-05*
+
+### 2026-08-05 02:00 - TPM Auto-Unlock + Secure Boot Enrollment
+**Agent:** codebase
+**Summary:** Both layouts pass all 18 checks with Secure Boot + TPM enabled
+- Added `src/firstBoot/1-secure-boot-sbctl.sh` (sbctl enrollment) and `src/firstBoot/2-tpm.sh` (Clevis TPM2 binding)
+- `2-tpm.sh` installs `clevis@edge`, binds LUKS to TPM2 with `pcr_ids:7`, rebuilds initramfs + signed UKI
+- Fixed Secure Boot key generation ordering: EFI keys now generated in `InstallPackages` before `secureboot-hook` post-install runs
+- Updated harness `copyGuidesToTarget` to read from `src/firstBoot`
+- Made `clevis_bindings` check layout-aware (1 binding for btrfsStandard, 2 for btrfsStandardServer)
+- Both btrfsStandard and btrfsStandardServer pass 18/18 checks with `--enable-secureboot=true --enable-tpm=true`
+- Committed `e530824`, pushed to main
 
 ### 2026-07-30 00:45 - Layout-Aware Verification Checks
 **Agent:** codebase
