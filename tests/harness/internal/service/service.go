@@ -415,12 +415,12 @@ func (service *Service) RunInstall(ctx context.Context, cfg RunConfig) (RunResul
 			return RunResult{}, err
 		}
 	}
-	// Data disks (btrfs RAID1 + ZFS)
+	// Data disks (btrfs RAID1 + ZFS) — only for btrfsStandardServer
 	extraDiskSize := "8G"
-	if err := qemu.CreateDisk(cfg.QemuImgBinary, btrfsDisk1Path, extraDiskSize); err != nil {
-		return RunResult{}, err
-	}
 	if cfg.DiskLayout == "btrfsStandardServer" {
+		if err := qemu.CreateDisk(cfg.QemuImgBinary, btrfsDisk1Path, extraDiskSize); err != nil {
+			return RunResult{}, err
+		}
 		if err := qemu.CreateDisk(cfg.QemuImgBinary, btrfsDisk2Path, extraDiskSize); err != nil {
 			return RunResult{}, err
 		}
@@ -482,13 +482,11 @@ func (service *Service) RunInstall(ctx context.Context, cfg RunConfig) (RunResul
 		"-drive", "if=virtio,format=qcow2,file=" + disk1Path,
 	}
 	if cfg.DiskLayout == "btrfsStandardServer" {
-		runnerArgs = append(runnerArgs, "-drive", "if=virtio,format=qcow2,file="+disk2Path)
-	}
-	runnerArgs = append(runnerArgs,
-		"-drive", "if=virtio,format=qcow2,file="+btrfsDisk1Path,
-	)
-	if cfg.DiskLayout == "btrfsStandardServer" {
-		runnerArgs = append(runnerArgs, "-drive", "if=virtio,format=qcow2,file="+btrfsDisk2Path)
+		runnerArgs = append(runnerArgs,
+			"-drive", "if=virtio,format=qcow2,file="+disk2Path,
+			"-drive", "if=virtio,format=qcow2,file="+btrfsDisk1Path,
+			"-drive", "if=virtio,format=qcow2,file="+btrfsDisk2Path,
+		)
 	}
 	runnerArgs = append(runnerArgs,
 		"-drive", "if=virtio,format=qcow2,file="+zfsDisk1Path,
@@ -998,15 +996,8 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg RunConfig, 
 		args = append(args,
 			"-drive", "if=none,id=targetdisk2,format=qcow2,file="+disk2Path,
 			"-device", "virtio-blk-pci,drive=targetdisk2,bootindex=2",
-		)
-	}
-	args = append(args,
-		// Data disks (btrfs + ZFS)
-		"-drive", "if=none,id=btrfsdisk1,format=qcow2,file="+btrfsDisk1Path,
-		"-device", "virtio-blk-pci,drive=btrfsdisk1",
-	)
-	if cfg.DiskLayout == "btrfsStandardServer" {
-		args = append(args,
+			"-drive", "if=none,id=btrfsdisk1,format=qcow2,file="+btrfsDisk1Path,
+			"-device", "virtio-blk-pci,drive=btrfsdisk1",
 			"-drive", "if=none,id=btrfsdisk2,format=qcow2,file="+btrfsDisk2Path,
 			"-device", "virtio-blk-pci,drive=btrfsdisk2",
 		)
