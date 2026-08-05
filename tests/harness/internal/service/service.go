@@ -1394,7 +1394,7 @@ func (service *Service) Verify(ctx context.Context, cfg VerifyConfig) (VerifyRes
 		"network_interfaces": "ip addr || ifconfig || true",
 		"tpm_devices":        "ls -1 /dev/tpm* 2>/dev/null || true",
 		"clevis_packages":    "apk info | grep -E '^(bash|clevis|jose|luksmeta|tpm2-tools|tpm2-tss|tpm2-tss-tcti-device)$' || true",
-		"clevis_bindings":    "for dev in /dev/vda2 /dev/vdb2 /dev/sda2 /dev/sdb2 /dev/nvme0n1p2 /dev/nvme1n1p2; do if [ -b \"$dev\" ]; then printf '===%s===\\n' \"$dev\"; clevis luks list -d \"$dev\" 2>/dev/null || cryptsetup token list \"$dev\" || true; fi; done",
+		"clevis_bindings":    "for dev in $(blkid -o device -t TYPE=crypto_LUKS 2>/dev/null); do printf '===%s===\\n' \"$dev\"; clevis luks list -d \"$dev\" 2>/dev/null || cryptsetup token list \"$dev\" || true; done",
 	}
 
 	result := VerifyResult{RunDir: cfg.RunDir, Success: true, Checks: map[string]CheckResult{}}

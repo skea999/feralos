@@ -89,7 +89,9 @@ for uuid in $cryptRootUUIDs; do
     fi
 
     echo "Binding $device to Clevis TPM2..."
-    clevis luks bind -y -d "$device" -k "$passFile" tpm2 '{"pcr_ids":"7"}'
+    # Use empty PCR policy (TPM identity only). PCR7 mismatch between bind
+    # time and boot time causes sealed keys to fail in QEMU/OVMF environment.
+    clevis luks bind -y -d "$device" -k "$passFile" tpm2 '{}'
 done
 
 # Remove temporary key if it was created during install
