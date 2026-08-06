@@ -96,9 +96,6 @@ func logResult(stdout, stderr *bytes.Buffer, err error, duration time.Duration) 
 	// Log stdout if present
 	if stdout.Len() > 0 {
 		out := strings.TrimSpace(stdout.String())
-		if len(out) > 2000 {
-			out = out[:2000] + fmt.Sprintf("...(%d bytes truncated)", len(stdout.String())-2000)
-		}
 		for _, line := range strings.Split(out, "\n") {
 			fmt.Printf("[stdout] %s\n", line)
 		}
@@ -107,9 +104,6 @@ func logResult(stdout, stderr *bytes.Buffer, err error, duration time.Duration) 
 	// Log stderr if present
 	if stderr.Len() > 0 {
 		errOut := strings.TrimSpace(stderr.String())
-		if len(errOut) > 2000 {
-			errOut = errOut[:2000] + "...(truncated)"
-		}
 		for _, line := range strings.Split(errOut, "\n") {
 			fmt.Printf("[stderr] %s\n", line)
 		}
