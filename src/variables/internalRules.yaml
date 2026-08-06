@@ -11,6 +11,7 @@ defaultRunlevels:
 standardPackages:
   # Core
   - sudo-rs
+  - doas
   - musl-locales
   - lang
   - tzdata
@@ -142,6 +143,8 @@ packageLogic:
     services: {"btrfs-scan": "boot"}
     modules: ["btrfs"]
   sudo-rs:
+    groups: ["wheel"]
+  doas:
     groups: ["wheel"]
   sudo:
     groups: ["wheel"]
