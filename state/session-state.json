@@ -20,6 +20,11 @@
   "decisions": [
     {
       "date": "2026-08-06",
+      "decision": "Test artifacts: tests/artifacts/<tool-name>-<timestamp>/",
+      "rationale": "All test outputs go to tests/artifacts/ with naming convention: tool-name-YYYYMMDD_HHMMSS. Same pattern for harness, create_config, and any future tools."
+    },
+    {
+      "date": "2026-08-06",
       "decision": "setup.sh: launcher only, no configuration logic",
       "rationale": "Go installer handles all configuration via createConfig.PromptForConfig. setup.sh just builds and runs the binary."
     },
