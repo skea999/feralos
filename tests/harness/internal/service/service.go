@@ -376,6 +376,9 @@ func (service *Service) RunInstall(ctx context.Context, cfg RunConfig) (RunResul
 		return RunResult{}, fmt.Errorf("create run directory: %w", err)
 	}
 
+	// Clean up old runs, keep only the last 2
+	cleanOldRuns(filepath.Join(cfg.ArtifactsRoot, "runs"), 2)
+
 	disk1Path := filepath.Join(runDir, "install-disk-1.qcow2")
 	disk2Path := filepath.Join(runDir, "install-disk-2.qcow2")
 	btrfsDisk1Path := filepath.Join(runDir, "btrfs-disk-1.qcow2")
@@ -2109,6 +2112,29 @@ func resolveHarnessAlpineMirror(cfg RunConfig) (string, error) {
 	}
 
 	return strings.TrimRight(value, "/"), nil
+}
+
+func cleanOldRuns(runsDir string, keep int) {
+	entries, err := os.ReadDir(runsDir)
+	if err != nil {
+		return
+	}
+
+	names := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() {
+			names = append(names, entry.Name())
+		}
+	}
+
+	sort.Strings(names)
+	if len(names) <= keep {
+		return
+	}
+
+	for _, name := range names[:len(names)-keep] {
+		os.RemoveAll(filepath.Join(runsDir, name))
+	}
 }
 
 func latestRunDir(root string) string {
