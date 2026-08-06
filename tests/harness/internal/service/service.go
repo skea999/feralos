@@ -380,8 +380,6 @@ func (service *Service) RunInstall(ctx context.Context, cfg RunConfig) (RunResul
 	disk2Path := filepath.Join(runDir, "install-disk-2.qcow2")
 	btrfsDisk1Path := filepath.Join(runDir, "btrfs-disk-1.qcow2")
 	btrfsDisk2Path := filepath.Join(runDir, "btrfs-disk-2.qcow2")
-	zfsDisk1Path := filepath.Join(runDir, "zfs-disk-1.qcow2")
-	zfsDisk2Path := filepath.Join(runDir, "zfs-disk-2.qcow2")
 	runnerSerialLog := filepath.Join(runDir, "runner-serial.log")
 	runnerQemuLog := filepath.Join(runDir, "runner-qemu.log")
 	runnerQMPPath := filepath.Join(runDir, "runner-qmp.sock")
@@ -424,12 +422,6 @@ func (service *Service) RunInstall(ctx context.Context, cfg RunConfig) (RunResul
 		if err := qemu.CreateDisk(cfg.QemuImgBinary, btrfsDisk2Path, extraDiskSize); err != nil {
 			return RunResult{}, err
 		}
-	}
-	if err := qemu.CreateDisk(cfg.QemuImgBinary, zfsDisk1Path, extraDiskSize); err != nil {
-		return RunResult{}, err
-	}
-	if err := qemu.CreateDisk(cfg.QemuImgBinary, zfsDisk2Path, extraDiskSize); err != nil {
-		return RunResult{}, err
 	}
 
 	stopTPM := false
@@ -488,10 +480,6 @@ func (service *Service) RunInstall(ctx context.Context, cfg RunConfig) (RunResul
 			"-drive", "if=virtio,format=qcow2,file="+btrfsDisk2Path,
 		)
 	}
-	runnerArgs = append(runnerArgs,
-		"-drive", "if=virtio,format=qcow2,file="+zfsDisk1Path,
-		"-drive", "if=virtio,format=qcow2,file="+zfsDisk2Path,
-	)
 	if cfg.EnableKVM {
 		runnerArgs = append(runnerArgs, "-enable-kvm")
 	}
@@ -735,7 +723,7 @@ fi
 	// Delay before booting the target to let the installed disk images settle.
 	time.Sleep(10 * time.Second)
 
-	targetResult, targetErr := service.bootAndVerifyTarget(ctx, cfg, runID, runDir, disk1Path, disk2Path, btrfsDisk1Path, btrfsDisk2Path, zfsDisk1Path, zfsDisk2Path, keyPair, verifyLogPath, stateStore, active)
+	targetResult, targetErr := service.bootAndVerifyTarget(ctx, cfg, runID, runDir, disk1Path, disk2Path, btrfsDisk1Path, btrfsDisk2Path, keyPair, verifyLogPath, stateStore, active)
 	if targetErr != nil {
 		return result, targetErr
 	}
@@ -947,7 +935,7 @@ func readQMPResponseDiscardEvents(decoder *json.Decoder) error {
 	}
 }
 
-func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg RunConfig, runID, runDir, disk1Path, disk2Path, btrfsDisk1Path, btrfsDisk2Path, zfsDisk1Path, zfsDisk2Path string, keyPair guest.KeyPair, verifyLogPath string, stateStore runstate.Store, active runstate.ActiveRun) (RunResult, error) {
+func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg RunConfig, runID, runDir, disk1Path, disk2Path, btrfsDisk1Path, btrfsDisk2Path string, keyPair guest.KeyPair, verifyLogPath string, stateStore runstate.Store, active runstate.ActiveRun) (RunResult, error) {
 	ovmfPaths, err := qemu.FindOVMF()
 	if err != nil {
 		active.Status = "failed"
@@ -1002,12 +990,6 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg RunConfig, 
 			"-device", "virtio-blk-pci,drive=btrfsdisk2",
 		)
 	}
-	args = append(args,
-		"-drive", "if=none,id=zfsdisk1,format=qcow2,file="+zfsDisk1Path,
-		"-device", "virtio-blk-pci,drive=zfsdisk1",
-		"-drive", "if=none,id=zfsdisk2,format=qcow2,file="+zfsDisk2Path,
-		"-device", "virtio-blk-pci,drive=zfsdisk2",
-	)
 		if includeTPM {
 			// QEMU 10 tpmdev emulator connects to the swtpm --ctrl socket (not
 			// the --server socket). QEMU provides its data fd via CMD_SET_DATAFD.
