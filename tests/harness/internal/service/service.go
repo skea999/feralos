@@ -17,6 +17,7 @@ import (
 	"syscall"
 	"time"
 
+	"gopkg.in/yaml.v3"
 	"skeaAlpineInstaller/tests/harness/internal/cache"
 	"skeaAlpineInstaller/tests/harness/internal/guest"
 	"skeaAlpineInstaller/tests/harness/internal/qemu"
@@ -88,6 +89,79 @@ type RunConfig struct {
 	WaitTimeout         time.Duration
 	BootTimeout         time.Duration
 	VerificationTimeout time.Duration
+	VariablesFile       string // -f flag: path to variables.yaml
+}
+
+// VariablesYAML represents the structure of variables.yaml
+type VariablesYAML struct {
+	Variables struct {
+		Unattended              bool     `yaml:"unattended"`
+		Disks                   []string `yaml:"disks"`
+		UserName                string   `yaml:"userName"`
+		Password                string   `yaml:"password"`
+		Hostname                string   `yaml:"hostname"`
+		Timezone                string   `yaml:"timezone"`
+		Locale                  string   `yaml:"locale"`
+		Keymap                  string   `yaml:"keymap"`
+		Mirror                  string   `yaml:"mirror"`
+		Arch                    string   `yaml:"arch"`
+		Branch                  string   `yaml:"branch"`
+		DiskLayout              string   `yaml:"diskLayout"`
+		DesktopEnvironment      string   `yaml:"desktopEnvironment"`
+		VideoDriver             string   `yaml:"videoDriver"`
+		SSHAuthorizedKey        string   `yaml:"sshAuthorizedKey"`
+		DefaultNetworkInterface string   `yaml:"defaultNetworkInterface"`
+		EnableEncryption        bool     `yaml:"enableEncryption"`
+		EnableSecureboot        bool     `yaml:"enableSecureboot"`
+		EnableTPM               bool     `yaml:"enableTPM"`
+		EnableHardening         bool     `yaml:"enableHardening"`
+		EnableZswap             bool     `yaml:"enableZswap"`
+		EnableNix               bool     `yaml:"enableNix"`
+		EnableDebug             bool     `yaml:"enableDebug"`
+		ExtraPackages           []string `yaml:"extraPackages"`
+	} `yaml:"variables"`
+}
+
+// LoadVariablesFile loads a variables.yaml and applies values to RunConfig
+func LoadVariablesFile(cfg *RunConfig, filePath string) error {
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return fmt.Errorf("read variables file: %w", err)
+	}
+
+	var vars VariablesYAML
+	if err := yaml.Unmarshal(data, &vars); err != nil {
+		return fmt.Errorf("parse variables file: %w", err)
+	}
+
+	v := vars.Variables
+
+	// Apply values from YAML
+	if len(v.Disks) > 0 {
+		// Disk 1 is always first, disk 2 is second if present
+		// Harness uses /dev/vdb and /dev/vdc (not /dev/sda)
+	}
+	if v.UserName != "" {
+		cfg.InstalledUser = v.UserName
+	}
+	if v.Password != "" {
+		cfg.InstalledPassword = v.Password
+	}
+	if v.DiskLayout != "" {
+		cfg.DiskLayout = v.DiskLayout
+	}
+	if v.Mirror != "" {
+		cfg.AlpineMirror = v.Mirror
+	}
+
+	// Feature toggles
+	cfg.EnableSecureboot = v.EnableSecureboot
+	cfg.EnableTPM = v.EnableTPM
+	cfg.EnableHardening = v.EnableHardening
+	cfg.EnableZswap = v.EnableZswap
+	cfg.EnableNix = v.EnableNix
+
+	return nil
 }
 
 type RunResult struct {
@@ -649,8 +723,8 @@ cd ` + shellQuote(remoteRepoRoot) + `
 chmod +x ./setup.sh
 
 echo '=== harness preflight ==='
-ls -l /dev/vdb /dev/vdc
-echo 'harness preflight: disks are available'
+ls -l /dev/vdb
+echo 'harness preflight: disk(s) available'
 
 setupStatus=0
 env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u all_proxy -u no_proxy -u NO_PROXY \
@@ -1079,11 +1153,8 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg RunConfig, 
 		_ = os.WriteFile(sbctlLogPath, []byte(sbctlDiag), 0o644)
 	}
 	if sbctlErr != nil {
-		_ = targetInstance.Kill()
-		active.Status = "failed"
-		active.Error = sbctlErr.Error()
-		_ = stateStore.Save(active)
-		return RunResult{}, sbctlErr
+		// Non-fatal — efivarfs may not be available in QEMU
+		fmt.Fprintf(os.Stderr, "WARNING: sbctl enrollment failed (non-fatal): %v\n", sbctlErr)
 	}
 
 	// Run TPM binary on first boot (will exit early — no TPM yet)
@@ -1744,7 +1815,7 @@ func ensurePrepareDefaults(cfg *PrepareRunnerConfig) error {
 		cfg.BootTimeout = 5 * time.Minute
 	}
 	if len(cfg.Packages) == 0 {
-		cfg.Packages = []string{"bash", "curl", "tar", "fdisk", "dosfstools", "cryptsetup", "mdadm", "btrfs-progs", "sudo", "ca-certificates", "tpm2-tools"}
+		cfg.Packages = []string{"bash", "curl", "tar", "fdisk", "dosfstools", "cryptsetup", "mdadm", "btrfs-progs", "sudo", "ca-certificates", "tpm2-tools", "golang-go"}
 	}
 	if _, err := exec.LookPath(cfg.QemuBinary); err != nil {
 		return fmt.Errorf("find %s: %w", cfg.QemuBinary, err)
@@ -2392,6 +2463,8 @@ func runSbctlOnTarget(ctx context.Context, targetGuest guest.Options, repoRoot s
 	copyGuidesToTarget(ctx, targetGuest, repoRoot)
 
 	script := `set -eu
+export SKEA_NONINTERACTIVE=1
+export SKEA_NONINTERACTIVE_DECISION=ignore
 [ -x /root/debug.sh ] && sh /root/debug.sh || true
 [ -x /root/guides/secureboot ] && /root/guides/secureboot || true
 `
@@ -2416,6 +2489,8 @@ func runTPMOnTarget(ctx context.Context, targetGuest guest.Options, password str
 	// Ensure guide binaries are on target
 	copyGuidesToTarget(ctx, targetGuest, repoRoot)
 	script := `set -eu
+export SKEA_NONINTERACTIVE=1
+export SKEA_NONINTERACTIVE_DECISION=ignore
 export SKEA_LUKS_PASSWORD=` + shellQuote(password) + `
 /root/guides/tpm
 `

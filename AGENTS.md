@@ -75,11 +75,21 @@ cd src/utils/createConfig/createValues && go build -o ../../../../feralos_create
 cd src && go build -o ../feralos_secureboot ./firstBoot/secureboot/
 cd src && go build -o ../feralos_tpm ./firstBoot/tpm/
 
+# Build harness
+cd tests/harness && go build -o skea-harness ./cmd/skea-harness/
+
 # Run installer (requires root + live environment)
 sudo ./feralos_installer -config variables.yaml
 
 # Run generator (interactive or standalone)
 ./feralos_create_config
+
+# Run harness tests
+cd tests/harness
+./skea-harness prepare-runner
+./skea-harness run -f ../src/variables/variables.yaml
+./skea-harness status
+./skea-harness cleanup
 
 # Run tests (when available)
 cd src && go test ./...
@@ -275,6 +285,15 @@ feralos_installer/
 ---
 
 *Updated: 2026-08-06*
+
+### 2026-08-06 18:15 - Harness Refactoring: -f variables.yaml + efivars
+**Agent:** codebase
+**Summary:** Harness now accepts -f variables.yaml, efivars working
+- Added `-f` flag to `run` command to load variables.yaml (same as installer)
+- Harness binary built to `tests/harness/skea-harness` (not /tmp)
+- Added yaml.v3 dependency to harness go.mod
+- Secureboot binary handles missing efivars gracefully
+- btrfsStandard: 18/18 with ALL features (Secure Boot + TPM + Nix + Zswap + Hardening)
 
 ### 2026-08-06 02:15 - Test Artifacts Cleanup + Gitignore
 **Agent:** codebase

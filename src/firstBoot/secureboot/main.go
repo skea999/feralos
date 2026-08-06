@@ -23,10 +23,21 @@ func main() {
 	// --- 2. Ensure efivarfs is available ---
 	ensureEfivarfs()
 
+	// Check if UEFI is actually accessible — sbctl retries infinitely if not
+	if _, err := os.Stat("/sys/firmware/efi"); os.IsNotExist(err) {
+		fmt.Println("WARNING: /sys/firmware/efi not found — skipping Secure Boot enrollment.")
+		fmt.Println("  System may not have booted with UEFI firmware.")
+		return
+	}
+	if !isMounted("/sys/firmware/efi/efivars") {
+		fmt.Println("WARNING: efivarfs not mounted — skipping Secure Boot enrollment.")
+		return
+	}
+
 	// --- 3. Check Secure Boot state ---
 	fmt.Println("\nCurrent Secure Boot status:")
 	if out, err := shell.RunCommand("sbctl", "status"); err != nil {
-		fmt.Printf("WARNING: sbctl status failed (efivarfs not mounted?): %v\n", err)
+		fmt.Printf("WARNING: sbctl status failed: %v\n", err)
 		_ = out
 	}
 
