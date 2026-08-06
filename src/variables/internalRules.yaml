@@ -10,7 +10,7 @@ defaultRunlevels:
 # Fixed system packages — matches reference skeaSimpleServer exactly
 standardPackages:
   # Core
-  - doas
+  - sudo-rs
   - musl-locales
   - lang
   - tzdata
@@ -141,7 +141,7 @@ packageLogic:
   btrfs-progs:
     services: {"btrfs-scan": "boot"}
     modules: ["btrfs"]
-  doas:
+  sudo-rs:
     groups: ["wheel"]
   sudo:
     groups: ["wheel"]

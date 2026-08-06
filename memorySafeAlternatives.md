@@ -3,8 +3,7 @@
 # alternatives
  memory safe: micro incus-feature incus-feature-vm incus-feature-client incus-feature-utils
 
- sudo, doas = please  it is in testing now https://github.com/edneville/please https://pkgs.alpinelinux.org/packages?name=*please*&branch=edge&repo=&arch=x86_64&origin=&flagged=&maintainer=
- sudo-rs not packaged yet
+ sudo, doas = sudo-rs (Rust, memory-safe replacement)
 
  musl-locales =
  lang =

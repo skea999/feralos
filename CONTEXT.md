@@ -137,7 +137,7 @@ _Avoid_: compressed swap, ram-swap
 |-----------------|------------------|----------|
 | coreutils | uutils-coreutils | Rust |
 | vim/nano | micro | Go |
-| sudo | doas | C (minimal, audited) |
+| sudo | sudo-rs | Rust |
 | systemd/openrc | dinit (future) | C++ |
 | bash | ash (Alpine default) | C |
 | grep (GNU) | ripgrep (optional) | Rust |

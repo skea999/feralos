@@ -78,7 +78,6 @@ root soft nofile 100000
 		return fmt.Errorf("failed to create /etc/profile.d directory: %w", err)
 	}
 	aliasContent := `alias ll="ls -lah"
-alias sudo=doas
 alias nano=micro
 alias rm="rm -i"
 alias apk="apk --progress"
@@ -103,13 +102,13 @@ fi
 		return fmt.Errorf("failed to write console.sh: %w", err)
 	}
 
-	// 6. Doas Config
-	fmt.Println("[DEBUG] Configuring doas permissions")
-	if err := os.MkdirAll(filepath.Join(chroot, "/etc/doas.d"), 0755); err != nil {
-		return fmt.Errorf("failed to create /etc/doas.d directory: %w", err)
+	// 6. Sudo-rs Config
+	fmt.Println("[DEBUG] Configuring sudo-rs permissions")
+	if err := os.MkdirAll(filepath.Join(chroot, "/etc/sudoers.d"), 0755); err != nil {
+		return fmt.Errorf("failed to create /etc/sudoers.d directory: %w", err)
 	}
-	if err := files.WriteFileInChroot(chroot, "/etc/doas.d/doas.conf", "permit persist :wheel\n"); err != nil {
-		return fmt.Errorf("failed to write doas.conf: %w", err)
+	if err := files.WriteFileInChroot(chroot, "/etc/sudoers.d/wheel", "%wheel ALL=(ALL) ALL\n"); err != nil {
+		return fmt.Errorf("failed to write sudoers wheel config: %w", err)
 	}
 
 	// 7. Kernel Modules

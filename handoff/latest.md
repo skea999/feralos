@@ -109,7 +109,7 @@ Phase 1: Go installer complete. Both btrfsStandard and btrfsStandardServer pass 
 |-----------------|------------------|----------|
 | coreutils | uutils-coreutils | Rust |
 | vim/nano | micro | Go |
-| sudo | doas | C (minimal) |
+| sudo | sudo-rs | Rust |
 | openrc | dinit (future) | C++ |
 | grep (GNU) | ripgrep (optional) | Rust |
 | find (GNU) | fd (optional) | Rust |

@@ -105,7 +105,7 @@ Each layout handles:
 |-----------------|------------------|----------|
 | coreutils | uutils-coreutils | Rust |
 | vim/nano | micro | Go |
-| sudo | doas | C (minimal, audited) |
+| sudo | sudo-rs | Rust |
 | systemd/openrc | dinit (future) | C++ |
 | grep (GNU) | ripgrep (optional) | Rust |
 | find (GNU) | fd (optional) | Rust |
