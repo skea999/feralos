@@ -46,6 +46,7 @@ tests/harness/skea-harness
 tests/artifacts/**/*
 !tests/artifacts/**/
 !tests/artifacts/**/.gitkeep
+!tests/artifacts/feralos_create_config/.gitkeep
 
 *.qcow2
 *.iso
