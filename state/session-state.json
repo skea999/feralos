@@ -16,7 +16,8 @@
     "Harness writes variables.yaml directly, no stdin needed",
     "Removed ZFS and btrfs-data disks from btrfsStandard (only 1 install disk)",
     "Auto-clean old runs, keep last 2",
-    "Test artifacts cleaned, 14 .gitkeep files preserve structure"
+    "Test artifacts cleaned, 14 .gitkeep files preserve structure",
+    "First boot programs converted from bash to standalone Go"
   ],
   "decisions": [
     {

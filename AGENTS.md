@@ -71,6 +71,10 @@ cd src && go build -o ../feralos_installer .
 # Build Go generator
 cd src/utils/createConfig/createValues && go build -o ../../../../feralos_create_config .
 
+# Build first-boot programs
+cd src && go build -o ../feralos_secureboot ./firstBoot/secureboot/
+cd src && go build -o ../feralos_tpm ./firstBoot/tpm/
+
 # Run installer (requires root + live environment)
 sudo ./feralos_installer -config variables.yaml
 
@@ -222,6 +226,11 @@ feralos_installer/
 │   │   ├── bind_mounts.go
 │   │   ├── chroot_preparation.go
 │   │   └── hooks.go
+│   ├── firstBoot/            # Standalone first-boot programs (Go)
+│   │   ├── secureboot/       # Secure Boot enrollment via sbctl
+│   │   │   └── main.go
+│   │   └── tpm/              # Clevis TPM2 binding for LUKS auto-unlock
+│   │       └── main.go
 │   └── chrootPhase/          # Chroot operations (runs INSIDE chroot)
 │       ├── configurator.go   # Run() principal
 │       ├── packages.go       # apk add, TPM packages
@@ -276,6 +285,15 @@ feralos_installer/
 - Removed unused cache/state and cache/prepare dirs (not referenced in Go code)
 - Updated AGENTS.md and harness README with correct artifact paths
 - Both layouts pass 17/17 with ALL features
+
+### 2026-08-06 19:10 - First Boot Programs: Bash to Go
+**Agent:** codebase
+**Summary:** Converted bash scripts to standalone Go programs
+- `src/firstBoot/secureboot/main.go` — Secure Boot enrollment via sbctl
+- `src/firstBoot/tpm/main.go` — Clevis TPM2 binding for LUKS auto-unlock
+- Both build successfully (2.5MB + 3.0MB)
+- Removed old `1-secure-boot-sbctl.sh` and `2-tpm.sh`
+- Updated AGENTS.md project structure and build commands
 
 ### 2026-08-05 03:15 - Strict TPM Verification + Layout-Aware Disks
 **Agent:** codebase
