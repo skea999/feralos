@@ -42,11 +42,9 @@ tests/harness/iso/
 tests/harness/coverage.out
 tests/harness/skea-harness
 
-# Artifacts - keep .gitkeep files, ignore everything else
-!tests/artifacts/
-!tests/artifacts/**/
-!tests/artifacts/**/.gitkeep
+# Artifacts - ignore all files, keep .gitkeep for structure
 tests/artifacts/**/*
+!tests/artifacts/**/
 !tests/artifacts/**/.gitkeep
 
 *.qcow2
