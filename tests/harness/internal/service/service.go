@@ -285,6 +285,9 @@ func (service *Service) PrepareRunner(ctx context.Context, cfg PrepareRunnerConf
 		return PrepareRunnerResult{}, err
 	}
 
+	// Clean old prepare directories, keep last 1
+	cleanOldRuns(filepath.Join(cfg.ArtifactsRoot, "prepare"), 1)
+
 	keyPair, err := guest.EnsureKeyPair(filepath.Join(cfg.CacheDir, "keys"))
 	if err != nil {
 		return PrepareRunnerResult{}, err
