@@ -9,7 +9,7 @@
 
 ## Current Focus
 
-Phase 1: Go installer boot is now functional. Target boots kernel, LUKS auto-unlock via keyfile in initramfs. Harness test in progress — previous run timed out (likely waiting for target SSH). Next step: re-run test and verify all checks.
+Phase 1: Go installer complete. Both btrfsStandard and btrfsStandardServer pass 17/17 verification checks with ALL features enabled (Secure Boot + TPM + Nix + Zswap + Hardening). Test artifacts cleaned, harness README updated.
 
 ## What's Working
 
@@ -28,13 +28,16 @@ Phase 1: Go installer boot is now functional. Target boots kernel, LUKS auto-unl
 - QEMU-based test harness with feature toggles
 - Non-interactive mode for automated testing
 - Improved logging with module context
+- **Clevis TPM2 binding** — empty PCR policy (TPM identity only)
+- **Auto-clean old runs** — keeps last 2, saves disk space
+- **Test artifacts** — 14 .gitkeep files preserve directory structure
 
 ## What's Next
 
 ### Phase 1 (Installer)
-1. Complete harness test pass (all verification checks green)
-2. Test on real hardware with 2x NVMe
-3. Add test suite
+1. Test on real hardware with 2x NVMe
+2. Test with partial features (Secure Boot only, TPM only)
+3. Add more unit tests for verify checks
 4. Complete CI/CD pipeline
 
 ### Phase 2 (Distribution)
@@ -93,6 +96,12 @@ Phase 1: Go installer boot is now functional. Target boots kernel, LUKS auto-unl
 - **LUKS keyfile** embedded in initramfs for headless auto-unlock
 - **Per-device keyfile args** required for multi-LUKS layouts (booster requirement)
 - **EFI guarded** — efibootmgr skipped on BIOS runner, BOOTX64.EFI fallback handles boot
+- **Clevis TPM2 bind policy** — empty `{}` (TPM identity only, no PCR policy)
+- **setup.sh** — launcher only, no configuration logic
+- **Harness writes variables.yaml** — direct file generation, no stdin
+- **btrfsStandard** — only 1 install disk (no ZFS or btrfs-data)
+- **Auto-clean old runs** — keeps last 2, saves disk space
+- **Test artifacts** — `tests/artifacts/<tool-name>/<timestamp>/` pattern
 
 ## Memory-Safe Alternatives
 
