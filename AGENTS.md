@@ -83,24 +83,27 @@ cd src && go test ./...
 
 ## Test Artifacts
 
-Output from test runs goes to `tests/artifacts/` with naming convention:
-```
-tests/artifacts/(program-name)-(timestamp)/
-```
+Output from test runs goes to `tests/artifacts/<tool-name>/<timestamp>/`:
 
-Example:
-```bash
-# Generator test output
-./feralos_create_config -file tests/artifacts/feralos_create_config-20260725_000300/variables.yaml
-
-# Installer test output (if applicable)
-./feralos_installer -config tests/artifacts/feralos_installer-20260725_000300/config.yaml
+```
+tests/artifacts/
+├── feralos_create_config/     # Config generator test output
+│   └── .gitkeep
+└── harness/                   # QEMU harness artifacts
+    ├── cache/
+    │   ├── base-images/       # Debian cloud images
+    │   ├── keys/              # SSH key pairs
+    │   ├── runner-images/     # Prepared runner qcow2
+    │   └── web/alpine/        # Alpine package cache
+    ├── prepare/               # Runner preparation logs
+    ├── runs/                  # Per-install run dirs (logs + disks)
+    └── state/                 # Active run metadata (active.json)
 ```
 
 **Rules:**
-- Directory name: `<binary-name>-<YYYYMMDD_HHMMSS>`
-- All artifacts are gitignored (only `.gitkeep` files tracked)
+- All artifacts gitignored except `.gitkeep` (preserves directory structure)
 - Never commit test outputs to repository
+- Harness auto-cleans old runs, keeps last 2
 
 ## Lint (WSL / Native)
 
@@ -262,7 +265,17 @@ feralos_installer/
 
 ---
 
-*Updated: 2026-08-05*
+*Updated: 2026-08-06*
+
+### 2026-08-06 02:15 - Test Artifacts Cleanup + Gitignore
+**Agent:** codebase
+**Summary:** Cleaned test artifacts structure, fixed gitignore for .gitkeep
+- Cleaned all files from tests/artifacts/ (qcow2, logs, keys, web cache)
+- 14 .gitkeep files preserve directory structure
+- .gitignore: `tests/artifacts/**/*` ignored, `!tests/artifacts/**/.gitkeep` kept
+- Removed unused cache/state and cache/prepare dirs (not referenced in Go code)
+- Updated AGENTS.md and harness README with correct artifact paths
+- Both layouts pass 17/17 with ALL features
 
 ### 2026-08-05 03:15 - Strict TPM Verification + Layout-Aware Disks
 **Agent:** codebase

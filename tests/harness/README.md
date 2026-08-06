@@ -35,16 +35,21 @@ go run ./cmd/skea-harness stop
 By default, the harness stores everything under:
 
 ```text
-<repo>/artifacts/harness/
+<repo>/tests/artifacts/harness/
 ```
 
 Important subdirectories:
 
 - `cache/`: reusable cloud image downloads, SSH keys, and prepared runner images.
-- `cache/web/alpine/`: persistent cache-first mirror store for Alpine packages and index requests used during install runs.
+- `cache/base-images/`: Debian cloud images (downloaded once, reused).
+- `cache/runner-images/`: prepared runner qcow2 with installer dependencies.
+- `cache/keys/`: SSH key pairs for target access.
+- `cache/web/alpine/`: persistent cache-first mirror store for Alpine packages.
 - `prepare/`: runner-image preparation logs.
 - `runs/`: per-install run directories containing target disks and all logs.
 - `state/active.json`: persisted active run metadata used by `status`, `stop`, and the MCP server.
+
+All files are gitignored. Only `.gitkeep` files are tracked to preserve directory structure.
 
 ## Important logs
 

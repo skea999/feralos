@@ -15,13 +15,19 @@
     "setup.sh simplified to launcher only (50 lines)",
     "Harness writes variables.yaml directly, no stdin needed",
     "Removed ZFS and btrfs-data disks from btrfsStandard (only 1 install disk)",
-    "Auto-clean old runs, keep last 2"
+    "Auto-clean old runs, keep last 2",
+    "Test artifacts cleaned, 14 .gitkeep files preserve structure"
   ],
   "decisions": [
     {
       "date": "2026-08-06",
       "decision": "Test artifacts: tests/artifacts/<tool-name>/<timestamp>/",
       "rationale": "All test outputs go to tests/artifacts/<tool-name>/<timestamp>/. Example: tests/artifacts/feralos_create_config/20260806_021422/. Same pattern for harness, create_config, and any future tools."
+    },
+    {
+      "date": "2026-08-06",
+      "decision": "Test artifacts structure preserved with .gitkeep files",
+      "rationale": "All files in tests/artifacts/ are gitignored. Only .gitkeep files tracked to preserve directory structure. Harness auto-cleans old runs, keeps last 2."
     },
     {
       "date": "2026-08-06",
