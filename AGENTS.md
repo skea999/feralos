@@ -87,7 +87,7 @@ sudo ./feralos_installer -config variables.yaml
 # Run harness tests
 cd tests/harness
 ./skea-harness prepare-runner
-./skea-harness run -f ../src/variables/variables.yaml
+./skea-harness run -f ~/Progetti/skeaAlpineInstaller/src/variables/variables.yaml
 ./skea-harness status
 ./skea-harness cleanup
 

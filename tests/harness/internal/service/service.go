@@ -137,10 +137,6 @@ func LoadVariablesFile(cfg *RunConfig, filePath string) error {
 	v := vars.Variables
 
 	// Apply values from YAML
-	if len(v.Disks) > 0 {
-		// Disk 1 is always first, disk 2 is second if present
-		// Harness uses /dev/vdb and /dev/vdc (not /dev/sda)
-	}
 	if v.UserName != "" {
 		cfg.InstalledUser = v.UserName
 	}
@@ -152,6 +148,12 @@ func LoadVariablesFile(cfg *RunConfig, filePath string) error {
 	}
 	if v.Mirror != "" {
 		cfg.AlpineMirror = v.Mirror
+	}
+	if v.Hostname != "" {
+		// Hostname is used by installer, harness uses it for verification
+	}
+	if v.DefaultNetworkInterface != "" {
+		// Network interface is used by installer
 	}
 
 	// Feature toggles
