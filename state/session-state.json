@@ -20,8 +20,8 @@
   "decisions": [
     {
       "date": "2026-08-06",
-      "decision": "Test artifacts: tests/artifacts/<tool-name>-<timestamp>/",
-      "rationale": "All test outputs go to tests/artifacts/ with naming convention: tool-name-YYYYMMDD_HHMMSS. Same pattern for harness, create_config, and any future tools."
+      "decision": "Test artifacts: tests/artifacts/<tool-name>/<timestamp>/",
+      "rationale": "All test outputs go to tests/artifacts/<tool-name>/<timestamp>/. Example: tests/artifacts/feralos_create_config/20260806_021422/. Same pattern for harness, create_config, and any future tools."
     },
     {
       "date": "2026-08-06",
