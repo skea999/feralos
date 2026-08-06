@@ -4,15 +4,45 @@
   "phase": "Phase 1: Installer",
   "active_goals": [
     "Test on real hardware with 2x NVMe (Phase 1)",
+    "Add more integration tests (btrfsStandardServer, partial features)",
     "Plan Dinit integration (Phase 2)",
     "Design custom FeralOS repository (Phase 2)"
   ],
   "completed": [
-    "Both layouts pass 18/18 with ALL features (Secure Boot + TPM + Nix + Zswap + Hardening)",
+    "Both layouts pass 17/17 with ALL features (Secure Boot + TPM + Nix + Zswap + Hardening)",
     "Clevis TPM2 binding works on both btrfsStandard (single disk) and btrfsStandardServer (RAID1)",
-    "Harness verification checks fully layout-aware"
+    "Harness verification checks fully layout-aware",
+    "setup.sh simplified to launcher only (50 lines)",
+    "Harness writes variables.yaml directly, no stdin needed",
+    "Removed ZFS and btrfs-data disks from btrfsStandard (only 1 install disk)",
+    "Auto-clean old runs, keep last 2"
   ],
   "decisions": [
+    {
+      "date": "2026-08-06",
+      "decision": "setup.sh: launcher only, no configuration logic",
+      "rationale": "Go installer handles all configuration via createConfig.PromptForConfig. setup.sh just builds and runs the binary."
+    },
+    {
+      "date": "2026-08-06",
+      "decision": "setup.sh --test for harness, -config for non-interactive",
+      "rationale": "Harness passes --test /path/to/repo -config variables.yaml. setup.sh validates --test requires -config."
+    },
+    {
+      "date": "2026-08-06",
+      "decision": "Harness writes variables.yaml directly instead of stdin",
+      "rationale": "Replaced writeHarnessSetupInput + writeHarnessRuntimeOverrides with writeHarnessVariables. Single file, cleaner flow."
+    },
+    {
+      "date": "2026-08-06",
+      "decision": "btrfsStandard uses only 1 install disk",
+      "rationale": "No ZFS or btrfs-data disks needed. Only install-disk-1.qcow2 for single-disk layout."
+    },
+    {
+      "date": "2026-08-06",
+      "decision": "Auto-clean old runs, keep last 2",
+      "rationale": "Saves disk space. cleanOldRuns() runs at start of each harness run."
+    },
     {
       "date": "2026-08-05",
       "decision": "Clevis TPM2 bind policy: {} (no PCR policy, TPM identity only)",
@@ -29,11 +59,6 @@
       "rationale": "booster shows fallback prompt text even when TPM token succeeds. SSH success is the real indicator, not serial log text."
     },
     {
-      "date": "2026-08-05",
-      "decision": "setup.sh: only add secondary disk if different from primary",
-      "rationale": "btrfsStandard passes same disk for both primary and secondary. setup.sh only writes1 disk entry when they match."
-    },
-    {
       "date": "2026-07-30",
       "decision": "Made verification checks layout-aware",
       "rationale": "btrfsStandard has 1 LUKS device with single data + DUP metadata, not RAID1. Added hasHealthyBtrfsSingleLayout() to validate single-disk layouts alongside existing RAID1 check."
@@ -41,17 +66,17 @@
     {
       "date": "2026-07-29",
       "decision": "Shortened serial socket filename from target-serial.sock to tser.sock",
-      "rationale": "Unix socket path was 108 chars — 1 over Linux sun_path[108] limit (107 chars + null terminator), causing EINVAL on every connect(). Shortened to 96 chars."
+      "rationale": "Unix socket path was 108 chars — 1 over Linux sun_path[108] limit, causing EINVAL on every connect()."
     },
     {
       "date": "2026-07-28",
       "decision": "LUKS keyfile embedded in initramfs for auto-unlock",
-      "rationale": "booster waits for interactive passphrase in QEMU headless — keyfile in initramfs enables automatic unlock. Per-device args required for multi-LUKS layouts."
+      "rationale": "booster waits for interactive passphrase in QEMU headless — keyfile in initramfs enables automatic unlock."
     },
     {
       "date": "2026-07-28",
       "decision": "efibootmgr guarded with EFI availability check",
-      "rationale": "Runner VM is BIOS-only Debian, no /sys/firmware/efi. EFI entries are written by target VM on first boot via BOOTX64.EFI fallback."
+      "rationale": "Runner VM is BIOS-only Debian, no /sys/firmware/efi."
     },
     {
       "date": "2026-07-27",
@@ -93,9 +118,9 @@
     }
   ],
   "next_actions": [
+    "Test btrfsStandardServer with new harness (no ZFS disks)",
+    "Test with partial features (Secure Boot only, TPM only)",
     "Test on real hardware with 2x NVMe",
-    "Enable Secure Boot and TPM harness tests",
-    "Add test suite",
-    "Document memory-safe alternatives in detail"
+    "Add more unit tests for verify checks"
   ]
 }
