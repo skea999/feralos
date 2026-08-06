@@ -1068,7 +1068,7 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg RunConfig, 
 
 	// Run post-install scripts on the first boot.
 	// First boot has no TPM so OVMF stays in Setup Mode for sbctl enrollment.
-	// 2-tpm.sh will exit early (no TPM), then run on the second boot.
+	// TPM binary will exit early (no TPM), then run on the second boot.
 	active.Phase = "running-post-install"
 	_ = stateStore.Save(active)
 
@@ -1086,7 +1086,7 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg RunConfig, 
 		return RunResult{}, sbctlErr
 	}
 
-	// Run TPM script on first boot (will exit early — no TPM yet)
+	// Run TPM binary on first boot (will exit early — no TPM yet)
 	tpm1LogPath := filepath.Join(runDir, "tpm-first-boot.log")
 	tpm1Diag, tpm1Err := runTPMOnTarget(ctx, targetGuest, cfg.InstalledPassword, cfg.RepoRoot)
 	if tpm1Diag != "" {
@@ -1187,7 +1187,7 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg RunConfig, 
 			return RunResult{}, err
 		}
 
-		// Run 2-tpm.sh on the second boot. Swtpm is already running
+		// Run TPM binary on the second boot. Swtpm is already running
 		// from the target phase startup (line 690), the first boot just
 		// didn't use it because it booted without TPM.
 		tpm2LogPath := filepath.Join(runDir, "tpm-second-boot.log")
@@ -2352,12 +2352,29 @@ func copyGuidesToTarget(ctx context.Context, targetGuest guest.Options, repoRoot
 	}
 	_ = guest.Run(ctx, targetGuest, "mkdir -p /root/guides", io.Discard, io.Discard)
 	for _, entry := range guideEntries {
-		if !entry.IsDir() {
-			localPath := filepath.Join(guideDir, entry.Name())
-			remotePath := filepath.Join("/root/guides", entry.Name())
-			_ = guest.CopyToGuest(ctx, targetGuest, localPath, remotePath, false)
-			// Ensure script is executable on target
+		if entry.IsDir() {
+			// Build Go binary from subdirectory
+			binName := entry.Name()
+			srcDir := filepath.Join(guideDir, binName)
+			mainGo := filepath.Join(srcDir, "main.go")
+			if _, err := os.Stat(mainGo); os.IsNotExist(err) {
+				continue
+			}
+
+			// Build binary
+			binPath := filepath.Join(os.TempDir(), "feralos_"+binName)
+			buildCmd := exec.Command("go", "build", "-o", binPath, "./firstBoot/"+binName+"/")
+			buildCmd.Dir = filepath.Join(repoRoot, "src")
+			if out, err := buildCmd.CombinedOutput(); err != nil {
+				fmt.Printf("[harness] WARNING: failed to build %s: %v\n%s\n", binName, err, out)
+				continue
+			}
+
+			// Copy binary to target
+			remotePath := filepath.Join("/root/guides", binName)
+			_ = guest.CopyToGuest(ctx, targetGuest, binPath, remotePath, false)
 			_ = guest.Run(ctx, targetGuest, "chmod +x "+remotePath, io.Discard, io.Discard)
+			os.Remove(binPath)
 		}
 	}
 }
@@ -2371,12 +2388,12 @@ func runSbctlOnTarget(ctx context.Context, targetGuest guest.Options, repoRoot s
 		_ = guest.Run(ctx, targetGuest, "chmod +x /root/debug.sh", io.Discard, io.Discard)
 	}
 
-	// Copy guide scripts to target (installation cp -r may not persist)
+	// Copy guide binaries to target (installation may not persist)
 	copyGuidesToTarget(ctx, targetGuest, repoRoot)
 
 	script := `set -eu
 [ -x /root/debug.sh ] && sh /root/debug.sh || true
-[ -x /root/guides/1-secure-boot-sbctl.sh ] && sh /root/guides/1-secure-boot-sbctl.sh || true
+[ -x /root/guides/secureboot ] && /root/guides/secureboot || true
 `
 	var outBuf, errBuf strings.Builder
 	if err := guest.Run(ctx, targetGuest, "sh -s -- <<'SCRIPT'\n"+script+"\nSCRIPT", &outBuf, &errBuf); err != nil {
@@ -2396,11 +2413,11 @@ func runTPMOnTarget(ctx context.Context, targetGuest guest.Options, password str
 	if password == "" {
 		password = "Alpine.1"
 	}
-	// Ensure guide scripts are on target
+	// Ensure guide binaries are on target
 	copyGuidesToTarget(ctx, targetGuest, repoRoot)
 	script := `set -eu
 export SKEA_LUKS_PASSWORD=` + shellQuote(password) + `
-/root/guides/2-tpm.sh
+/root/guides/tpm
 `
 
 	var outBuf, errBuf strings.Builder
