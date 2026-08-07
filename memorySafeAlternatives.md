@@ -347,7 +347,7 @@ These C packages remain because no memory-safe alternative exists or the compone
 ## Notes
 
 - **598 total packages** installed
-- **18 memory-safe replacements** (Rust/Go) actively replacing C alternatives
+- **19 memory-safe replacements** (Rust/Go) actively replacing C alternatives
 - **~200 C libraries** (minimal, audited, or no alternative)
 - **~150 firmware packages** (binary data, not code)
 - **~50 desktop packages** (optional, complex UIs)
@@ -359,3 +359,15 @@ These C packages remain because no memory-safe alternative exists or the compone
 2. **Medium priority**: chrony → ntpd-rs (when packaged)
 3. **Low priority**: BusyBox (partially replaced by uutils)
 4. **No replacement**: musl, btrfs-progs, cryptsetup, QEMU, mesa, GTK
+
+## Known Issues
+
+### Package Masking (Not Possible)
+- **Issue**: Alpine apk masking via `/etc/apk/world` conflicts with explicit package dependencies
+- **Example**: `bat` depends on `less` — masking `less` prevents `bat` from installing
+- **Status**: Package masking removed from installer, `less` remains installed as dependency
+
+### Vector VRL Syntax Error (Open)
+- **Issue**: `parse_syslog(.message)` in syslog_parser transform is fallible
+- **Fix needed**: Change to `structured, err = parse_syslog(.message)` with error handling
+- **Status**: Config fixed but Vector crashes silently at runtime — needs investigation

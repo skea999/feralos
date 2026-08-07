@@ -379,31 +379,63 @@ feralos_installer/
 - **Fix 4**: Fixed `debug.sh` path to `tests/harness/debug.sh`, added existence checks before running
 - All 15 verification checks pass: booster, fstab, hostname, incus, user, kernel cmdline, network, secureboot config, sshd, storage layout RAID1+LUKS2+btrfs, subvolumes, tpm, UKI artifacts
 
-### 2026-07-29 03:15 - Harness Serial Socket Path Length Fix
+### 2026-08-07 00:15 - Vector 0.55.0 Config Fix + Investigation
 **Agent:** codebase
-**Summary:** Fixed LUKS passphrase injection — root cause was Unix socket path too long
-- **Root cause**: `target-serial.sock` path was 108 chars — 1 over Linux `sun_path[108]` limit (107 chars + null terminator), causing `EINVAL` on every `connect()` attempt
-- **Fix**: Renamed `target-serial.sock` → `tser.sock` in `service.go` (2 locations: line 981, line 1524)
-- New path is 96 chars — well within limit
-- Also added diagnostic logging to `sendBootPassphrase` and `waitForTargetSSH` (stderr)
-- Added delays in `WriteSerialChunks` (200ms before write, 500ms after) for chardev settling
-- Rebuilt harness binary with all fixes
-- Secondary finding: both LUKS prompts detected on retry boot (count=2) — injection should work now
+**Summary:** Fixed Vector VRL error, but Vector crashes silently at runtime
+- Fixed `error[E103]: unhandled fallible assignment` in syslog_parser remap transform (added `?? {}` fallback)
+- Vector now validates config OK and OpenRC starts it, but crashes after startup
+- supervise-daemon respawns 5x then gives up, vector.log is EMPTY
+- Root cause unknown: likely `/dev/log` socket issue on Alpine mdev or permissions
+- All other 18/20 checks pass (packages, btrbk, storage, boot, etc.)
+- Added `vector_diag` harness check for debugging
+- **TODO**: Investigate vector crash — needs `--keep-target-running` debug session
 
-### 2026-07-28 02:30 - LUKS Keyfile Auto-Unlock + Boot Fixes
+### 2026-08-06 18:15 - Harness Refactoring: -f variables.yaml + efivars
 **Agent:** codebase
-**Summary:** Fixed boot failure — target now boots kernel with LUKS auto-unlock
-- Added `hostPhase/keyfile.go`: generates random keyfile, adds to LUKS partitions, embeds in initramfs
-- Per-device keyfile args (`rd.luks.key=/keyfile:luks-<uuid>`) for multi-LUKS layouts (booster requirement)
-- Guarded `efibootmgr` with EFI availability check (BIOS runner has no `/sys/firmware/efi`)
-- Changed harness to `btrfsStandardServer` (matches RAID1 verification checks)
-- Fixed unreachable code in harness service.go (shift key sleep)
-- Build + vet + lint all pass (0 issues)
+**Summary:** Harness now accepts -f variables.yaml, efivars working
+- Added `-f` flag to `run` command to load variables.yaml (same as installer)
+- Harness binary built to `tests/harness/skea-harness` (not /tmp)
+- Added yaml.v3 dependency to harness go.mod
+- Secureboot binary handles missing efivars gracefully
+- btrfsStandard: 18/18 with ALL features (Secure Boot + TPM + Nix + Zswap + Hardening)
 
-### 2026-07-27 22:30 - Console Output + Feature Toggles
+### 2026-08-06 02:15 - Test Artifacts Cleanup + Gitignore
 **Agent:** codebase
-**Summary:** Added serial console and harness feature control
-- Added `console=ttyS0,115200` to kernel cmdline (both layouts)
-- Added `EnableSecureboot`, `EnableHardening`, `EnableZswap`, `EnableNix` to harness `RunConfig`
-- Harness CLI flags: `--enable-secureboot=false` etc.
-- Previous bugs fixed: pointer copy, zswap cmdline, dmcrypt skip
+**Summary:** Cleaned test artifacts structure, fixed gitignore for .gitkeep
+- Cleaned all files from tests/artifacts/ (qcow2, logs, keys, web cache)
+- 14 .gitkeep files preserve directory structure
+- .gitignore: `tests/artifacts/**/*` ignored, `!tests/artifacts/**/.gitkeep` kept
+- Removed unused cache/state and cache/prepare dirs (not referenced in Go code)
+- Updated AGENTS.md and harness README with correct artifact paths
+- Both layouts pass 17/17 with ALL features
+
+### 2026-08-06 19:10 - First Boot Programs: Bash to Go
+**Agent:** codebase
+**Summary:** Converted bash scripts to standalone Go programs
+- `src/firstBoot/secureboot/main.go` — Secure Boot enrollment via sbctl
+- `src/firstBoot/tpm/main.go` — Clevis TPM2 binding for LUKS auto-unlock
+- Both build successfully (2.5MB + 3.0MB)
+- Removed old `1-secure-boot-sbctl.sh` and `2-tpm.sh`
+- Updated AGENTS.md project structure and build commands
+
+### 2026-08-05 03:15 - Strict TPM Verification + Layout-Aware Disks
+**Agent:** codebase
+**Summary:** Harness now verifies TPM auto-unlock without password fallback; creates only needed disks
+- Made `tpmBindingSuccessful` true after 2nd-boot Clevis binding succeeds → verification boot has NO password fallback
+- `tpm_auto_unlock` check now FAILS if "Enter passphrase" appears in serial log after Clevis reboot
+- Harness creates only 1 install disk for btrfsStandard, 2 for btrfsStandardServer (was always 2)
+- `writeHarnessSetupInput` passes `/dev/vdc` only for btrfsStandardServer
+- QEMU args (runner + target) conditional on layout
+- btrfsStandard: 18/18 with Secure Boot + TPM (TPM auto-unlock confirmed, no password)
+- btrfsStandardServer: TPM auto-unlock check fails — 2-device RAID1 doesn't auto-unlock (PCR7 mismatch or booster/clevis path issue), needs investigation
+
+### 2026-08-05 02:00 - TPM Auto-Unlock + Secure Boot Enrollment
+**Agent:** codebase
+**Summary:** Both layouts pass all 18 checks with Secure Boot + TPM enabled
+- Added `src/firstBoot/1-secure-boot-sbctl.sh` (sbctl enrollment) and `src/firstBoot/2-tpm.sh` (Clevis TPM2 binding)
+- `2-tpm.sh` installs `clevis@edge`, binds LUKS to TPM2 with `pcr_ids:7`, rebuilds initramfs + signed UKI
+- Fixed Secure Boot key generation ordering: EFI keys now generated in `InstallPackages` before `secureboot-hook` post-install runs
+- Updated harness `copyGuidesToTarget` to read from `src/firstBoot`
+- Made `clevis_bindings` check layout-aware (1 binding for btrfsStandard, 2 for btrfsStandardServer)
+- Both btrfsStandard and btrfsStandardServer pass 18/18 checks with `--enable-secureboot=true --enable-tpm=true`
+- Committed `e530824`, pushed to main

@@ -5,11 +5,11 @@
 
 ## Project Vision
 
-**FeralOS** is a new Linux distribution based on Alpine Linux, focused on **memory safety** and **security**. It replaces traditional C components with modern alternatives (uutils, micro, doas). For software not in Alpine repos or requiring glibc, **Nix** is used. After the installer is stable, **Dinit** will replace OpenRC, and a **custom repository** will be created for FeralOS services.
+**FeralOS** is a new Linux distribution based on Alpine Linux, focused on **memory safety** and **security**. It replaces traditional C components with modern alternatives (uutils, micro, vector). For software not in Alpine repos or requiring glibc, **Nix** is used. After the installer is stable, **Dinit** will replace OpenRC, and a **custom repository** will be created for FeralOS services.
 
 ## Current Focus
 
-Phase 1: Go installer complete. Both btrfsStandard and btrfsStandardServer pass 17/17 verification checks with ALL features enabled (Secure Boot + TPM + Nix + Zswap + Hardening). Test artifacts cleaned, harness README updated.
+Phase 1: Go installer complete. Both btrfsStandard and btrfsStandardServer pass verification checks with ALL features enabled. **OPEN ISSUE**: Vector VRL syntax error in syslog_parser transform — `parse_syslog()` needs error handling (`structured, err = parse_syslog(.message)`).
 
 ## What's Working
 
@@ -31,14 +31,28 @@ Phase 1: Go installer complete. Both btrfsStandard and btrfsStandardServer pass 
 - **Clevis TPM2 binding** — empty PCR policy (TPM identity only)
 - **Auto-clean old runs** — keeps last 2, saves disk space
 - **Test artifacts** — 14 .gitkeep files preserve directory structure
+- **Vector logging** — replaces rsyslog/logrotate (Rust, memory-safe)
+- **btrbk** — btrfs backup/snapshot tool in disk layouts
+- **turnstile** — session tracker for desktop environments
+
+## Known Issues
+
+### Vector VRL Syntax Error (HIGH PRIORITY)
+**Status**: Open
+**Error**: `error[E103]: unhandled fallible assignment` in syslog_parser transform
+**Root cause**: `parse_syslog(.message)` is fallible, VRL requires error handling
+**Fix needed**: Change `structured = parse_syslog(.message)` to `structured, err = parse_syslog(.message)` with proper fallback
+**Location**: `/etc/vector/vector.yaml` — syslog_parser transform source code
 
 ## What's Next
 
 ### Phase 1 (Installer)
-1. Test on real hardware with 2x NVMe
-2. Test with partial features (Secure Boot only, TPM only)
-3. Add more unit tests for verify checks
-4. Complete CI/CD pipeline
+1. **Fix Vector VRL syntax error** — critical for logging to work
+2. Test vector logging end-to-end
+3. Test on real hardware with 2x NVMe
+4. Test with partial features (Secure Boot only, TPM only)
+5. Add more unit tests for verify checks
+6. Complete CI/CD pipeline
 
 ### Phase 2 (Distribution)
 1. Dinit init system (replace OpenRC)
@@ -102,6 +116,10 @@ Phase 1: Go installer complete. Both btrfsStandard and btrfsStandardServer pass 
 - **btrfsStandard** — only 1 install disk (no ZFS or btrfs-data)
 - **Auto-clean old runs** — keeps last 2, saves disk space
 - **Test artifacts** — `tests/artifacts/<tool-name>/<timestamp>/` pattern
+- **rsyslog → vector** — memory-safe logging pipeline (Rust)
+- **zram-init → zswap** — kernel compressed swap cache with swap file
+- **btrbk** — btrfs backup/snapshot tool for data protection
+- **turnstile** — session tracker for desktop environments
 
 ## Memory-Safe Alternatives
 

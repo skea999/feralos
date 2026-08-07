@@ -3,6 +3,7 @@
   "status": "active",
   "phase": "Phase 1: Installer",
   "active_goals": [
+    "Fix Vector VRL syntax error in syslog_parser transform",
     "Test on real hardware with 2x NVMe (Phase 1)",
     "Add more integration tests (btrfsStandardServer, partial features)",
     "Plan Dinit integration (Phase 2)",
@@ -20,9 +21,45 @@
     "First boot programs converted from bash to standalone Go",
     "Harness accepts -f variables.yaml (same as installer)",
     "Harness binary in tests/harness/skea-harness (gitignored)",
-    "Harness parses all settings from variables.yaml (no CLI flags needed)"
+    "Harness parses all settings from variables.yaml (no CLI flags needed)",
+    "rsyslog/logrotate replaced with vector (Rust)",
+    "e2fsprogs removed from standardPackages",
+    "zram-init removed, replaced with zswap + swap file",
+    "turnstile added for desktop environments",
+    "btrbk added to disk layouts for btrfs backup",
+    "Package masking removed (apk conflict with bat dependency)"
   ],
   "decisions": [
+    {
+      "date": "2026-08-07",
+      "decision": "rsyslog/logrotate replaced with vector (Rust)",
+      "rationale": "Memory-safe logging pipeline. Vector 0.55.0 in Alpine edge/community. Config: socket /dev/log → file sinks (/var/log/messages, auth.log, daemon.log, kern.log, syslog)."
+    },
+    {
+      "date": "2026-08-07",
+      "decision": "Package masking removed from installer",
+      "rationale": "Alpine apk masking via /etc/apk/world conflicts with explicit package dependencies (bat depends on less). Not possible to mask packages that are dependencies of explicitly installed packages."
+    },
+    {
+      "date": "2026-08-07",
+      "decision": "zram-init removed, replaced with zswap + swap file",
+      "rationale": "zswap is kernel feature for compressed swap cache. Swap file in /swap subvolume (8GB) with zstd compression. More flexible than zram."
+    },
+    {
+      "date": "2026-08-07",
+      "decision": "btrbk added to disk layouts",
+      "rationale": "Btrfs backup/snapshot tool. Config: /mnt/btrbk/snapshots, keep 7 daily + 4 weekly + 3 monthly. Installed with both btrfsStandard and btrfsStandardServer."
+    },
+    {
+      "date": "2026-08-07",
+      "decision": "turnstile added for desktop environments",
+      "rationale": "Session tracker (like systemd-logind). Required for KDE and niri desktop environments. Not needed for server/headless."
+    },
+    {
+      "date": "2026-08-07",
+      "decision": "e2fsprogs removed from standardPackages",
+      "rationale": "Not used - FeralOS uses btrfs, not ext*. Packages like e2fsprogs-libs still pulled as dependencies if needed."
+    },
     {
       "date": "2026-08-06",
       "decision": "Test artifacts: tests/artifacts/<tool-name>/<timestamp>/",
@@ -130,9 +167,17 @@
       "severity": "high",
       "status": "mitigated",
       "mitigation": "LUKS keyfile auto-unlock, console=ttyS0,115200, per-device keyfile args"
+    },
+    {
+      "risk": "Vector VRL syntax error in syslog_parser transform",
+      "severity": "high",
+      "status": "open",
+      "mitigation": "Fix parse_syslog() to use error handling: structured, err = parse_syslog(.message)"
     }
   ],
   "next_actions": [
+    "Fix Vector VRL syntax error in syslog_parser transform",
+    "Test vector logging end-to-end",
     "Test btrfsStandardServer with new harness (no ZFS disks)",
     "Test with partial features (Secure Boot only, TPM only)",
     "Test on real hardware with 2x NVMe",
