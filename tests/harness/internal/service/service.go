@@ -1424,6 +1424,12 @@ func (service *Service) Verify(ctx context.Context, cfg VerifyConfig) (VerifyRes
 		"tpm_devices":        "ls -1 /dev/tpm* 2>/dev/null || true",
 		"clevis_packages":    "apk info | grep -E '^(bash|clevis|jose|luksmeta|tpm2-tools|tpm2-tss|tpm2-tss-tcti-device)$' || true",
 		"clevis_bindings":    "for dev in $(blkid -o device -t TYPE=crypto_LUKS 2>/dev/null); do printf '===%s===\\n' \"$dev\"; clevis luks list -d \"$dev\" 2>/dev/null || cryptsetup token list \"$dev\" || true; done",
+		"vector_service":     "rc-status boot 2>/dev/null | grep vector || rc-update show 2>/dev/null | grep vector || true",
+		"vector_logs":        "ls -la /var/log/messages /var/log/auth.log /var/log/daemon.log /var/log/kern.log /var/log/syslog 2>/dev/null || echo 'no vector log files'",
+		"vector_running":     "pgrep -x vector 2>/dev/null && echo 'running' || (ps aux 2>/dev/null | grep '[v]ector' || echo 'vector not running')",
+		"vector_diag":        "rc-status boot 2>/dev/null | grep vector; pgrep -la vector 2>/dev/null; ls -la /var/log/vector* 2>/dev/null; echo '===vector.log==='; cat /var/log/vector.log 2>/dev/null | tail -30; echo '===end==='; vector --version 2>&1 || true",
+		"zswap_status":       "cat /sys/kernel/debug/zswap/ 2>/dev/null || cat /sys/module/zswap/parameters/enabled 2>/dev/null || echo 'zswap not available'",
+		"apk_packages":       "apk info | sort",
 	}
 
 	result := VerifyResult{RunDir: cfg.RunDir, Success: true, Checks: map[string]CheckResult{}}
@@ -1555,6 +1561,70 @@ func (service *Service) Verify(ctx context.Context, cfg VerifyConfig) (VerifyRes
 			result.Checks["uki_artifacts"] = ukiCheck
 			result.Success = false
 		}
+	}
+
+	// Save apk info to files in run directory
+	if cfg.RunDir != "" {
+		if apkCheck, ok := result.Checks["apk_packages"]; ok && apkCheck.Pass {
+			// Save full package list
+			allPackagesPath := filepath.Join(cfg.RunDir, "apk-packages-all.txt")
+			if err := os.WriteFile(allPackagesPath, []byte(apkCheck.Detail+"\n"), 0644); err != nil {
+				fmt.Printf("[WARNING] Failed to write %s: %v\n", allPackagesPath, err)
+			}
+
+			// Save openrc packages only
+			openrcPackagesPath := filepath.Join(cfg.RunDir, "apk-packages-openrc.txt")
+			var openrcLines []string
+			for _, line := range strings.Split(apkCheck.Detail, "\n") {
+				if strings.HasSuffix(strings.TrimSpace(line), "-openrc") {
+					openrcLines = append(openrcLines, line)
+				}
+			}
+			if err := os.WriteFile(openrcPackagesPath, []byte(strings.Join(openrcLines, "\n")+"\n"), 0644); err != nil {
+				fmt.Printf("[WARNING] Failed to write %s: %v\n", openrcPackagesPath, err)
+			}
+		}
+	}
+
+	// Validate vector service check
+	if vectorCheck, ok := result.Checks["vector_service"]; ok {
+		if !strings.Contains(vectorCheck.Detail, "vector") {
+			vectorCheck.Pass = false
+			vectorCheck.Detail = vectorCheck.Detail + "\nExpected vector service in boot runlevel"
+			result.Checks["vector_service"] = vectorCheck
+			result.Success = false
+		}
+	}
+
+	// Validate vector logs check
+	if vectorLogsCheck, ok := result.Checks["vector_logs"]; ok {
+		if strings.Contains(vectorLogsCheck.Detail, "no vector log files") {
+			vectorLogsCheck.Pass = false
+			vectorLogsCheck.Detail = vectorLogsCheck.Detail + "\nExpected vector log files to exist in /var/log/"
+			result.Checks["vector_logs"] = vectorLogsCheck
+			result.Success = false
+		}
+	}
+
+	// Validate vector running check
+	if vectorRunningCheck, ok := result.Checks["vector_running"]; ok {
+		if strings.Contains(vectorRunningCheck.Detail, "vector not running") {
+			vectorRunningCheck.Pass = false
+			vectorRunningCheck.Detail = vectorRunningCheck.Detail + "\nExpected vector process to be running"
+			result.Checks["vector_running"] = vectorRunningCheck
+			result.Success = false
+		}
+	}
+
+	// Validate zswap check
+	if zswapCheck, ok := result.Checks["zswap_status"]; ok {
+		// zswap is optional - just log the status
+		if strings.Contains(zswapCheck.Detail, "not available") {
+			zswapCheck.Detail = zswapCheck.Detail + "\nzswap not enabled in this configuration"
+		} else if strings.Contains(zswapCheck.Detail, "enabled") {
+			zswapCheck.Detail = zswapCheck.Detail + "\nzswap is enabled"
+		}
+		result.Checks["zswap_status"] = zswapCheck
 	}
 
 	return result, nil
@@ -2043,7 +2113,6 @@ func writeHarnessVariables(cfg RunConfig, keyPair guest.KeyPair, outputPath, alp
     - qemu-system-x86_64
     - qemu-img
     - qemu-modules
-    - zram-init
 `,
 		disk1, disk2,
 		cfg.InstalledUser,

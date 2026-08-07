@@ -9,7 +9,7 @@ The FeralOS installer is a Go-based system installer that creates a hardened Alp
 - **Standard core, pluggable data**: Installer logic never changes; only data (YAML + Go layouts) changes
 - **Phase separation**: Host operations (hostPhase) run on the host, chroot operations (chrootPhase) run inside the chroot
 - **Modular design**: Each functionality is a separate module for easy review and maintenance
-- **Memory safety**: Uses memory-safe alternatives where possible (uutils, micro, doas)
+- **Memory safety**: Uses memory-safe alternatives where possible (uutils, micro, sudo-rs)
 
 ## Project Structure
 
@@ -108,7 +108,7 @@ src/
    - Write system limits and subuid/subgid
    - Configure APK repositories
    - Write shell aliases and environment
-   - Configure doas permissions
+   - Configure sudo-rs permissions
    - Write kernel modules configuration
    - Write ZRAM and LXC service configs
    - Write bridging sysctl
@@ -133,7 +133,7 @@ src/
 
 2. **Setup Services** (`services.go`)
    - Configure OpenRC runlevels
-   - Create shell aliases (ll, sudo=doas, nano=micro)
+   - Create shell aliases (ll, sudo=sudo-rs, nano=micro)
    - Setup symlinks for tools
    - Configure timezone and locale
 
@@ -220,7 +220,7 @@ src/
 - **File Permissions**: Strict permissions on sensitive files
 - **Secure Boot**: Signed UKI for verified boot
 - **LUKS2**: Full disk encryption
-- **Memory Safety**: uutils, micro, doas instead of C alternatives
+- **Memory Safety**: uutils, micro, sudo-rs, vector, fish, incus instead of C alternatives
 
 ## Configuration Files
 

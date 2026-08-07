@@ -3,7 +3,7 @@ chrootDir: "/mnt"
 # Default system runlevels
 defaultRunlevels:
   sysinit: ["devfs", "dmesg", "sysctl", "sysfs"]
-  boot: ["hwclock", "modules", "hostname", "bootmisc", "binfmt", "fsck", "rsyslog", "root", "procfs", "loadkmap", "localmount", "dmcrypt", "btrfs-scan", "udev", "udev-trigger", "udev-settle"]
+  boot: ["hwclock", "modules", "hostname", "bootmisc", "binfmt", "fsck", "vector", "root", "procfs", "loadkmap", "localmount", "dmcrypt", "btrfs-scan", "udev", "udev-trigger", "udev-settle"]
   default: ["swap", "cronie", "chronyd", "dbus", "sshd", "cgroups", "smartd", "acpid", "irqbalance", "fwupd", "udev-postmount", "earlyoom"]
   shutdown: ["mount-ro", "killprocs", "savecache"]
 
@@ -11,7 +11,6 @@ defaultRunlevels:
 standardPackages:
   # Core
   - sudo-rs
-  - doas
   - musl-locales
   - lang
   - tzdata
@@ -26,7 +25,6 @@ standardPackages:
   - systemd-efistub
   - efibootmgr
   # Filesystem / Crypto
-  - e2fsprogs
   - linux-lts
   - btrfs-progs
   - cryptsetup
@@ -61,8 +59,8 @@ standardPackages:
   - cpufrequtils
   - smartmontools
   # Logging
-  - rsyslog
-  - logrotate
+  - vector
+  - vector-openrc
   # Shell
   - fish
   - fish-tools
@@ -99,21 +97,21 @@ standardPackages:
 # 1. Disk Layouts Definitions
 diskLayouts:
   btrfsStandardServer:
-    packages: ["btrfs-progs", "cryptsetup", "efibootmgr"]
+    packages: ["btrfs-progs", "cryptsetup", "efibootmgr", "btrbk"]
     modules: ["dm_mod", "dm_crypt", "crc32c_cryptoapi", "zstd", "btrfs", "efivarfs", "nvme"]
   btrfsStandard:
-    packages: ["btrfs-progs", "cryptsetup", "efibootmgr"]
+    packages: ["btrfs-progs", "cryptsetup", "efibootmgr", "btrbk"]
     modules: ["dm_mod", "dm_crypt", "crc32c_cryptoapi", "zstd", "btrfs", "efivarfs", "nvme"]
 
 # 2. Desktop Environments Definitions
 desktopEnvironments:
   kde:
-    packages: ["plasma", "sddm", "konsole", "dolphin", "dbus-x11", "desktop-file-utils"]
-    services: {"sddm": "default", "dbus": "default"}
+    packages: ["plasma", "sddm", "konsole", "dolphin", "dbus-x11", "desktop-file-utils", "turnstile"]
+    services: {"sddm": "default", "dbus": "default", "turnstile": "default"}
     groups: ["video", "input"]
   niri:
-    packages: ["niri", "greetd", "greetd-regreet", "greetd-openrc", "foot", "xdg-desktop-portal-wlr", "pipewire", "polkit-elogind"]
-    services: {"greetd": "default"}
+    packages: ["niri", "greetd", "greetd-regreet", "greetd-openrc", "foot", "xdg-desktop-portal-wlr", "pipewire", "polkit-elogind", "turnstile"]
+    services: {"greetd": "default", "turnstile": "default"}
     groups: ["video", "input"]
 
 # 3. Video Drivers Definitions
@@ -148,3 +146,5 @@ packageLogic:
     groups: ["wheel"]
   sudo:
     groups: ["wheel"]
+  vector:
+    services: {"vector": "boot"}

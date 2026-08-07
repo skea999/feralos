@@ -50,4 +50,3 @@ variables:
     - qemu-system-x86_64
     - qemu-img
     - qemu-modules
-    - zram-init

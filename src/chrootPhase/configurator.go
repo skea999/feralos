@@ -3,6 +3,7 @@ package chrootPhase
 import (
 	"alpineInstaller/utils/config"
 	"alpineInstaller/utils/files"
+	"alpineInstaller/utils/shell"
 	"fmt"
 	"strings"
 )
@@ -72,6 +73,14 @@ func Run(conf *config.Config) error {
 	// 9. Final APK upgrade
 	if err := FinalUpgrade(chroot); err != nil {
 		fmt.Printf("[WARNING] Final upgrade failed: %v\n", err)
+	}
+
+	// 10. Print installed packages (for documentation/debugging)
+	fmt.Println("[INFO] Installed packages:")
+	if out, err := shell.RunChrootCommand(chroot, "apk info"); err != nil {
+		fmt.Printf("[WARNING] Failed to list packages: %v\n", err)
+	} else {
+		fmt.Println(out)
 	}
 
 	fmt.Println("[INFO] ChrootPhase.Run completed successfully.")

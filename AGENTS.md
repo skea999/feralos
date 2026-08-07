@@ -278,13 +278,33 @@ feralos_installer/
 | coreutils | uutils-coreutils | Rust |
 | vim/nano | micro | Go |
 | sudo | sudo-rs | Rust |
+| rsyslog/logrotate | vector | Rust |
+| bash/zsh | fish | Rust |
+| lxd | incus | Go |
 | openrc | dinit (future) | C++ |
 | grep (GNU) | ripgrep (optional) | Rust |
 | find (GNU) | fd (optional) | Rust |
 
+## Known Issues
+
+| Issue | Status | Notes |
+|-------|--------|-------|
+| Vector crashes silently | Open | Vector 0.55.0 validates config OK but crashes at runtime (empty log file, respawns 5x then dies). Likely socket source `/dev/log` issue on Alpine mdev. Needs investigation. |
+
 ---
 
-*Updated: 2026-08-06*
+*Updated: 2026-08-07*
+
+### 2026-08-07 00:15 - Vector 0.55.0 Config Fix + Investigation
+**Agent:** codebase
+**Summary:** Fixed Vector VRL error, but Vector crashes silently at runtime
+- Fixed `error[E103]: unhandled fallible assignment` in syslog_parser remap transform (added `?? {}` fallback)
+- Vector now validates config OK and OpenRC starts it, but crashes after startup
+- supervise-daemon respawns 5x then gives up, vector.log is EMPTY
+- Root cause unknown: likely `/dev/log` socket issue on Alpine mdev or permissions
+- All other 18/20 checks pass (packages, btrbk, storage, boot, etc.)
+- Added `vector_diag` harness check for debugging
+- **TODO**: Investigate vector crash — needs `--keep-target-running` debug session
 
 ### 2026-08-06 18:15 - Harness Refactoring: -f variables.yaml + efivars
 **Agent:** codebase

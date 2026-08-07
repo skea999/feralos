@@ -3,6 +3,7 @@ package hostPhase
 import (
 	"alpineInstaller/utils/config"
 	"alpineInstaller/utils/files"
+	"alpineInstaller/utils/shell"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -130,11 +131,8 @@ fi
 		}
 	}
 
-	// 9. Service Configs (ZRAM & LXC)
-	fmt.Println("[DEBUG] Writing ZRAM and LXC service configurations")
-	if err := files.WriteFileInChroot(chroot, "/etc/conf.d/zram-init", "load_on_start=yes\nunload_on_stop=yes\nnum_devices=1\ntype0=swap\nsize0=8000\n"); err != nil {
-		return fmt.Errorf("failed to write zram-init config: %w", err)
-	}
+	// 9. Service Configs (LXC)
+	fmt.Println("[DEBUG] Writing LXC service configuration")
 	if err := files.WriteFileInChroot(chroot, "/etc/conf.d/lxc", "systemd_container=yes\n"); err != nil {
 		return fmt.Errorf("failed to write LXC config: %w", err)
 	}
@@ -144,6 +142,136 @@ fi
 	bridgingConf := "net.ipv4.conf.all.bc_forwarding=1\nnet.ipv4.conf.default.bc_forwarding=1\n"
 	if err := files.WriteFileInChroot(chroot, "/etc/sysctl.d/bridging.conf", bridgingConf); err != nil {
 		return fmt.Errorf("failed to write bridging sysctl: %w", err)
+	}
+
+	// 11. Vector Logging Configuration
+	fmt.Println("[DEBUG] Writing Vector logging configuration")
+	vectorConfig := `# Vector configuration for FeralOS
+# Replaces rsyslog + logrotate with memory-safe Rust alternative
+
+data_dir: "/var/lib/vector"
+
+sources:
+  syslog:
+    type: socket
+    mode: unix_datagram
+    path: /dev/log
+
+transforms:
+  syslog_parser:
+    type: remap
+    inputs:
+      - syslog
+    source: |
+      structured = parse_syslog(.message) ?? {}
+      . = structured
+
+  auth_logs:
+    type: filter
+    inputs:
+      - syslog_parser
+    condition: '.facility == "auth" || .facility == "authpriv"'
+
+  daemon_logs:
+    type: filter
+    inputs:
+      - syslog_parser
+    condition: '.facility == "daemon"'
+
+  kernel_logs:
+    type: filter
+    inputs:
+      - syslog_parser
+    condition: '.facility == "kern"'
+
+  syslog_logs:
+    type: filter
+    inputs:
+      - syslog_parser
+    condition: '.facility == "syslog"'
+
+sinks:
+  messages:
+    type: file
+    inputs:
+      - syslog_parser
+    path: "/var/log/messages"
+    encoding:
+      codec: text
+
+  auth_log:
+    type: file
+    inputs:
+      - auth_logs
+    path: "/var/log/auth.log"
+    encoding:
+      codec: text
+
+  daemon_log:
+    type: file
+    inputs:
+      - daemon_logs
+    path: "/var/log/daemon.log"
+    encoding:
+      codec: text
+
+  kernel_log:
+    type: file
+    inputs:
+      - kernel_logs
+    path: "/var/log/kern.log"
+    encoding:
+      codec: text
+
+  syslog_log:
+    type: file
+    inputs:
+      - syslog_logs
+    path: "/var/log/syslog"
+    encoding:
+      codec: text
+`
+	if err := files.WriteFileInChroot(chroot, "/etc/vector/vector.yaml", vectorConfig); err != nil {
+		return fmt.Errorf("failed to write vector config: %w", err)
+	}
+
+	// 12. Btrbk Configuration (btrfs backup)
+	fmt.Println("[DEBUG] Writing btrbk configuration")
+	btrbkConfig := `# btrbk configuration for FeralOS
+# Snapshot management for btrfs subvolumes
+
+snapshot_dir  /mnt/btrbk/snapshots
+subvolume     /
+# Include all subvolumes for snapshots
+incremental   yes
+compact       yes
+# Keep 7 daily, 4 weekly, 3 monthly snapshots
+keep_daily    7
+keep_weekly   4
+keep_monthly  3
+# Run as root
+run_as        root
+# Timestamp format
+timestamp_format long
+# Use ctime for comparison
+compare       path
+# Don't send to remote (local only)
+stream_buffer none
+# Log file
+logdir        /var/log/btrbk
+`
+	if err := files.WriteFileInChroot(chroot, "/etc/btrbk/btrbk.conf", btrbkConfig); err != nil {
+		return fmt.Errorf("failed to write btrbk config: %w", err)
+	}
+
+	// Create btrbk snapshot directory
+	if _, err := shell.RunChrootCommand(chroot, "mkdir -p /mnt/btrbk/snapshots"); err != nil {
+		fmt.Printf("[WARNING] Failed to create btrbk snapshot directory: %v\n", err)
+	}
+
+	// Create btrbk log directory
+	if _, err := shell.RunChrootCommand(chroot, "mkdir -p /var/log/btrbk"); err != nil {
+		fmt.Printf("[WARNING] Failed to create btrbk log directory: %v\n", err)
 	}
 
 	return nil

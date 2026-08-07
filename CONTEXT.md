@@ -138,8 +138,10 @@ _Avoid_: compressed swap, ram-swap
 | coreutils | uutils-coreutils | Rust |
 | vim/nano | micro | Go |
 | sudo | sudo-rs | Rust |
+| rsyslog/logrotate | vector | Rust |
+| bash/zsh | fish | Rust |
+| lxd | incus | Go |
 | systemd/openrc | dinit (future) | C++ |
-| bash | ash (Alpine default) | C |
 | grep (GNU) | ripgrep (optional) | Rust |
 | find (GNU) | fd (optional) | Rust |
 | curl | curl (keeping) | C |
