@@ -1,0 +1,85 @@
+# Vector configuration for FeralOS
+# Replaces rsyslog + logrotate with memory-safe Rust alternative
+# Reference file - saved before testing Alpine default config
+
+data_dir: "/var/lib/vector"
+
+sources:
+  syslog:
+    type: socket
+    mode: unix_datagram
+    path: /dev/log
+
+transforms:
+  syslog_parser:
+    type: remap
+    inputs:
+      - syslog
+    source: |
+      structured = parse_syslog(.message) ?? {}
+      . = structured
+
+  auth_logs:
+    type: filter
+    inputs:
+      - syslog_parser
+    condition: '.facility == "auth" || .facility == "authpriv"'
+
+  daemon_logs:
+    type: filter
+    inputs:
+      - syslog_parser
+    condition: '.facility == "daemon"'
+
+  kernel_logs:
+    type: filter
+    inputs:
+      - syslog_parser
+    condition: '.facility == "kern"'
+
+  syslog_logs:
+    type: filter
+    inputs:
+      - syslog_parser
+    condition: '.facility == "syslog"'
+
+sinks:
+  messages:
+    type: file
+    inputs:
+      - syslog_parser
+    path: "/var/log/messages"
+    encoding:
+      codec: text
+
+  auth_log:
+    type: file
+    inputs:
+      - auth_logs
+    path: "/var/log/auth.log"
+    encoding:
+      codec: text
+
+  daemon_log:
+    type: file
+    inputs:
+      - daemon_logs
+    path: "/var/log/daemon.log"
+    encoding:
+      codec: text
+
+  kernel_log:
+    type: file
+    inputs:
+      - kernel_logs
+    path: "/var/log/kern.log"
+    encoding:
+      codec: text
+
+  syslog_log:
+    type: file
+    inputs:
+      - syslog_logs
+    path: "/var/log/syslog"
+    encoding:
+      codec: text

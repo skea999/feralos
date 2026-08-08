@@ -173,6 +173,13 @@
       "severity": "high",
       "status": "open",
       "mitigation": "Fix parse_syslog() to use error handling: structured, err = parse_syslog(.message)"
+    },
+    {
+      "risk": "Vector crashes silently at runtime",
+      "severity": "high",
+      "status": "open",
+      "details": "Alpine default config is demo_logs (fake syslog to console). Our custom config uses socket /dev/log which crashes. supervise-daemon respawns 5x then gives up. vector.log is empty.",
+      "next_step": "Investigate with --keep-target-running debug session. Check /dev/log socket permissions, vector user/group, mdev device management."
     }
   ],
   "next_actions": [

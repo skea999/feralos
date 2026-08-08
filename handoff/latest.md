@@ -37,12 +37,21 @@ Phase 1: Go installer complete. Both btrfsStandard and btrfsStandardServer pass 
 
 ## Known Issues
 
-### Vector VRL Syntax Error (HIGH PRIORITY)
+### Vector Crashes Silently at Runtime (HIGH PRIORITY)
 **Status**: Open
+**Details**: 
+- Alpine ships Vector 0.55.0 with a **demo config** (`demo_logs` → `console`)
+- Our custom config uses `socket` source on `/dev/log` which crashes Vector
+- supervise-daemon respawns 5x then gives up, `vector.log` is empty
+- Root cause likely: `/dev/log` socket permissions, vector user/group issues, or mdev device management
+- **Config saved to**: `docs/vector-config-reference.yaml`
+- **Custom config disabled in installer**: Testing Alpine default first
+- **Next step**: Debug with `--keep-target-running` session, check `/dev/log` socket
+
+### Vector VRL Syntax Error (MEDIUM PRIORITY)
+**Status**: Open (fixed in config, but Vector crashes before reaching this)
 **Error**: `error[E103]: unhandled fallible assignment` in syslog_parser transform
-**Root cause**: `parse_syslog(.message)` is fallible, VRL requires error handling
 **Fix needed**: Change `structured = parse_syslog(.message)` to `structured, err = parse_syslog(.message)` with proper fallback
-**Location**: `/etc/vector/vector.yaml` — syslog_parser transform source code
 
 ## What's Next
 

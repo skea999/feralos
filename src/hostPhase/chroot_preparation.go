@@ -145,95 +145,99 @@ fi
 	}
 
 	// 11. Vector Logging Configuration
+	// DISABLED: Testing Alpine default Vector config
+	// Saved to docs/vector-config-reference.yaml
+	/*
 	fmt.Println("[DEBUG] Writing Vector logging configuration")
 	vectorConfig := `# Vector configuration for FeralOS
-# Replaces rsyslog + logrotate with memory-safe Rust alternative
+	# Replaces rsyslog + logrotate with memory-safe Rust alternative
 
-data_dir: "/var/lib/vector"
+	data_dir: "/var/lib/vector"
 
-sources:
-  syslog:
-    type: socket
-    mode: unix_datagram
-    path: /dev/log
+	sources:
+	  syslog:
+	    type: socket
+	    mode: unix_datagram
+	    path: /dev/log
 
-transforms:
-  syslog_parser:
-    type: remap
-    inputs:
-      - syslog
-    source: |
-      structured = parse_syslog(.message) ?? {}
-      . = structured
+	transforms:
+	  syslog_parser:
+	    type: remap
+	    inputs:
+	      - syslog
+	    source: |
+	      structured = parse_syslog(.message) ?? {}
+	      . = structured
 
-  auth_logs:
-    type: filter
-    inputs:
-      - syslog_parser
-    condition: '.facility == "auth" || .facility == "authpriv"'
+	  auth_logs:
+	    type: filter
+	    inputs:
+	      - syslog_parser
+	    condition: '.facility == "auth" || .facility == "authpriv"'
 
-  daemon_logs:
-    type: filter
-    inputs:
-      - syslog_parser
-    condition: '.facility == "daemon"'
+	  daemon_logs:
+	    type: filter
+	    inputs:
+	      - syslog_parser
+	    condition: '.facility == "daemon"'
 
-  kernel_logs:
-    type: filter
-    inputs:
-      - syslog_parser
-    condition: '.facility == "kern"'
+	  kernel_logs:
+	    type: filter
+	    inputs:
+	      - syslog_parser
+	    condition: '.facility == "kern"'
 
-  syslog_logs:
-    type: filter
-    inputs:
-      - syslog_parser
-    condition: '.facility == "syslog"'
+	  syslog_logs:
+	    type: filter
+	    inputs:
+	      - syslog_parser
+	    condition: '.facility == "syslog"'
 
-sinks:
-  messages:
-    type: file
-    inputs:
-      - syslog_parser
-    path: "/var/log/messages"
-    encoding:
-      codec: text
+	sinks:
+	  messages:
+	    type: file
+	    inputs:
+	      - syslog_parser
+	    path: "/var/log/messages"
+	    encoding:
+	      codec: text
 
-  auth_log:
-    type: file
-    inputs:
-      - auth_logs
-    path: "/var/log/auth.log"
-    encoding:
-      codec: text
+	  auth_log:
+	    type: file
+	    inputs:
+	      - auth_logs
+	    path: "/var/log/auth.log"
+	    encoding:
+	      codec: text
 
-  daemon_log:
-    type: file
-    inputs:
-      - daemon_logs
-    path: "/var/log/daemon.log"
-    encoding:
-      codec: text
+	  daemon_log:
+	    type: file
+	    inputs:
+	      - daemon_logs
+	    path: "/var/log/daemon.log"
+	    encoding:
+	      codec: text
 
-  kernel_log:
-    type: file
-    inputs:
-      - kernel_logs
-    path: "/var/log/kern.log"
-    encoding:
-      codec: text
+	  kernel_log:
+	    type: file
+	    inputs:
+	      - kernel_logs
+	    path: "/var/log/kern.log"
+	    encoding:
+	      codec: text
 
-  syslog_log:
-    type: file
-    inputs:
-      - syslog_logs
-    path: "/var/log/syslog"
-    encoding:
-      codec: text
-`
+	  syslog_log:
+	    type: file
+	    inputs:
+	      - syslog_logs
+	    path: "/var/log/syslog"
+	    encoding:
+	      codec: text
+	`
 	if err := files.WriteFileInChroot(chroot, "/etc/vector/vector.yaml", vectorConfig); err != nil {
 		return fmt.Errorf("failed to write vector config: %w", err)
 	}
+	*/
 
 	// 12. Btrbk Configuration (btrfs backup)
 	fmt.Println("[DEBUG] Writing btrbk configuration")

@@ -390,6 +390,15 @@ feralos_installer/
 - Added `vector_diag` harness check for debugging
 - **TODO**: Investigate vector crash — needs `--keep-target-running` debug session
 
+### 2026-08-07 01:30 - Alpine Default Vector Config Investigation
+**Agent:** codebase
+**Summary:** Alpine ships Vector with demo config, crashes at runtime
+- Alpine's default `/etc/vector/vector.yaml` uses `demo_logs` source (fake syslog to console)
+- Our custom config uses `socket` source on `/dev/log` which crashes Vector
+- Saved custom config to `docs/vector-config-reference.yaml`
+- Disabled custom config in installer for testing
+- **Next step**: Debug with `--keep-target-running` session to investigate `/dev/log` socket
+
 ### 2026-08-06 18:15 - Harness Refactoring: -f variables.yaml + efivars
 **Agent:** codebase
 **Summary:** Harness now accepts -f variables.yaml, efivars working
