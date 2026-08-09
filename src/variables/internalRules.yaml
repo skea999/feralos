@@ -85,7 +85,10 @@ standardPackages:
   - uutils-coreutils
   - uutils-coreutils-hostname
   - uutils-coreutils-groups
-  - uutils-coreutils-more
+  # NOTE: uutils-coreutils-more conflicts with util-linux-misc (both provide /usr/bin/more)
+  # incus-feature-vm depends on util-linux-misc, so uutils-coreutils-more cannot coexist
+  # TODO: investigate if we can mask util-linux-misc or find another approach
+  # - uutils-coreutils-more
   - uutils-coreutils-uptime
   - micro
   - bottom

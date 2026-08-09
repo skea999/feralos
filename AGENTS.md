@@ -407,7 +407,8 @@ feralos_installer/
 - **Secure Boot fix**: EFI keys generated AFTER package install (matches reference chroot.sh); `WriteSecurebootConf` skips if db.key missing — pending harness revalidation
 - **Harness**: 22/22 checks (fstab_vs_mount, vector_*, apk_packages dumps); `tests/debug-run/` boots existing run without reinstall
 - **Docs**: CHANGELOG, memorySafeAlternatives (less → dummy package plan, Vector fixed), INSTALLER.md updated; session memory saved
-- **Open issue**: less via dummy package (not implemented)
+- **Less dummy package**: implemented (v999-r0), replaces real C less with no-op stub
+- **uutils-coreutils-more conflict**: removed from packages — conflicts with util-linux-misc (incus-feature-vm dependency). TODO: investigate masking util-linux-misc
 
 ### 2026-08-08 22:00 - Vector Fully Working + internalRules Cleanup
 **Agent:** codebase

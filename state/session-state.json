@@ -4,7 +4,8 @@
   "phase": "Phase 1: Installer",
   "active_goals": [
     "Test Secure Boot error fix (efi-mkkeys after package install)",
-    "Resolve less package issue via dummy package (open issue)",
+    "Dummy less package implemented — test with harness",
+    "Investigate uutils-coreutils-more conflict with util-linux-misc (incus-feature-vm dependency)",
     "Test on real hardware with 2x NVMe (Phase 1)",
     "Add more integration tests (btrfsStandardServer, partial features)",
     "Plan Dinit integration (Phase 2)",

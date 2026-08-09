@@ -1434,6 +1434,7 @@ func (service *Service) Verify(ctx context.Context, cfg VerifyConfig) (VerifyRes
 		"sudo_installed":     "apk info | grep '^sudo-rs$' && echo 'sudo-rs installed' || echo 'sudo-rs not installed'",
 		"sudo_wheel":         "grep '^%wheel' /etc/sudoers.d/wheel 2>/dev/null || echo 'no wheel sudoers config'",
 		"sudo_works":         "sudo -n id 2>&1 || echo 'sudo requires password (expected for non-root)'",
+		"less_dummy":         "less --version 2>&1 | head -1; file $(which less 2>/dev/null) 2>&1 || echo 'less not found'",
 	}
 
 	result := VerifyResult{RunDir: cfg.RunDir, Success: true, Checks: map[string]CheckResult{}}
@@ -1563,6 +1564,19 @@ func (service *Service) Verify(ctx context.Context, cfg VerifyConfig) (VerifyRes
 			ukiCheck.Pass = false
 			ukiCheck.Detail = ukiCheck.Detail + "\nExpected signed linux-lts.efi and removable fallback BOOTX64.EFI on the ESP"
 			result.Checks["uki_artifacts"] = ukiCheck
+			result.Success = false
+		}
+	}
+
+	if lessCheck, ok := result.Checks["less_dummy"]; ok {
+		// Verify dummy: either "dummy" in output or "shell script" in file type
+		isDummy := strings.Contains(lessCheck.Detail, "dummy") ||
+			strings.Contains(lessCheck.Detail, "shell script") ||
+			strings.Contains(lessCheck.Detail, "POSIX shell")
+		if !isDummy {
+			lessCheck.Pass = false
+			lessCheck.Detail = lessCheck.Detail + "\nExpected dummy less (shell script) — real C less should be replaced"
+			result.Checks["less_dummy"] = lessCheck
 			result.Success = false
 		}
 	}

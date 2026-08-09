@@ -64,7 +64,7 @@ FeralOS replaces traditional C components with memory-safe alternatives where po
 |---------|----------|-------|
 | fish | Rust | Friendly interactive shell (rewritten in Rust) |
 | fish-tools | Rust | Fish utilities |
-| less | C | Pager (dependency of bat; plan: dummy package providing less) |
+| less | C | Pager (dependency of bat; replaced with dummy package v999-r0) |
 | readline | C | Line editing |
 | ncurses-terminfo | C | Terminal info |
 | ncurses-terminfo-base | C | Base terminfo |
@@ -362,12 +362,17 @@ These C packages remain because no memory-safe alternative exists or the compone
 
 ## Known Issues
 
-### Package Masking (Not Possible)
+### Package Masking (Resolved)
 - **Issue**: Alpine apk masking via `/etc/apk/world` conflicts with explicit package dependencies
 - **Example**: `bat` depends on `less` — masking `less` prevents `bat` from installing
-- **Status**: Package masking removed from installer. **Open issue**: solve via dummy package that provides `less` (not implemented)
+- **Resolution**: Replaced real `less` with dummy package (v999-r0). `less --version` prints dummy notice, `apk info less` shows dummy version.
 
 ### Vector VRL Syntax Error (Fixed)
 - **Issue**: `parse_syslog(.message)` in syslog_parser transform is fallible
 - **Fix**: `parse_syslog(.message) ?? {}` fallback (E103 resolved)
 - **Status**: Vector fully working — socket on `/run/vector/syslog.sock`, logs in `/var/log/`
+
+### uutils-coreutils-more Conflict (Open)
+- **Issue**: `uutils-coreutils-more` and `util-linux-misc` both provide `/usr/bin/more`
+- **Root cause**: `incus-feature-vm` depends on `util-linux-misc`, which conflicts with uutils more
+- **Status**: `uutils-coreutils-more` removed from packages. TODO: investigate masking util-linux-misc or alternative approach.
