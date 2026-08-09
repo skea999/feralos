@@ -399,6 +399,16 @@ feralos_installer/
 - Disabled custom config in installer for testing
 - **Next step**: Debug with `--keep-target-running` session to investigate `/dev/log` socket
 
+### 2026-08-09 12:00 - Vector, Compression, SecureBoot Fix, Docs + Push
+**Agent:** codebase
+**Summary:** Session work committed and pushed (eaa5dad)
+- **Per-subvolume btrfs compression**: mount root without compression, `btrfs property set` zstd per data subvol; NoCoW via `chattr +C`, swapfile `chattr +m`; fstab `compress=no` for NoCoW
+- **All packages single `apk add`** (base + TPM + microcode + Nix + hardening); earlyoom in standardPackages; uutils subpackages fixed (groups/more/uptime, stat removed)
+- **Secure Boot fix**: EFI keys generated AFTER package install (matches reference chroot.sh); `WriteSecurebootConf` skips if db.key missing — pending harness revalidation
+- **Harness**: 22/22 checks (fstab_vs_mount, vector_*, apk_packages dumps); `tests/debug-run/` boots existing run without reinstall
+- **Docs**: CHANGELOG, memorySafeAlternatives (less → dummy package plan, Vector fixed), INSTALLER.md updated; session memory saved
+- **Open issue**: less via dummy package (not implemented)
+
 ### 2026-08-08 22:00 - Vector Fully Working + internalRules Cleanup
 **Agent:** codebase
 **Summary:** Vector now works correctly, internalRules cleaned up
