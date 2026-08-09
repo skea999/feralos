@@ -190,12 +190,14 @@ src/
 - **RAID1**: Btrfs RAID1 on LUKS for root filesystem
 - **Swap**: LUKS-encrypted swap partition
 - **Subvolumes**: 21 subvolumes including @root, @home, @boot, @nix-*
+- **Compression**: Per-subvolume via `btrfs property set` (zstd for data, none for NoCoW)
 
 #### btrfsStandard (1 disk)
 - **Partitioning**: EFI (512MB) + LUKS (rest)
 - **Single**: Btrfs single mode (no RAID)
-- **Swap**: Swapfile in @swap subvolume
+- **Swap**: Swapfile in @swap subvolume (NoCoW, NOCOMPRESS)
 - **Subvolumes**: 25 subvolumes including @root, @home, @boot, @nix-*
+- **Compression**: Per-subvolume via `btrfs property set` (zstd for data, none for NoCoW)
 
 ### LUKS Encryption
 

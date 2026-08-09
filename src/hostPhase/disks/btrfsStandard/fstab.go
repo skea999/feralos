@@ -71,14 +71,14 @@ func GenerateFstab(conf *config.Config) error {
 		NoCoW   bool
 	}{
 		{Name: "@", Path: "/", Options: "compress=zstd:3,autodefrag,ssd,subvol=@"},
-		{Name: "@swap", Path: "/swap", Options: "autodefrag,ssd,subvol=@swap", NoCoW: true},
+		{Name: "@swap", Path: "/swap", Options: "compress=no,autodefrag,ssd,subvol=@swap", NoCoW: true},
 		{Name: "@home", Path: "/home", Options: "compress=zstd:3,autodefrag,ssd,subvol=@home"},
 		{Name: "@opt", Path: "/opt", Options: "compress=zstd:3,autodefrag,ssd,subvol=@opt"},
 		{Name: "@root", Path: "/root", Options: "compress=zstd:3,autodefrag,ssd,subvol=@root"},
-		{Name: "@srv", Path: "/srv", Options: "autodefrag,ssd,nodev,noexec,nosuid,subvol=@srv", NoCoW: true},
+		{Name: "@srv", Path: "/srv", Options: "compress=no,autodefrag,ssd,nodev,noexec,nosuid,subvol=@srv", NoCoW: true},
 		{Name: "@tmp", Path: "/tmp", Options: "compress=zstd:3,autodefrag,ssd,noexec,nosuid,subvol=@tmp"},
 		{Name: "@var", Path: "/var", Options: "compress=zstd:3,autodefrag,ssd,subvol=@var"},
-		{Name: "@var-lib-ex", Path: "/var/lib/ex", Options: "autodefrag,ssd,nodev,noexec,nosuid,subvol=@var-lib-ex", NoCoW: true},
+		{Name: "@var-lib-ex", Path: "/var/lib/ex", Options: "compress=no,autodefrag,ssd,nodev,noexec,nosuid,subvol=@var-lib-ex", NoCoW: true},
 		{Name: "@var-lib-libvirt", Path: "/var/lib/libvirt", Options: "compress=zstd:3,autodefrag,ssd,subvol=@var-lib-libvirt"},
 		{Name: "@var-lib-incus", Path: "/var/lib/incus", Options: "compress=zstd:3,autodefrag,ssd,subvol=@var-lib-incus"},
 		{Name: "@var-lib-containerd", Path: "/var/lib/containerd", Options: "compress=zstd:3,autodefrag,ssd,subvol=@var-lib-containerd"},
@@ -86,10 +86,10 @@ func GenerateFstab(conf *config.Config) error {
 		{Name: "@var-lib-containers", Path: "/var/lib/containers", Options: "compress=zstd:3,autodefrag,ssd,subvol=@var-lib-containers"},
 		{Name: "@var-lib-vector", Path: "/var/lib/vector", Options: "compress=zstd:3,autodefrag,ssd,subvol=@var-lib-vector"},
 		{Name: "@var-cache", Path: "/var/cache", Options: "compress=zstd:3,autodefrag,ssd,subvol=@var-cache"},
-		{Name: "@var-log", Path: "/var/log", Options: "autodefrag,ssd,nodev,noexec,nosuid,subvol=@var-log", NoCoW: true},
+		{Name: "@var-log", Path: "/var/log", Options: "compress=no,autodefrag,ssd,nodev,noexec,nosuid,subvol=@var-log", NoCoW: true},
 		{Name: "@var-opt", Path: "/var/opt", Options: "compress=zstd:3,autodefrag,ssd,subvol=@var-opt"},
-		{Name: "@var-spool", Path: "/var/spool", Options: "autodefrag,ssd,nodev,noexec,nosuid,subvol=@var-spool", NoCoW: true},
-		{Name: "@var-tmp", Path: "/var/tmp", Options: "autodefrag,ssd,nodev,noexec,nosuid,subvol=@var-tmp", NoCoW: true},
+		{Name: "@var-spool", Path: "/var/spool", Options: "compress=no,autodefrag,ssd,nodev,noexec,nosuid,subvol=@var-spool", NoCoW: true},
+		{Name: "@var-tmp", Path: "/var/tmp", Options: "compress=no,autodefrag,ssd,nodev,noexec,nosuid,subvol=@var-tmp", NoCoW: true},
 		{Name: "@usr-local", Path: "/usr/local", Options: "compress=zstd:3,autodefrag,ssd,subvol=@usr-local"},
 		{Name: "@boot", Path: "/boot", Options: "compress=zstd:3,autodefrag,ssd,subvol=@boot"},
 		// Nix package manager
@@ -104,7 +104,7 @@ func GenerateFstab(conf *config.Config) error {
 	for _, s := range subvols {
 		// Add comment for NoCoW subvolumes
 		if s.NoCoW {
-			comment := fmt.Sprintf("# %s: NoCoW via 'btrfs property set compression none' + 'chattr +C'\n", s.Name)
+			comment := fmt.Sprintf("# %s: NoCoW via 'chattr +C' + NOCOMPRESS via 'chattr +m'\n", s.Name)
 			if _, err := file.WriteString(comment); err != nil {
 				return fmt.Errorf("failed to write fstab comment for %s: %w", s.Name, err)
 			}

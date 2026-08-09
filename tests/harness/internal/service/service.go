@@ -1410,6 +1410,7 @@ func (service *Service) Verify(ctx context.Context, cfg VerifyConfig) (VerifyRes
 	checks := map[string]string{
 		"storage_layout":     "printf '===blkid===\n'; blkid; printf '\n===mapper===\n'; ls -1 /dev/mapper/luks-*; printf '\n===mounts===\n'; grep ' / ' /proc/mounts; printf '\n===btrfs_show===\n'; btrfs filesystem show /; printf '\n===btrfs_usage===\n'; btrfs filesystem usage -T /",
 		"fstab":              "cat /etc/fstab",
+		"fstab_vs_mount":     `echo "=== FSTAB vs MOUNT COMPARISON ===" && for mp in $(awk '/btrfs/ && !/^#/ {print $2}' /etc/fstab | sort -u); do fstab_opts=$(awk -v mp="$mp" '$2==mp && /btrfs/ && !/^#/ {print $4}' /etc/fstab | head -1); mount_opts=$(awk -v mp="$mp" '$2==mp {print $4}' /proc/mounts | head -1); if [ -n "$fstab_opts" ] && [ -n "$mount_opts" ]; then echo "=== $mp ==="; echo "  fstab:  $fstab_opts"; echo "  mount:  $mount_opts"; for opt in $(echo "$fstab_opts" | tr ',' '\n' | sort); do if ! echo "$mount_opts" | tr ',' '\n' | grep -q "^${opt}$"; then echo "  MISSING in mount: $opt"; fi; done; for opt in $(echo "$mount_opts" | tr ',' '\n' | sort); do if ! echo "$fstab_opts" | tr ',' '\n' | grep -q "^${opt}$"; then echo "  EXTRA in mount: $opt"; fi; done; fi; done; echo "=== DONE ==="`,
 		"kernel_cmdline":     "cat /etc/kernel/cmdline",
 		"booster_conf":       "cat /etc/booster.yaml",
 		"secureboot_conf":    "cat /etc/kernel-hooks.d/secureboot.conf",

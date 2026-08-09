@@ -219,39 +219,48 @@ func getMinDiskSize(d1, d2 string) (int64, error) {
 
 func setupSubvolumesAndMounts(chroot string, luksDevice string, d1 string, d2 string, swapUUID1 string, swapUUID2 string) error {
 	subvols := []Subvolume{
-		{Name: "@", Path: "", Options: "compress=zstd:3,autodefrag,ssd"},
-		{Name: "@swap", Path: "/swap", Options: "compress=no,autodefrag,ssd", NoCoW: true},
-		{Name: "@home", Path: "/home", Options: "compress=zstd:3,autodefrag,ssd"},
-		{Name: "@opt", Path: "/opt", Options: "compress=zstd:3,autodefrag,ssd"},
-		{Name: "@root", Path: "/root", Options: "compress=zstd:3,autodefrag,ssd"},
-		{Name: "@srv", Path: "/srv", Options: "compress=no,nodev,noexec,nosuid,autodefrag,ssd", NoCoW: true},
-		{Name: "@tmp", Path: "/tmp", Options: "compress=zstd:3,autodefrag,ssd,noexec,nosuid"},
-		{Name: "@var", Path: "/var", Options: "compress=zstd:3,autodefrag,ssd"},
-		{Name: "@var-lib-ex", Path: "/var/lib/ex", Options: "compress=no,nodev,noexec,nosuid,autodefrag,ssd", NoCoW: true},
-		{Name: "@var-lib-libvirt", Path: "/var/lib/libvirt", Options: "compress=zstd:3,autodefrag,ssd"},
-		{Name: "@var-lib-incus", Path: "/var/lib/incus", Options: "compress=zstd:3,autodefrag,ssd"},
-		{Name: "@var-lib-containerd", Path: "/var/lib/containerd", Options: "compress=zstd:3,autodefrag,ssd"},
-		{Name: "@var-lib-docker", Path: "/var/lib/docker", Options: "compress=zstd:3,autodefrag,ssd"},
-		{Name: "@var-lib-containers", Path: "/var/lib/containers", Options: "compress=zstd:3,autodefrag,ssd"},
-		{Name: "@var-lib-vector", Path: "/var/lib/vector", Options: "compress=zstd:3,autodefrag,ssd"},
-		{Name: "@var-cache", Path: "/var/cache", Options: "compress=zstd:3,autodefrag,ssd"},
-		{Name: "@var-log", Path: "/var/log", Options: "compress=no,nodev,noexec,nosuid,autodefrag,ssd", NoCoW: true},
-		{Name: "@var-opt", Path: "/var/opt", Options: "compress=zstd:3,autodefrag,ssd"},
-		{Name: "@var-spool", Path: "/var/spool", Options: "compress=no,nodev,noexec,nosuid,autodefrag,ssd", NoCoW: true},
-		{Name: "@var-tmp", Path: "/var/tmp", Options: "compress=no,nodev,noexec,nosuid,autodefrag,ssd", NoCoW: true},
-		{Name: "@usr-local", Path: "/usr/local", Options: "compress=zstd:3,autodefrag,ssd"},
-		{Name: "@boot", Path: "/boot", Options: "compress=zstd:3,autodefrag,ssd"},
+		{Name: "@", Path: "", Options: "autodefrag,ssd"},
+		{Name: "@swap", Path: "/swap", Options: "autodefrag,ssd", NoCoW: true},
+		{Name: "@home", Path: "/home", Options: "autodefrag,ssd"},
+		{Name: "@opt", Path: "/opt", Options: "autodefrag,ssd"},
+		{Name: "@root", Path: "/root", Options: "autodefrag,ssd"},
+		{Name: "@srv", Path: "/srv", Options: "autodefrag,ssd,nodev,noexec,nosuid", NoCoW: true},
+		{Name: "@tmp", Path: "/tmp", Options: "autodefrag,ssd,noexec,nosuid"},
+		{Name: "@var", Path: "/var", Options: "autodefrag,ssd"},
+		{Name: "@var-lib-ex", Path: "/var/lib/ex", Options: "autodefrag,ssd,nodev,noexec,nosuid", NoCoW: true},
+		{Name: "@var-lib-libvirt", Path: "/var/lib/libvirt", Options: "autodefrag,ssd"},
+		{Name: "@var-lib-incus", Path: "/var/lib/incus", Options: "autodefrag,ssd"},
+		{Name: "@var-lib-containerd", Path: "/var/lib/containerd", Options: "autodefrag,ssd"},
+		{Name: "@var-lib-docker", Path: "/var/lib/docker", Options: "autodefrag,ssd"},
+		{Name: "@var-lib-containers", Path: "/var/lib/containers", Options: "autodefrag,ssd"},
+		{Name: "@var-lib-vector", Path: "/var/lib/vector", Options: "autodefrag,ssd"},
+		{Name: "@var-cache", Path: "/var/cache", Options: "autodefrag,ssd"},
+		{Name: "@var-log", Path: "/var/log", Options: "autodefrag,ssd,nodev,noexec,nosuid", NoCoW: true},
+		{Name: "@var-opt", Path: "/var/opt", Options: "autodefrag,ssd"},
+		{Name: "@var-spool", Path: "/var/spool", Options: "autodefrag,ssd,nodev,noexec,nosuid", NoCoW: true},
+		{Name: "@var-tmp", Path: "/var/tmp", Options: "autodefrag,ssd,nodev,noexec,nosuid", NoCoW: true},
+		{Name: "@usr-local", Path: "/usr/local", Options: "autodefrag,ssd"},
+		{Name: "@boot", Path: "/boot", Options: "autodefrag,ssd"},
 		// Btrbk backup
-		{Name: "@btrbk", Path: "/btrbk", Options: "compress=zstd:3,autodefrag,ssd"},
+		{Name: "@btrbk", Path: "/btrbk", Options: "autodefrag,ssd"},
 	}
 
-	// Temporary mount to create subvolumes
-	if _, err := shell.RunCommand("mount", "-t", "btrfs", "-o", "compress=zstd:3,autodefrag,ssd", luksDevice, chroot); err != nil {
+	// Temporary mount WITHOUT compression to create subvolumes
+	if _, err := shell.RunCommand("mount", "-t", "btrfs", "-o", "autodefrag,ssd", luksDevice, chroot); err != nil {
 		return fmt.Errorf("failed to mount btrfs root: %w", err)
 	}
 	for _, s := range subvols {
 		if _, err := shell.RunCommand("btrfs", "subvolume", "create", chroot+"/"+s.Name); err != nil {
 			return fmt.Errorf("failed to create subvolume %s: %w", s.Name, err)
+		}
+	}
+	// Set compression on subvolumes that should have it (not NoCoW)
+	for _, s := range subvols {
+		if !s.NoCoW {
+			target := chroot + "/" + s.Name
+			if _, err := shell.RunCommand("btrfs", "property", "set", target, "compression", "zstd"); err != nil {
+				return fmt.Errorf("failed to set compression on %s: %w", target, err)
+			}
 		}
 	}
 	if _, err := shell.RunCommand("umount", chroot); err != nil {
@@ -274,10 +283,6 @@ func setupSubvolumesAndMounts(chroot string, luksDevice string, d1 string, d2 st
 			// Set NoCoW attribute on directory
 			if _, err := shell.RunCommand("chattr", "+C", target); err != nil {
 				return fmt.Errorf("failed to set NoCoW on %s: %w", target, err)
-			}
-			// Disable compression on the subvolume
-			if _, err := shell.RunCommand("btrfs", "property", "set", target, "compression", "none"); err != nil {
-				return fmt.Errorf("failed to disable compression on %s: %w", target, err)
 			}
 		}
 	}
