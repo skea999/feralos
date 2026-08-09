@@ -64,7 +64,7 @@ FeralOS replaces traditional C components with memory-safe alternatives where po
 |---------|----------|-------|
 | fish | Rust | Friendly interactive shell (rewritten in Rust) |
 | fish-tools | Rust | Fish utilities |
-| less | C | Pager (dependency of bat; replaced with dummy package v999-r0) |
+| less | C | Pager (dependency of bat; replaced with dummy package v999 using APK v3 mkpkg) |
 | readline | C | Line editing |
 | ncurses-terminfo | C | Terminal info |
 | ncurses-terminfo-base | C | Base terminfo |
@@ -365,14 +365,14 @@ These C packages remain because no memory-safe alternative exists or the compone
 ### Package Masking (Resolved)
 - **Issue**: Alpine apk masking via `/etc/apk/world` conflicts with explicit package dependencies
 - **Example**: `bat` depends on `less` — masking `less` prevents `bat` from installing
-- **Resolution**: Replaced real `less` with dummy package (v999-r0). `less --version` prints dummy notice, `apk info less` shows dummy version.
+- **Resolution**: Replaced real `less` with dummy package (v999) using APK v3 `apk mkpkg`. Symlink `/usr/bin/less` → `/usr/bin/bat`. Installed before main `apk add`.
 
 ### Vector VRL Syntax Error (Fixed)
 - **Issue**: `parse_syslog(.message)` in syslog_parser transform is fallible
 - **Fix**: `parse_syslog(.message) ?? {}` fallback (E103 resolved)
 - **Status**: Vector fully working — socket on `/run/vector/syslog.sock`, logs in `/var/log/`
 
-### uutils-coreutils-more Conflict (Open)
+### uutils-coreutils-more Conflict (Resolved)
 - **Issue**: `uutils-coreutils-more` and `util-linux-misc` both provide `/usr/bin/more`
 - **Root cause**: `incus-feature-vm` depends on `util-linux-misc`, which conflicts with uutils more
-- **Status**: `uutils-coreutils-more` removed from packages. TODO: investigate masking util-linux-misc or alternative approach.
+- **Resolution**: Created empty dummy `util-linux-misc` (v999) via `providePackages` in internalRules.yaml. Dummy satisfies dependency without file conflicts. `uutils-coreutils-more` provides real `/usr/bin/more`.

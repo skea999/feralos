@@ -1434,7 +1434,7 @@ func (service *Service) Verify(ctx context.Context, cfg VerifyConfig) (VerifyRes
 		"sudo_installed":     "apk info | grep '^sudo-rs$' && echo 'sudo-rs installed' || echo 'sudo-rs not installed'",
 		"sudo_wheel":         "grep '^%wheel' /etc/sudoers.d/wheel 2>/dev/null || echo 'no wheel sudoers config'",
 		"sudo_works":         "sudo -n id 2>&1 || echo 'sudo requires password (expected for non-root)'",
-		"less_dummy":         "less --version 2>&1 | head -1; file $(which less 2>/dev/null) 2>&1 || echo 'less not found'",
+		"less_dummy":         "echo '=== file type ==='; ls -la /usr/bin/less 2>&1; echo '=== readlink ==='; readlink -f /usr/bin/less 2>&1; echo '=== version ==='; /usr/bin/less --version 2>&1 | head -1 || echo 'less binary not found'",
 	}
 
 	result := VerifyResult{RunDir: cfg.RunDir, Success: true, Checks: map[string]CheckResult{}}
@@ -1569,13 +1569,18 @@ func (service *Service) Verify(ctx context.Context, cfg VerifyConfig) (VerifyRes
 	}
 
 	if lessCheck, ok := result.Checks["less_dummy"]; ok {
-		// Verify dummy: either "dummy" in output or "shell script" in file type
-		isDummy := strings.Contains(lessCheck.Detail, "dummy") ||
-			strings.Contains(lessCheck.Detail, "shell script") ||
-			strings.Contains(lessCheck.Detail, "POSIX shell")
-		if !isDummy {
+		detail := lessCheck.Detail
+		// Check 1: /usr/bin/less should be a symlink (not a regular file)
+		isSymlink := strings.Contains(detail, "-> /usr/bin/bat") ||
+			strings.Contains(detail, "-> /usr/bin/") ||
+			strings.Contains(detail, "lrwxrwxrwx")
+		// Check 2: readlink should resolve to bat
+		resolvesToBat := strings.Contains(detail, "/usr/bin/bat")
+		// Check 3: version output should contain "bat" (not "less")
+		versionIsBat := strings.Contains(detail, "bat ")
+		if !isSymlink || !resolvesToBat || !versionIsBat {
 			lessCheck.Pass = false
-			lessCheck.Detail = lessCheck.Detail + "\nExpected dummy less (shell script) — real C less should be replaced"
+			lessCheck.Detail = detail + "\nExpected /usr/bin/less → /usr/bin/bat (symlink to memory-safe replacement)"
 			result.Checks["less_dummy"] = lessCheck
 			result.Success = false
 		}

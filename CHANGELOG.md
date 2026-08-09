@@ -33,6 +33,10 @@ All notable changes to FeralOS will be documented in this file.
 - `tests/debug-run/` — boot existing run without reinstalling (auto-detects latest run)
 - EFI keys generated AFTER package install (matches reference flow)
 - `WriteSecurebootConf` skips when `/etc/uefi-keys/db.key` missing
+- APK v3 dummy packages via `apk mkpkg` (replaces binary manipulation)
+- `providePackages` in internalRules.yaml for empty dependency-satisfying dummies
+- `util-linux-misc` dummy to resolve `uutils-coreutils-more` conflict with `incus-feature-vm`
+- `less_dummy` harness check (verifies symlink chain to bat)
 
 ### Fixed
 - Pointer copy bug in configurator.go, hardening.go, zswap.go (u := conf.User → u := &conf.User)
@@ -64,7 +68,6 @@ All notable changes to FeralOS will be documented in this file.
 - Package masking removed (apk `!pkg` conflicts with explicit dependencies)
 
 ### Open Issues
-- `less` package: masking conflicts with bat dependency — plan to solve via dummy package providing `less` (not implemented)
 - Secure Boot fix (efi-mkkeys after install) — pending harness revalidation
 
 ### Planned (Phase 2)

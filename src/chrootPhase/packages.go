@@ -7,23 +7,137 @@ import (
 	"strings"
 )
 
-// PackageDummy defines a package whose binaries should be replaced with no-op stubs.
-type PackageDummy struct {
-	Package string            // APK package name
-	Binaries map[string]string // binary path → dummy shell script content
+// InstallDummyPackages creates dummy packages for replaced C packages.
+// Reads rules from internalRules.yaml: for each rule, creates dummy for
+// replaced package with symlink to /usr/bin/<replacement>.
+// Also creates providePackages (empty dummies to satisfy dependencies).
+// Must be called BEFORE the main apk add so dependency resolvers find dummies.
+func InstallDummyPackages(conf *config.Config) error {
+	chroot := conf.Internal.ChrootDir
+	dummies := conf.Internal.DummyPackages
+	provides := conf.Internal.ProvidePackages
+	if len(dummies) == 0 && len(provides) == 0 {
+		return nil
+	}
+
+	fmt.Println("[INFO] Installing dummy packages (memory-safe replacements)...")
+
+	// Create replacement dummies (e.g., less → bat)
+	for replacement, rule := range dummies {
+		replaced := rule.Replace
+
+		// Binary path: /usr/bin/<replacement>
+		replacementBin := "/usr/bin/" + replacement
+		// Binary path for replaced: /usr/bin/<replaced>
+		replacedBin := "/usr/bin/" + replaced
+
+		// Create dummy APK package with symlink
+		if err := createDummySymlinkPackage(chroot, replaced, replacementBin, replacedBin); err != nil {
+			fmt.Printf("[WARNING] Failed to create dummy %s: %v\n", replaced, err)
+			continue
+		}
+	}
+
+	// Create provide dummies (empty packages to satisfy dependencies)
+	for _, pkgName := range provides {
+		if err := createProvideDummy(chroot, pkgName); err != nil {
+			fmt.Printf("[WARNING] Failed to create provide dummy %s: %v\n", pkgName, err)
+			continue
+		}
+	}
+
+	return nil
 }
 
-// dummyPackages lists all packages to replace with dummy stubs.
-// Add new entries here to dummy-ify additional C packages.
-var dummyPackages = []PackageDummy{
-	{
-		Package: "less",
-		Binaries: map[string]string{
-			"/usr/bin/less":    "#!/bin/sh\necho '[dummy] less disabled (memory-safety)' >&2\nexit 1\n",
-			"/usr/bin/lesskey": "#!/bin/sh\necho '[dummy] lesskey disabled (memory-safety)' >&2\nexit 1\n",
-			"/usr/bin/lessecho": "#!/bin/sh\necho '[dummy] lessecho disabled (memory-safety)' >&2\nexit 1\n",
-		},
-	},
+// createProvideDummy creates an empty dummy APK package (no files) to satisfy
+// a dependency without installing the real package. Used for packages like
+// util-linux-misc where we want the dependency satisfied but don't want
+// the real package's files (e.g., /usr/bin/more) to conflict with alternatives.
+func createProvideDummy(chroot, pkgName string) error {
+	fmt.Printf("[INFO] Creating provide dummy: %s v999 (empty)\n", pkgName)
+
+	apkPath := fmt.Sprintf("/tmp/provide-%s.apk", pkgName)
+
+	// Clean up any previous attempt
+	shell.RunChrootCommand(chroot, "rm -rf "+apkPath)
+
+	// Build empty APK v3 package using apk mkpkg (no --files)
+	mkpkgCmd := fmt.Sprintf(
+		"apk mkpkg --info name:%s --info version:999 --info description:Dummy %s for dependency satisfaction --info arch:noarch --output %s",
+		pkgName, pkgName, apkPath,
+	)
+	if _, err := shell.RunChrootCommand(chroot, mkpkgCmd); err != nil {
+		return fmt.Errorf("apk mkpkg failed for %s: %w", pkgName, err)
+	}
+
+	// Install the dummy package
+	if _, err := shell.RunChrootCommand(chroot, "apk add --allow-untrusted "+apkPath); err != nil {
+		return fmt.Errorf("failed to install provide dummy %s: %w", pkgName, err)
+	}
+
+	// Verify
+	verify, _ := shell.RunChrootCommand(chroot, "apk info -e "+pkgName+" 2>/dev/null && echo INSTALLED || echo NOT_INSTALLED")
+	if strings.Contains(verify, "INSTALLED") {
+		fmt.Printf("[INFO] Provide dummy %s v999 installed\n", pkgName)
+	} else {
+		fmt.Printf("[WARNING] Provide dummy %s may not be properly installed\n", pkgName)
+	}
+
+	// Clean up
+	shell.RunChrootCommand(chroot, "rm -rf "+apkPath)
+
+	return nil
+}
+
+// createDummySymlinkPackage creates a dummy APK v3 package where the binary
+// is a symlink to the replacement package's binary.
+func createDummySymlinkPackage(chroot, replacedPkg, replacementBin, replacedBin string) error {
+	fmt.Printf("[INFO] Creating dummy %s → symlink to %s\n", replacedPkg, replacementBin)
+
+	tmpDir := fmt.Sprintf("/tmp/dummy-%s", replacedPkg)
+	apkPath := fmt.Sprintf("/tmp/dummy-%s.apk", replacedPkg)
+
+	// Clean up any previous attempt
+	shell.RunChrootCommand(chroot, "rm -rf "+tmpDir+" "+apkPath)
+
+	// Create directory: /usr/bin
+	if _, err := shell.RunChrootCommand(chroot, "mkdir -p "+tmpDir+"/usr/bin"); err != nil {
+		return fmt.Errorf("failed to create dir: %w", err)
+	}
+
+	// Create symlink: /usr/bin/less → /usr/bin/bat
+	symlinkCmd := fmt.Sprintf("ln -s %s %s%s", replacementBin, tmpDir, replacedBin)
+	if _, err := shell.RunChrootCommand(chroot, symlinkCmd); err != nil {
+		return fmt.Errorf("failed to create symlink %s → %s: %w", replacedBin, replacementBin, err)
+	}
+
+	// Build APK v3 package using apk mkpkg
+	infoName := fmt.Sprintf("name:%s", replacedPkg)
+	mkpkgCmd := fmt.Sprintf(
+		"apk mkpkg --files %s --info %s --info version:999 --info description:Dummy %s replaced by %s --info arch:noarch --output %s",
+		tmpDir, infoName, replacedPkg, replacementBin, apkPath,
+	)
+	if _, err := shell.RunChrootCommand(chroot, mkpkgCmd); err != nil {
+		return fmt.Errorf("apk mkpkg failed for %s: %w", replacedPkg, err)
+	}
+
+	// Install the dummy package (untrusted because self-signed)
+	if _, err := shell.RunChrootCommand(chroot, "apk add --allow-untrusted "+apkPath); err != nil {
+		return fmt.Errorf("failed to install dummy %s: %w", replacedPkg, err)
+	}
+
+	// Verify installation
+	verify, _ := shell.RunChrootCommand(chroot, "apk info -e "+replacedPkg+" 2>/dev/null && echo INSTALLED || echo NOT_INSTALLED")
+	if strings.Contains(verify, "INSTALLED") {
+		fmt.Printf("[INFO] Dummy %s v999 installed (symlink to %s)\n", replacedPkg, replacementBin)
+	} else {
+		fmt.Printf("[WARNING] Dummy %s may not be properly installed\n", replacedPkg)
+	}
+
+	// Clean up temp files
+	shell.RunChrootCommand(chroot, "rm -rf "+tmpDir+" "+apkPath)
+
+	return nil
 }
 
 // InstallPackages installs all required packages inside the chroot.
@@ -37,6 +151,12 @@ func InstallPackages(conf *config.Config) error {
 
 	if _, err := shell.RunChrootCommand(chroot, "apk update"); err != nil {
 		return fmt.Errorf("apk update failed: %w", err)
+	}
+
+	// Install dummy packages FIRST so dependency resolvers find them
+	if err := InstallDummyPackages(conf); err != nil {
+		fmt.Printf("[WARNING] Dummy package installation failed: %v\n", err)
+		// Continue — dummies are optional, real packages will be installed
 	}
 
 	// Build complete package list
@@ -66,70 +186,16 @@ func InstallPackages(conf *config.Config) error {
 		allPkgs = append(allPkgs, "bubblewrap", "apparmor", "apparmor-profiles", "libapparmor", "apparmor-utils")
 	}
 
-	// Install all packages together
+	// Install all packages together (dummies already installed, won't pull real C packages)
 	pkgList := strings.Join(allPkgs, " ")
 	if _, err := shell.RunChrootCommand(chroot, "apk add "+pkgList); err != nil {
 		return fmt.Errorf("failed to install packages: %w", err)
-	}
-
-	// Replace C package binaries with memory-safe dummy stubs
-	for _, pkg := range dummyPackages {
-		if err := ReplacePackageBinaries(chroot, pkg); err != nil {
-			fmt.Printf("[WARNING] Failed to dummy %s: %v\n", pkg.Package, err)
-		}
 	}
 
 	// Generate EFI keys AFTER package installation (secureboot-hook needs them)
 	// Keys are always generated - the hook checks for their existence before signing.
 	if _, err := shell.RunChrootCommand(chroot, "efi-mkkeys -s 'FeralOS' -o /etc/uefi-keys"); err != nil {
 		return fmt.Errorf("efi-mkkeys failed: %w", err)
-	}
-
-	return nil
-}
-
-// ReplacePackageBinaries replaces all binaries of a package with no-op dummy scripts.
-// The package remains "installed" in apk (metadata stays), but its executables
-// are replaced with shell stubs that print a warning and exit 1.
-func ReplacePackageBinaries(chroot string, pkg PackageDummy) error {
-	fmt.Printf("[INFO] Replacing %s binaries with dummy stubs...\n", pkg.Package)
-
-	// Verify package is installed
-	installed, _ := shell.RunChrootCommand(chroot, "apk info -e "+pkg.Package+" 2>/dev/null && echo INSTALLED || echo NOT_INSTALLED")
-	if !strings.Contains(installed, "INSTALLED") {
-		fmt.Printf("[WARNING] Package %s not installed, skipping dummy replacement\n", pkg.Package)
-		return nil
-	}
-
-	// List files from the package
-	fileList, _ := shell.RunChrootCommand(chroot, "apk info -L "+pkg.Package+" 2>/dev/null")
-	fmt.Printf("[DEBUG] %s files:\n%s\n", pkg.Package, fileList)
-
-	// Replace each binary
-	for binPath, script := range pkg.Binaries {
-		// Check if binary exists
-		check, _ := shell.RunChrootCommand(chroot, "ls -la "+binPath+" 2>/dev/null && echo EXISTS || echo MISSING")
-		if strings.Contains(check, "MISSING") {
-			fmt.Printf("[DEBUG] %s not found, skipping\n", binPath)
-			continue
-		}
-
-		// Backup original (for debugging)
-		shell.RunChrootCommand(chroot, "cp "+binPath+" "+binPath+".orig 2>/dev/null || true")
-
-		// Write dummy script
-		writeCmd := fmt.Sprintf("printf '%%s' '%s' > %s", strings.ReplaceAll(script, "'", "'\\''"), binPath)
-		if _, err := shell.RunChrootCommand(chroot, writeCmd); err != nil {
-			fmt.Printf("[WARNING] Failed to write %s: %v\n", binPath, err)
-			continue
-		}
-
-		// Make executable
-		shell.RunChrootCommand(chroot, "chmod +x "+binPath)
-
-		// Verify
-		verify, _ := shell.RunChrootCommand(chroot, binPath+" 2>&1 || true")
-		fmt.Printf("[INFO] %s replaced: %s\n", binPath, strings.TrimSpace(verify))
 	}
 
 	return nil

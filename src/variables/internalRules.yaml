@@ -85,10 +85,11 @@ standardPackages:
   - uutils-coreutils
   - uutils-coreutils-hostname
   - uutils-coreutils-groups
-  # NOTE: uutils-coreutils-more conflicts with util-linux-misc (both provide /usr/bin/more)
+  # NOTE: uutils-coreutils-more was removed due to conflict with util-linux-misc
   # incus-feature-vm depends on util-linux-misc, so uutils-coreutils-more cannot coexist
-  # TODO: investigate if we can mask util-linux-misc or find another approach
-  # - uutils-coreutils-more
+  # Now using dummy packages: providePackages creates dummy util-linux-misc
+  # so incus dependency is satisfied, while uutils-coreutils-more provides /usr/bin/more
+  - uutils-coreutils-more
   - uutils-coreutils-uptime
   - micro
   - bottom
@@ -132,6 +133,24 @@ videoDrivers:
     modules: ["nvidia", "nvidia-modeset"]
   intel:
     packages: ["xf86-video-intel", "mesa-dri-intel"]
+
+# Dummy packages: if key is installed, create dummy for replaced package
+# Binary path inferred as /usr/bin/<replaced>
+dummyPackages:
+  bat:
+    replace: less
+  ripgrep:
+    replace: grep
+  fd:
+    replace: find
+  procs:
+    replace: ps
+  bottom:
+    replace: top
+  viddy:
+    replace: watch
+  gping:
+    replace: ping
 
 # Dynamic logic: if a package is in the install list, apply these changes
 packageLogic:
@@ -178,3 +197,8 @@ packageLogic:
     services: {"fwupd": "default"}
   earlyoom:
     services: {"earlyoom": "default"}
+
+# Packages to always provide as dummy (regardless of replacement)
+# Used to satisfy dependencies without installing the real package
+providePackages:
+  - util-linux-misc

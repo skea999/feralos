@@ -125,6 +125,8 @@ src/
 ### Phase 2: Chroot Operations (chrootPhase)
 
 1. **Install Packages** (`packages.go`)
+   - Install dummy packages (APK v3 `apk mkpkg`) for memory-safe replacements
+   - Install provide packages (empty dummies) to satisfy dependencies
    - Install standard packages from internalRules.yaml
    - Install layout-specific packages
    - Install desktop environment packages (if selected)

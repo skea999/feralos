@@ -243,7 +243,7 @@ feralos_installer/
 │   │       └── main.go
 │   └── chrootPhase/          # Chroot operations (runs INSIDE chroot)
 │       ├── configurator.go   # Run() principal
-│       ├── packages.go       # apk add, TPM packages
+│       ├── packages.go       # apk add, dummy packages, TPM packages
 │       ├── services.go       # OpenRC, aliases, symlinks, timezone
 │       ├── users.go          # User creation, groups, SSH, shell
 │       ├── dmcrypt.go        # LUKS swap keyfile + luksAddKey
@@ -398,6 +398,19 @@ feralos_installer/
 - Saved custom config to `docs/vector-config-reference.yaml`
 - Disabled custom config in installer for testing
 - **Next step**: Debug with `--keep-target-running` session to investigate `/dev/log` socket
+
+### 2026-08-09 13:00 - Dummy Packages: APK v3 + providePackages + uutils-coreutils-more
+**Agent:** codebase
+**Summary:** APK v3 dummy packages working, uutils-coreutils-more conflict resolved
+- **APK v3 dummies**: `apk mkpkg` creates valid packages (no handcraft needed), installed BEFORE main `apk add`
+- **providePackages**: New YAML section for empty dummies that satisfy dependencies (e.g., `util-linux-misc`)
+- **`DummyPackageRule` type**: `Replace string` field; binary path auto-inferred as `/usr/bin/<replaced>`
+- **`InstallDummyPackages()`**: Creates symlinks, builds APK, installs; called before main apk add
+- **`CreateDummySymlinkPackage()`**: Creates temp dir with symlinks, runs `apk mkpkg`, installs with `--allow-untrusted`
+- **Harness improved**: `less_dummy` check verifies symlink chain, readlink, and bat version output
+- **Removed old `ReplacePackageBinaries()`**: Binary replacement approach fully removed
+- **`uutils-coreutils-more` conflict resolved**: Dummy `util-linux-misc` satisfies `incus-feature-vm` dependency while `uutils-coreutils-more` provides `/usr/bin/more`
+- **All 22/22 checks pass** with all features (Secure Boot + TPM + Nix + Zswap + Hardening + Dummy packages)
 
 ### 2026-08-09 12:00 - Vector, Compression, SecureBoot Fix, Docs + Push
 **Agent:** codebase

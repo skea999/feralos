@@ -58,6 +58,15 @@ type InternalRules struct {
 	DesktopEnvironments map[string]DynamicPackageRules `yaml:"desktopEnvironments"`
 	VideoDrivers        map[string]DynamicPackageRules `yaml:"videoDrivers"`
 	PackageLogic        map[string]DynamicPackageRules `yaml:"packageLogic"`
+	DummyPackages       map[string]DummyPackageRule    `yaml:"dummyPackages"`
+	ProvidePackages     []string                       `yaml:"providePackages"`
+}
+
+// DummyPackageRule defines a package to replace with a memory-safe dummy.
+// If the key (replacement) is installed, creates dummy for replaced package.
+// Binary path is inferred as /usr/bin/<replaced>.
+type DummyPackageRule struct {
+	Replace string `yaml:"replace"` // package name to replace
 }
 
 // Ensure the field is named "Packages" to match logic.go

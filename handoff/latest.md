@@ -9,7 +9,7 @@
 
 ## Current Focus
 
-Phase 1: Go installer complete. Both btrfsStandard and btrfsStandardServer pass 20/20 verification checks with ALL features enabled. **Vector fully working** — syslog socket on `/run/vector/syslog.sock`, log files in `/var/log/`.
+Phase 1: Go installer complete. Both btrfsStandard and btrfsStandardServer pass 22/22 verification checks with ALL features enabled. **Dummy packages working** — APK v3 `apk mkpkg` creates valid packages, `providePackages` resolves dependency conflicts.
 
 ## What's Working
 
@@ -36,16 +36,18 @@ Phase 1: Go installer complete. Both btrfsStandard and btrfsStandardServer pass 
 - **btrbk** — btrfs backup/snapshot tool with subvolume `@btrbk`
 - **turnstile** — session tracker for desktop environments
 - **internalRules.yaml cleaned** — only base OS in defaultRunlevels, services in packageLogic
+- **APK v3 dummy packages** — `apk mkpkg` creates valid packages, installed before main `apk add`
+- **providePackages** — empty dummies for dependency satisfaction (e.g., `util-linux-misc`)
+- **uutils-coreutils-more** — provides `/usr/bin/more`, dummy `util-linux-misc` satisfies `incus-feature-vm`
 
 ## What's Next
 
 ### Phase 1 (Installer)
-1. **Resolve less package issue via dummy package** — apk masking conflicts with bat dependency; plan is a dummy package providing `less` (open issue, not implemented)
-2. Test Secure Boot error fix (efi-mkkeys after package install)
-3. Test on real hardware with 2x NVMe
-4. Test with partial features (Secure Boot only, TPM only)
-5. Add more unit tests for verify checks
-6. Complete CI/CD pipeline
+1. Test Secure Boot error fix (efi-mkkeys after package install)
+2. Test on real hardware with 2x NVMe
+3. Test with partial features (Secure Boot only, TPM only)
+4. Add more unit tests for verify checks
+5. Complete CI/CD pipeline
 
 ### Phase 2 (Distribution)
 1. Dinit init system (replace OpenRC)
