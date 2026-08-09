@@ -16,18 +16,12 @@ func BuildAndDeployUKI(conf *config.Config) error {
 
 	fmt.Println("[INFO] Building and deploying signed UKI...")
 
-	// 1. Detect CPU vendor and install microcode
+	// 1. Detect CPU vendor (microcode already installed in packages.go)
 	ucodeImg := ""
 	cpuInfo, _ := shell.RunCommand("sh", "-c", "cat /proc/cpuinfo")
 	if strings.Contains(cpuInfo, "AMD") {
-		if _, err := shell.RunChrootCommand(chroot, "apk add amd-ucode"); err != nil {
-			return fmt.Errorf("failed to install amd-ucode: %w", err)
-		}
 		ucodeImg = "/boot/amd-ucode.img"
 	} else if strings.Contains(cpuInfo, "GenuineIntel") {
-		if _, err := shell.RunChrootCommand(chroot, "apk add intel-ucode"); err != nil {
-			return fmt.Errorf("failed to install intel-ucode: %w", err)
-		}
 		ucodeImg = "/boot/intel-ucode.img"
 	}
 	fmt.Printf("[DEBUG] Microcode: %s\n", ucodeImg)

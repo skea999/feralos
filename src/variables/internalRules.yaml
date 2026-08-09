@@ -79,11 +79,14 @@ standardPackages:
   - irqbalance
   - lm_sensors
   - dmidecode
+  - earlyoom
   # Memory-safe alternatives
   - uutils
   - uutils-coreutils
   - uutils-coreutils-hostname
-  - uutils-coreutils-stat
+  - uutils-coreutils-groups
+  - uutils-coreutils-more
+  - uutils-coreutils-uptime
   - micro
   - bottom
   - bandwhich

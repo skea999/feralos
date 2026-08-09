@@ -3,6 +3,8 @@
   "status": "active",
   "phase": "Phase 1: Installer",
   "active_goals": [
+    "Test Secure Boot error fix (efi-mkkeys after package install)",
+    "Resolve less package issue via dummy package (open issue)",
     "Test on real hardware with 2x NVMe (Phase 1)",
     "Add more integration tests (btrfsStandardServer, partial features)",
     "Plan Dinit integration (Phase 2)",
@@ -28,6 +30,11 @@
     "fstab_vs_mount check added to harness"
   ],
   "decisions": [
+    {
+      "date": "2026-08-09",
+      "decision": "less package issue: solve via dummy package",
+      "rationale": "apk masking (!less in world) conflicts with bat's explicit dependency. Plan: create dummy package that provides less, install with --allow-untrusted. NOT yet implemented."
+    },
     {
       "date": "2026-08-09",
       "decision": "Per-subvolume compression via btrfs property set",
@@ -163,6 +170,7 @@
     }
   ],
   "next_actions": [
+    "Implement dummy package for less (open issue)",
     "Test btrfsStandardServer with new harness (no ZFS disks)",
     "Test with partial features (Secure Boot only, TPM only)",
     "Test on real hardware with 2x NVMe",

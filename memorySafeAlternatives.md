@@ -64,7 +64,7 @@ FeralOS replaces traditional C components with memory-safe alternatives where po
 |---------|----------|-------|
 | fish | Rust | Friendly interactive shell (rewritten in Rust) |
 | fish-tools | Rust | Fish utilities |
-| less | C | Pager (masked by bat via packageMask) |
+| less | C | Pager (dependency of bat; plan: dummy package providing less) |
 | readline | C | Line editing |
 | ncurses-terminfo | C | Terminal info |
 | ncurses-terminfo-base | C | Base terminfo |
@@ -365,9 +365,9 @@ These C packages remain because no memory-safe alternative exists or the compone
 ### Package Masking (Not Possible)
 - **Issue**: Alpine apk masking via `/etc/apk/world` conflicts with explicit package dependencies
 - **Example**: `bat` depends on `less` — masking `less` prevents `bat` from installing
-- **Status**: Package masking removed from installer, `less` remains installed as dependency
+- **Status**: Package masking removed from installer. **Open issue**: solve via dummy package that provides `less` (not implemented)
 
-### Vector VRL Syntax Error (Open)
+### Vector VRL Syntax Error (Fixed)
 - **Issue**: `parse_syslog(.message)` in syslog_parser transform is fallible
-- **Fix needed**: Change to `structured, err = parse_syslog(.message)` with error handling
-- **Status**: Config fixed but Vector crashes silently at runtime — needs investigation
+- **Fix**: `parse_syslog(.message) ?? {}` fallback (E103 resolved)
+- **Status**: Vector fully working — socket on `/run/vector/syslog.sock`, logs in `/var/log/`

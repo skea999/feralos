@@ -40,10 +40,12 @@ Phase 1: Go installer complete. Both btrfsStandard and btrfsStandardServer pass 
 ## What's Next
 
 ### Phase 1 (Installer)
-1. Test on real hardware with 2x NVMe
-2. Test with partial features (Secure Boot only, TPM only)
-3. Add more unit tests for verify checks
-4. Complete CI/CD pipeline
+1. **Resolve less package issue via dummy package** — apk masking conflicts with bat dependency; plan is a dummy package providing `less` (open issue, not implemented)
+2. Test Secure Boot error fix (efi-mkkeys after package install)
+3. Test on real hardware with 2x NVMe
+4. Test with partial features (Secure Boot only, TPM only)
+5. Add more unit tests for verify checks
+6. Complete CI/CD pipeline
 
 ### Phase 2 (Distribution)
 1. Dinit init system (replace OpenRC)
@@ -88,6 +90,7 @@ Phase 1: Go installer complete. Both btrfsStandard and btrfsStandardServer pass 
 - **udev services**: In packageLogic under eudev (Alpine uses mdev by default)
 - **modules service**: Removed (booster loads /etc/modules automatically)
 - **btrbk snapshot_dir**: `/btrbk/snapshots` (not `/mnt/btrbk/snapshots`)
+- **less package**: open issue — solve via dummy package (masking conflicts with bat dependency)
 - **booster** instead of mkinitfs for initramfs
 - **Signed UKI** instead of GRUB for boot
 - **LUKS2** encryption on RAID and Swap partitions

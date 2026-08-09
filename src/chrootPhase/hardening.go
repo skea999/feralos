@@ -22,12 +22,9 @@ func WriteHardening(conf *config.Config) error {
 
 	fmt.Println("[INFO] Applying kernel hardening...")
 
-	// 1. Install AppArmor
-	if _, err := shell.RunChrootCommand(chroot, "apk add bubblewrap apparmor apparmor-profiles libapparmor apparmor-utils"); err != nil {
-		return fmt.Errorf("failed to install AppArmor: %w", err)
-	}
+	// AppArmor packages are installed in InstallPackages (packages.go)
 
-	// 2. Add AppArmor to boot runlevel
+	// 1. Add AppArmor to boot runlevel
 	if _, err := shell.RunChrootCommand(chroot, "rc-update add apparmor boot"); err != nil {
 		fmt.Printf("[WARNING] Failed to add apparmor to boot: %v\n", err)
 	}

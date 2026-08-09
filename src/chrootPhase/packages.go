@@ -20,33 +20,43 @@ func InstallPackages(conf *config.Config) error {
 		return fmt.Errorf("apk update failed: %w", err)
 	}
 
-	// Install key-generation tools first so we can generate EFI keys before
-	// secureboot-hook's post-install script runs (it needs /etc/uefi-keys/*).
-	if _, err := shell.RunChrootCommand(chroot, "apk add efi-mkkeys efitools openssl"); err != nil {
-		return fmt.Errorf("failed to install key-generation tools: %w", err)
-	}
-
-	// Generate EFI keys early so secureboot-hook can sign during package install.
-	if u.EnableSecureboot {
-		if _, err := shell.RunChrootCommand(chroot, "efi-mkkeys -s 'FeralOS Server' -o /etc/uefi-keys"); err != nil {
-			return fmt.Errorf("efi-mkkeys failed: %w", err)
-		}
-	}
+	// Build complete package list
+	var allPkgs []string
+	allPkgs = append(allPkgs, u.AllPackages...)
 
 	// Add TPM packages if enabled
-	tpmPackages := ""
 	if u.EnableTPM {
-		tpmPackages = " tpm2-tools tpm2-tss tpm2-tss-tcti-device"
+		allPkgs = append(allPkgs, "tpm2-tools", "tpm2-tss", "tpm2-tss-tcti-device")
 	}
 
-	pkgList := strings.Join(u.AllPackages, " ") + tpmPackages
+	// Add UKI microcode packages based on CPU (detect inside chroot)
+	cpuInfo, _ := shell.RunChrootCommand(chroot, "cat /proc/cpuinfo")
+	if strings.Contains(cpuInfo, "AMD") {
+		allPkgs = append(allPkgs, "amd-ucode")
+	} else if strings.Contains(cpuInfo, "GenuineIntel") {
+		allPkgs = append(allPkgs, "intel-ucode")
+	}
+
+	// Add Nix packages if enabled
+	if u.EnableNix {
+		allPkgs = append(allPkgs, "nix", "nix-openrc", "nix-bash-completion", "nix-zsh-completion")
+	}
+
+	// Add hardening packages if enabled
+	if u.EnableHardening {
+		allPkgs = append(allPkgs, "bubblewrap", "apparmor", "apparmor-profiles", "libapparmor", "apparmor-utils")
+	}
+
+	// Install all packages together
+	pkgList := strings.Join(allPkgs, " ")
 	if _, err := shell.RunChrootCommand(chroot, "apk add "+pkgList); err != nil {
 		return fmt.Errorf("failed to install packages: %w", err)
 	}
 
-	// Install earlyoom (separate for clarity)
-	if _, err := shell.RunChrootCommand(chroot, "apk add earlyoom"); err != nil {
-		return fmt.Errorf("failed to install earlyoom: %w", err)
+	// Generate EFI keys AFTER package installation (secureboot-hook needs them)
+	// Keys are always generated - the hook checks for their existence before signing.
+	if _, err := shell.RunChrootCommand(chroot, "efi-mkkeys -s 'FeralOS' -o /etc/uefi-keys"); err != nil {
+		return fmt.Errorf("efi-mkkeys failed: %w", err)
 	}
 
 	return nil

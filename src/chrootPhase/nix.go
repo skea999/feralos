@@ -22,12 +22,9 @@ func SetupNix(conf *config.Config) error {
 
 	fmt.Println("[INFO] Installing and configuring Nix...")
 
-	// 1. Install Nix from Alpine repos
-	if _, err := shell.RunChrootCommand(chroot, "apk add nix nix-openrc nix-bash-completion nix-zsh-completion"); err != nil {
-		return fmt.Errorf("failed to install Nix: %w", err)
-	}
+	// Nix packages are installed in InstallPackages (packages.go)
 
-	// 2. Configure nix daemon
+	// 1. Configure nix daemon
 	fmt.Println("[INFO] Configuring Nix daemon...")
 	nixConf := `build-dir = /nix/var/nix/build
 extra-experimental-features = nix-command flakes

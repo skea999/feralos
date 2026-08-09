@@ -181,6 +181,12 @@ src/
 10. **Final Upgrade** (`configurator.go`)
     - Run apk update && apk upgrade
 
+11. **Write Vector Config** (`configurator.go`)
+    - Write `/etc/vector/vector.yaml` AFTER package install (apk overwrites with demo_logs)
+    - Socket source on `/run/vector/syslog.sock` (symlinked from `/dev/log`)
+    - Sinks: `/var/log/messages`, `auth.log`, `daemon.log`, `kern.log`
+    - `vector-setup` service (boot) creates dirs, symlink, chowns `/var/log`
+
 ## Key Components
 
 ### Disk Layouts
@@ -253,6 +259,8 @@ src/
 - **Harness**: QEMU-based testing with virtual machines
 - **Artifacts**: Test outputs in tests/artifacts/ (gitignored)
 - **Modes**: Install, boot, shell access for manual testing
+- **Checks**: 22/22 verification checks incl. `fstab_vs_mount`, `vector_*`, `apk_packages` dumps
+- **debug-run**: `tests/debug-run/` boots an existing run without reinstalling (auto-detects latest run dir)
 
 ## Build & Run
 
