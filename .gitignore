@@ -41,6 +41,7 @@ tests/harness/work/
 tests/harness/iso/
 tests/harness/coverage.out
 tests/harness/skea-harness
+tests/debug-run/debug-run
 
 # Artifacts - ignore all files, keep .gitkeep for structure
 tests/artifacts/**/*

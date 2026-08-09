@@ -145,106 +145,51 @@ fi
 	}
 
 	// 11. Vector Logging Configuration
-	// DISABLED: Testing Alpine default Vector config
-	// Saved to docs/vector-config-reference.yaml
-	/*
-	fmt.Println("[DEBUG] Writing Vector logging configuration")
-	vectorConfig := `# Vector configuration for FeralOS
-	# Replaces rsyslog + logrotate with memory-safe Rust alternative
+	// NOTE: Vector config is written AFTER package install in chrootPhase/configurator.go
+	// because `apk add vector` overwrites /etc/vector/vector.yaml with demo_logs placeholder.
+	// The init script (vector-setup) handles non-persistent directories at boot time.
+	// Runs in 'boot' stage after localmount (where /var/log is mounted), before vector service.
 
-	data_dir: "/var/lib/vector"
+	// Create boot service to setup Vector directories before vector starts
+	// This ensures /run/vector exists and /dev/log symlink is created on every boot
+	fmt.Println("[DEBUG] Creating vector-setup boot service")
+	vectorSetupInit := `#!/sbin/openrc-run
 
-	sources:
-	  syslog:
-	    type: socket
-	    mode: unix_datagram
-	    path: /dev/log
+depend() {
+    after localmount
+    before vector
+    keyword -stop
+}
 
-	transforms:
-	  syslog_parser:
-	    type: remap
-	    inputs:
-	      - syslog
-	    source: |
-	      structured = parse_syslog(.message) ?? {}
-	      . = structured
-
-	  auth_logs:
-	    type: filter
-	    inputs:
-	      - syslog_parser
-	    condition: '.facility == "auth" || .facility == "authpriv"'
-
-	  daemon_logs:
-	    type: filter
-	    inputs:
-	      - syslog_parser
-	    condition: '.facility == "daemon"'
-
-	  kernel_logs:
-	    type: filter
-	    inputs:
-	      - syslog_parser
-	    condition: '.facility == "kern"'
-
-	  syslog_logs:
-	    type: filter
-	    inputs:
-	      - syslog_parser
-	    condition: '.facility == "syslog"'
-
-	sinks:
-	  messages:
-	    type: file
-	    inputs:
-	      - syslog_parser
-	    path: "/var/log/messages"
-	    encoding:
-	      codec: text
-
-	  auth_log:
-	    type: file
-	    inputs:
-	      - auth_logs
-	    path: "/var/log/auth.log"
-	    encoding:
-	      codec: text
-
-	  daemon_log:
-	    type: file
-	    inputs:
-	      - daemon_logs
-	    path: "/var/log/daemon.log"
-	    encoding:
-	      codec: text
-
-	  kernel_log:
-	    type: file
-	    inputs:
-	      - kernel_logs
-	    path: "/var/log/kern.log"
-	    encoding:
-	      codec: text
-
-	  syslog_log:
-	    type: file
-	    inputs:
-	      - syslog_logs
-	    path: "/var/log/syslog"
-	    encoding:
-	      codec: text
-	`
-	if err := files.WriteFileInChroot(chroot, "/etc/vector/vector.yaml", vectorConfig); err != nil {
-		return fmt.Errorf("failed to write vector config: %w", err)
+start() {
+    ebegin "Setting up Vector directories and socket"
+    # Create /run/vector directory (tmpfs, lost on reboot)
+    mkdir -p /run/vector
+    chown vector:vector /run/vector
+    chmod 755 /run/vector
+    # Create symlink /dev/log -> Vector socket
+    ln -sf /run/vector/syslog.sock /dev/log
+    # Chown /var/log directory (files created by Vector will be owned by vector)
+    chown vector:vector /var/log
+    # Chown btrbk directory
+    chown btrbk:btrbk /btrbk 2>/dev/null || true
+    eend $?
+}
+`
+	if err := files.WriteFileInChroot(chroot, "/etc/init.d/vector-setup", vectorSetupInit); err != nil {
+		fmt.Printf("[WARNING] Failed to write vector-setup init script: %v\n", err)
 	}
-	*/
+	// Make init script executable
+	if _, err := shell.RunChrootCommand(chroot, "chmod +x /etc/init.d/vector-setup"); err != nil {
+		fmt.Printf("[WARNING] Failed to make vector-setup executable: %v\n", err)
+	}
 
 	// 12. Btrbk Configuration (btrfs backup)
 	fmt.Println("[DEBUG] Writing btrbk configuration")
 	btrbkConfig := `# btrbk configuration for FeralOS
 # Snapshot management for btrfs subvolumes
 
-snapshot_dir  /mnt/btrbk/snapshots
+snapshot_dir  /btrbk/snapshots
 subvolume     /
 # Include all subvolumes for snapshots
 incremental   yes
@@ -266,6 +211,11 @@ logdir        /var/log/btrbk
 `
 	if err := files.WriteFileInChroot(chroot, "/etc/btrbk/btrbk.conf", btrbkConfig); err != nil {
 		return fmt.Errorf("failed to write btrbk config: %w", err)
+	}
+
+	// Create btrbk directories
+	if _, err := shell.RunChrootCommand(chroot, "mkdir -p /btrbk/snapshots /var/log/btrbk"); err != nil {
+		fmt.Printf("[WARNING] Failed to create btrbk directories: %v\n", err)
 	}
 
 	// Create btrbk snapshot directory

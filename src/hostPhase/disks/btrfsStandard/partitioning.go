@@ -173,6 +173,7 @@ func setupSubvolumesAndMounts(chroot string, luksDevice string, disk string) err
 		{Name: "@var-lib-containerd", Path: "/var/lib/containerd", Options: "compress=zstd:3,autodefrag,ssd"},
 		{Name: "@var-lib-docker", Path: "/var/lib/docker", Options: "compress=zstd:3,autodefrag,ssd"},
 		{Name: "@var-lib-containers", Path: "/var/lib/containers", Options: "compress=zstd:3,autodefrag,ssd"},
+		{Name: "@var-lib-vector", Path: "/var/lib/vector", Options: "compress=zstd:3,autodefrag,ssd"},
 		{Name: "@var-cache", Path: "/var/cache", Options: "compress=zstd:3,autodefrag,ssd"},
 		{Name: "@var-log", Path: "/var/log", Options: "compress=no,nodev,noexec,nosuid,autodefrag,ssd", NoCoW: true},
 		{Name: "@var-opt", Path: "/var/opt", Options: "compress=zstd:3,autodefrag,ssd"},
@@ -185,6 +186,8 @@ func setupSubvolumesAndMounts(chroot string, luksDevice string, disk string) err
 		{Name: "@nix-var-nix", Path: "/nix/var/nix", Options: "compress=zstd:3,autodefrag,ssd"},
 		{Name: "@nix-var-log", Path: "/nix/var/log", Options: "compress=no,nodev,noexec,nosuid,autodefrag,ssd", NoCoW: true},
 		{Name: "@nix-var-nix-build", Path: "/nix/var/nix/build", Options: "compress=zstd:3,autodefrag,ssd"},
+		// Btrbk backup
+		{Name: "@btrbk", Path: "/btrbk", Options: "compress=zstd:3,autodefrag,ssd"},
 	}
 
 	// Temporary mount to create subvolumes

@@ -1,10 +1,12 @@
 chrootDir: "/mnt"
 
-# Default system runlevels
+# Default system runlevels — only base OS services
+# NOTE: 'modules' service not needed with booster (loads /etc/modules automatically)
+# NOTE: udev services are in packageLogic under eudev (Alpine uses mdev by default)
 defaultRunlevels:
   sysinit: ["devfs", "dmesg", "sysctl", "sysfs"]
-  boot: ["hwclock", "modules", "hostname", "bootmisc", "binfmt", "fsck", "vector", "root", "procfs", "loadkmap", "localmount", "dmcrypt", "btrfs-scan", "udev", "udev-trigger", "udev-settle"]
-  default: ["swap", "cronie", "chronyd", "dbus", "sshd", "cgroups", "smartd", "acpid", "irqbalance", "fwupd", "udev-postmount", "earlyoom"]
+  boot: ["hwclock", "hostname", "bootmisc", "binfmt", "fsck", "root", "procfs", "loadkmap", "localmount"]
+  default: ["swap", "cgroups", "networking"]
   shutdown: ["mount-ro", "killprocs", "savecache"]
 
 # Fixed system packages — matches reference skeaSimpleServer exactly
@@ -127,6 +129,8 @@ videoDrivers:
 
 # Dynamic logic: if a package is in the install list, apply these changes
 packageLogic:
+  eudev:
+    services: {"udev": "boot", "udev-trigger": "boot", "udev-settle": "boot", "udev-postmount": "default"}
   incus-feature:
     groups: ["incus-admin"]
     services: {"incusd": "default"}
@@ -140,6 +144,8 @@ packageLogic:
   btrfs-progs:
     services: {"btrfs-scan": "boot"}
     modules: ["btrfs"]
+  cryptsetup:
+    services: {"dmcrypt": "boot"}
   sudo-rs:
     groups: ["wheel"]
   doas:
@@ -147,4 +153,22 @@ packageLogic:
   sudo:
     groups: ["wheel"]
   vector:
-    services: {"vector": "boot"}
+    services: {"vector": "boot", "vector-setup": "boot"}
+  cronie:
+    services: {"cronie": "default"}
+  chrony:
+    services: {"chronyd": "default"}
+  dbus:
+    services: {"dbus": "default"}
+  openssh:
+    services: {"sshd": "default"}
+  smartmontools:
+    services: {"smartd": "default"}
+  acpid:
+    services: {"acpid": "default"}
+  irqbalance:
+    services: {"irqbalance": "default"}
+  fwupd:
+    services: {"fwupd": "default"}
+  earlyoom:
+    services: {"earlyoom": "default"}

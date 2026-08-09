@@ -399,6 +399,19 @@ feralos_installer/
 - Disabled custom config in installer for testing
 - **Next step**: Debug with `--keep-target-running` session to investigate `/dev/log` socket
 
+### 2026-08-08 22:00 - Vector Fully Working + internalRules Cleanup
+**Agent:** codebase
+**Summary:** Vector now works correctly, internalRules cleaned up
+- **Root cause fixed**: Vector socket on `/run/vector/syslog.sock` (not `/dev/log`)
+- **vector-setup service**: boot stage, creates /run/vector, /dev/log symlink, chown /var/log
+- **Vector config**: Written AFTER package install (apk overwrites with demo_logs)
+- **Vector check**: `apk info | grep -q '^vector$'` (init-system agnostic)
+- **internalRules.yaml cleaned**: Only base OS in defaultRunlevels, services in packageLogic
+- **udev services**: Moved to packageLogic under eudev
+- **modules service**: Removed (booster loads /etc/modules)
+- **btrbk**: Added subvolume @btrbk, fixed snapshot_dir path
+- **All 20/20 checks pass** with Vector working correctly
+
 ### 2026-08-06 18:15 - Harness Refactoring: -f variables.yaml + efivars
 **Agent:** codebase
 **Summary:** Harness now accepts -f variables.yaml, efivars working

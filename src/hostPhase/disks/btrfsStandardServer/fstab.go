@@ -87,6 +87,7 @@ func GenerateFstab(conf *config.Config) error {
 		{Name: "@var-lib-containerd", Path: "/var/lib/containerd", Options: "compress=zstd:3,autodefrag,ssd,subvol=@var-lib-containerd"},
 		{Name: "@var-lib-docker", Path: "/var/lib/docker", Options: "compress=zstd:3,autodefrag,ssd,subvol=@var-lib-docker"},
 		{Name: "@var-lib-containers", Path: "/var/lib/containers", Options: "compress=zstd:3,autodefrag,ssd,subvol=@var-lib-containers"},
+		{Name: "@var-lib-vector", Path: "/var/lib/vector", Options: "compress=zstd:3,autodefrag,ssd,subvol=@var-lib-vector"},
 		{Name: "@var-cache", Path: "/var/cache", Options: "compress=zstd:3,autodefrag,ssd,subvol=@var-cache"},
 		{Name: "@var-log", Path: "/var/log", Options: "autodefrag,ssd,nodev,noexec,nosuid,subvol=@var-log", NoCoW: true},
 		{Name: "@var-opt", Path: "/var/opt", Options: "compress=zstd:3,autodefrag,ssd,subvol=@var-opt"},
@@ -94,6 +95,8 @@ func GenerateFstab(conf *config.Config) error {
 		{Name: "@var-tmp", Path: "/var/tmp", Options: "autodefrag,ssd,nodev,noexec,nosuid,subvol=@var-tmp", NoCoW: true},
 		{Name: "@usr-local", Path: "/usr/local", Options: "compress=zstd:3,autodefrag,ssd,subvol=@usr-local"},
 		{Name: "@boot", Path: "/boot", Options: "compress=zstd:3,autodefrag,ssd,subvol=@boot"},
+		// Btrbk backup
+		{Name: "@btrbk", Path: "/btrbk", Options: "compress=zstd:3,autodefrag,ssd,subvol=@btrbk"},
 	}
 
 	for _, s := range subvols {

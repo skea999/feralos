@@ -85,12 +85,6 @@ func SetupServices(conf *config.Config) error {
 		}
 	}
 
-	// 9. Earlyoom service
-	fmt.Println("[INFO] Enabling earlyoom service...")
-	if _, err := shell.RunChrootCommand(chroot, "rc-update add earlyoom default"); err != nil {
-		fmt.Printf("[WARNING] Failed to add earlyoom to default: %v\n", err)
-	}
-
 	// 10. Smartd config
 	fmt.Println("[INFO] Configuring smartd...")
 	if err := files.WriteFileInChroot(chroot, "/etc/smartd.conf", "DEVICESCAN -a -o on -S on -s (S/../.././02|L/../../6/03) -W 4,40,45\n"); err != nil {
@@ -142,11 +136,6 @@ iface %s inet dhcp
 
 	if err := files.WriteFileInChroot(chroot, "/etc/network/interfaces", interfacesContent); err != nil {
 		return fmt.Errorf("failed to write /etc/network/interfaces: %w", err)
-	}
-
-	// Ensure networking service is enabled
-	if _, err := shell.RunChrootCommand(chroot, "rc-update add networking default"); err != nil {
-		fmt.Printf("[WARNING] Failed to add networking to default runlevel: %v\n", err)
 	}
 
 	return nil

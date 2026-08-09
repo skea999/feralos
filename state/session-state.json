@@ -3,25 +3,20 @@
   "status": "active",
   "phase": "Phase 1: Installer",
   "active_goals": [
-    "Fix Vector VRL syntax error in syslog_parser transform",
     "Test on real hardware with 2x NVMe (Phase 1)",
     "Add more integration tests (btrfsStandardServer, partial features)",
     "Plan Dinit integration (Phase 2)",
     "Design custom FeralOS repository (Phase 2)"
   ],
   "completed": [
-    "Both layouts pass 18/18 with ALL features (Secure Boot + TPM + Nix + Zswap + Hardening)",
-    "Clevis TPM2 binding works on both btrfsStandard (single disk) and btrfsStandardServer (RAID1)",
-    "Harness verification checks fully layout-aware",
-    "setup.sh simplified to launcher only (50 lines)",
-    "Harness writes variables.yaml directly, no stdin needed",
-    "Removed ZFS and btrfs-data disks from btrfsStandard (only 1 install disk)",
-    "Auto-clean old runs, keep last 2",
-    "Test artifacts cleaned, 14 .gitkeep files preserve structure",
-    "First boot programs converted from bash to standalone Go",
-    "Harness accepts -f variables.yaml (same as installer)",
-    "Harness binary in tests/harness/skea-harness (gitignored)",
-    "Harness parses all settings from variables.yaml (no CLI flags needed)",
+    "Vector fully working: syslog socket on /run/vector/syslog.sock, log files in /var/log/",
+    "Vector service: vector-setup (boot) + vector (boot), no more restarts",
+    "Vector check: apk info | grep -q '^vector$' (init-system agnostic)",
+    "internalRules.yaml cleaned: only base OS in defaultRunlevels, services in packageLogic",
+    "All 20/20 checks pass with Vector working",
+    "btrbk subvolume @btrbk added to both disk layouts",
+    "btrbk config fixed: snapshot_dir /btrbk/snapshots (not /mnt/btrbk/snapshots)",
+    "Both layouts pass 20/20 with ALL features",
     "rsyslog/logrotate replaced with vector (Rust)",
     "e2fsprogs removed from standardPackages",
     "zram-init removed, replaced with zswap + swap file",
@@ -31,109 +26,89 @@
   ],
   "decisions": [
     {
+      "date": "2026-08-08",
+      "decision": "Vector socket path: /run/vector/syslog.sock (not /dev/log)",
+      "rationale": "Vector user can't create socket in /dev (root-owned). /run/ is tmpfs, writable by all. Symlink /dev/log → /run/vector/syslog.sock for compatibility."
+    },
+    {
+      "date": "2026-08-08",
+      "decision": "vector-setup service in boot stage (not sysinit)",
+      "rationale": "/var/log is btrfs subvolume mounted by localmount in boot stage. vector-setup needs /var/log for chown."
+    },
+    {
+      "date": "2026-08-08",
+      "decision": "vector-setup: chown /var/log without -R flag",
+      "rationale": "Files created by Vector are already owned by vector user. Only directory ownership needed. Much faster than recursive chown."
+    },
+    {
+      "date": "2026-08-08",
+      "decision": "Vector config written AFTER package install",
+      "rationale": "apk add vector overwrites /etc/vector/vector.yaml with demo_logs placeholder. Config must be written after install."
+    },
+    {
+      "date": "2026-08-08",
+      "decision": "Vector check: apk info | grep -q '^vector$'",
+      "rationale": "Init-system agnostic, works with OpenRC and future dinit. Better than checking /etc/init.d/vector."
+    },
+    {
+      "date": "2026-08-08",
+      "decision": "internalRules.yaml: only base OS in defaultRunlevels",
+      "rationale": "Services moved to packageLogic. defaultRunlevels only contains kernel/OS services."
+    },
+    {
+      "date": "2026-08-08",
+      "decision": "udev services in packageLogic under eudev",
+      "rationale": "Alpine uses mdev by default. udev services only needed when eudev is installed."
+    },
+    {
+      "date": "2026-08-08",
+      "decision": "modules service removed from boot runlevel",
+      "rationale": "booster loads /etc/modules automatically. modules service not needed with booster."
+    },
+    {
+      "date": "2026-08-08",
+      "decision": "btrbk snapshot_dir: /btrbk/snapshots (not /mnt/btrbk/snapshots)",
+      "rationale": "Correct path for btrfs subvolume mount point."
+    },
+    {
+      "date": "2026-08-08",
+      "decision": "Vector VRL syntax: parse_syslog() ?? {} fallback",
+      "rationale": "parse_syslog() is fallible, needs error handling. Added ?? {} fallback for unparseable messages."
+    },
+    {
       "date": "2026-08-07",
       "decision": "rsyslog/logrotate replaced with vector (Rust)",
-      "rationale": "Memory-safe logging pipeline. Vector 0.55.0 in Alpine edge/community. Config: socket /dev/log → file sinks (/var/log/messages, auth.log, daemon.log, kern.log, syslog)."
+      "rationale": "Memory-safe logging pipeline. Vector 0.55.0 in Alpine edge/community."
     },
     {
       "date": "2026-08-07",
       "decision": "Package masking removed from installer",
-      "rationale": "Alpine apk masking via /etc/apk/world conflicts with explicit package dependencies (bat depends on less). Not possible to mask packages that are dependencies of explicitly installed packages."
+      "rationale": "Alpine apk masking via /etc/apk/world conflicts with explicit package dependencies."
     },
     {
       "date": "2026-08-07",
       "decision": "zram-init removed, replaced with zswap + swap file",
-      "rationale": "zswap is kernel feature for compressed swap cache. Swap file in /swap subvolume (8GB) with zstd compression. More flexible than zram."
-    },
-    {
-      "date": "2026-08-07",
-      "decision": "btrbk added to disk layouts",
-      "rationale": "Btrfs backup/snapshot tool. Config: /mnt/btrbk/snapshots, keep 7 daily + 4 weekly + 3 monthly. Installed with both btrfsStandard and btrfsStandardServer."
-    },
-    {
-      "date": "2026-08-07",
-      "decision": "turnstile added for desktop environments",
-      "rationale": "Session tracker (like systemd-logind). Required for KDE and niri desktop environments. Not needed for server/headless."
-    },
-    {
-      "date": "2026-08-07",
-      "decision": "e2fsprogs removed from standardPackages",
-      "rationale": "Not used - FeralOS uses btrfs, not ext*. Packages like e2fsprogs-libs still pulled as dependencies if needed."
+      "rationale": "zswap is kernel feature for compressed swap cache. More flexible than zram."
     },
     {
       "date": "2026-08-06",
       "decision": "Test artifacts: tests/artifacts/<tool-name>/<timestamp>/",
-      "rationale": "All test outputs go to tests/artifacts/<tool-name>/<timestamp>/. Example: tests/artifacts/feralos_create_config/20260806_021422/. Same pattern for harness, create_config, and any future tools."
-    },
-    {
-      "date": "2026-08-06",
-      "decision": "Test artifacts structure preserved with .gitkeep files",
-      "rationale": "All files in tests/artifacts/ are gitignored. Only .gitkeep files tracked to preserve directory structure. Harness auto-cleans old runs, keeps last 2."
-    },
-    {
-      "date": "2026-08-06",
-      "decision": "setup.sh: launcher only, no configuration logic",
-      "rationale": "Go installer handles all configuration via createConfig.PromptForConfig. setup.sh just builds and runs the binary."
-    },
-    {
-      "date": "2026-08-06",
-      "decision": "setup.sh --test for harness, -config for non-interactive",
-      "rationale": "Harness passes --test /path/to/repo -config variables.yaml. setup.sh validates --test requires -config."
+      "rationale": "All test outputs go to tests/artifacts/<tool-name>/<timestamp>/."
     },
     {
       "date": "2026-08-06",
       "decision": "Harness writes variables.yaml directly instead of stdin",
-      "rationale": "Replaced writeHarnessSetupInput + writeHarnessRuntimeOverrides with writeHarnessVariables. Single file, cleaner flow."
-    },
-    {
-      "date": "2026-08-06",
-      "decision": "btrfsStandard uses only 1 install disk",
-      "rationale": "No ZFS or btrfs-data disks needed. Only install-disk-1.qcow2 for single-disk layout."
-    },
-    {
-      "date": "2026-08-06",
-      "decision": "Auto-clean old runs, keep last 2",
-      "rationale": "Saves disk space. cleanOldRuns() runs at start of each harness run."
+      "rationale": "Replaced writeHarnessSetupInput + writeHarnessRuntimeOverrides with writeHarnessVariables."
     },
     {
       "date": "2026-08-05",
       "decision": "Clevis TPM2 bind policy: {} (no PCR policy, TPM identity only)",
-      "rationale": "PCR7 mismatch between bind time and boot time in QEMU/OVMF caused sealed keys to fail. Empty policy uses TPM identity only."
-    },
-    {
-      "date": "2026-08-05",
-      "decision": "clevis_bindings verify uses blkid for dynamic LUKS device discovery",
-      "rationale": "Hardcoded device names failed when target had 6 disks with variable naming. blkid -t TYPE=crypto_LUKS finds all LUKS devices regardless of naming."
-    },
-    {
-      "date": "2026-08-05",
-      "decision": "tpm_auto_unlock check tolerates booster prompt text",
-      "rationale": "booster shows fallback prompt text even when TPM token succeeds. SSH success is the real indicator, not serial log text."
-    },
-    {
-      "date": "2026-07-30",
-      "decision": "Made verification checks layout-aware",
-      "rationale": "btrfsStandard has 1 LUKS device with single data + DUP metadata, not RAID1. Added hasHealthyBtrfsSingleLayout() to validate single-disk layouts alongside existing RAID1 check."
-    },
-    {
-      "date": "2026-07-29",
-      "decision": "Shortened serial socket filename from target-serial.sock to tser.sock",
-      "rationale": "Unix socket path was 108 chars — 1 over Linux sun_path[108] limit, causing EINVAL on every connect()."
+      "rationale": "PCR7 mismatch between bind time and boot time in QEMU/OVMF caused sealed keys to fail."
     },
     {
       "date": "2026-07-28",
       "decision": "LUKS keyfile embedded in initramfs for auto-unlock",
       "rationale": "booster waits for interactive passphrase in QEMU headless — keyfile in initramfs enables automatic unlock."
-    },
-    {
-      "date": "2026-07-28",
-      "decision": "efibootmgr guarded with EFI availability check",
-      "rationale": "Runner VM is BIOS-only Debian, no /sys/firmware/efi."
-    },
-    {
-      "date": "2026-07-27",
-      "decision": "Console output via console=ttyS0,115200 in kernel cmdline",
-      "rationale": "QEMU target needs serial console to see boot output and debug failures."
     },
     {
       "date": "2026-07-26",
@@ -150,6 +125,32 @@
       "decision": "Btrfs RAID1 on LUKS (not mdadm)",
       "rationale": "Btrfs native RAID1 is simpler and more reliable than mdadm"
     }
+  ],
+  "risks": [
+    {
+      "risk": "NVMe disk naming varies across hardware",
+      "severity": "medium",
+      "mitigation": "Use blockdev for size detection, fdisk for partitioning"
+    },
+    {
+      "risk": "Nix integration may conflict with APK",
+      "severity": "medium",
+      "mitigation": "Use separate /nix prefix, avoid PATH conflicts"
+    },
+    {
+      "risk": "Boot failure after installation",
+      "severity": "high",
+      "status": "mitigated",
+      "mitigation": "LUKS keyfile auto-unlock, console=ttyS0,115200, per-device keyfile args"
+    }
+  ],
+  "next_actions": [
+    "Test btrfsStandardServer with new harness (no ZFS disks)",
+    "Test with partial features (Secure Boot only, TPM only)",
+    "Test on real hardware with 2x NVMe",
+    "Add more unit tests for verify checks"
+  ]
+}
   ],
   "risks": [
     {

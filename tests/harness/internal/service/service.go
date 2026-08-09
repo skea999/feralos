@@ -1425,11 +1425,14 @@ func (service *Service) Verify(ctx context.Context, cfg VerifyConfig) (VerifyRes
 		"clevis_packages":    "apk info | grep -E '^(bash|clevis|jose|luksmeta|tpm2-tools|tpm2-tss|tpm2-tss-tcti-device)$' || true",
 		"clevis_bindings":    "for dev in $(blkid -o device -t TYPE=crypto_LUKS 2>/dev/null); do printf '===%s===\\n' \"$dev\"; clevis luks list -d \"$dev\" 2>/dev/null || cryptsetup token list \"$dev\" || true; done",
 		"vector_service":     "rc-status boot 2>/dev/null | grep vector || rc-update show 2>/dev/null | grep vector || true",
-		"vector_logs":        "ls -la /var/log/messages /var/log/auth.log /var/log/daemon.log /var/log/kern.log /var/log/syslog 2>/dev/null || echo 'no vector log files'",
-		"vector_running":     "pgrep -x vector 2>/dev/null && echo 'running' || (ps aux 2>/dev/null | grep '[v]ector' || echo 'vector not running')",
+		"vector_logs":        "ls -la /var/log/vector*.log 2>/dev/null || echo 'no vector log files'",
+		"vector_running":     "pgrep -f '/usr/bin/vector' 2>/dev/null && echo 'running' || echo 'vector not running'",
 		"vector_diag":        "rc-status boot 2>/dev/null | grep vector; pgrep -la vector 2>/dev/null; ls -la /var/log/vector* 2>/dev/null; echo '===vector.log==='; cat /var/log/vector.log 2>/dev/null | tail -30; echo '===end==='; vector --version 2>&1 || true",
 		"zswap_status":       "cat /sys/kernel/debug/zswap/ 2>/dev/null || cat /sys/module/zswap/parameters/enabled 2>/dev/null || echo 'zswap not available'",
 		"apk_packages":       "apk info | sort",
+		"sudo_installed":     "apk info | grep '^sudo-rs$' && echo 'sudo-rs installed' || echo 'sudo-rs not installed'",
+		"sudo_wheel":         "grep '^%wheel' /etc/sudoers.d/wheel 2>/dev/null || echo 'no wheel sudoers config'",
+		"sudo_works":         "sudo -n id 2>&1 || echo 'sudo requires password (expected for non-root)'",
 	}
 
 	result := VerifyResult{RunDir: cfg.RunDir, Success: true, Checks: map[string]CheckResult{}}
@@ -1626,6 +1629,29 @@ func (service *Service) Verify(ctx context.Context, cfg VerifyConfig) (VerifyRes
 		}
 		result.Checks["zswap_status"] = zswapCheck
 	}
+
+	// Validate sudo installed check
+	if sudoInstalledCheck, ok := result.Checks["sudo_installed"]; ok {
+		if strings.Contains(sudoInstalledCheck.Detail, "not installed") {
+			sudoInstalledCheck.Pass = false
+			sudoInstalledCheck.Detail = sudoInstalledCheck.Detail + "\nExpected sudo-rs to be installed"
+			result.Checks["sudo_installed"] = sudoInstalledCheck
+			result.Success = false
+		}
+	}
+
+	// Validate sudo wheel check
+	if sudoWheelCheck, ok := result.Checks["sudo_wheel"]; ok {
+		if strings.Contains(sudoWheelCheck.Detail, "no wheel sudoers config") {
+			sudoWheelCheck.Pass = false
+			sudoWheelCheck.Detail = sudoWheelCheck.Detail + "\nExpected %wheel group in /etc/sudoers.d/wheel"
+			result.Checks["sudo_wheel"] = sudoWheelCheck
+			result.Success = false
+		}
+	}
+
+	// sudo_works check: just verify the command ran (password expected for non-root)
+	// This is informational - sudo requires password which is correct behavior
 
 	return result, nil
 }

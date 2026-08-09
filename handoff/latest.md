@@ -9,7 +9,7 @@
 
 ## Current Focus
 
-Phase 1: Go installer complete. Both btrfsStandard and btrfsStandardServer pass verification checks with ALL features enabled. **OPEN ISSUE**: Vector VRL syntax error in syslog_parser transform — `parse_syslog()` needs error handling (`structured, err = parse_syslog(.message)`).
+Phase 1: Go installer complete. Both btrfsStandard and btrfsStandardServer pass 20/20 verification checks with ALL features enabled. **Vector fully working** — syslog socket on `/run/vector/syslog.sock`, log files in `/var/log/`.
 
 ## What's Working
 
@@ -27,31 +27,92 @@ Phase 1: Go installer complete. Both btrfsStandard and btrfsStandardServer pass 
 - Interactive wizard and standalone generator
 - QEMU-based test harness with feature toggles
 - Non-interactive mode for automated testing
-- Improved logging with module context
 - **Clevis TPM2 binding** — empty PCR policy (TPM identity only)
-- **Auto-clean old runs** — keeps last 2, saves disk space
-- **Test artifacts** — 14 .gitkeep files preserve directory structure
 - **Vector logging** — replaces rsyslog/logrotate (Rust, memory-safe)
-- **btrbk** — btrfs backup/snapshot tool in disk layouts
+  - Socket: `/run/vector/syslog.sock` (symlinked from `/dev/log`)
+  - Sinks: `/var/log/messages`, `auth.log`, `daemon.log`, `kern.log`
+  - Service: `vector-setup` (boot) + `vector` (boot)
+  - Check: `apk info | grep -q '^vector$'` (init-system agnostic)
+- **btrbk** — btrfs backup/snapshot tool with subvolume `@btrbk`
 - **turnstile** — session tracker for desktop environments
+- **internalRules.yaml cleaned** — only base OS in defaultRunlevels, services in packageLogic
 
-## Known Issues
+## What's Next
 
-### Vector Crashes Silently at Runtime (HIGH PRIORITY)
-**Status**: Open
-**Details**: 
-- Alpine ships Vector 0.55.0 with a **demo config** (`demo_logs` → `console`)
-- Our custom config uses `socket` source on `/dev/log` which crashes Vector
-- supervise-daemon respawns 5x then gives up, `vector.log` is empty
-- Root cause likely: `/dev/log` socket permissions, vector user/group issues, or mdev device management
-- **Config saved to**: `docs/vector-config-reference.yaml`
-- **Custom config disabled in installer**: Testing Alpine default first
-- **Next step**: Debug with `--keep-target-running` session, check `/dev/log` socket
+### Phase 1 (Installer)
+1. Test on real hardware with 2x NVMe
+2. Test with partial features (Secure Boot only, TPM only)
+3. Add more unit tests for verify checks
+4. Complete CI/CD pipeline
 
-### Vector VRL Syntax Error (MEDIUM PRIORITY)
-**Status**: Open (fixed in config, but Vector crashes before reaching this)
-**Error**: `error[E103]: unhandled fallible assignment` in syslog_parser transform
-**Fix needed**: Change `structured = parse_syslog(.message)` to `structured, err = parse_syslog(.message)` with proper fallback
+### Phase 2 (Distribution)
+1. Dinit init system (replace OpenRC)
+2. Custom FeralOS repository
+3. Nix integration (glibc + alternatives)
+4. Full distribution release
+
+## Architecture Principle
+
+**Standard core, pluggable data.**
+
+- Installer logic never changes
+- Storage layouts are Go packages
+- Essential packages hardcoded in Go
+- Optional packages + rules in YAML
+- Parser always same code, only data changes
+
+## Key Files
+
+| File | Purpose |
+|------|---------|
+| `src/main.go` | Installer entry point |
+| `src/utils/config/config.go` | Config types + LoadConfig |
+| `src/utils/shell/shell.go` | RunCommand, RunChrootCommand |
+| `src/variables/variables.yaml` | Template with defaults |
+| `src/variables/internalRules.yaml` | Dynamic rules (packages, services) |
+| `src/hostPhase/` | Host-side operations |
+| `src/hostPhase/disks/` | Storage layouts (Go packages) |
+| `src/chrootPhase/` | Chroot operations |
+| `src/chrootPhase/configurator.go` | Main orchestrator |
+| `setup.sh` | Automated setup script |
+| `tests/harness/` | QEMU-based test harness |
+| `tests/debug-run/` | Debug tool for existing runs |
+
+## Decisions Made
+
+- **Vector socket**: `/run/vector/syslog.sock` (not `/dev/log` — permissions)
+- **vector-setup**: boot stage (not sysinit — /var/log mounted by localmount)
+- **Vector config**: Written AFTER package install (apk overwrites with demo_logs)
+- **Vector check**: `apk info | grep -q '^vector$'` (init-system agnostic)
+- **defaultRunlevels**: Only base OS services, rest in packageLogic
+- **udev services**: In packageLogic under eudev (Alpine uses mdev by default)
+- **modules service**: Removed (booster loads /etc/modules automatically)
+- **btrbk snapshot_dir**: `/btrbk/snapshots` (not `/mnt/btrbk/snapshots`)
+- **booster** instead of mkinitfs for initramfs
+- **Signed UKI** instead of GRUB for boot
+- **LUKS2** encryption on RAID and Swap partitions
+- **Btrfs RAID1** on LUKS (not mdadm)
+- **Phase separation**: hostPhase (writes files) vs chrootPhase (runs commands)
+
+## Memory-Safe Alternatives
+
+| Traditional (C) | FeralOS Alternative | Language |
+|-----------------|------------------|----------|
+| coreutils | uutils-coreutils | Rust |
+| vim/nano | micro | Go |
+| sudo | sudo-rs | Rust |
+| rsyslog/logrotate | vector | Rust |
+| bash/zsh | fish | Rust |
+| lxd | incus | Go |
+| openrc | dinit (future) | C++ |
+| grep (GNU) | ripgrep (optional) | Rust |
+| find (GNU) | fd (optional) | Rust |
+
+---
+
+*See `state/session-state.json` for current goals, decisions, risks, and next actions.*
+*See `AGENTS.md` for project context and milestone history.*
+*See `docs/PROJECT.md` for full distribution vision.*
 
 ## What's Next
 

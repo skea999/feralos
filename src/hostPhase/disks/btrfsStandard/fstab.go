@@ -84,6 +84,7 @@ func GenerateFstab(conf *config.Config) error {
 		{Name: "@var-lib-containerd", Path: "/var/lib/containerd", Options: "compress=zstd:3,autodefrag,ssd,subvol=@var-lib-containerd"},
 		{Name: "@var-lib-docker", Path: "/var/lib/docker", Options: "compress=zstd:3,autodefrag,ssd,subvol=@var-lib-docker"},
 		{Name: "@var-lib-containers", Path: "/var/lib/containers", Options: "compress=zstd:3,autodefrag,ssd,subvol=@var-lib-containers"},
+		{Name: "@var-lib-vector", Path: "/var/lib/vector", Options: "compress=zstd:3,autodefrag,ssd,subvol=@var-lib-vector"},
 		{Name: "@var-cache", Path: "/var/cache", Options: "compress=zstd:3,autodefrag,ssd,subvol=@var-cache"},
 		{Name: "@var-log", Path: "/var/log", Options: "autodefrag,ssd,nodev,noexec,nosuid,subvol=@var-log", NoCoW: true},
 		{Name: "@var-opt", Path: "/var/opt", Options: "compress=zstd:3,autodefrag,ssd,subvol=@var-opt"},
@@ -96,6 +97,8 @@ func GenerateFstab(conf *config.Config) error {
 		{Name: "@nix-var-nix", Path: "/nix/var/nix", Options: "compress=zstd:3,autodefrag,ssd,subvol=@nix-var-nix"},
 		{Name: "@nix-var-log", Path: "/nix/var/log", Options: "autodefrag,ssd,nodev,noexec,nosuid,subvol=@nix-var-log", NoCoW: true},
 		{Name: "@nix-var-nix-build", Path: "/nix/var/nix/build", Options: "compress=zstd:3,autodefrag,ssd,subvol=@nix-var-nix-build"},
+		// Btrbk backup
+		{Name: "@btrbk", Path: "/btrbk", Options: "compress=zstd:3,autodefrag,ssd,subvol=@btrbk"},
 	}
 
 	for _, s := range subvols {

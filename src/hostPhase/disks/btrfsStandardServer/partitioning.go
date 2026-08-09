@@ -233,6 +233,7 @@ func setupSubvolumesAndMounts(chroot string, luksDevice string, d1 string, d2 st
 		{Name: "@var-lib-containerd", Path: "/var/lib/containerd", Options: "compress=zstd:3,autodefrag,ssd"},
 		{Name: "@var-lib-docker", Path: "/var/lib/docker", Options: "compress=zstd:3,autodefrag,ssd"},
 		{Name: "@var-lib-containers", Path: "/var/lib/containers", Options: "compress=zstd:3,autodefrag,ssd"},
+		{Name: "@var-lib-vector", Path: "/var/lib/vector", Options: "compress=zstd:3,autodefrag,ssd"},
 		{Name: "@var-cache", Path: "/var/cache", Options: "compress=zstd:3,autodefrag,ssd"},
 		{Name: "@var-log", Path: "/var/log", Options: "compress=no,nodev,noexec,nosuid,autodefrag,ssd", NoCoW: true},
 		{Name: "@var-opt", Path: "/var/opt", Options: "compress=zstd:3,autodefrag,ssd"},
@@ -240,6 +241,8 @@ func setupSubvolumesAndMounts(chroot string, luksDevice string, d1 string, d2 st
 		{Name: "@var-tmp", Path: "/var/tmp", Options: "compress=no,nodev,noexec,nosuid,autodefrag,ssd", NoCoW: true},
 		{Name: "@usr-local", Path: "/usr/local", Options: "compress=zstd:3,autodefrag,ssd"},
 		{Name: "@boot", Path: "/boot", Options: "compress=zstd:3,autodefrag,ssd"},
+		// Btrbk backup
+		{Name: "@btrbk", Path: "/btrbk", Options: "compress=zstd:3,autodefrag,ssd"},
 	}
 
 	// Temporary mount to create subvolumes
