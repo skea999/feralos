@@ -37,7 +37,10 @@ func RunBtrfsSetup(conf *config.Config) error {
 	// 1. Cleanup environment
 	fmt.Println("[INFO] Stopping existing RAIDs and swaps...")
 	_, _ = shell.RunCommand("swapoff", "-a")
-	_, _ = shell.RunCommand("umount", "-fR", i.ChrootDir)
+	// Only unmount if something is actually mounted at ChrootDir
+	if _, err := shell.RunCommand("mountpoint", "-q", i.ChrootDir); err == nil {
+		_, _ = shell.RunCommand("umount", "-fR", i.ChrootDir)
+	}
 	_, _ = shell.RunCommand("mdadm", "--stop", "/dev/md?")
 	_, _ = shell.RunCommand("dmsetup", "ls", "--target", "crypt", "--exec", "cryptsetup close")
 

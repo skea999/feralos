@@ -65,7 +65,7 @@ MEMORY_IMPORTANCE=high ./scripts/save.sh "insight" "Users prefer dark mode"
 
 ## Storage
 
-JSONL files in `~/.agent-memory/YYYY/MM/DD.jsonl`:
+JSONL files in `.agent-memory/YYYY/MM/DD.jsonl` (relative to project root):
 
 ```json
 {"ts":1706793600000,"topic":"decision","content":"Chose X because Y","tags":["project"],"importance":"high"}

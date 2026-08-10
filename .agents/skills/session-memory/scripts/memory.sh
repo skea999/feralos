@@ -10,9 +10,7 @@ CMD=$1; shift
 case "$CMD" in
   save)     "$DIR/save.sh" "$@" ;;
   recall)   "$DIR/recall.sh" "$@" ;;
-  context)  DAYS=3; LIMIT=20
-            while [ $# -gt 0 ]; do case "$1" in --days) DAYS=$2; shift;; --limit) LIMIT=$2; shift;; esac; shift; done
-            "$DIR/context.sh" -Days "$DAYS" -Limit "$LIMIT" ;;
+  context)  "$DIR/context.sh" "$@" ;;
   daily)    "$DIR/daily.sh" "$@" ;;
   topics)   "$DIR/topics.sh" ;;
   consolidate) "$DIR/consolidate.sh" "$@" ;;

@@ -31,7 +31,10 @@ func RunBtrfsSetup(conf *config.Config) error {
 	// 1. Cleanup environment
 	fmt.Println("[INFO] Stopping existing swaps and mounts...")
 	_, _ = shell.RunCommand("swapoff", "-a")
-	_, _ = shell.RunCommand("umount", "-fR", i.ChrootDir)
+	// Only unmount if something is actually mounted at ChrootDir
+	if _, err := shell.RunCommand("mountpoint", "-q", i.ChrootDir); err == nil {
+		_, _ = shell.RunCommand("umount", "-fR", i.ChrootDir)
+	}
 
 	// 2. GPT Partitioning
 	// n1: EFI (512M), n2: LUKS ROOT (remainder)

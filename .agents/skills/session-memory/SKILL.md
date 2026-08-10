@@ -161,14 +161,16 @@ Moves memories older than N days (default: 30) to `archive/`.
 
 ## Storage
 
+Default: `.agent-memory/` relative to project root (override with `AGENT_MEMORY_DIR` env var).
+
 ```
-~/.agent-memory/
+.agent-memory/
 ├── 2026/
-│   ├── 01/
-│   │   ├── 15.jsonl
-│   │   └── 16.jsonl
-│   └── 02/
-│       └── 01.jsonl
+│   ├── 07/
+│   │   ├── 23.jsonl
+│   │   └── 24.jsonl
+│   └── 08/
+│       └── 09.jsonl
 └── archive/          # Pruned memories
 ```
 
