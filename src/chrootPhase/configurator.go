@@ -23,10 +23,19 @@ func Run(conf *config.Config) error {
 		return fmt.Errorf("package installation failed: %w", err)
 	}
 
+	// 1a. List installed packages (once for documentation and vector check)
+	fmt.Println("[INFO] Installed packages:")
+	pkgList, err := shell.RunChrootCommand(chroot, "apk info")
+	if err != nil {
+		fmt.Printf("[WARNING] Failed to list packages: %v\n", err)
+	} else {
+		fmt.Println(pkgList)
+	}
+
 	// 1b. Write Vector config AFTER package install (apk add vector overwrites /etc/vector/vector.yaml)
 	// This is the correct Vector config (syslog socket), not the demo_logs placeholder
 	fmt.Println("[INFO] Writing Vector logging configuration (after package install)...")
-	if err := WriteVectorConfigAfterInstall(chroot); err != nil {
+	if err := WriteVectorConfigAfterInstall(chroot, pkgList); err != nil {
 		fmt.Printf("[WARNING] Vector config failed: %v\n", err)
 	}
 
@@ -82,26 +91,17 @@ func Run(conf *config.Config) error {
 		fmt.Printf("[WARNING] Final upgrade failed: %v\n", err)
 	}
 
-	// 10. Print installed packages (for documentation/debugging)
-	fmt.Println("[INFO] Installed packages:")
-	if out, err := shell.RunChrootCommand(chroot, "apk info"); err != nil {
-		fmt.Printf("[WARNING] Failed to list packages: %v\n", err)
-	} else {
-		fmt.Println(out)
-	}
-
 	fmt.Println("[INFO] ChrootPhase.Run completed successfully.")
 	return nil
 }
 
 // WriteVectorConfigAfterInstall writes the correct Vector config AFTER package installation.
 // This must run after InstallPackages because `apk add vector` overwrites /etc/vector/vector.yaml
-// Only runs if vector is installed (check with apk info)
-func WriteVectorConfigAfterInstall(chroot string) error {
-	// Check if vector is installed via apk
-	checkCmd := "apk info | grep -q '^vector$' && echo yes || echo no"
-	out, _ := shell.RunChrootCommand(chroot, checkCmd)
-	if strings.TrimSpace(out) != "yes" {
+// Only runs if vector is installed (check with pkgList from apk info)
+func WriteVectorConfigAfterInstall(chroot string, pkgList string) error {
+	// Check if vector is installed (reuse pkgList to avoid second apk info call)
+	vectorInstalled := strings.Contains(pkgList, "\nvector\n") || strings.HasPrefix(pkgList, "vector\n") || strings.HasSuffix(pkgList, "\nvector")
+	if !vectorInstalled {
 		fmt.Println("[INFO] Vector not installed, skipping config")
 		return nil
 	}

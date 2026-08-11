@@ -176,6 +176,10 @@ func InstallPackages(conf *config.Config) error {
 		allPkgs = append(allPkgs, "intel-ucode")
 	}
 
+	// Add firmware packages based on detected hardware (detect inside chroot)
+	firmwarePkgs := DetectFirmwarePackages(chroot)
+	allPkgs = append(allPkgs, firmwarePkgs...)
+
 	// Add Nix packages if enabled
 	if u.EnableNix {
 		allPkgs = append(allPkgs, "nix", "nix-openrc", "nix-bash-completion", "nix-zsh-completion")
