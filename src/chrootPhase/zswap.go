@@ -60,10 +60,7 @@ func SetupZswap(conf *config.Config) error {
 		return fmt.Errorf("failed to format swap file: %w", err)
 	}
 
-	// Enable swap
-	if _, err := shell.RunChrootCommand(chroot, fmt.Sprintf("swapon %s", swapFile)); err != nil {
-		return fmt.Errorf("failed to enable swap file: %w", err)
-	}
+	// Note: swapon is not run in chroot — swap will be activated on next boot via fstab
 
 	// Add to fstab if not already present
 	fstabEntry := fmt.Sprintf("%s none swap sw 0 0", swapFile)

@@ -31,6 +31,10 @@ func SetupUsers(conf *config.Config) error {
 
 	// 3. Add to dynamic groups (from rules)
 	for _, group := range u.UserGroups {
+		// Create group first if it doesn't exist (some packages don't create runtime groups)
+		if _, err := shell.RunChrootCommand(chroot, fmt.Sprintf("addgroup %s 2>/dev/null || true", group)); err != nil {
+			fmt.Printf("[WARNING] Failed to create group %s: %v\n", group, err)
+		}
 		if _, err := shell.RunChrootCommand(chroot, fmt.Sprintf("adduser %s %s", u.UserName, group)); err != nil {
 			fmt.Printf("[WARNING] Failed to add %s to group %s: %v\n", u.UserName, group, err)
 		}

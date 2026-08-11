@@ -52,9 +52,8 @@ extra-experimental-features = nix-command flakes
 	if _, err := shell.RunChrootCommand(chroot, "nix-channel --add https://nixos.org/channels/nixos-26.05 nixpkgs"); err != nil {
 		fmt.Printf("[WARNING] Failed to add nix channel: %v\n", err)
 	}
-	if _, err := shell.RunChrootCommand(chroot, "nix-channel --update"); err != nil {
-		fmt.Printf("[WARNING] Failed to update nix channel: %v\n", err)
-	}
+	// Note: nix-channel --update is not run in chroot (pivot_root fails)
+	// Channel will be updated on first boot when nix-daemon starts
 
 	// 7. Environment variables for Nix
 	fmt.Println("[INFO] Setting Nix environment variables...")
@@ -80,6 +79,10 @@ set -gx XKB_CONFIG_ROOT /usr/share/X11/xkb
 export NIXPKGS_ALLOW_UNFREE=1
 export XKB_CONFIG_ROOT=/usr/share/X11/xkb
 `
+	// Create /etc/bash/ directory if it doesn't exist
+	if _, err := shell.RunChrootCommand(chroot, "mkdir -p /etc/bash"); err != nil {
+		fmt.Printf("[WARNING] Failed to create /etc/bash: %v\n", err)
+	}
 	if err := files.WriteFileInChroot(chroot, "/etc/bash/nix.sh", nixBashEnv); err != nil {
 		return fmt.Errorf("failed to write nix bash env: %w", err)
 	}

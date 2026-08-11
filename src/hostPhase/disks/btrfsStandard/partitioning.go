@@ -31,10 +31,8 @@ func RunBtrfsSetup(conf *config.Config) error {
 	// 1. Cleanup environment
 	fmt.Println("[INFO] Stopping existing swaps and mounts...")
 	_, _ = shell.RunCommand("swapoff", "-a")
-	// Only unmount if something is actually mounted at ChrootDir
-	if _, err := shell.RunCommand("mountpoint", "-q", i.ChrootDir); err == nil {
-		_, _ = shell.RunCommand("umount", "-fR", i.ChrootDir)
-	}
+	// Unmount if something is mounted at ChrootDir (ignore errors)
+	_, _ = shell.RunCommand("sh", "-c", "mountpoint -q "+i.ChrootDir+" && umount -fR "+i.ChrootDir+" || true")
 
 	// 2. GPT Partitioning
 	// n1: EFI (512M), n2: LUKS ROOT (remainder)
@@ -104,6 +102,7 @@ func RunBtrfsSetup(conf *config.Config) error {
 // createSwapfile creates a swapfile in the @swap subvolume.
 // Btrfs requires NoCoW for swapfiles.
 // NoCoW is already set on /swap directory by setupSubvolumesAndMounts (chattr +C).
+// Compression is disabled via compress=none mount option on @swap subvolume.
 func createSwapfile(chroot string) error {
 	swapDir := chroot + "/swap"
 	swapFile := swapDir + "/swapfile"
@@ -127,11 +126,6 @@ func createSwapfile(chroot string) error {
 	// Set permissions
 	if _, err := shell.RunCommand("chmod", "600", swapFile); err != nil {
 		return fmt.Errorf("failed to chmod swapfile: %w", err)
-	}
-
-	// Disable compression on swapfile (required for btrfs swapfiles)
-	if _, err := shell.RunCommand("chattr", "+m", swapFile); err != nil {
-		return fmt.Errorf("failed to set NOCOMPRESS on swapfile: %w", err)
 	}
 
 	// Format as swap
@@ -167,60 +161,69 @@ func getBtrfsUUID(device string) string {
 
 func setupSubvolumesAndMounts(chroot string, luksDevice string, disk string) error {
 	subvols := []Subvolume{
-		{Name: "@", Path: "", Options: "autodefrag,ssd"},
-		{Name: "@swap", Path: "/swap", Options: "autodefrag,ssd", NoCoW: true},
-		{Name: "@home", Path: "/home", Options: "autodefrag,ssd"},
-		{Name: "@opt", Path: "/opt", Options: "autodefrag,ssd"},
-		{Name: "@root", Path: "/root", Options: "autodefrag,ssd"},
+		{Name: "@", Path: "/", Options: "compress=zstd:3,autodefrag,ssd"},
+		{Name: "@swap", Path: "/swap", Options: "autodefrag,ssd,nodev,noexec,nosuid", NoCoW: true},
+		{Name: "@home", Path: "/home", Options: "compress=zstd:3,autodefrag,ssd"},
+		{Name: "@opt", Path: "/opt", Options: "compress=zstd:3,autodefrag,ssd"},
+		{Name: "@root", Path: "/root", Options: "compress=zstd:3,autodefrag,ssd"},
 		{Name: "@srv", Path: "/srv", Options: "autodefrag,ssd,nodev,noexec,nosuid", NoCoW: true},
-		{Name: "@tmp", Path: "/tmp", Options: "autodefrag,ssd,noexec,nosuid"},
-		{Name: "@var", Path: "/var", Options: "autodefrag,ssd"},
+		{Name: "@tmp", Path: "/tmp", Options: "compress=zstd:3,autodefrag,ssd,noexec,nosuid"},
+		{Name: "@var", Path: "/var", Options: "compress=zstd:3,autodefrag,ssd"},
 		{Name: "@var-lib-ex", Path: "/var/lib/ex", Options: "autodefrag,ssd,nodev,noexec,nosuid", NoCoW: true},
-		{Name: "@var-lib-libvirt", Path: "/var/lib/libvirt", Options: "autodefrag,ssd"},
-		{Name: "@var-lib-incus", Path: "/var/lib/incus", Options: "autodefrag,ssd"},
-		{Name: "@var-lib-containerd", Path: "/var/lib/containerd", Options: "autodefrag,ssd"},
-		{Name: "@var-lib-docker", Path: "/var/lib/docker", Options: "autodefrag,ssd"},
-		{Name: "@var-lib-containers", Path: "/var/lib/containers", Options: "autodefrag,ssd"},
-		{Name: "@var-lib-vector", Path: "/var/lib/vector", Options: "autodefrag,ssd"},
-		{Name: "@var-cache", Path: "/var/cache", Options: "autodefrag,ssd"},
+		{Name: "@var-lib-libvirt", Path: "/var/lib/libvirt", Options: "compress=zstd:3,autodefrag,ssd"},
+		{Name: "@var-lib-incus", Path: "/var/lib/incus", Options: "compress=zstd:3,autodefrag,ssd"},
+		{Name: "@var-lib-containerd", Path: "/var/lib/containerd", Options: "compress=zstd:3,autodefrag,ssd"},
+		{Name: "@var-lib-docker", Path: "/var/lib/docker", Options: "compress=zstd:3,autodefrag,ssd"},
+		{Name: "@var-lib-containers", Path: "/var/lib/containers", Options: "compress=zstd:3,autodefrag,ssd"},
+		{Name: "@var-lib-vector", Path: "/var/lib/vector", Options: "compress=zstd:3,autodefrag,ssd"},
+		{Name: "@var-cache", Path: "/var/cache", Options: "compress=zstd:3,autodefrag,ssd"},
 		{Name: "@var-log", Path: "/var/log", Options: "autodefrag,ssd,nodev,noexec,nosuid", NoCoW: true},
-		{Name: "@var-opt", Path: "/var/opt", Options: "autodefrag,ssd"},
+		{Name: "@var-opt", Path: "/var/opt", Options: "compress=zstd:3,autodefrag,ssd"},
 		{Name: "@var-spool", Path: "/var/spool", Options: "autodefrag,ssd,nodev,noexec,nosuid", NoCoW: true},
 		{Name: "@var-tmp", Path: "/var/tmp", Options: "autodefrag,ssd,nodev,noexec,nosuid", NoCoW: true},
-		{Name: "@usr-local", Path: "/usr/local", Options: "autodefrag,ssd"},
-		{Name: "@boot", Path: "/boot", Options: "autodefrag,ssd"},
+		{Name: "@usr-local", Path: "/usr/local", Options: "compress=zstd:3,autodefrag,ssd"},
+		{Name: "@boot", Path: "/boot", Options: "compress=zstd:3,autodefrag,ssd"},
 		// Nix package manager
-		{Name: "@nix-store", Path: "/nix/store", Options: "autodefrag,ssd"},
-		{Name: "@nix-var-nix", Path: "/nix/var/nix", Options: "autodefrag,ssd"},
+		{Name: "@nix-store", Path: "/nix/store", Options: "compress=zstd:3,autodefrag,ssd"},
+		{Name: "@nix-var-nix", Path: "/nix/var/nix", Options: "compress=zstd:3,autodefrag,ssd"},
 		{Name: "@nix-var-log", Path: "/nix/var/log", Options: "autodefrag,ssd,nodev,noexec,nosuid", NoCoW: true},
-		{Name: "@nix-var-nix-build", Path: "/nix/var/nix/build", Options: "autodefrag,ssd"},
+		{Name: "@nix-var-nix-build", Path: "/nix/var/nix/build", Options: "compress=zstd:3,autodefrag,ssd"},
 		// Btrbk backup
-		{Name: "@btrbk", Path: "/btrbk", Options: "autodefrag,ssd"},
+		{Name: "@btrbk", Path: "/btrbk", Options: "compress=zstd:3,autodefrag,ssd"},
 	}
 
-	// Temporary mount WITHOUT compression to create subvolumes
+	// Step 1: Mount root WITHOUT compression to create subvolumes
+	fmt.Println("[INFO] Mounting root without compression to create subvolumes...")
 	if _, err := shell.RunCommand("mount", "-t", "btrfs", "-o", "autodefrag,ssd", luksDevice, chroot); err != nil {
 		return fmt.Errorf("failed to mount btrfs root: %w", err)
 	}
+
+	// Step 2: Create all subvolumes
 	for _, s := range subvols {
 		if _, err := shell.RunCommand("btrfs", "subvolume", "create", chroot+"/"+s.Name); err != nil {
 			return fmt.Errorf("failed to create subvolume %s: %w", s.Name, err)
 		}
 	}
-	// Set compression on subvolumes that should have it (not NoCoW)
+
+	// Step 3: Disable compression on NoCoW subvolumes via btrfs property set
 	for _, s := range subvols {
-		if !s.NoCoW {
+		if s.NoCoW {
 			target := chroot + "/" + s.Name
-			if _, err := shell.RunCommand("btrfs", "property", "set", target, "compression", "zstd"); err != nil {
-				return fmt.Errorf("failed to set compression on %s: %w", target, err)
+			if _, err := shell.RunCommand("btrfs", "property", "set", target, "compression", "none"); err != nil {
+				return fmt.Errorf("failed to disable compression on %s: %w", s.Name, err)
 			}
 		}
 	}
+
+	// Step 4: NoCoW already handled by btrfs property set compression none (Step 3)
+	// chattr +C is not needed on btrfs subvolumes — btrfs property set handles it
+
+	// Step 5: Unmount temporary root
 	if _, err := shell.RunCommand("umount", chroot); err != nil {
 		return fmt.Errorf("failed to unmount btrfs root: %w", err)
 	}
 
-	// Systematic mount of subvolumes
+	// Step 6: Mount each subvolume with its correct options
 	for _, s := range subvols {
 		target := chroot + s.Path
 		if s.Path != "" {
@@ -231,12 +234,6 @@ func setupSubvolumesAndMounts(chroot string, luksDevice string, disk string) err
 		opts := "subvol=" + s.Name + "," + s.Options
 		if _, err := shell.RunCommand("mount", "-t", "btrfs", "-o", opts, luksDevice, target); err != nil {
 			return fmt.Errorf("failed to mount subvolume %s: %w", s.Name, err)
-		}
-		if s.NoCoW {
-			// Set NoCoW attribute on directory (required for btrfs swapfiles)
-			if _, err := shell.RunCommand("chattr", "+C", target); err != nil {
-				return fmt.Errorf("failed to set NoCoW on %s: %w", target, err)
-			}
 		}
 	}
 

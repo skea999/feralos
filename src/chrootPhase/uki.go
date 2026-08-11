@@ -60,11 +60,11 @@ func BuildAndDeployUKI(conf *config.Config) error {
 		return fmt.Errorf("failed to mirror to efi2: %w", err)
 	}
 
-	// 8. Create EFI boot entries (only when running on an EFI-capable host;
+	// 8. Create EFI boot entries (only when running on an EFI-capable system;
 	//    on a BIOS runner the chroot has no /sys/firmware/efi so efibootmgr
 	//    cannot write NVRAM entries.  The BOOTX64.EFI fallback handles boot).
 	efiAvail := false
-	if _, err := shell.RunCommand("test", "-d", "/sys/firmware/efi"); err == nil {
+	if _, err := shell.RunChrootCommand(chroot, "test -d /sys/firmware/efi"); err == nil {
 		efiAvail = true
 	}
 	if efiAvail && len(u.Disks) >= 2 {

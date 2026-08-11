@@ -47,10 +47,6 @@ standardPackages:
   - qemu-img
   - qemu-system-x86_64
   - qemu-modules
-  - incus-feature
-  - incus-feature-vm
-  - incus-feature-client
-  - incus-feature-utils
   # Network
   - bridge
   - bridge-utils

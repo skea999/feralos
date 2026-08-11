@@ -40,6 +40,10 @@ func SetupServices(conf *config.Config) error {
 	if _, err := shell.RunChrootCommand(chroot, "ln -sfn /etc/profile.d/alias.sh /etc/fish/conf.d/alias.fish"); err != nil {
 		fmt.Printf("[WARNING] Failed to symlink fish alias: %v\n", err)
 	}
+	// Create /etc/bash/ directory if it doesn't exist
+	if _, err := shell.RunChrootCommand(chroot, "mkdir -p /etc/bash"); err != nil {
+		fmt.Printf("[WARNING] Failed to create /etc/bash: %v\n", err)
+	}
 	if _, err := shell.RunChrootCommand(chroot, "ln -sfn /etc/profile.d/alias.sh /etc/bash/alias.sh"); err != nil {
 		fmt.Printf("[WARNING] Failed to symlink bash alias: %v\n", err)
 	}
