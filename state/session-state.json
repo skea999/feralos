@@ -3,6 +3,7 @@
   "status": "active",
   "phase": "Phase 1: Installer",
   "active_goals": [
+    "Verify activatable features: hardening, zswap, nix, TPM, secure boot (confined in single test file)",
     "Test on real hardware with 2x NVMe (Phase 1)",
     "Add more integration tests (btrfsStandardServer, partial features)",
     "Plan Dinit integration (Phase 2)",
@@ -24,7 +25,8 @@
     "baseModules in internalRules.yaml: r8169, bonding, binfmt_misc, zsmalloc",
     "booster.go: Removed boosterDefaultModules map, uses u.Modules for modules_force_load",
     "incus chain: incus-feature → incus-feature-vm/client/utils; incus-feature-vm → qemu-system-x86_64",
-    "Fixed kvm module: kvm-amd/kvm-intel → kvm (Alpine kernel)"
+    "Fixed kvm module: kvm-amd/kvm-intel → kvm (Alpine kernel)",
+    "Verified incus chain: incus-feature → incus-feature-vm → qemu-system-x86_64 → kvm module in booster.yaml"
   ],
   "decisions": [
     {

@@ -43,14 +43,6 @@ standardPackages:
   - sed
   - blkid
   - grep
-  # Containers / Virtualization
-  # - qemu-img
-  # - qemu-system-x86_64
-  # - qemu-modules
-  # Network
-  - bridge
-  - bridge-utils
-  - vlan
   # Hardware
   - pciutils
   - usbutils
@@ -157,12 +149,12 @@ packageLogic:
     services: {"incusd": "default"}
     modules: ["tun", "tap", "veth", "overlay"]
   incus-feature:
-    packages: ["incus-feature-vm", "incus-feature-client", "incus-feature-utils"]
+    packages: ["incus-feature-vm", "incus-feature-client", "incus-feature-utils", "bridge", "bridge-utils", "vlan"]
     groups: ["incus-admin"]
     services: {"incusd": "default"}
-    modules: ["tun", "tap", "veth", "overlay"]
+    modules: ["tun", "tap", "bonding", "veth", "overlay"]
   incus-feature-vm:
-    packages: ["qemu-system-x86_64"]
+    packages: ["qemu-system-x86_64", "qemu-img", "qemu-modules"]
   qemu-system-x86_64:
     groups: ["kvm", "qemu"]
     modules: ["kvm"]
@@ -224,6 +216,5 @@ providePackages:
 # These are kernel modules without specific packages (hardware drivers, kernel features)
 baseModules:
   - r8169
-  - bonding
   - binfmt_misc
   - zsmalloc
