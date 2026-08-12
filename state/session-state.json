@@ -16,7 +16,15 @@
     "Logging: timestamp + command, stdout/stderr, exit code, duration",
     "Fix: Added mkdir -p /etc/kernel before writing cmdline",
     "All 3 binaries compile (installer + secureboot + tpm), go vet clean",
-    "Harness 25/25 checks pass"
+    "Harness 25/25 checks pass",
+    "Code review completed: modules moved to packageLogic",
+    "Removed additional modules from services.go (booster doesn't use /etc/modules)",
+    "Moved qemu/kvm groups from hardcoded extraGroups to internalRules.yaml",
+    "Modules to packageLogic: 8021q→vlan, bridge/br_netfilter→bridge, zstd_compress→zstd, overlay→incus/podman/docker",
+    "baseModules in internalRules.yaml: r8169, bonding, binfmt_misc, zsmalloc",
+    "booster.go: Removed boosterDefaultModules map, uses u.Modules for modules_force_load",
+    "incus chain: incus-feature → incus-feature-vm/client/utils; incus-feature-vm → qemu-system-x86_64",
+    "Fixed kvm module: kvm-amd/kvm-intel → kvm (Alpine kernel)"
   ],
   "decisions": [
     {
@@ -28,6 +36,21 @@
       "date": "2026-08-12",
       "decision": "File writes via shell commands (echo/cat) instead of direct file writes",
       "rationale": "Matches old bash installer behavior. All operations go through ExecuteCmd for consistent logging and retry logic."
+    },
+    {
+      "date": "2026-08-12",
+      "decision": "Modules moved to packageLogic instead of hardcoded in services.go",
+      "rationale": "Booster doesn't use /etc/modules. Modules tied to packages belong in packageLogic. Kernel-only modules (r8169, bonding, binfmt_misc, zsmalloc) stay in baseModules."
+    },
+    {
+      "date": "2026-08-12",
+      "decision": "incus-feature-vm only needs qemu-system-x86_64",
+      "rationale": "incus-feature-vm is for VM management. Its only dependency is qemu. Groups and modules come from qemu-system-x86_64's own packageLogic."
+    },
+    {
+      "date": "2026-08-12",
+      "decision": "kvm module instead of kvm-amd/kvm-intel",
+      "rationale": "Alpine kernel uses generic kvm module, not vendor-specific kvm-amd/kvm-intel."
     },
     {
       "date": "2026-08-08",

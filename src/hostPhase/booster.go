@@ -17,17 +17,19 @@ func WriteBoosterConfig(conf *config.Config) error {
 
 	fmt.Println("[INFO] Writing booster configuration...")
 
+	// Build modules_force_load from all collected modules
+	forceLoadModules := strings.Join(u.Modules, ",")
+
 	// 1. /etc/booster.yaml
-	boosterYaml := `compression: zstd
+	boosterYaml := fmt.Sprintf(`compression: zstd
 enable_lvm: false
 enable_mdraid: false
 network:
   dhcp: off
-modules: dm_mod,dm_crypt,crc32c_cryptoapi,zstd,btrfs,efivarfs,nvme
-modules_force_load: dm_mod,dm_crypt,crc32c_cryptoapi,zstd,btrfs,efivarfs,nvme
+modules_force_load: %s
 mount_timeout: 3m
 extra_files: busybox,mount,btrfs
-append_all_modaliases: true`
+append_all_modaliases: true`, forceLoadModules)
 
 	// Escape single quotes in boosterYaml for shell execution
 	escapedBoosterYaml := strings.ReplaceAll(boosterYaml, "'", "'\\''")

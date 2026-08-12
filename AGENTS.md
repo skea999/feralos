@@ -307,6 +307,19 @@ feralos_installer/
 
 *Updated: 2026-08-12*
 
+### 2026-08-12 12:00 - Code Review + packageLogic Modules + incus Chain
+**Agent:** codebase
+**Summary:** Hardcoded modules moved to packageLogic, incus dependency chain implemented
+- **Removed additional modules from services.go** (16 modules, booster doesn't use /etc/modules)
+- **Removed group creation before user add** in users.go (packages create groups)
+- **Moved qemu/kvm groups** from hardcoded extraGroups to internalRules.yaml (packageLogic.qemu-system-x86_64)
+- **Modules to packageLogic**: 8021q→vlan, bridge/br_netfilter→bridge, zstd_compress→zstd, overlay→incus/podman/docker
+- **baseModules** in internalRules.yaml: r8169, bonding, binfmt_misc, zsmalloc (kernel modules without packages)
+- **booster.go**: Removed boosterDefaultModules map, uses u.Modules for modules_force_load
+- **incus chain**: incus-feature → packages: [incus-feature-vm, incus-feature-client, incus-feature-utils]; incus-feature-vm → packages: [qemu-system-x86_64]
+- **Fixed kvm module**: kvm-amd/kvm-intel → kvm (Alpine kernel)
+- **Harness**: 25/25 checks pass
+
 ### 2026-08-12 10:30 - Unified Command Execution: ExecuteCmd Migration
 **Agent:** codebase
 **Summary:** Replaced RunCommand/RunChrootCommand/WriteFileInChroot with unified ExecuteCmd

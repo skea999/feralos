@@ -44,9 +44,9 @@ standardPackages:
   - blkid
   - grep
   # Containers / Virtualization
-  - qemu-img
-  - qemu-system-x86_64
-  - qemu-modules
+  # - qemu-img
+  # - qemu-system-x86_64
+  # - qemu-modules
   # Network
   - bridge
   - bridge-utils
@@ -152,13 +152,20 @@ dummyPackages:
 packageLogic:
   eudev:
     services: {"udev": "boot", "udev-trigger": "boot", "udev-settle": "boot", "udev-postmount": "default"}
-  incus-feature:
+  incus:
     groups: ["incus-admin"]
     services: {"incusd": "default"}
-    modules: ["tun", "tap", "veth"]
+    modules: ["tun", "tap", "veth", "overlay"]
+  incus-feature:
+    packages: ["incus-feature-vm", "incus-feature-client", "incus-feature-utils"]
+    groups: ["incus-admin"]
+    services: {"incusd": "default"}
+    modules: ["tun", "tap", "veth", "overlay"]
+  incus-feature-vm:
+    packages: ["qemu-system-x86_64"]
   qemu-system-x86_64:
     groups: ["kvm", "qemu"]
-    modules: ["kvm-amd", "kvm-intel"]
+    modules: ["kvm"]
   zram-init:
     services: {"zram-init": "default"}
     modules: ["zram"]
@@ -193,8 +200,30 @@ packageLogic:
     services: {"fwupd": "default"}
   earlyoom:
     services: {"earlyoom": "default"}
+  vlan:
+    modules: ["8021q"]
+  bridge:
+    modules: ["bridge", "br_netfilter"]
+  zstd:
+    modules: ["zstd_compress"]
+  podman:
+    groups: ["podman"]
+    services: {"podman": "default"}
+    modules: ["overlay"]
+  docker:
+    groups: ["docker"]
+    services: {"docker": "default"}
+    modules: ["overlay"]
 
 # Packages to always provide as dummy (regardless of replacement)
 # Used to satisfy dependencies without installing the real package
 providePackages:
   - util-linux-misc
+
+# Base modules always loaded via modules_force_load in booster
+# These are kernel modules without specific packages (hardware drivers, kernel features)
+baseModules:
+  - r8169
+  - bonding
+  - binfmt_misc
+  - zsmalloc

@@ -11,6 +11,9 @@ func ApplyRules(conf *config.Config) {
 
 	fmt.Println("[DEBUG] Starting dynamic rule application...")
 
+	// Always include base modules (fbcon, bridge, bonding, etc.)
+	u.Modules = appendUnique(u.Modules, i.BaseModules...)
+
 	if layout, ok := i.DiskLayouts[u.DiskLayout]; ok {
 		fmt.Printf("[DEBUG] Applying Disk Layout: %s\n", u.DiskLayout)
 		applyRule(u, layout)

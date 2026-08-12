@@ -83,16 +83,7 @@ func SetupServices(conf *config.Config) error {
 		fmt.Printf("[WARNING] Failed to remove old secureboot hook: %v\n", err)
 	}
 
-	// 8. Add additional kernel modules (append, don't overwrite)
-	fmt.Println("[INFO] Adding additional kernel modules...")
-	additionalModules := []string{"btrfs", "amdgpu", "fbcon", "tun", "tap", "8021q", "r8169", "bridge", "bonding", "br_netfilter", "veth", "overlay", "zstd", "zstd_compress", "binfmt_misc", "zsmalloc"}
-	for _, mod := range additionalModules {
-		if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("grep -q '^%s$' /etc/modules || echo '%s' >> /etc/modules", mod, mod)); err != nil {
-			fmt.Printf("[WARNING] Failed to add module %s: %v\n", mod, err)
-		}
-	}
-
-	// 10. Smartd config
+	// 9. Smartd config
 	fmt.Println("[INFO] Configuring smartd...")
 	// Escape single quotes in smartd content for shell execution
 	escapedSmartd := strings.ReplaceAll("DEVICESCAN -a -o on -S on -s (S/../.././02|L/../../6/03) -W 4,40,45", "'", "'\\''")

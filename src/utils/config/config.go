@@ -60,6 +60,7 @@ type InternalRules struct {
 	PackageLogic        map[string]DynamicPackageRules `yaml:"packageLogic"`
 	DummyPackages       map[string]DummyPackageRule    `yaml:"dummyPackages"`
 	ProvidePackages     []string                       `yaml:"providePackages"`
+	BaseModules         []string                       `yaml:"baseModules"`
 }
 
 // DummyPackageRule defines a package to replace with a memory-safe dummy.
