@@ -18,7 +18,7 @@ func BuildAndDeployUKI(conf *config.Config) error {
 
 	// 1. Detect CPU vendor (microcode already installed in packages.go)
 	ucodeImg := ""
-	cpuInfo, _ := shell.RunCommand("sh", "-c", "cat /proc/cpuinfo")
+	cpuInfo, _ := shell.ExecuteCmd("", "cat /proc/cpuinfo")
 	if strings.Contains(cpuInfo, "AMD") {
 		ucodeImg = "/boot/amd-ucode.img"
 	} else if strings.Contains(cpuInfo, "GenuineIntel") {
@@ -29,7 +29,7 @@ func BuildAndDeployUKI(conf *config.Config) error {
 	// 2. EFI keys are generated in InstallPackages (before secureboot-hook runs)
 
 	// 3. Build booster initramfs
-	if _, err := shell.RunChrootCommand(chroot, "ALPINE_KERNEL=$(ls /lib/modules/ | head -1) && booster build --force --kernel-version \"${ALPINE_KERNEL}\" /boot/booster-lts.img"); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, "ALPINE_KERNEL=$(ls /lib/modules/ | head -1) && booster build --force --kernel-version \"${ALPINE_KERNEL}\" /boot/booster-lts.img"); err != nil {
 		return fmt.Errorf("booster build failed: %w", err)
 	}
 
@@ -41,22 +41,22 @@ func BuildAndDeployUKI(conf *config.Config) error {
 	} else {
 		ukiCmd += "efi-mkuki -c \"${CMDLINE}\" -o /boot/efi/Alpine/linux-lts.efi /boot/vmlinuz-lts /boot/booster-lts.img"
 	}
-	if _, err := shell.RunChrootCommand(chroot, ukiCmd); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, ukiCmd); err != nil {
 		return fmt.Errorf("efi-mkuki failed: %w", err)
 	}
 
 	// 5. Sign UKI for Secure Boot
-	if _, err := shell.RunChrootCommand(chroot, "sbsign --key /etc/uefi-keys/db.key --cert /etc/uefi-keys/db.crt --output /boot/efi/Alpine/linux-lts.efi /boot/efi/Alpine/linux-lts.efi"); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, "sbsign --key /etc/uefi-keys/db.key --cert /etc/uefi-keys/db.crt --output /boot/efi/Alpine/linux-lts.efi /boot/efi/Alpine/linux-lts.efi"); err != nil {
 		return fmt.Errorf("sbsign failed: %w", err)
 	}
 
 	// 6. Create fallback BOOTX64.EFI
-	if _, err := shell.RunChrootCommand(chroot, "mkdir -p /boot/efi/EFI/BOOT && cp -af /boot/efi/Alpine/linux-lts.efi /boot/efi/EFI/BOOT/BOOTX64.EFI"); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /boot/efi/EFI/BOOT && cp -af /boot/efi/Alpine/linux-lts.efi /boot/efi/EFI/BOOT/BOOTX64.EFI"); err != nil {
 		return fmt.Errorf("failed to create fallback BOOTX64.EFI: %w", err)
 	}
 
 	// 7. Mirror to secondary EFI
-	if _, err := shell.RunChrootCommand(chroot, "cp -af /boot/efi/. /boot/efi2/ && mkdir -p /boot/efi2/EFI/BOOT && cp -af /boot/efi2/Alpine/linux-lts.efi /boot/efi2/EFI/BOOT/BOOTX64.EFI"); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, "cp -af /boot/efi/. /boot/efi2/ && mkdir -p /boot/efi2/EFI/BOOT && cp -af /boot/efi2/Alpine/linux-lts.efi /boot/efi2/EFI/BOOT/BOOTX64.EFI"); err != nil {
 		return fmt.Errorf("failed to mirror to efi2: %w", err)
 	}
 
@@ -68,17 +68,17 @@ func BuildAndDeployUKI(conf *config.Config) error {
 		sp2 := getPartitionSpacer(d2)
 
 		// Primary boot entry
-		if _, err := shell.RunChrootCommand(chroot, fmt.Sprintf("efibootmgr --disk %s --part 1 --create --label 'Alpine Linux' --loader /Alpine/linux-lts.efi --verbose || true", d1+sp1)); err != nil {
+		if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("efibootmgr --disk %s --part 1 --create --label 'Alpine Linux' --loader /Alpine/linux-lts.efi --verbose || true", d1+sp1)); err != nil {
 			fmt.Printf("[WARNING] efibootmgr primary failed: %v\n", err)
 		}
 		// Backup boot entry
-		if _, err := shell.RunChrootCommand(chroot, fmt.Sprintf("efibootmgr --disk %s --part 1 --create --label 'Alpine Linux Backup' --loader /Alpine/linux-lts.efi --verbose || true", d2+sp2)); err != nil {
+		if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("efibootmgr --disk %s --part 1 --create --label 'Alpine Linux Backup' --loader /Alpine/linux-lts.efi --verbose || true", d2+sp2)); err != nil {
 			fmt.Printf("[WARNING] efibootmgr backup failed: %v\n", err)
 		}
 	}
 
 	// 9. Show boot entries
-	if _, err := shell.RunChrootCommand(chroot, "efibootmgr -v || true"); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, "efibootmgr -v || true"); err != nil {
 		fmt.Printf("[WARNING] efibootmgr listing failed: %v\n", err)
 	}
 

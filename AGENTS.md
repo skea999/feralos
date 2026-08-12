@@ -222,10 +222,8 @@ feralos_installer/
 │   ├── utils/                    # Shared utilities (sub-packages)
 │   │   ├── config/               # Config types + LoadConfig
 │   │   │   └── config.go
-│   │   ├── shell/                # Command execution (RunCommand, RunChrootCommand)
-│   │   │   └── shell.go
-│   │   ├── files/                # File operations (WriteFileInChroot)
-│   │   │   └── files.go
+│   │   ├── shell/                # Command execution (ExecuteCmd)
+│   │   │   └── execute.go
 │   │   ├── logic/                # Dynamic rule application
 │   │   │   └── logic.go
 │   │   └── createConfig/         # Configuration wizard + generator
@@ -307,7 +305,18 @@ feralos_installer/
 
 ---
 
-*Updated: 2026-08-10*
+*Updated: 2026-08-12*
+
+### 2026-08-12 10:30 - Unified Command Execution: ExecuteCmd Migration
+**Agent:** codebase
+**Summary:** Replaced RunCommand/RunChrootCommand/WriteFileInChroot with unified ExecuteCmd
+- **Deleted**: `utils/shell/shell.go`, `utils/files/files.go` (no backward compatibility)
+- **Created**: `utils/shell/execute.go` — `ExecuteCmd(chroot, cmd)` with retry 3x, user prompt, logging
+- **Migrated**: ~152 calls across 22+ files (main.go, hostPhase/*, chrootPhase/*, firstBoot/*)
+- **File writes via shell**: echo/cat instead of direct file writes (matches old bash installer behavior)
+- **Logging**: timestamp + command, stdout/stderr, exit code, duration
+- **Fix**: Added `mkdir -p /etc/kernel` before writing cmdline (harness 25/25)
+- **Build**: All 3 binaries compile (installer + secureboot + tpm), go vet clean
 
 ### 2026-08-10 22:30 - README Rewrite + Roadmap Update + umount Fix
 **Agent:** codebase

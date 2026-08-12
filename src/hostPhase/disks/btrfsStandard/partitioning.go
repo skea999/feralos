@@ -30,9 +30,9 @@ func RunBtrfsSetup(conf *config.Config) error {
 
 	// 1. Cleanup environment
 	fmt.Println("[INFO] Stopping existing swaps and mounts...")
-	_, _ = shell.RunCommand("swapoff", "-a")
+	_, _ = shell.ExecuteCmd("", "swapoff -a")
 	// Unmount if something is mounted at ChrootDir (ignore errors)
-	_, _ = shell.RunCommand("sh", "-c", "mountpoint -q "+i.ChrootDir+" && umount -fR "+i.ChrootDir+" || true")
+	_, _ = shell.ExecuteCmd("", fmt.Sprintf("mountpoint -q %s && umount -fR %s || true", i.ChrootDir, i.ChrootDir))
 
 	// 2. GPT Partitioning
 	// n1: EFI (512M), n2: LUKS ROOT (remainder)
@@ -49,11 +49,11 @@ func RunBtrfsSetup(conf *config.Config) error {
 
 	// 3. Format EFI partition
 	efiPart := targetDisk + partitionSpacer + "1"
-	if _, err := shell.RunCommand("mkfs.vfat", "-F", "32", efiPart); err != nil {
+	if _, err := shell.ExecuteCmd("", fmt.Sprintf("mkfs.vfat -F 32 %s", efiPart)); err != nil {
 		return fmt.Errorf("failed to format EFI partition: %w", err)
 	}
 	label := "EFI" + strings.ToUpper(getDiskSuffix(targetDisk))
-	if _, err := shell.RunCommand("fatlabel", efiPart, label); err != nil {
+	if _, err := shell.ExecuteCmd("", fmt.Sprintf("fatlabel %s %s", efiPart, label)); err != nil {
 		return fmt.Errorf("failed to label EFI partition: %w", err)
 	}
 
@@ -66,7 +66,7 @@ func RunBtrfsSetup(conf *config.Config) error {
 
 	// 4.1 Format LUKS container as Btrfs
 	fmt.Println("[INFO] Creating Btrfs filesystem on LUKS container...")
-	if _, err := shell.RunCommand("mkfs.btrfs", "-f", "-L", "myroot", luksRoot); err != nil {
+	if _, err := shell.ExecuteCmd("", fmt.Sprintf("mkfs.btrfs -f -L myroot %s", luksRoot)); err != nil {
 		return fmt.Errorf("failed to create btrfs filesystem: %w", err)
 	}
 
@@ -114,22 +114,22 @@ func createSwapfile(chroot string) error {
 
 	// Verify NoCoW is set on directory
 	fmt.Println("[INFO] Verifying NoCoW on /swap directory...")
-	if _, err := shell.RunCommand("lsattr", "-d", swapDir); err != nil {
+	if _, err := shell.ExecuteCmd("", fmt.Sprintf("lsattr -d %s", swapDir)); err != nil {
 		fmt.Printf("[WARNING] Could not verify NoCoW: %v\n", err)
 	}
 
 	// Create swapfile with dd (8G)
-	if _, err := shell.RunCommand("dd", "if=/dev/zero", "of="+swapFile, "bs=1M", "count=8192", "status=progress"); err != nil {
+	if _, err := shell.ExecuteCmd("", fmt.Sprintf("dd if=/dev/zero of=%s bs=1M count=8192 status=progress", swapFile)); err != nil {
 		return fmt.Errorf("failed to create swapfile: %w", err)
 	}
 
 	// Set permissions
-	if _, err := shell.RunCommand("chmod", "600", swapFile); err != nil {
+	if _, err := shell.ExecuteCmd("", fmt.Sprintf("chmod 600 %s", swapFile)); err != nil {
 		return fmt.Errorf("failed to chmod swapfile: %w", err)
 	}
 
 	// Format as swap
-	if _, err := shell.RunCommand("mkswap", swapFile); err != nil {
+	if _, err := shell.ExecuteCmd("", fmt.Sprintf("mkswap %s", swapFile)); err != nil {
 		return fmt.Errorf("failed to mkswap: %w", err)
 	}
 
@@ -152,7 +152,7 @@ func getDiskSuffix(disk string) string {
 
 // getBtrfsUUID returns the UUID of a btrfs filesystem.
 func getBtrfsUUID(device string) string {
-	out, err := shell.RunCommand("blkid", "-o", "value", "-s", "UUID", device)
+	out, err := shell.ExecuteCmd("", fmt.Sprintf("blkid -o value -s UUID %s", device))
 	if err != nil {
 		return ""
 	}
@@ -194,13 +194,13 @@ func setupSubvolumesAndMounts(chroot string, luksDevice string, disk string) err
 
 	// Step 1: Mount root WITHOUT compression to create subvolumes
 	fmt.Println("[INFO] Mounting root without compression to create subvolumes...")
-	if _, err := shell.RunCommand("mount", "-t", "btrfs", "-o", "autodefrag,ssd", luksDevice, chroot); err != nil {
+	if _, err := shell.ExecuteCmd("", fmt.Sprintf("mount -t btrfs -o autodefrag,ssd %s %s", luksDevice, chroot)); err != nil {
 		return fmt.Errorf("failed to mount btrfs root: %w", err)
 	}
 
 	// Step 2: Create all subvolumes
 	for _, s := range subvols {
-		if _, err := shell.RunCommand("btrfs", "subvolume", "create", chroot+"/"+s.Name); err != nil {
+		if _, err := shell.ExecuteCmd("", fmt.Sprintf("btrfs subvolume create %s/%s", chroot, s.Name)); err != nil {
 			return fmt.Errorf("failed to create subvolume %s: %w", s.Name, err)
 		}
 	}
@@ -209,7 +209,7 @@ func setupSubvolumesAndMounts(chroot string, luksDevice string, disk string) err
 	for _, s := range subvols {
 		if s.NoCoW {
 			target := chroot + "/" + s.Name
-			if _, err := shell.RunCommand("btrfs", "property", "set", target, "compression", "none"); err != nil {
+			if _, err := shell.ExecuteCmd("", fmt.Sprintf("btrfs property set %s compression none", target)); err != nil {
 				return fmt.Errorf("failed to disable compression on %s: %w", s.Name, err)
 			}
 		}
@@ -219,7 +219,7 @@ func setupSubvolumesAndMounts(chroot string, luksDevice string, disk string) err
 	// chattr +C is not needed on btrfs subvolumes — btrfs property set handles it
 
 	// Step 5: Unmount temporary root
-	if _, err := shell.RunCommand("umount", chroot); err != nil {
+	if _, err := shell.ExecuteCmd("", fmt.Sprintf("umount %s", chroot)); err != nil {
 		return fmt.Errorf("failed to unmount btrfs root: %w", err)
 	}
 
@@ -232,7 +232,7 @@ func setupSubvolumesAndMounts(chroot string, luksDevice string, disk string) err
 			}
 		}
 		opts := "subvol=" + s.Name + "," + s.Options
-		if _, err := shell.RunCommand("mount", "-t", "btrfs", "-o", opts, luksDevice, target); err != nil {
+		if _, err := shell.ExecuteCmd("", fmt.Sprintf("mount -t btrfs -o %s %s %s", opts, luksDevice, target)); err != nil {
 			return fmt.Errorf("failed to mount subvolume %s: %w", s.Name, err)
 		}
 	}
@@ -242,7 +242,7 @@ func setupSubvolumesAndMounts(chroot string, luksDevice string, disk string) err
 	if err := os.MkdirAll(chroot+"/boot/efi", 0755); err != nil {
 		return fmt.Errorf("failed to create /boot/efi: %w", err)
 	}
-	if _, err := shell.RunCommand("mount", disk+partitionSpacer+"1", chroot+"/boot/efi"); err != nil {
+	if _, err := shell.ExecuteCmd("", fmt.Sprintf("mount %s %s", disk+partitionSpacer+"1", chroot+"/boot/efi")); err != nil {
 		return fmt.Errorf("failed to mount EFI: %w", err)
 	}
 

@@ -14,7 +14,7 @@ func LuksFormat(device, password string) error {
 
 	// cryptsetup luksFormat --type luks2 -v -c aes-xts-plain64 -s 512 --hash sha512 --iter-time 5000 --use-urandom -q --key-file -
 	cmd := fmt.Sprintf("printf '%%s' '%s' | cryptsetup luksFormat %s --type luks2 -v -c aes-xts-plain64 -s 512 --hash sha512 --iter-time 5000 --use-urandom -q --key-file -", password, device)
-	if _, err := shell.RunCommand("sh", "-c", cmd); err != nil {
+	if _, err := shell.ExecuteCmd("", cmd); err != nil {
 		return fmt.Errorf("luksFormat failed on %s: %w", device, err)
 	}
 	return nil
@@ -25,7 +25,7 @@ func LuksOpen(device, name, password string) error {
 	fmt.Printf("[INFO] LUKS open: %s -> %s\n", device, name)
 
 	cmd := fmt.Sprintf("printf '%%s' '%s' | cryptsetup luksOpen %s %s --key-file -", password, device, name)
-	if _, err := shell.RunCommand("sh", "-c", cmd); err != nil {
+	if _, err := shell.ExecuteCmd("", cmd); err != nil {
 		return fmt.Errorf("luksOpen failed on %s: %w", device, err)
 	}
 	return nil
@@ -33,7 +33,7 @@ func LuksOpen(device, name, password string) error {
 
 // LuksUUID returns the UUID of a LUKS-encrypted partition.
 func LuksUUID(device string) (string, error) {
-	out, err := shell.RunCommand("blkid", "-o", "value", "-s", "UUID", device)
+	out, err := shell.ExecuteCmd("", fmt.Sprintf("blkid -o value -s UUID %s", device))
 	if err != nil {
 		return "", fmt.Errorf("failed to get LUKS UUID for %s: %w", device, err)
 	}
@@ -50,7 +50,7 @@ func LuksAddKey(device, keyfile, password string) error {
 	fmt.Printf("[INFO] LUKS add key: %s -> %s\n", device, keyfile)
 
 	cmd := fmt.Sprintf("printf '%%s' '%s' | cryptsetup luksAddKey %s %s", password, device, keyfile)
-	if _, err := shell.RunCommand("sh", "-c", cmd); err != nil {
+	if _, err := shell.ExecuteCmd("", cmd); err != nil {
 		return fmt.Errorf("luksAddKey failed on %s: %w", device, err)
 	}
 	return nil
@@ -60,7 +60,7 @@ func LuksAddKey(device, keyfile, password string) error {
 // This is the main entry point for LUKS setup on a single partition.
 func SetupLuksPartition(device, password string) (string, error) {
 	// 1. Wipe existing signatures
-	if _, err := shell.RunCommand("wipefs", "-a", device); err != nil {
+	if _, err := shell.ExecuteCmd("", fmt.Sprintf("wipefs -a %s", device)); err != nil {
 		return "", fmt.Errorf("wipefs failed on %s: %w", device, err)
 	}
 

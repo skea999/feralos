@@ -2,11 +2,11 @@ package chrootPhase
 
 import (
 	"alpineInstaller/utils/config"
-	"alpineInstaller/utils/files"
 	"alpineInstaller/utils/shell"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // WriteHardening applies kernel hardening configuration to the chroot.
@@ -25,7 +25,7 @@ func WriteHardening(conf *config.Config) error {
 	// AppArmor packages are installed in InstallPackages (packages.go)
 
 	// 1. Add AppArmor to boot runlevel
-	if _, err := shell.RunChrootCommand(chroot, "rc-update add apparmor boot"); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, "rc-update add apparmor boot"); err != nil {
 		fmt.Printf("[WARNING] Failed to add apparmor to boot: %v\n", err)
 	}
 
@@ -61,9 +61,10 @@ fs.protected_symlinks=1
 fs.protected_hardlinks=1
 fs.protected_fifos=2
 fs.protected_regular=2
-kernel.sysrq=4
-`, dmesgRestrictVal)
-	if err := files.WriteFileInChroot(chroot, "/etc/sysctl.d/99-cmdline-hardening.conf", sysctlHardening); err != nil {
+kernel.sysrq=4`, dmesgRestrictVal)
+	// Escape single quotes in sysctlHardening for shell execution
+	escapedSysctlHardening := strings.ReplaceAll(sysctlHardening, "'", "'\\''")
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/sysctl.d/99-cmdline-hardening.conf", escapedSysctlHardening)); err != nil {
 		return fmt.Errorf("failed to write sysctl hardening: %w", err)
 	}
 
@@ -79,9 +80,10 @@ kernel.sysrq=4
 kernel.unprivileged_userns_apparmor_policy=1
 kernel.io_uring_disabled=%s
 vm.memfd_noexec=%s
-kernel.ftrace_enabled=0
-`, iouringVal, memfdVal)
-	if err := files.WriteFileInChroot(chroot, "/etc/sysctl.d/98-hardening.conf", memProtect); err != nil {
+kernel.ftrace_enabled=0`, iouringVal, memfdVal)
+	// Escape single quotes in memProtect for shell execution
+	escapedMemProtect := strings.ReplaceAll(memProtect, "'", "'\\''")
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/sysctl.d/98-hardening.conf", escapedMemProtect)); err != nil {
 		return fmt.Errorf("failed to write mem protection sysctl: %w", err)
 	}
 
@@ -188,9 +190,10 @@ install psmouse /bin/false
 
 install input_leds /bin/false
 install mousedev /bin/false
-install joydev /bin/false
-`
-	if err := files.WriteFileInChroot(chroot, "/etc/modprobe.d/disabledModules.conf", modprobeBlacklist); err != nil {
+install joydev /bin/false`
+	// Escape single quotes in modprobeBlacklist for shell execution
+	escapedModprobeBlacklist := strings.ReplaceAll(modprobeBlacklist, "'", "'\\''")
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/modprobe.d/disabledModules.conf", escapedModprobeBlacklist)); err != nil {
 		return fmt.Errorf("failed to write modprobe blacklist: %w", err)
 	}
 
@@ -218,9 +221,10 @@ start() {
   /bin/chmod a-st -R /usr/lib/
   /bin/chmod a-st -R /opt/
   eend $?
-}
-`
-	if err := files.WriteFileInChroot(chroot, "/etc/init.d/set-permissions", permissionsService); err != nil {
+}`
+	// Escape single quotes in permissionsService for shell execution
+	escapedPermissionsService := strings.ReplaceAll(permissionsService, "'", "'\\''")
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/init.d/set-permissions", escapedPermissionsService)); err != nil {
 		return fmt.Errorf("failed to write set-permissions service: %w", err)
 	}
 	permPath := filepath.Join(chroot, "/etc/init.d/set-permissions")
@@ -229,22 +233,22 @@ start() {
 	}
 
 	// 8. Disable core dumps
-	if err := files.WriteFileInChroot(chroot, "/etc/sysctl.d/97-disableCoreDumps.conf", "kernel.core_pattern=|/bin/false\n"); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, "echo 'kernel.core_pattern=|/bin/false' > /etc/sysctl.d/97-disableCoreDumps.conf"); err != nil {
 		return fmt.Errorf("failed to write core dump config: %w", err)
 	}
 
 	// 11. Disable SUID dumps
-	if err := files.WriteFileInChroot(chroot, "/etc/sysctl.d/96-disableSuidDumps.conf", "fs.suid_dumpable=0\n"); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, "echo 'fs.suid_dumpable=0' > /etc/sysctl.d/96-disableSuidDumps.conf"); err != nil {
 		return fmt.Errorf("failed to write suid dump config: %w", err)
 	}
 
 	// 12. ASLR
-	if err := files.WriteFileInChroot(chroot, "/etc/sysctl.d/95-randomizeAddresses.conf", "kernel.randomize_va_space=2\n"); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, "echo 'kernel.randomize_va_space=2' > /etc/sysctl.d/95-randomizeAddresses.conf"); err != nil {
 		return fmt.Errorf("failed to write ASLR config: %w", err)
 	}
 
 	// 13. Limit kernel logs
-	if err := files.WriteFileInChroot(chroot, "/etc/sysctl.d/94-limitLogs.conf", fmt.Sprintf("kernel.printk=%s\n", printkVal)); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo 'kernel.printk=%s' > /etc/sysctl.d/94-limitLogs.conf", printkVal)); err != nil {
 		return fmt.Errorf("failed to write log limit config: %w", err)
 	}
 
@@ -268,19 +272,20 @@ net.ipv4.tcp_timestamps=0
 net.ipv4.icmp_echo_ignore_broadcasts=1
 net.ipv4.icmp_ignore_bogus_error_responses=1
 net.ipv4.conf.all.log_martians=1
-net.ipv4.conf.default.log_martians=1
-`
-	if err := files.WriteFileInChroot(chroot, "/etc/sysctl.d/93-ipv4Configs.conf", ipv4Conf); err != nil {
+net.ipv4.conf.default.log_martians=1`
+	// Escape single quotes in ipv4Conf for shell execution
+	escapedIpv4Conf := strings.ReplaceAll(ipv4Conf, "'", "'\\''")
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/sysctl.d/93-ipv4Configs.conf", escapedIpv4Conf)); err != nil {
 		return fmt.Errorf("failed to write ipv4 config: %w", err)
 	}
 
 	// 15. Secure boot and home directories
-	if _, err := shell.RunChrootCommand(chroot, "chmod 700 /boot /lib/modules"); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, "chmod 700 /boot /lib/modules"); err != nil {
 		fmt.Printf("[WARNING] Failed to chmod /boot: %v\n", err)
 	}
 
 	// 16. Secure umask
-	if _, err := shell.RunChrootCommand(chroot, "sed -i 's/umask 022/umask 0077/g' /etc/profile"); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, "sed -i 's/umask 022/umask 0077/g' /etc/profile"); err != nil {
 		fmt.Printf("[WARNING] Failed to set umask: %v\n", err)
 	}
 

@@ -45,10 +45,10 @@ func GenerateAndEmbedKeyfile(conf *config.Config) ([]string, error) {
 	keyfileHost := "/tmp/luks-keyfile"
 	fmt.Printf("[INFO] Generating LUKS keyfile: %s\n", keyfileHost)
 
-	if _, err := shell.RunCommand("dd", "if=/dev/urandom", "of="+keyfileHost, "bs=512", "count=4"); err != nil {
+	if _, err := shell.ExecuteCmd("", fmt.Sprintf("dd if=/dev/urandom of=%s bs=512 count=4", keyfileHost)); err != nil {
 		return nil, fmt.Errorf("failed to generate keyfile: %w", err)
 	}
-	if _, err := shell.RunCommand("chmod", "0400", keyfileHost); err != nil {
+	if _, err := shell.ExecuteCmd("", fmt.Sprintf("chmod 0400 %s", keyfileHost)); err != nil {
 		return nil, fmt.Errorf("failed to chmod keyfile: %w", err)
 	}
 
@@ -57,12 +57,12 @@ func GenerateAndEmbedKeyfile(conf *config.Config) ([]string, error) {
 	for _, part := range luksParts {
 		fmt.Printf("[INFO] Adding keyfile to LUKS partition: %s\n", part)
 		addKeyCmd := fmt.Sprintf("printf '%%s' '%s' | cryptsetup luksAddKey %s %s", password, part, keyfileHost)
-		if _, err := shell.RunCommand("sh", "-c", addKeyCmd); err != nil {
+		if _, err := shell.ExecuteCmd("", addKeyCmd); err != nil {
 			return nil, fmt.Errorf("failed to add keyfile to LUKS %s: %w", part, err)
 		}
 
 		// Get UUID for per-device keyfile arg
-		uuid, err := shell.RunCommand("blkid", "-o", "value", "-s", "UUID", part)
+		uuid, err := shell.ExecuteCmd("", fmt.Sprintf("blkid -o value -s UUID %s", part))
 		if err != nil {
 			return nil, fmt.Errorf("failed to get UUID for %s: %w", part, err)
 		}
@@ -72,24 +72,24 @@ func GenerateAndEmbedKeyfile(conf *config.Config) ([]string, error) {
 
 	// 3. Copy keyfile into chroot root (booster will embed in initramfs)
 	chrootKeyfile := chroot + "/keyfile"
-	if _, err := shell.RunCommand("cp", keyfileHost, chrootKeyfile); err != nil {
+	if _, err := shell.ExecuteCmd("", fmt.Sprintf("cp %s %s", keyfileHost, chrootKeyfile)); err != nil {
 		return nil, fmt.Errorf("failed to copy keyfile to chroot: %w", err)
 	}
-	if _, err := shell.RunCommand("chmod", "0400", chrootKeyfile); err != nil {
+	if _, err := shell.ExecuteCmd("", fmt.Sprintf("chmod 0400 %s", chrootKeyfile)); err != nil {
 		return nil, fmt.Errorf("failed to chmod chroot keyfile: %w", err)
 	}
 
 	// 4. Also copy into /etc within chroot for persistence across rebuilds
 	chrootKeyEtc := chroot + "/etc/luks-keyfile"
-	if _, err := shell.RunCommand("cp", keyfileHost, chrootKeyEtc); err != nil {
+	if _, err := shell.ExecuteCmd("", fmt.Sprintf("cp %s %s", keyfileHost, chrootKeyEtc)); err != nil {
 		return nil, fmt.Errorf("failed to copy keyfile to chroot /etc: %w", err)
 	}
-	if _, err := shell.RunCommand("chmod", "0400", chrootKeyEtc); err != nil {
+	if _, err := shell.ExecuteCmd("", fmt.Sprintf("chmod 0400 %s", chrootKeyEtc)); err != nil {
 		return nil, fmt.Errorf("failed to chmod chroot /etc keyfile: %w", err)
 	}
 
 	// 5. Remove host copy (security)
-	_, _ = shell.RunCommand("rm", "-f", keyfileHost)
+	_, _ = shell.ExecuteCmd("", fmt.Sprintf("rm -f %s", keyfileHost))
 
 	// 6. Return kernel cmdline arguments
 	fmt.Println("[INFO] LUKS keyfile embedded — auto-unlock enabled")

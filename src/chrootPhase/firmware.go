@@ -59,7 +59,7 @@ func detectActiveModules(chroot string) []string {
 	// Method 1: device driver links in /sys/bus
 	// This runs inside chroot to access the target system's /sys
 	driverLinksCmd := "ls /sys/bus/*/devices/*/driver 2>/dev/null || true"
-	if out, err := shell.RunChrootCommand(chroot, driverLinksCmd); err == nil {
+	if out, err := shell.ExecuteCmd(chroot, driverLinksCmd); err == nil {
 		for _, line := range strings.Split(out, "\n") {
 			line = strings.TrimSpace(line)
 			if line == "" {
@@ -67,7 +67,7 @@ func detectActiveModules(chroot string) []string {
 			}
 			// Read the symlink target to get module name
 			readlinkCmd := fmt.Sprintf("readlink %s 2>/dev/null || true", line)
-			if target, err := shell.RunChrootCommand(chroot, readlinkCmd); err == nil {
+			if target, err := shell.ExecuteCmd(chroot, readlinkCmd); err == nil {
 				target = strings.TrimSpace(target)
 				if target != "" {
 					mod := target[strings.LastIndex(target, "/")+1:]
@@ -81,7 +81,7 @@ func detectActiveModules(chroot string) []string {
 
 	// Method 2: bus driver directories with bound devices
 	busDirsCmd := "ls -d /sys/bus/*/drivers/*/ 2>/dev/null || true"
-	if out, err := shell.RunChrootCommand(chroot, busDirsCmd); err == nil {
+	if out, err := shell.ExecuteCmd(chroot, busDirsCmd); err == nil {
 		for _, busDir := range strings.Split(out, "\n") {
 			busDir = strings.TrimSpace(busDir)
 			if busDir == "" {
@@ -96,7 +96,7 @@ func detectActiveModules(chroot string) []string {
 
 			// Check if this driver has any devices (skip metadata files)
 			entriesCmd := fmt.Sprintf("ls %s 2>/dev/null || true", busDir)
-			if entries, err := shell.RunChrootCommand(chroot, entriesCmd); err == nil {
+			if entries, err := shell.ExecuteCmd(chroot, entriesCmd); err == nil {
 				hasDevices := false
 				for _, entry := range strings.Split(entries, "\n") {
 					entry = strings.TrimSpace(entry)
@@ -133,7 +133,7 @@ func extractNeededFirmware(chroot string, modules []string) []string {
 	for _, mod := range modules {
 		// Use modinfo to get firmware requirements
 		cmd := fmt.Sprintf("modinfo -F firmware %s 2>/dev/null || true", mod)
-		if out, err := shell.RunChrootCommand(chroot, cmd); err == nil {
+		if out, err := shell.ExecuteCmd(chroot, cmd); err == nil {
 			for _, fw := range strings.Split(out, "\n") {
 				fw = strings.TrimSpace(fw)
 				if fw != "" {
@@ -158,11 +158,11 @@ func buildFirmwarePackageIndex(chroot string) map[string]string {
 	index := make(map[string]string)
 
 	// Update package index first
-	shell.RunChrootCommand(chroot, "apk update >/dev/null 2>&1 || true")
+	shell.ExecuteCmd(chroot, "apk update >/dev/null 2>&1 || true")
 
 	// Search for linux-firmware-* packages
 	searchCmd := "apk search -q 'linux-firmware-*' 2>/dev/null || true"
-	pkgList, err := shell.RunChrootCommand(chroot, searchCmd)
+	pkgList, err := shell.ExecuteCmd(chroot, searchCmd)
 	if err != nil {
 		return index
 	}
@@ -176,7 +176,7 @@ func buildFirmwarePackageIndex(chroot string) map[string]string {
 
 		// Fetch package contents and extract firmware paths
 		fetchCmd := fmt.Sprintf("apk fetch -q --stdout %s 2>/dev/null | tar -tz 2>/dev/null | grep '^lib/firmware/' || true", pkg)
-		if out, err := shell.RunChrootCommand(chroot, fetchCmd); err == nil {
+		if out, err := shell.ExecuteCmd(chroot, fetchCmd); err == nil {
 			for _, line := range strings.Split(out, "\n") {
 				line = strings.TrimSpace(line)
 				if strings.HasPrefix(line, "lib/firmware/") {

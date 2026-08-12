@@ -56,6 +56,8 @@ tests/artifacts/**/*
 feralos_installer
 feralos_create_config
 feralos_harness
+feralos_secureboot
+feralos_tpm
 references/*
 !references/.gitkeep
 references/skeaSimpleServer/

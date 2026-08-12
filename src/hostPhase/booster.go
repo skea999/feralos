@@ -2,10 +2,11 @@ package hostPhase
 
 import (
 	"alpineInstaller/utils/config"
-	"alpineInstaller/utils/files"
+	"alpineInstaller/utils/shell"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // WriteBoosterConfig writes /etc/booster.yaml and /etc/kernel/cmdline into the chroot.
@@ -26,9 +27,11 @@ modules: dm_mod,dm_crypt,crc32c_cryptoapi,zstd,btrfs,efivarfs,nvme
 modules_force_load: dm_mod,dm_crypt,crc32c_cryptoapi,zstd,btrfs,efivarfs,nvme
 mount_timeout: 3m
 extra_files: busybox,mount,btrfs
-append_all_modaliases: true
-`
-	if err := files.WriteFileInChroot(chroot, "/etc/booster.yaml", boosterYaml); err != nil {
+append_all_modaliases: true`
+
+	// Escape single quotes in boosterYaml for shell execution
+	escapedBoosterYaml := strings.ReplaceAll(boosterYaml, "'", "'\\''")
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/booster.yaml", escapedBoosterYaml)); err != nil {
 		return fmt.Errorf("failed to write booster.yaml: %w", err)
 	}
 
@@ -40,7 +43,10 @@ append_all_modaliases: true
 		}
 		kernelCmdline += arg
 	}
-	if err := files.WriteFileInChroot(chroot, "/etc/kernel/cmdline", kernelCmdline+"\n"); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /etc/kernel"); err != nil {
+		return fmt.Errorf("failed to create /etc/kernel directory: %w", err)
+	}
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/kernel/cmdline", kernelCmdline)); err != nil {
 		return fmt.Errorf("failed to write kernel cmdline: %w", err)
 	}
 
@@ -123,7 +129,9 @@ if [ -d /boot/efi2 ]; then
 fi
 `
 	hookPath := filepath.Join(hookDir, "50-booster.hook")
-	if err := files.WriteFileInChroot(chroot, "/etc/kernel-hooks.d/50-booster.hook", hookContent); err != nil {
+	// Escape single quotes in hookContent for shell execution
+	escapedHookContent := strings.ReplaceAll(hookContent, "'", "'\\''")
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/kernel-hooks.d/50-booster.hook", escapedHookContent)); err != nil {
 		return fmt.Errorf("failed to write booster hook: %w", err)
 	}
 	if err := os.Chmod(hookPath, 0755); err != nil {
@@ -152,7 +160,9 @@ output_dir="/boot/efi/Alpine"
 output_name="linux-{flavor}.efi"
 backup=yes
 `
-	if err := files.WriteFileInChroot(chroot, "/etc/kernel-hooks.d/secureboot.conf", confContent); err != nil {
+	// Escape single quotes in confContent for shell execution
+	escapedConfContent := strings.ReplaceAll(confContent, "'", "'\\''")
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/kernel-hooks.d/secureboot.conf", escapedConfContent)); err != nil {
 		return fmt.Errorf("failed to write secureboot.conf: %w", err)
 	}
 

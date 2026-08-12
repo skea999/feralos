@@ -2,7 +2,6 @@ package hostPhase
 
 import (
 	"alpineInstaller/utils/config"
-	"alpineInstaller/utils/files"
 	"alpineInstaller/utils/shell"
 	"fmt"
 	"os"
@@ -23,43 +22,42 @@ func PrepareChrootEnv(conf *config.Config) error {
 
 	// 1. Networking & DNS
 	fmt.Println("[DEBUG] Injecting network and DNS configuration")
-	if err := files.WriteFileInChroot(chroot, "/etc/resolv.conf", "nameserver 208.67.222.222\nnameserver 208.67.220.220\n"); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, "echo 'nameserver 208.67.222.222\nnameserver 208.67.220.220' > /etc/resolv.conf"); err != nil {
 		return fmt.Errorf("failed to write resolv.conf: %w", err)
 	}
-	if err := files.WriteFileInChroot(chroot, "/etc/hostname", u.Hostname+"\n"); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/hostname", u.Hostname)); err != nil {
 		return fmt.Errorf("failed to write hostname: %w", err)
 	}
-	hostsContent := fmt.Sprintf("127.0.0.1 %s %s.localdomain\n::1 %s %s.localdomain\n", u.Hostname, u.Hostname, u.Hostname, u.Hostname)
-	if err := files.WriteFileInChroot(chroot, "/etc/hosts", hostsContent); err != nil {
+	hostsContent := fmt.Sprintf("echo '127.0.0.1 %s %s.localdomain\n::1 %s %s.localdomain' > /etc/hosts", u.Hostname, u.Hostname, u.Hostname, u.Hostname)
+	if _, err := shell.ExecuteCmd(chroot, hostsContent); err != nil {
 		return fmt.Errorf("failed to write hosts: %w", err)
 	}
 
 	// 2. Localization
 	fmt.Println("[DEBUG] Setting up localization and keyboard layout")
-	localeContent := fmt.Sprintf("export CHARSET=%s\nexport LANG=%s\nLC_COLLATE=%s\n", u.Locale, u.Locale, u.Locale)
-	if err := files.WriteFileInChroot(chroot, "/etc/profile.d/20locale.sh", localeContent); err != nil {
+	localeContent := fmt.Sprintf("echo 'export CHARSET=%s\nexport LANG=%s\nLC_COLLATE=%s' > /etc/profile.d/20locale.sh", u.Locale, u.Locale, u.Locale)
+	if _, err := shell.ExecuteCmd(chroot, localeContent); err != nil {
 		return fmt.Errorf("failed to write locale config: %w", err)
 	}
-	if err := files.WriteFileInChroot(chroot, "/etc/conf.d/loadkmap", "KEYMAP=\"/usr/share/bkeymaps/it/it.bmap.gz\"\n"); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, "echo 'KEYMAP=\"/usr/share/bkeymaps/it/it.bmap.gz\"' > /etc/conf.d/loadkmap"); err != nil {
 		return fmt.Errorf("failed to write keymap config: %w", err)
 	}
 
 	// 3. System Limits & Users Security
 	fmt.Println("[DEBUG] Writing system limits and subuid/subgid")
-	limits := fmt.Sprintf(`* hard nofile 100000
+	limits := fmt.Sprintf(`echo "* hard nofile 100000
 * soft nofile 100000
 root hard nofile 100000
 root soft nofile 100000
 %s hard nofile 524288
-%s soft nofile 524288
-`, u.UserName, u.UserName)
-	if err := files.WriteFileInChroot(chroot, "/etc/security/limits.conf", limits); err != nil {
+%s soft nofile 524288" > /etc/security/limits.conf`, u.UserName, u.UserName)
+	if _, err := shell.ExecuteCmd(chroot, limits); err != nil {
 		return fmt.Errorf("failed to write limits.conf: %w", err)
 	}
-	if err := files.WriteFileInChroot(chroot, "/etc/subuid", "root:100000:65536\n"); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, "echo 'root:100000:65536' > /etc/subuid"); err != nil {
 		return fmt.Errorf("failed to write subuid: %w", err)
 	}
-	if err := files.WriteFileInChroot(chroot, "/etc/subgid", "root:100000:65536\n"); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, "echo 'root:100000:65536' > /etc/subgid"); err != nil {
 		return fmt.Errorf("failed to write subgid: %w", err)
 	}
 
@@ -68,8 +66,8 @@ root soft nofile 100000
 	if err := os.MkdirAll(filepath.Join(chroot, "/etc/apk"), 0755); err != nil {
 		return fmt.Errorf("failed to create /etc/apk directory: %w", err)
 	}
-	repoContent := fmt.Sprintf("%s/%s/main\n%s/%s/community\n", u.Mirror, u.Branch, u.Mirror, u.Branch)
-	if err := files.WriteFileInChroot(chroot, "/etc/apk/repositories", repoContent); err != nil {
+	repoContent := fmt.Sprintf("echo '%s/%s/main\n%s/%s/community' > /etc/apk/repositories", u.Mirror, u.Branch, u.Mirror, u.Branch)
+	if _, err := shell.ExecuteCmd(chroot, repoContent); err != nil {
 		return fmt.Errorf("failed to write repositories: %w", err)
 	}
 
@@ -78,28 +76,26 @@ root soft nofile 100000
 	if err := os.MkdirAll(filepath.Join(chroot, "/etc/profile.d"), 0755); err != nil {
 		return fmt.Errorf("failed to create /etc/profile.d directory: %w", err)
 	}
-	aliasContent := `alias ll="ls -lah"
+	aliasContent := `echo 'alias ll="ls -lah"
 alias nano=micro
 alias rm="rm -i"
 alias apk="apk --progress"
 alias untar="tar xzvkf"
-alias mv="mv -v"
-`
-	if err := files.WriteFileInChroot(chroot, "/etc/profile.d/alias.sh", aliasContent); err != nil {
+alias mv="mv -v"' > /etc/profile.d/alias.sh`
+	if _, err := shell.ExecuteCmd(chroot, aliasContent); err != nil {
 		return fmt.Errorf("failed to write alias.sh: %w", err)
 	}
-	if err := files.WriteFileInChroot(chroot, "/etc/profile.d/editor.sh", "export EDITOR=micro\n"); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, "echo 'export EDITOR=micro' > /etc/profile.d/editor.sh"); err != nil {
 		return fmt.Errorf("failed to write editor.sh: %w", err)
 	}
 
 	// PS1 Console Setup
-	ps1Content := `if [ "$(whoami)" = "root" ] ; then
+	ps1Content := `echo 'if [ "$(whoami)" = "root" ] ; then
     PS1="\[\033[31;1m\]\u\[\033[0m\]@\[\033[1;33m\]\h\[\033[0m\]:\w# "
 else
     PS1="\[\033[32;1m\]\u\[\033[0m\]@\[\033[1;33m\]\h\[\033[0m\]:\w> "
-fi
-`
-	if err := files.WriteFileInChroot(chroot, "/etc/profile.d/console.sh", ps1Content); err != nil {
+fi' > /etc/profile.d/console.sh`
+	if _, err := shell.ExecuteCmd(chroot, ps1Content); err != nil {
 		return fmt.Errorf("failed to write console.sh: %w", err)
 	}
 
@@ -108,14 +104,14 @@ fi
 	if err := os.MkdirAll(filepath.Join(chroot, "/etc/sudoers.d"), 0755); err != nil {
 		return fmt.Errorf("failed to create /etc/sudoers.d directory: %w", err)
 	}
-	if err := files.WriteFileInChroot(chroot, "/etc/sudoers.d/wheel", "%wheel ALL=(ALL) ALL\n"); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, "echo '%wheel ALL=(ALL) ALL' > /etc/sudoers.d/wheel"); err != nil {
 		return fmt.Errorf("failed to write sudoers wheel config: %w", err)
 	}
 
 	// 7. Kernel Modules
 	// Now using the unified u.Modules list populated by ApplyRules
 	fmt.Println("[DEBUG] Writing kernel modules configuration")
-	if err := files.WriteFileInChroot(chroot, "/etc/modules", strings.Join(u.Modules, "\n")+"\n"); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/modules", strings.Join(u.Modules, "\n"))); err != nil {
 		return fmt.Errorf("failed to write /etc/modules: %w", err)
 	}
 
@@ -125,7 +121,7 @@ fi
 	}
 	for _, mod := range u.Modules {
 		if mod == "raid1" {
-			if err := files.WriteFileInChroot(chroot, "/etc/modules-load.d/raid1.conf", "raid1\n"); err != nil {
+			if _, err := shell.ExecuteCmd(chroot, "echo 'raid1' > /etc/modules-load.d/raid1.conf"); err != nil {
 				return fmt.Errorf("failed to write raid1.conf: %w", err)
 			}
 		}
@@ -133,14 +129,14 @@ fi
 
 	// 9. Service Configs (LXC)
 	fmt.Println("[DEBUG] Writing LXC service configuration")
-	if err := files.WriteFileInChroot(chroot, "/etc/conf.d/lxc", "systemd_container=yes\n"); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, "echo 'systemd_container=yes' > /etc/conf.d/lxc"); err != nil {
 		return fmt.Errorf("failed to write LXC config: %w", err)
 	}
 
 	// 10. Bridging sysctl (for QEMU/Incus)
 	fmt.Println("[DEBUG] Writing bridging sysctl")
-	bridgingConf := "net.ipv4.conf.all.bc_forwarding=1\nnet.ipv4.conf.default.bc_forwarding=1\n"
-	if err := files.WriteFileInChroot(chroot, "/etc/sysctl.d/bridging.conf", bridgingConf); err != nil {
+	bridgingConf := "echo 'net.ipv4.conf.all.bc_forwarding=1\nnet.ipv4.conf.default.bc_forwarding=1' > /etc/sysctl.d/bridging.conf"
+	if _, err := shell.ExecuteCmd(chroot, bridgingConf); err != nil {
 		return fmt.Errorf("failed to write bridging sysctl: %w", err)
 	}
 
@@ -176,11 +172,13 @@ start() {
     eend $?
 }
 `
-	if err := files.WriteFileInChroot(chroot, "/etc/init.d/vector-setup", vectorSetupInit); err != nil {
+	// Escape single quotes in the init script for shell execution
+	escapedVectorSetupInit := strings.ReplaceAll(vectorSetupInit, "'", "'\\''")
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/init.d/vector-setup", escapedVectorSetupInit)); err != nil {
 		fmt.Printf("[WARNING] Failed to write vector-setup init script: %v\n", err)
 	}
 	// Make init script executable
-	if _, err := shell.RunChrootCommand(chroot, "chmod +x /etc/init.d/vector-setup"); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, "chmod +x /etc/init.d/vector-setup"); err != nil {
 		fmt.Printf("[WARNING] Failed to make vector-setup executable: %v\n", err)
 	}
 
@@ -207,24 +205,25 @@ compare       path
 # Don't send to remote (local only)
 stream_buffer none
 # Log file
-logdir        /var/log/btrbk
-`
-	if err := files.WriteFileInChroot(chroot, "/etc/btrbk/btrbk.conf", btrbkConfig); err != nil {
+logdir        /var/log/btrbk`
+	// Escape single quotes in btrbk config
+	escapedBtrbkConfig := strings.ReplaceAll(btrbkConfig, "'", "'\\''")
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/btrbk/btrbk.conf", escapedBtrbkConfig)); err != nil {
 		return fmt.Errorf("failed to write btrbk config: %w", err)
 	}
 
 	// Create btrbk directories
-	if _, err := shell.RunChrootCommand(chroot, "mkdir -p /btrbk/snapshots /var/log/btrbk"); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /btrbk/snapshots /var/log/btrbk"); err != nil {
 		fmt.Printf("[WARNING] Failed to create btrbk directories: %v\n", err)
 	}
 
 	// Create btrbk snapshot directory
-	if _, err := shell.RunChrootCommand(chroot, "mkdir -p /mnt/btrbk/snapshots"); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /mnt/btrbk/snapshots"); err != nil {
 		fmt.Printf("[WARNING] Failed to create btrbk snapshot directory: %v\n", err)
 	}
 
 	// Create btrbk log directory
-	if _, err := shell.RunChrootCommand(chroot, "mkdir -p /var/log/btrbk"); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /var/log/btrbk"); err != nil {
 		fmt.Printf("[WARNING] Failed to create btrbk log directory: %v\n", err)
 	}
 

@@ -25,7 +25,7 @@ func BootstrapAlpine(conf *config.Config) error {
 
 	// Command to find the latest version of apk-tools-static from the repository index
 	findCmd := fmt.Sprintf("curl -sSf %s/ | sed -n 's/.*apk-tools-static-\\(.*\\)\\.apk.*/\\1/p' | head -n1", archURL)
-	apkVersion, err := shell.RunCommand("sh", "-c", findCmd)
+	apkVersion, err := shell.ExecuteCmd("", findCmd)
 	if err != nil {
 		return fmt.Errorf("failed to detect apk-tools-static version: %w", err)
 	}
@@ -39,27 +39,23 @@ func BootstrapAlpine(conf *config.Config) error {
 	fullURL := fmt.Sprintf("%s/%s", archURL, apkFileName)
 
 	fmt.Printf("[DEBUG] Downloading %s\n", apkFileName)
-	if _, err := shell.RunCommand("curl", "-LO", fullURL); err != nil {
+	if _, err := shell.ExecuteCmd("", fmt.Sprintf("curl -LO %s", fullURL)); err != nil {
 		return fmt.Errorf("failed to download apk-static: %w", err)
 	}
 
 	fmt.Println("[DEBUG] Extracting apk-tools-static")
-	if _, err := shell.RunCommand("tar", "-xzf", apkFileName); err != nil {
+	if _, err := shell.ExecuteCmd("", fmt.Sprintf("tar -xzf %s", apkFileName)); err != nil {
 		return fmt.Errorf("failed to extract apk-static: %w", err)
 	}
 
 	fmt.Println("[INFO] Initializing Alpine base system into target...")
 	// We use i.ChrootDir for the destination path (-p)
-	// Use RunCommandStrict — bootstrap is critical, must not be ignored
-	_, err = shell.RunCommandStrict("./sbin/apk.static",
-		"-X", repoURL,
-		"-U", "--allow-untrusted",
-		"-p", i.ChrootDir,
-		"--initdb", "add", "alpine-base")
+	// Use ExecuteCmd — bootstrap is critical, must not be ignored
+	_, err = shell.ExecuteCmd("", fmt.Sprintf("./sbin/apk.static -X %s -U --allow-untrusted -p %s --initdb add alpine-base", repoURL, i.ChrootDir))
 
 	// Cleanup the downloaded files
-	_, _ = shell.RunCommand("rm", apkFileName)
-	_, _ = shell.RunCommand("rm", "-rf", "sbin")
+	_, _ = shell.ExecuteCmd("", fmt.Sprintf("rm %s", apkFileName))
+	_, _ = shell.ExecuteCmd("", "rm -rf sbin")
 
 	return err
 }

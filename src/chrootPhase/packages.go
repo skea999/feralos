@@ -59,24 +59,24 @@ func createProvideDummy(chroot, pkgName string) error {
 	apkPath := fmt.Sprintf("/tmp/provide-%s.apk", pkgName)
 
 	// Clean up any previous attempt
-	shell.RunChrootCommand(chroot, "rm -rf "+apkPath)
+	shell.ExecuteCmd(chroot, "rm -rf "+apkPath)
 
 	// Build empty APK v3 package using apk mkpkg (no --files)
 	mkpkgCmd := fmt.Sprintf(
 		"apk mkpkg --info name:%s --info version:999 --info description:Dummy %s for dependency satisfaction --info arch:noarch --output %s",
 		pkgName, pkgName, apkPath,
 	)
-	if _, err := shell.RunChrootCommand(chroot, mkpkgCmd); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, mkpkgCmd); err != nil {
 		return fmt.Errorf("apk mkpkg failed for %s: %w", pkgName, err)
 	}
 
 	// Install the dummy package
-	if _, err := shell.RunChrootCommand(chroot, "apk add --allow-untrusted "+apkPath); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, "apk add --allow-untrusted "+apkPath); err != nil {
 		return fmt.Errorf("failed to install provide dummy %s: %w", pkgName, err)
 	}
 
 	// Verify
-	verify, _ := shell.RunChrootCommand(chroot, "apk info -e "+pkgName+" 2>/dev/null && echo INSTALLED || echo NOT_INSTALLED")
+	verify, _ := shell.ExecuteCmd(chroot, "apk info -e "+pkgName+" 2>/dev/null && echo INSTALLED || echo NOT_INSTALLED")
 	if strings.Contains(verify, "INSTALLED") {
 		fmt.Printf("[INFO] Provide dummy %s v999 installed\n", pkgName)
 	} else {
@@ -84,7 +84,7 @@ func createProvideDummy(chroot, pkgName string) error {
 	}
 
 	// Clean up
-	shell.RunChrootCommand(chroot, "rm -rf "+apkPath)
+	shell.ExecuteCmd(chroot, "rm -rf "+apkPath)
 
 	return nil
 }
@@ -98,16 +98,16 @@ func createDummySymlinkPackage(chroot, replacedPkg, replacementBin, replacedBin 
 	apkPath := fmt.Sprintf("/tmp/dummy-%s.apk", replacedPkg)
 
 	// Clean up any previous attempt
-	shell.RunChrootCommand(chroot, "rm -rf "+tmpDir+" "+apkPath)
+	shell.ExecuteCmd(chroot, "rm -rf "+tmpDir+" "+apkPath)
 
 	// Create directory: /usr/bin
-	if _, err := shell.RunChrootCommand(chroot, "mkdir -p "+tmpDir+"/usr/bin"); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, "mkdir -p "+tmpDir+"/usr/bin"); err != nil {
 		return fmt.Errorf("failed to create dir: %w", err)
 	}
 
 	// Create symlink: /usr/bin/less → /usr/bin/bat
 	symlinkCmd := fmt.Sprintf("ln -s %s %s%s", replacementBin, tmpDir, replacedBin)
-	if _, err := shell.RunChrootCommand(chroot, symlinkCmd); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, symlinkCmd); err != nil {
 		return fmt.Errorf("failed to create symlink %s → %s: %w", replacedBin, replacementBin, err)
 	}
 
@@ -117,17 +117,17 @@ func createDummySymlinkPackage(chroot, replacedPkg, replacementBin, replacedBin 
 		"apk mkpkg --files %s --info %s --info version:999 --info description:Dummy %s replaced by %s --info arch:noarch --output %s",
 		tmpDir, infoName, replacedPkg, replacementBin, apkPath,
 	)
-	if _, err := shell.RunChrootCommand(chroot, mkpkgCmd); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, mkpkgCmd); err != nil {
 		return fmt.Errorf("apk mkpkg failed for %s: %w", replacedPkg, err)
 	}
 
 	// Install the dummy package (untrusted because self-signed)
-	if _, err := shell.RunChrootCommand(chroot, "apk add --allow-untrusted "+apkPath); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, "apk add --allow-untrusted "+apkPath); err != nil {
 		return fmt.Errorf("failed to install dummy %s: %w", replacedPkg, err)
 	}
 
 	// Verify installation
-	verify, _ := shell.RunChrootCommand(chroot, "apk info -e "+replacedPkg+" 2>/dev/null && echo INSTALLED || echo NOT_INSTALLED")
+	verify, _ := shell.ExecuteCmd(chroot, "apk info -e "+replacedPkg+" 2>/dev/null && echo INSTALLED || echo NOT_INSTALLED")
 	if strings.Contains(verify, "INSTALLED") {
 		fmt.Printf("[INFO] Dummy %s v999 installed (symlink to %s)\n", replacedPkg, replacementBin)
 	} else {
@@ -135,7 +135,7 @@ func createDummySymlinkPackage(chroot, replacedPkg, replacementBin, replacedBin 
 	}
 
 	// Clean up temp files
-	shell.RunChrootCommand(chroot, "rm -rf "+tmpDir+" "+apkPath)
+	shell.ExecuteCmd(chroot, "rm -rf "+tmpDir+" "+apkPath)
 
 	return nil
 }
@@ -149,7 +149,7 @@ func InstallPackages(conf *config.Config) error {
 
 	fmt.Println("[INFO] Installing packages...")
 
-	if _, err := shell.RunChrootCommand(chroot, "apk update"); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, "apk update"); err != nil {
 		return fmt.Errorf("apk update failed: %w", err)
 	}
 
@@ -169,7 +169,7 @@ func InstallPackages(conf *config.Config) error {
 	}
 
 	// Add UKI microcode packages based on CPU (detect inside chroot)
-	cpuInfo, _ := shell.RunChrootCommand(chroot, "cat /proc/cpuinfo")
+	cpuInfo, _ := shell.ExecuteCmd(chroot, "cat /proc/cpuinfo")
 	if strings.Contains(cpuInfo, "AMD") {
 		allPkgs = append(allPkgs, "amd-ucode")
 	} else if strings.Contains(cpuInfo, "GenuineIntel") {
@@ -192,13 +192,13 @@ func InstallPackages(conf *config.Config) error {
 
 	// Install all packages together (dummies already installed, won't pull real C packages)
 	pkgList := strings.Join(allPkgs, " ")
-	if _, err := shell.RunChrootCommand(chroot, "apk add "+pkgList); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, "apk add "+pkgList); err != nil {
 		return fmt.Errorf("failed to install packages: %w", err)
 	}
 
 	// Generate EFI keys AFTER package installation (secureboot-hook needs them)
 	// Keys are always generated - the hook checks for their existence before signing.
-	if _, err := shell.RunChrootCommand(chroot, "efi-mkkeys -s 'FeralOS' -o /etc/uefi-keys"); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, "efi-mkkeys -s 'FeralOS' -o /etc/uefi-keys"); err != nil {
 		return fmt.Errorf("efi-mkkeys failed: %w", err)
 	}
 
@@ -208,7 +208,7 @@ func InstallPackages(conf *config.Config) error {
 // FinalUpgrade runs apk update && apk upgrade as the last step.
 func FinalUpgrade(chroot string) error {
 	fmt.Println("[INFO] Final APK upgrade...")
-	if _, err := shell.RunChrootCommand(chroot, "apk update && apk upgrade"); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, "apk update && apk upgrade"); err != nil {
 		fmt.Printf("[WARNING] Final apk upgrade failed: %v\n", err)
 	}
 	return nil

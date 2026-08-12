@@ -72,7 +72,7 @@ func main() {
 
 		fmt.Printf("Binding %s to Clevis TPM2...\n", device)
 		// Use empty PCR policy (TPM identity only)
-		if _, err := shell.RunCommand("clevis", "luks", "bind", "-y", "-d", device, "-k", passFile, "tpm2", "{}"); err != nil {
+		if _, err := shell.ExecuteCmd("", fmt.Sprintf("clevis luks bind -y -d %s -k %s tpm2 {}", device, passFile)); err != nil {
 			fmt.Fprintf(os.Stderr, "WARNING: failed to bind %s: %v\n", device, err)
 		}
 	}
@@ -211,8 +211,8 @@ func installClevis() {
 	f.Close()
 
 	// Update and install
-	shell.RunCommand("apk", "update")
-	shell.RunCommand("apk", "add", "--no-cache", "clevis@edge")
+	shell.ExecuteCmd("", "apk update")
+	shell.ExecuteCmd("", "apk add --no-cache clevis@edge")
 
 	// Remove clevis from world
 	removeFromWorld("clevis@edge")
@@ -258,7 +258,7 @@ func removeTemporaryKey(passFile string, uuids []string) {
 		if device == "" {
 			continue
 		}
-		if _, err := shell.RunCommand("cryptsetup", "luksRemoveKey", "--key-file", passFile, device); err != nil {
+		if _, err := shell.ExecuteCmd("", fmt.Sprintf("cryptsetup luksRemoveKey --key-file %s %s", passFile, device)); err != nil {
 			fmt.Fprintf(os.Stderr, "WARNING: failed to remove temporary Clevis binding key from %s: %v\n", device, err)
 			allRemoved = false
 		}
@@ -281,7 +281,7 @@ func rebuildInitramfs() {
 
 	// Build booster initramfs
 	imgPath := filepath.Join("/boot", "booster-lts.img")
-	if _, err := shell.RunCommand("booster", "build", "--force", "--kernel-version", kernelVersion, imgPath); err != nil {
+	if _, err := shell.ExecuteCmd("", fmt.Sprintf("booster build --force --kernel-version %s %s", kernelVersion, imgPath)); err != nil {
 		fmt.Fprintf(os.Stderr, "WARNING: booster build failed: %v\n", err)
 	}
 }
@@ -302,16 +302,13 @@ func rebuildSignedUKI() {
 	vmlinuz := "/boot/vmlinuz-lts"
 	boosterImg := "/boot/booster-lts.img"
 
-	if _, err := shell.RunCommand("efi-mkuki", "-c", cmdline, "-o", ukiPath, vmlinuz, boosterImg); err != nil {
+	if _, err := shell.ExecuteCmd("", fmt.Sprintf("efi-mkuki -c '%s' -o %s %s %s", cmdline, ukiPath, vmlinuz, boosterImg)); err != nil {
 		fmt.Fprintf(os.Stderr, "WARNING: efi-mkuki failed: %v\n", err)
 		return
 	}
 
 	// Sign UKI
-	if _, err := shell.RunCommand("sbsign",
-		"--key", "/etc/uefi-keys/db.key",
-		"--cert", "/etc/uefi-keys/db.crt",
-		"--output", ukiPath, ukiPath); err != nil {
+	if _, err := shell.ExecuteCmd("", fmt.Sprintf("sbsign --key /etc/uefi-keys/db.key --cert /etc/uefi-keys/db.crt --output %s %s", ukiPath, ukiPath)); err != nil {
 		fmt.Fprintf(os.Stderr, "WARNING: sbsign failed: %v\n", err)
 		return
 	}

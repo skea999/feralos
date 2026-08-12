@@ -2,7 +2,6 @@ package chrootPhase
 
 import (
 	"alpineInstaller/utils/config"
-	"alpineInstaller/utils/files"
 	"alpineInstaller/utils/shell"
 	"fmt"
 	"strings"
@@ -37,46 +36,50 @@ func SetupServices(conf *config.Config) error {
 
 	// 3. Symlink aliases to fish and bash
 	fmt.Println("[INFO] Configuring shell symlinks...")
-	if _, err := shell.RunChrootCommand(chroot, "ln -sfn /etc/profile.d/alias.sh /etc/fish/conf.d/alias.fish"); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, "ln -sfn /etc/profile.d/alias.sh /etc/fish/conf.d/alias.fish"); err != nil {
 		fmt.Printf("[WARNING] Failed to symlink fish alias: %v\n", err)
 	}
 	// Create /etc/bash/ directory if it doesn't exist
-	if _, err := shell.RunChrootCommand(chroot, "mkdir -p /etc/bash"); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /etc/bash"); err != nil {
 		fmt.Printf("[WARNING] Failed to create /etc/bash: %v\n", err)
 	}
-	if _, err := shell.RunChrootCommand(chroot, "ln -sfn /etc/profile.d/alias.sh /etc/bash/alias.sh"); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, "ln -sfn /etc/profile.d/alias.sh /etc/bash/alias.sh"); err != nil {
 		fmt.Printf("[WARNING] Failed to symlink bash alias: %v\n", err)
 	}
 
 	// 4. Editor symlink
-	if _, err := shell.RunChrootCommand(chroot, "ln -sfn /etc/profile.d/editor.sh /etc/bash/editor.sh"); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, "ln -sfn /etc/profile.d/editor.sh /etc/bash/editor.sh"); err != nil {
 		fmt.Printf("[WARNING] Failed to symlink bash editor: %v\n", err)
 	}
 
 	// 5. Pager (sed must run inside chroot)
 	fmt.Println("[INFO] Configuring pager...")
-	if _, err := shell.RunChrootCommand(chroot, "sed -i 's/PAGER=less/PAGER=bat/g' /etc/profile"); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, "sed -i 's/PAGER=less/PAGER=bat/g' /etc/profile"); err != nil {
 		fmt.Printf("[WARNING] Failed to set pager: %v\n", err)
 	}
-	if err := files.WriteFileInChroot(chroot, "/etc/fish/conf.d/pager.fish", "set -gx PAGER bat\n"); err != nil {
+	// Escape single quotes in pager.fish content for shell execution
+	escapedPagerFish := strings.ReplaceAll("set -gx PAGER bat", "'", "'\\''")
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/fish/conf.d/pager.fish", escapedPagerFish)); err != nil {
 		return fmt.Errorf("failed to write pager.fish: %w", err)
 	}
-	if err := files.WriteFileInChroot(chroot, "/etc/bash/pager.sh", "export PAGER=bat\n"); err != nil {
+	// Escape single quotes in pager.sh content for shell execution
+	escapedPagerSh := strings.ReplaceAll("export PAGER=bat", "'", "'\\''")
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/bash/pager.sh", escapedPagerSh)); err != nil {
 		return fmt.Errorf("failed to write pager.sh: %w", err)
 	}
 
 	// 6. Timezone symlink (must run inside chroot)
 	fmt.Printf("[INFO] Setting timezone to %s\n", u.Timezone)
-	if _, err := shell.RunChrootCommand(chroot, fmt.Sprintf("ln -sf /usr/share/zoneinfo/%s /etc/localtime", u.Timezone)); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("ln -sf /usr/share/zoneinfo/%s /etc/localtime", u.Timezone)); err != nil {
 		return fmt.Errorf("failed to set timezone: %w", err)
 	}
 
 	// 7. Remove mkinitfs (we use booster)
 	fmt.Println("[INFO] Removing mkinitfs...")
-	if _, err := shell.RunChrootCommand(chroot, "apk del mkinitfs 2>/dev/null || true"); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, "apk del mkinitfs 2>/dev/null || true"); err != nil {
 		fmt.Printf("[WARNING] Failed to remove mkinitfs: %v\n", err)
 	}
-	if _, err := shell.RunChrootCommand(chroot, "rm -f /etc/kernel-hooks.d/50-secureboot.hook"); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, "rm -f /etc/kernel-hooks.d/50-secureboot.hook"); err != nil {
 		fmt.Printf("[WARNING] Failed to remove old secureboot hook: %v\n", err)
 	}
 
@@ -84,20 +87,22 @@ func SetupServices(conf *config.Config) error {
 	fmt.Println("[INFO] Adding additional kernel modules...")
 	additionalModules := []string{"btrfs", "amdgpu", "fbcon", "tun", "tap", "8021q", "r8169", "bridge", "bonding", "br_netfilter", "veth", "overlay", "zstd", "zstd_compress", "binfmt_misc", "zsmalloc"}
 	for _, mod := range additionalModules {
-		if _, err := shell.RunChrootCommand(chroot, fmt.Sprintf("grep -q '^%s$' /etc/modules || echo '%s' >> /etc/modules", mod, mod)); err != nil {
+		if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("grep -q '^%s$' /etc/modules || echo '%s' >> /etc/modules", mod, mod)); err != nil {
 			fmt.Printf("[WARNING] Failed to add module %s: %v\n", mod, err)
 		}
 	}
 
 	// 10. Smartd config
 	fmt.Println("[INFO] Configuring smartd...")
-	if err := files.WriteFileInChroot(chroot, "/etc/smartd.conf", "DEVICESCAN -a -o on -S on -s (S/../.././02|L/../../6/03) -W 4,40,45\n"); err != nil {
+	// Escape single quotes in smartd content for shell execution
+	escapedSmartd := strings.ReplaceAll("DEVICESCAN -a -o on -S on -s (S/../.././02|L/../../6/03) -W 4,40,45", "'", "'\\''")
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/smartd.conf", escapedSmartd)); err != nil {
 		return fmt.Errorf("failed to write smartd.conf: %w", err)
 	}
 
 	// 11. APK audit cron job
 	fmt.Println("[INFO] Configuring APK audit cron...")
-	if _, err := shell.RunChrootCommand(chroot, "echo '0 4 * * 0 /usr/bin/apk audit --full --quiet || true' >> /etc/crontabs/root"); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, "echo '0 4 * * 0 /usr/bin/apk audit --full --quiet || true' >> /etc/crontabs/root"); err != nil {
 		fmt.Printf("[WARNING] Failed to write cron job: %v\n", err)
 	}
 
@@ -107,7 +112,7 @@ func SetupServices(conf *config.Config) error {
 func setupRunlevels(chroot string, levels map[string][]string) {
 	for level, services := range levels {
 		for _, svc := range services {
-			_, _ = shell.RunChrootCommand(chroot, fmt.Sprintf("rc-update add %s %s", svc, level))
+			_, _ = shell.ExecuteCmd(chroot, fmt.Sprintf("rc-update add %s %s", svc, level))
 		}
 	}
 }
@@ -115,7 +120,7 @@ func setupRunlevels(chroot string, levels map[string][]string) {
 // detectNetworkInterface finds the first non-loopback network interface
 // by listing /sys/class/net/ inside the chroot.
 func detectNetworkInterface(chroot string) (string, error) {
-	out, err := shell.RunChrootCommand(chroot, "ls /sys/class/net/ | grep -v ^lo$")
+	out, err := shell.ExecuteCmd(chroot, "ls /sys/class/net/ | grep -v ^lo$")
 	if err != nil {
 		return "", fmt.Errorf("failed to list network interfaces: %w", err)
 	}
@@ -135,10 +140,11 @@ func setupNetworking(chroot, iface string) error {
 iface lo inet loopback
 
 auto %s
-iface %s inet dhcp
-`, iface, iface)
+iface %s inet dhcp`, iface, iface)
 
-	if err := files.WriteFileInChroot(chroot, "/etc/network/interfaces", interfacesContent); err != nil {
+	// Escape single quotes in interfacesContent for shell execution
+	escapedInterfacesContent := strings.ReplaceAll(interfacesContent, "'", "'\\''")
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/network/interfaces", escapedInterfacesContent)); err != nil {
 		return fmt.Errorf("failed to write /etc/network/interfaces: %w", err)
 	}
 

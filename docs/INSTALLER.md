@@ -47,9 +47,7 @@ src/
 │   ├── config/
 │   │   └── config.go                # Config types + LoadConfig
 │   ├── shell/
-│   │   └── shell.go                 # RunCommand, RunChrootCommand, RunCommandStrict
-│   ├── files/
-│   │   └── files.go                 # WriteFileInChroot (creates parent dirs)
+│   │   └── execute.go               # ExecuteCmd(chroot, cmd) - unified command execution
 │   ├── logic/
 │   │   └── logic.go                 # Dynamic rule application
 │   └── createConfig/
@@ -252,9 +250,10 @@ src/
 ## Error Handling
 
 - **Non-interactive mode**: `SKEA_NONINTERACTIVE=1` + `SKEA_NONINTERACTIVE_DECISION=ignore|stop`
-- **RunCommand**: Shows error and asks for retry/ignore/abort (interactive) or auto-continues/aborts (non-interactive)
-- **RunCommandStrict**: Always returns errors (for critical steps like bootstrap)
-- **Logging**: Debug mode shows commands and results (stdout/stderr)
+- **ExecuteCmd**: Unified command execution with logging, retry (3 attempts), and user feedback
+- **File writes**: Done via shell commands (echo/cat) instead of direct file writes
+- **Logging**: Timestamp + command, stdout/stderr, exit code, duration
+- **Retry**: After 3 failures, asks user: [s]top, [i]gnore, [r]etry (interactive) or auto-continues/aborts (non-interactive)
 
 ## Testing
 
@@ -269,6 +268,10 @@ src/
 ```bash
 # Build installer
 cd src && go build -o ../feralos_installer .
+
+# Build first-boot programs
+cd src && go build -o ../feralos_secureboot ./firstBoot/secureboot/
+cd src && go build -o ../feralos_tpm ./firstBoot/tpm/
 
 # Run installer (requires root + live environment)
 sudo ./feralos_installer -config variables.yaml

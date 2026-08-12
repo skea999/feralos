@@ -1,10 +1,11 @@
 package hostPhase
 
 import (
-	"alpineInstaller/utils/files"
+	"alpineInstaller/utils/shell"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // InjectApkHooks writes APK hooks from host to guest system.
@@ -63,7 +64,9 @@ if [ "${STAGE}" = "pre-commit" ] && [ "${APK_COMMAND}" = "${targetCmd}" ]; then
 fi
 exit 0`
 
-	if err := files.WriteFileInChroot(chrootDir, "/etc/apk/commit_hooks.d/keep-old-kernel.sh", kernelHook); err != nil {
+	// Escape single quotes in kernelHook for shell execution
+	escapedKernelHook := strings.ReplaceAll(kernelHook, "'", "'\\''")
+	if _, err := shell.ExecuteCmd(chrootDir, fmt.Sprintf("echo '%s' > /etc/apk/commit_hooks.d/keep-old-kernel.sh", escapedKernelHook)); err != nil {
 		return fmt.Errorf("failed to write kernel hook: %w", err)
 	}
 	if err := os.Chmod(filepath.Join(hookDir, "keep-old-kernel.sh"), 0755); err != nil {
@@ -126,7 +129,9 @@ fi
 
 exit 0`
 
-		if err := files.WriteFileInChroot(chrootDir, "/etc/apk/commit_hooks.d/copy-efi.sh", efiHook); err != nil {
+		// Escape single quotes in efiHook for shell execution
+		escapedEfiHook := strings.ReplaceAll(efiHook, "'", "'\\''")
+		if _, err := shell.ExecuteCmd(chrootDir, fmt.Sprintf("echo '%s' > /etc/apk/commit_hooks.d/copy-efi.sh", escapedEfiHook)); err != nil {
 			return fmt.Errorf("failed to write EFI hook: %w", err)
 		}
 		if err := os.Chmod(filepath.Join(hookDir, "copy-efi.sh"), 0755); err != nil {

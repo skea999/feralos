@@ -3,59 +3,31 @@
   "status": "active",
   "phase": "Phase 1: Installer",
   "active_goals": [
-    "Test Secure Boot error fix (efi-mkkeys after package install)",
     "Test on real hardware with 2x NVMe (Phase 1)",
     "Add more integration tests (btrfsStandardServer, partial features)",
     "Plan Dinit integration (Phase 2)",
     "Design custom FeralOS repository (Phase 2)"
   ],
   "completed": [
-    "APK v3 dummy packages working: apk mkpkg creates valid packages, installed before main apk add",
-    "providePackages: empty dummies for dependency satisfaction (util-linux-misc)",
-    "uutils-coreutils-more conflict resolved: dummy util-linux-misc satisfies incus-feature-vm",
-    "less_dummy harness check: verifies symlink chain to bat, readlink, bat --version",
-    "Vector fully working: syslog socket on /run/vector/syslog.sock, log files in /var/log/",
-    "Vector service: vector-setup (boot) + vector (boot), no more restarts",
-    "Vector check: apk info | grep -q '^vector$' (init-system agnostic)",
-    "internalRules.yaml cleaned: only base OS in defaultRunlevels, services in packageLogic",
-    "All 22/22 checks pass with ALL features",
-    "btrbk subvolume @btrbk added to both disk layouts",
-    "btrbk config fixed: snapshot_dir /btrbk/snapshots (not /mnt/btrbk/snapshots)",
-    "rsyslog/logrotate replaced with vector (Rust)",
-    "e2fsprogs removed from standardPackages",
-    "zram-init removed, replaced with zswap + swap file",
-    "turnstile added for desktop environments",
-    "btrbk added to disk layouts for btrfs backup",
-    "Package masking removed (apk conflict with bat dependency)",
-    "Per-subvolume compression: mount root without compression, set via btrfs property set",
-    "Swapfile: NoCoW + NOCOMPRESS (chattr +C + chattr +m)",
-    "fstab_vs_mount check added to harness"
+    "Unified command execution: ExecuteCmd replaces RunCommand/RunChrootCommand/WriteFileInChroot",
+    "Deleted shell.go and files.go (no backward compatibility)",
+    "Migrated ~152 calls across 22+ files to ExecuteCmd",
+    "File writes via shell (echo/cat) matches old bash installer behavior",
+    "Logging: timestamp + command, stdout/stderr, exit code, duration",
+    "Fix: Added mkdir -p /etc/kernel before writing cmdline",
+    "All 3 binaries compile (installer + secureboot + tpm), go vet clean",
+    "Harness 25/25 checks pass"
   ],
   "decisions": [
     {
-      "date": "2026-08-09",
-      "decision": "APK v3 dummy packages via apk mkpkg",
-      "rationale": "apk mkpkg creates valid APK v3 packages. Installed BEFORE main apk add so dependency resolvers find dummies. Symlinks replace binary, not scripts."
+      "date": "2026-08-12",
+      "decision": "Unified ExecuteCmd function replaces RunCommand/RunChrootCommand/WriteFileInChroot",
+      "rationale": "Single entry point for all command execution with retry, logging, and user feedback. Matches old bash installer behavior. No backward compatibility."
     },
     {
-      "date": "2026-08-09",
-      "decision": "providePackages for dependency satisfaction",
-      "rationale": "util-linux-misc needed by incus-feature-vm but conflicts with uutils-coreutils-more. Empty dummy satisfies dependency without file conflicts."
-    },
-    {
-      "date": "2026-08-09",
-      "decision": "Per-subvolume compression via btrfs property set",
-      "rationale": "btrfs mount options are filesystem-wide, not per-subvolume. Mount root without compression, then set compression on individual subvolumes using btrfs property set."
-    },
-    {
-      "date": "2026-08-09",
-      "decision": "Swapfile: NoCoW + NOCOMPRESS",
-      "rationale": "btrfs requires NoCoW for swapfiles. chattr +C sets NoCoW, chattr +m sets NOCOMPRESS flag to disable compression."
-    },
-    {
-      "date": "2026-08-09",
-      "decision": "fstab_vs_mount check added to harness",
-      "rationale": "Verify that mount options match fstab entries. Catches btrfs inheritance issues."
+      "date": "2026-08-12",
+      "decision": "File writes via shell commands (echo/cat) instead of direct file writes",
+      "rationale": "Matches old bash installer behavior. All operations go through ExecuteCmd for consistent logging and retry logic."
     },
     {
       "date": "2026-08-08",
@@ -177,9 +149,9 @@
     }
   ],
   "next_actions": [
-    "Test btrfsStandardServer with new harness (no ZFS disks)",
-    "Test with partial features (Secure Boot only, TPM only)",
     "Test on real hardware with 2x NVMe",
-    "Add more unit tests for verify checks"
+    "Test with partial features (Secure Boot only, TPM only)",
+    "Add more unit tests for verify checks",
+    "Plan Dinit integration"
   ]
 }

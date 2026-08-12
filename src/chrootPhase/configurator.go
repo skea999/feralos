@@ -2,7 +2,6 @@ package chrootPhase
 
 import (
 	"alpineInstaller/utils/config"
-	"alpineInstaller/utils/files"
 	"alpineInstaller/utils/shell"
 	"fmt"
 	"strings"
@@ -25,7 +24,7 @@ func Run(conf *config.Config) error {
 
 	// 1a. List installed packages (once for documentation and vector check)
 	fmt.Println("[INFO] Installed packages:")
-	pkgList, err := shell.RunChrootCommand(chroot, "apk info")
+	pkgList, err := shell.ExecuteCmd(chroot, "apk info")
 	if err != nil {
 		fmt.Printf("[WARNING] Failed to list packages: %v\n", err)
 	} else {
@@ -76,7 +75,10 @@ func Run(conf *config.Config) error {
 	// 7. Final kernel cmdline update (appends zswap + hardening args)
 	fmt.Println("[INFO] Writing final kernel cmdline...")
 	finalCmdline := strings.Join(u.KernelCmdline, " ")
-	if err := files.WriteFileInChroot(chroot, "/etc/kernel/cmdline", finalCmdline+"\n"); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /etc/kernel"); err != nil {
+		return fmt.Errorf("failed to create /etc/kernel directory: %w", err)
+	}
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/kernel/cmdline", finalCmdline)); err != nil {
 		return fmt.Errorf("failed to write final kernel cmdline: %w", err)
 	}
 
@@ -172,12 +174,14 @@ sinks:
     encoding:
       codec: text
 `
-	if err := files.WriteFileInChroot(chroot, "/etc/vector/vector.yaml", vectorConfig); err != nil {
+	// Escape single quotes in vectorConfig for shell execution
+	escapedVectorConfig := strings.ReplaceAll(vectorConfig, "'", "'\\''")
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/vector/vector.yaml", escapedVectorConfig)); err != nil {
 		return fmt.Errorf("failed to write vector config: %w", err)
 	}
 
 	// Ensure vector data directory exists (persistent subvolume)
-	if _, err := shell.RunChrootCommand(chroot, "mkdir -p /var/lib/vector && chown vector:vector /var/lib/vector"); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /var/lib/vector && chown vector:vector /var/lib/vector"); err != nil {
 		fmt.Printf("[WARNING] Failed to create vector data directory: %v\n", err)
 	}
 

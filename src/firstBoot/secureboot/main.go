@@ -16,7 +16,7 @@ func main() {
 
 	// --- 1. Install sbctl ---
 	fmt.Println("\nInstalling sbctl...")
-	if _, err := shell.RunCommand("apk", "add", "sbctl"); err != nil {
+	if _, err := shell.ExecuteCmd("", "apk add sbctl"); err != nil {
 		fmt.Fprintf(os.Stderr, "WARNING: failed to install sbctl: %v\n", err)
 	}
 
@@ -36,7 +36,7 @@ func main() {
 
 	// --- 3. Check Secure Boot state ---
 	fmt.Println("\nCurrent Secure Boot status:")
-	if out, err := shell.RunCommand("sbctl", "status"); err != nil {
+	if out, err := shell.ExecuteCmd("", "sbctl status"); err != nil {
 		fmt.Printf("WARNING: sbctl status failed: %v\n", err)
 		_ = out
 	}
@@ -47,22 +47,22 @@ func main() {
 	// --- 5. Enroll keys ---
 	fmt.Println("\nEnrolling keys — requires Secure Boot in Setup Mode (no Platform Key).")
 	fmt.Println("If this fails, clear Secure Boot keys in BIOS first (Custom Mode → Delete All Keys).")
-	if _, err := shell.RunCommand("sbctl", "enroll-keys", "-m"); err != nil {
+	if _, err := shell.ExecuteCmd("", "sbctl enroll-keys -m"); err != nil {
 		fmt.Printf("WARNING: sbctl enroll-keys failed (Setup Mode needed?): %v\n", err)
 	}
 
 	// --- 6. Verify ---
 	fmt.Println("\n=== Verification ===")
-	shell.RunCommand("sbctl", "status")
+	shell.ExecuteCmd("", "sbctl status")
 	fmt.Println()
-	shell.RunCommand("sbctl", "verify")
+	shell.ExecuteCmd("", "sbctl verify")
 	fmt.Println()
 	fmt.Println("Signed files:")
-	shell.RunCommand("sbctl", "list-files")
+	shell.ExecuteCmd("", "sbctl list-files")
 
 	// Remove sbctl
 	fmt.Println("\nRemoving sbctl...")
-	shell.RunCommand("apk", "del", "sbctl")
+	shell.ExecuteCmd("", "apk del sbctl")
 
 	fmt.Println("\n=== Setup Complete ===")
 	fmt.Println()
@@ -78,10 +78,10 @@ func ensureEfivarfs() {
 	}
 
 	// Try modprobe
-	shell.RunCommand("modprobe", "efivarfs")
+	shell.ExecuteCmd("", "modprobe efivarfs")
 
 	// Try mount
-	if _, err := shell.RunCommand("mount", "-t", "efivarfs", "efivarfs", "/sys/firmware/efi/efivars"); err != nil {
+	if _, err := shell.ExecuteCmd("", "mount -t efivarfs efivarfs /sys/firmware/efi/efivars"); err != nil {
 		fmt.Printf("WARNING: failed to mount efivarfs: %v\n", err)
 	}
 }
@@ -147,7 +147,7 @@ func importCerts() {
 
 		// Convert CRT to PEM
 		if _, err := os.Stat(dstPem); os.IsNotExist(err) {
-			shell.RunCommand("openssl", "x509", "-in", srcCrt, "-out", dstPem)
+			shell.ExecuteCmd("", fmt.Sprintf("openssl x509 -in %s -out %s", srcCrt, dstPem))
 		}
 
 		// Copy key

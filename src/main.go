@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"alpineInstaller/chrootPhase"
 	"alpineInstaller/hostPhase"
@@ -135,11 +136,11 @@ func checkHostDependencies() error {
 	deps := []string{"btrfs-progs", "cryptsetup", "curl", "tar", "dosfstools", "rsync", "efitools", "sbsigntool"}
 
 	fmt.Println("[DEBUG] Updating apt and installing required host tools")
-	if _, err := shell.RunCommand("apt", "update"); err != nil {
+	if _, err := shell.ExecuteCmd("", "apt update"); err != nil {
 		return fmt.Errorf("apt update failed: %w", err)
 	}
 
-	args := append([]string{"install", "-y"}, deps...)
-	_, err := shell.RunCommand("apt", args...)
+	args := append([]string{"install -y"}, deps...)
+	_, err := shell.ExecuteCmd("", "apt "+strings.Join(args, " "))
 	return err
 }
