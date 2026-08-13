@@ -14,19 +14,24 @@ func ApplyRules(conf *config.Config) {
 	// Always include base modules (fbcon, bridge, bonding, etc.)
 	u.Modules = appendUnique(u.Modules, i.BaseModules...)
 
+	// Add zsmalloc module for zswap
+	if u.EnableZswap {
+		u.Modules = appendUnique(u.Modules, "zsmalloc")
+	}
+
 	if layout, ok := i.DiskLayouts[u.DiskLayout]; ok {
 		fmt.Printf("[DEBUG] Applying Disk Layout: %s\n", u.DiskLayout)
-		applyRule(u, layout)
+		applyRule(u, &layout)
 	}
 
 	if de, ok := i.DesktopEnvironments[u.DesktopEnvironment]; ok {
 		fmt.Printf("[DEBUG] Applying Desktop: %s\n", u.DesktopEnvironment)
-		applyRule(u, de)
+		applyRule(u, &de)
 	}
 
 	if gpu, ok := i.VideoDrivers[u.VideoDriver]; ok {
 		fmt.Printf("[DEBUG] Applying Driver: %s\n", u.VideoDriver)
-		applyRule(u, gpu)
+		applyRule(u, &gpu)
 	}
 
 	u.AllPackages = appendUnique(u.AllPackages, i.StandardPackages...)
@@ -39,7 +44,7 @@ func ApplyRules(conf *config.Config) {
 			if !processed[pkg] {
 				if rule, found := i.PackageLogic[pkg]; found {
 					fmt.Printf("[DEBUG] Applying logic for package: %s\n", pkg)
-					applyRule(u, rule)
+					applyRule(u, &rule)
 					added = true
 				}
 				processed[pkg] = true
@@ -51,7 +56,7 @@ func ApplyRules(conf *config.Config) {
 	}
 }
 
-func applyRule(u *config.UserVariables, rule config.DynamicPackageRules) {
+func applyRule(u *config.UserVariables, rule *config.DynamicPackageRules) {
 	u.AllPackages = appendUnique(u.AllPackages, rule.Packages...)
 	u.UserGroups = appendUnique(u.UserGroups, rule.Groups...)
 	u.Modules = appendUnique(u.Modules, rule.Modules...)

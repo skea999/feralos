@@ -31,13 +31,12 @@ type UserVariables struct {
 	SshAuthorizedKey   string   `yaml:"sshAuthorizedKey"`
 
 	// Feature toggles
-	EnableEncryption  bool `yaml:"enableEncryption"`
-	EnableSecureboot  bool `yaml:"enableSecureboot"`
-	EnableTPM         bool `yaml:"enableTPM"`
-	EnableHardening   bool `yaml:"enableHardening"`
-	EnableZswap       bool `yaml:"enableZswap"`
-	EnableNix         bool `yaml:"enableNix"`
-	EnableDebug       bool `yaml:"enableDebug"`
+	EnableSecureboot bool `yaml:"enableSecureboot"`
+	EnableTPM        bool `yaml:"enableTPM"`
+	EnableHardening  bool `yaml:"enableHardening"`
+	EnableZswap      bool `yaml:"enableZswap"`
+	EnableNix        bool `yaml:"enableNix"`
+	EnableDebug      bool `yaml:"enableDebug"`
 
 	// Network
 	DefaultNetworkInterface string `yaml:"defaultNetworkInterface"`
@@ -92,11 +91,11 @@ func LoadConfig(userPath string) (*Config, error) {
 	// Look for internalRules.yaml in src/variables/ directory
 	// This file contains the dynamic rules and is not user-editable
 	iPaths := []string{
-		"src/variables/internalRules.yaml",  // From project root
-		"variables/internalRules.yaml",       // From src/
-		"../variables/internalRules.yaml",    // From src/utils/
+		"src/variables/internalRules.yaml", // From project root
+		"variables/internalRules.yaml",     // From src/
+		"../variables/internalRules.yaml",  // From src/utils/
 	}
-	
+
 	var iData []byte
 	for _, p := range iPaths {
 		if data, err := os.ReadFile(p); err == nil {
@@ -104,11 +103,11 @@ func LoadConfig(userPath string) (*Config, error) {
 			break
 		}
 	}
-	
+
 	if iData == nil {
 		return nil, fmt.Errorf("cannot find internalRules.yaml in any expected location")
 	}
-	
+
 	if err := yaml.Unmarshal(iData, &conf.Internal); err != nil {
 		return nil, err
 	}

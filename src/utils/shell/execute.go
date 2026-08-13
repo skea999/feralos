@@ -3,6 +3,7 @@ package shell
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -67,7 +68,7 @@ func ExecuteCmdWithAllowFail(chroot string, cmd string, allowFail bool) (string,
 	for attempt := 1; attempt <= MaxRetries; attempt++ {
 		// Log timestamp + command
 		timestamp := time.Now().Format("2006-01-02 15:04:05")
-		fmt.Printf("%s[%s] %s: %s\n", prefix, timestamp, tag, cmd)
+		fmt.Printf("\n%s[%s] %s: %s", prefix, timestamp, tag, cmd)
 
 		// Execute command
 		start := time.Now()
@@ -110,7 +111,8 @@ func ExecuteCmdWithAllowFail(chroot string, cmd string, allowFail bool) (string,
 		// Log exit code
 		exitCode := 0
 		if err != nil {
-			if exitErr, ok := err.(*exec.ExitError); ok {
+			var exitErr *exec.ExitError
+			if errors.As(err, &exitErr) {
 				exitCode = exitErr.ExitCode()
 			}
 		}
@@ -118,7 +120,7 @@ func ExecuteCmdWithAllowFail(chroot string, cmd string, allowFail bool) (string,
 		if exitCode != 0 {
 			status = "FAIL"
 		}
-		fmt.Printf("[%s][RESULT] %s exit=%d time=%v\n", prefix, status, exitCode, duration.Round(time.Millisecond))
+		fmt.Printf("[%s][RESULT] %s exit=%d time=%v\n\n", prefix, status, exitCode, duration.Round(time.Millisecond))
 
 		// If OK or allowFail, return
 		if err == nil || allowFail {
@@ -164,7 +166,6 @@ func ExecuteCmdWithAllowFail(chroot string, cmd string, allowFail bool) (string,
 			case "r":
 				fmt.Printf("[INFO] Retrying command...\n")
 				attempt = 0 // Will be incremented to 1
-				break
 			default:
 				fmt.Printf("[INFO] Invalid input. Please enter 's', 'i', or 'r'.\n")
 			}

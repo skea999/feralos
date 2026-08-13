@@ -129,27 +129,13 @@ tests/artifacts/
 - Never commit test outputs to repository
 - Harness auto-cleans old runs, keeps last 2
 
-## Lint (WSL / Native)
+## Lint (Native Linux)
 
-Development happens on Windows but lint/build runs on Linux. Use WSL on Windows, native on Linux.
-
-### WSL Setup (one-time)
+Run lint and vet from the `src/` directory:
 
 ```bash
-wsl -d Alpine -u root -- sh -c "apk add --no-cache go golangci-lint"
-```
-
-### Run Lint
-
-**Windows (WSL):**
-Convert the project path from Windows to WSL format (`C:\` → `/mnt/c/`, `\` → `/`), then:
-```powershell
-wsl -d Alpine -u root -- sh -c "cd <project-path>/src && GOFLAGS=-buildvcs=false golangci-lint run ./..."
-```
-
-**Linux (native):**
-```bash
-cd src && GOFLAGS=-buildvcs=false golangci-lint run ./...
+cd src && go vet ./...
+cd src && golangci-lint run ./...
 ```
 
 ### Naming Conventions
@@ -231,34 +217,42 @@ feralos_installer/
 │   │       └── createValues/
 │   │           └── main.go       # Standalone generator
 │   ├── hostPhase/            # Host-side operations (writes files, NO chroot commands)
-│   │   ├── disks/            # Storage layouts (Go packages)
-│   │   │   ├── btrfsStandardServer/
-│   │   │   │   ├── partitioning.go
-│   │   │   │   ├── fstab.go
-│   │   │   │   └── luks.go
-│   │   │   └── btrfsStandard/
-│   │   │       ├── partitioning.go
-│   │   │       └── fstab.go
-│   │   ├── booster.go        # booster.yaml + kernel cmdline + hooks
-│   │   ├── bootstrap.go
-│   │   ├── bind_mounts.go
-│   │   ├── chroot_preparation.go
-│   │   └── hooks.go
+│   │   ├── host_phase.go     # Orchestrator: MountVirtualFilesystems + BootstrapAlpine + PrepareChrootEnv + InjectApkHooks
+│   │   ├── internal/         # Implementation files
+│   │   │   ├── bootstrap.go  # BootstrapAlpine
+│   │   │   ├── bind_mounts.go # MountVirtualFilesystems, UmountVirtualFilesystems
+│   │   │   ├── chroot_env.go # PrepareChrootEnv (APK repos)
+│   │   │   └── hooks.go      # InjectApkHooks (EFI sync for dual-disk)
+│   │   └── disks/            # Storage layouts (Go packages)
+│   │       ├── btrfsStandardServer/
+│   │       │   ├── partitioning.go
+│   │       │   ├── fstab.go
+│   │       │   └── luks.go
+│   │       └── btrfsStandard/
+│   │           ├── partitioning.go
+│   │           └── fstab.go
 │   ├── firstBoot/            # Standalone first-boot programs (Go)
 │   │   ├── secureboot/       # Secure Boot enrollment via sbctl
 │   │   │   └── main.go
 │   │   └── tpm/              # Clevis TPM2 binding for LUKS auto-unlock
 │   │       └── main.go
 │   └── chrootPhase/          # Chroot operations (runs INSIDE chroot)
-│       ├── configurator.go   # Run() principal
-│       ├── packages.go       # apk add, dummy packages, TPM packages
-│       ├── services.go       # OpenRC, aliases, symlinks, timezone
-│       ├── users.go          # User creation, groups, SSH, shell
-│       ├── dmcrypt.go        # LUKS swap keyfile + luksAddKey
-│       ├── hardening.go      # AppArmor, sysctl, chmod, sed
-│       ├── uki.go            # booster build, efi-mkuki, sbsign
-│       ├── zswap.go          # zswap compressed swap (optional)
-│       └── utils.go          # getPartitionSpacer, getDiskSuffix
+│       ├── chroot_phase.go   # Run() orchestrator (12 steps)
+│       ├── internal/         # Implementation files
+│       │   ├── packages.go   # SetupPackages, InstallDummyPackages, FinalUpgrade
+│       │   ├── firmware.go   # DetectFirmwarePackages
+│       │   ├── network.go    # SetupNetwork (hostname, hosts, resolv.conf, interfaces)
+│       │   ├── boot.go       # SetupBoot (booster.yaml, kernel cmdline, hooks)
+│       │   ├── storage.go    # SetupStorage (btrbk, bridging sysctl)
+│       │   ├── logging.go    # SetupLogging (vector config + vector-setup service)
+│       │   ├── misc.go       # SetupMisc (aliases, editor, PS1, timezone, pager, subuid/subgid, limits, sudoers, LXC, mkinitfs, smartd, cron, keymap)
+│       │   ├── services.go   # SetupServices (OpenRC runlevels only)
+│       │   ├── users.go      # SetupUsers (user creation, groups, SSH, shell)
+│       │   └── uki.go        # BuildUKI (booster build, efi-mkuki)
+│       └── features/         # Activatable features (Enable* flags)
+│           ├── hardening.go  # SetupHardening (AppArmor, sysctl, chmod, sed)
+│           ├── zswap.go      # SetupZswap + SetupDmcryptSwap (LUKS swap + compressed swap)
+│           └── nix.go        # SetupNix
 ├── internal/                     # Shell scripts (reference)
 ├── docs/
 ├── state/
@@ -305,7 +299,20 @@ feralos_installer/
 
 ---
 
-*Updated: 2026-08-12*
+*Updated: 2026-08-13*
+
+### 2026-08-13 16:00 - Rev. 8 Reorganization: Orchestrators + Modular Files
+**Agent:** codebase
+**Summary:** Major repository reorganization — both phases get orchestrators, main.go simplified to 2 calls
+- **New chrootPhase files**: `boot.go` (booster/cmdline/hooks), `storage.go` (btrbk/bridging), `logging.go` (vector/vector-setup), `misc.go` (aliases/editor/PS1/timezone/pager/subuid/subgid/limits/sudoers/LXC/mkinitfs/smartd/cron/keymap), `network.go` (hostname/hosts/resolv.conf/interfaces)
+- **New orchestrators**: `hostPhase/host_phase.go` (MountVirtualFilesystems + BootstrapAlpine + PrepareChrootEnv + InjectApkHooks), `chrootPhase/chroot_phase.go` (Run with 14 steps)
+- **Simplified main.go**: Only 2 calls: `hostPhase.Run(conf)` + `chrootPhase.Run(conf)`
+- **Reduced services.go**: Only OpenRC runlevels (all other config moved to misc.go/network.go)
+- **Merged dmcrypt.go → zswap.go**: Both LUKS swap keyfile and zswap compressed swap in one file; local `getPartitionSpacer`/`getDiskSuffix` (deleted `chrootPhase/utils.go`)
+- **Renamed functions**: `InstallPackages` → `SetupPackages`, `BuildAndDeployUKI` → `BuildUKI`, `WriteHardening` → `SetupHardening`
+- **Removed enableEncryption**: Was defined but never checked (LUKS always applied) — bug fix, separate from reorg
+- **Deleted 7 old files**: `hostPhase/chroot_preparation.go`, `hostPhase/keyfile.go`, `hostPhase/booster.go`, `hostPhase/hooks.go`, `chrootPhase/utils.go`, `chrootPhase/dmcrypt.go`, `chrootPhase/configurator.go`
+- **Build**: All 5 binaries compile (installer + secureboot + tpm + generator), go vet clean
 
 ### 2026-08-12 12:00 - Code Review + packageLogic Modules + incus Chain
 **Agent:** codebase

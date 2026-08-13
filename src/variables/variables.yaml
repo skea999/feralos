@@ -32,7 +32,6 @@ variables:
   defaultNetworkInterface: "eth0"
 
   # Feature Toggles
-  enableEncryption: true
   enableSecureboot: false
   enableTPM: false
   enableHardening: false

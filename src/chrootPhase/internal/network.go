@@ -1,0 +1,75 @@
+package internal
+
+import (
+	"alpineInstaller/utils/config"
+	"alpineInstaller/utils/shell"
+	"fmt"
+	"strings"
+)
+
+// SetupNetwork configures hostname, hosts, resolv.conf, and network interfaces.
+func SetupNetwork(conf *config.Config) error {
+	chroot := conf.Internal.ChrootDir
+	u := conf.User
+
+	fmt.Printf("[INFO] Setting hostname to %s\n", u.Hostname)
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/hostname", u.Hostname)); err != nil {
+		return fmt.Errorf("failed to write hostname: %w", err)
+	}
+
+	hostsContent := fmt.Sprintf("echo '127.0.0.1 %s %s.localdomain\n::1 %s %s.localdomain' > /etc/hosts", u.Hostname, u.Hostname, u.Hostname, u.Hostname)
+	if _, err := shell.ExecuteCmd(chroot, hostsContent); err != nil {
+		return fmt.Errorf("failed to write hosts: %w", err)
+	}
+
+	if _, err := shell.ExecuteCmd(chroot, "echo 'nameserver 208.67.222.222\nnameserver 208.67.220.220' > /etc/resolv.conf"); err != nil {
+		return fmt.Errorf("failed to write resolv.conf: %w", err)
+	}
+
+	iface := u.DefaultNetworkInterface
+	if iface == "" {
+		var err error
+		iface, err = detectNetworkInterface(chroot)
+		if err != nil {
+			fmt.Printf("[WARNING] Could not detect network interface: %v — skipping network config\n", err)
+		}
+	}
+	if iface != "" {
+		fmt.Printf("[INFO] Configuring network interface %s...\n", iface)
+		if err := setupInterfaces(chroot, iface); err != nil {
+			return fmt.Errorf("networking setup failed: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func detectNetworkInterface(chroot string) (string, error) {
+	out, err := shell.ExecuteCmd(chroot, "ls /sys/class/net/ | grep -v ^lo$")
+	if err != nil {
+		return "", fmt.Errorf("failed to list network interfaces: %w", err)
+	}
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	for _, line := range lines {
+		iface := strings.TrimSpace(line)
+		if iface != "" && iface != "lo" {
+			return iface, nil
+		}
+	}
+	return "", fmt.Errorf("no non-loopback network interface found")
+}
+
+func setupInterfaces(chroot, iface string) error {
+	interfacesContent := fmt.Sprintf(`auto lo
+iface lo inet loopback
+
+auto %s
+iface %s inet dhcp`, iface, iface)
+
+	escaped := strings.ReplaceAll(interfacesContent, "'", "'\\''")
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/network/interfaces", escaped)); err != nil {
+		return fmt.Errorf("failed to write /etc/network/interfaces: %w", err)
+	}
+
+	return nil
+}

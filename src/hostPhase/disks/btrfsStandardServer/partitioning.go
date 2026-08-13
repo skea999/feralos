@@ -68,20 +68,20 @@ func RunBtrfsSetup(conf *config.Config) error {
 
 		cmd := exec.Command("fdisk", "-W", "always", disk)
 		cmd.Stdin = strings.NewReader(fdiskCommands)
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("fdisk failed on %s: %w", disk, err)
+		if fdiskErr := cmd.Run(); fdiskErr != nil {
+			return fmt.Errorf("fdisk failed on %s: %w", disk, fdiskErr)
 		}
 
-	// Format EFI partition
-	partitionSpacer := getPartitionSpacer(disk)
-	efiPart := disk + partitionSpacer + "1"
-	if _, err := shell.ExecuteCmd("", fmt.Sprintf("mkfs.vfat -F 32 %s", efiPart)); err != nil {
-		return fmt.Errorf("failed to format EFI on %s: %w", disk, err)
-	}
-	label := "EFI" + strings.ToUpper(getDiskSuffix(disk))
-	if _, err := shell.ExecuteCmd("", fmt.Sprintf("fatlabel %s %s", efiPart, label)); err != nil {
-		return fmt.Errorf("failed to label EFI on %s: %w", disk, err)
-	}
+		// Format EFI partition
+		partitionSpacer := getPartitionSpacer(disk)
+		efiPart := disk + partitionSpacer + "1"
+		if _, mkfsErr := shell.ExecuteCmd("", fmt.Sprintf("mkfs.vfat -F 32 %s", efiPart)); mkfsErr != nil {
+			return fmt.Errorf("failed to format EFI on %s: %w", disk, mkfsErr)
+		}
+		label := "EFI" + strings.ToUpper(getDiskSuffix(disk))
+		if _, labelErr := shell.ExecuteCmd("", fmt.Sprintf("fatlabel %s %s", efiPart, label)); labelErr != nil {
+			return fmt.Errorf("failed to label EFI on %s: %w", disk, labelErr)
+		}
 	}
 
 	// 4. LUKS Encryption on RAID partitions (partition 2)
@@ -100,11 +100,11 @@ func RunBtrfsSetup(conf *config.Config) error {
 	swapPart1 := d1 + getPartitionSpacer(d1) + "3"
 	swapPart2 := d2 + getPartitionSpacer(d2) + "3"
 
-	if err := LuksFormat(swapPart1, u.Password); err != nil {
-		return fmt.Errorf("LUKS format swap failed on %s: %w", d1, err)
+	if luksErr := LuksFormat(swapPart1, u.Password); luksErr != nil {
+		return fmt.Errorf("LUKS format swap failed on %s: %w", d1, luksErr)
 	}
-	if err := LuksFormat(swapPart2, u.Password); err != nil {
-		return fmt.Errorf("LUKS format swap failed on %s: %w", d2, err)
+	if luksErr := LuksFormat(swapPart2, u.Password); luksErr != nil {
+		return fmt.Errorf("LUKS format swap failed on %s: %w", d2, luksErr)
 	}
 
 	// Open swap LUKS
@@ -152,7 +152,7 @@ func RunBtrfsSetup(conf *config.Config) error {
 	}
 
 	// 8. Setup subvolumes and mounts
-	if err := setupSubvolumesAndMounts(i.ChrootDir, luksRAID1, d1, d2, swapUUID1, swapUUID2); err != nil {
+	if err := setupSubvolumesAndMounts(i.ChrootDir, luksRAID1, d1, d2); err != nil {
 		return err
 	}
 
@@ -218,7 +218,7 @@ func getMinDiskSize(d1, d2 string) (int64, error) {
 	return minSize, nil
 }
 
-func setupSubvolumesAndMounts(chroot string, luksDevice string, d1 string, d2 string, swapUUID1 string, swapUUID2 string) error {
+func setupSubvolumesAndMounts(chroot string, luksDevice string, d1 string, d2 string) error {
 	subvols := []Subvolume{
 		{Name: "@", Path: "/", Options: "compress=zstd:3,autodefrag,ssd"},
 		{Name: "@swap", Path: "/swap", Options: "autodefrag,ssd,nodev,noexec,nosuid", NoCoW: true},

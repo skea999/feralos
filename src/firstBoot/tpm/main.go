@@ -78,7 +78,7 @@ func main() {
 	}
 
 	// --- 7. Remove temporary key if needed ---
-	if passFile == "/etc/cryptsetup-tpm2-key" {
+	if passFile == "/etc/cryptsetup-tpm2-key" { //nolint:gosec // G101: false positive, checking file path not credential
 		removeTemporaryKey(passFile, uuids)
 	}
 
@@ -113,7 +113,7 @@ func getLUKSUUIDs() []string {
 }
 
 func findDeviceByUUID(uuid string) string {
-	out, err := exec.Command("findfs", "UUID="+uuid).CombinedOutput()
+	out, err := exec.Command("findfs", "UUID="+uuid).CombinedOutput() //nolint:gosec // G204: UUID is from blkid, not user input
 	if err != nil {
 		return ""
 	}
@@ -133,7 +133,7 @@ func hasClevisTPM2Binding(device string) bool {
 }
 
 func getPassphraseFile() (string, string) {
-	passFile := "/etc/cryptsetup-tpm2-key"
+	passFile := "/etc/cryptsetup-tpm2-key" //nolint:gosec // G101: false positive, this is a file path not a credential
 	if _, err := os.Stat(passFile); err == nil {
 		return passFile, ""
 	}
@@ -145,25 +145,25 @@ func getPassphraseFile() (string, string) {
 			fmt.Fprintf(os.Stderr, "ERROR: failed to create temp file: %v\n", err)
 			os.Exit(1)
 		}
-		tmpFile.WriteString(pw)
+		_, _ = tmpFile.WriteString(pw)
 		tmpFile.Close()
-		os.Chmod(tmpFile.Name(), 0o600)
+		_ = os.Chmod(tmpFile.Name(), 0o600)
 		return tmpFile.Name(), tmpFile.Name()
 	}
 
 	// Interactive prompt
 	fmt.Fprint(os.Stderr, "Enter existing LUKS passphrase: ")
 	var password string
-	fmt.Scanln(&password)
+	_, _ = fmt.Scanln(&password)
 
 	tmpFile, err := os.CreateTemp("", "luks-pass-*.tmp")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: failed to create temp file: %v\n", err)
 		os.Exit(1)
 	}
-	tmpFile.WriteString(password)
+	_, _ = tmpFile.WriteString(password)
 	tmpFile.Close()
-	os.Chmod(tmpFile.Name(), 0o600)
+	_ = os.Chmod(tmpFile.Name(), 0o600)
 
 	// Clear password from memory
 	password = ""
@@ -211,8 +211,8 @@ func installClevis() {
 	f.Close()
 
 	// Update and install
-	shell.ExecuteCmd("", "apk update")
-	shell.ExecuteCmd("", "apk add --no-cache clevis@edge")
+	_, _ = shell.ExecuteCmd("", "apk update")
+	_, _ = shell.ExecuteCmd("", "apk add --no-cache clevis@edge")
 
 	// Remove clevis from world
 	removeFromWorld("clevis@edge")
@@ -233,7 +233,7 @@ func removeFromWorld(pkg string) {
 			lines = append(lines, line)
 		}
 	}
-	os.WriteFile("/etc/apk/world", []byte(strings.Join(lines, "\n")), 0o644)
+	_ = os.WriteFile("/etc/apk/world", []byte(strings.Join(lines, "\n")), 0o600)
 }
 
 func removeEdgeRepos() {
@@ -248,7 +248,7 @@ func removeEdgeRepos() {
 			lines = append(lines, line)
 		}
 	}
-	os.WriteFile("/etc/apk/repositories", []byte(strings.Join(lines, "\n")), 0o644)
+	_ = os.WriteFile("/etc/apk/repositories", []byte(strings.Join(lines, "\n")), 0o600)
 }
 
 func removeTemporaryKey(passFile string, uuids []string) {
@@ -280,7 +280,7 @@ func rebuildInitramfs() {
 	kernelVersion := entries[0].Name()
 
 	// Build booster initramfs
-	imgPath := filepath.Join("/boot", "booster-lts.img")
+	imgPath := filepath.Join("boot", "booster-lts.img")
 	if _, err := shell.ExecuteCmd("", fmt.Sprintf("booster build --force --kernel-version %s %s", kernelVersion, imgPath)); err != nil {
 		fmt.Fprintf(os.Stderr, "WARNING: booster build failed: %v\n", err)
 	}
@@ -314,7 +314,7 @@ func rebuildSignedUKI() {
 	}
 
 	// Copy to fallback ESP
-	copyFile(ukiPath, "/boot/efi/EFI/BOOT/BOOTX64.EFI")
+	_ = copyFile(ukiPath, "/boot/efi/EFI/BOOT/BOOTX64.EFI")
 }
 
 func copyFile(src, dst string) error {
@@ -322,5 +322,5 @@ func copyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(dst, data, 0o644)
+	return os.WriteFile(dst, data, 0o600)
 }

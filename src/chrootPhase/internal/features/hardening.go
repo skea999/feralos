@@ -1,4 +1,4 @@
-package chrootPhase
+package features
 
 import (
 	"alpineInstaller/utils/config"
@@ -9,9 +9,8 @@ import (
 	"strings"
 )
 
-// WriteHardening applies kernel hardening configuration to the chroot.
-// Controlled by conf.User.EnableHardening flag.
-func WriteHardening(conf *config.Config) error {
+// SetupHardening applies kernel hardening configuration to the chroot.
+func SetupHardening(conf *config.Config) error {
 	if !conf.User.EnableHardening {
 		fmt.Println("[INFO] Hardening disabled, skipping...")
 		return nil
@@ -22,14 +21,10 @@ func WriteHardening(conf *config.Config) error {
 
 	fmt.Println("[INFO] Applying kernel hardening...")
 
-	// AppArmor packages are installed in InstallPackages (packages.go)
-
-	// 1. Add AppArmor to boot runlevel
 	if _, err := shell.ExecuteCmd(chroot, "rc-update add apparmor boot"); err != nil {
 		fmt.Printf("[WARNING] Failed to add apparmor to boot: %v\n", err)
 	}
 
-	// 3. Kernel hardening parameters via kernel cmdline
 	loglevelArg := "loglevel=0"
 	dmesgRestrictArg := "sysctl.kernel.dmesg_restrict=1"
 	dmesgRestrictVal := "1"
@@ -48,7 +43,6 @@ func WriteHardening(conf *config.Config) error {
 	)
 	u.KernelCmdline = append(u.KernelCmdline, hardeningCmdline)
 
-	// 4. Sysctl hardening config
 	sysctlHardening := fmt.Sprintf(`kernel.kptr_restrict=2
 kernel.dmesg_restrict=%s
 kernel.unprivileged_bpf_disabled=1
@@ -62,13 +56,11 @@ fs.protected_hardlinks=1
 fs.protected_fifos=2
 fs.protected_regular=2
 kernel.sysrq=4`, dmesgRestrictVal)
-	// Escape single quotes in sysctlHardening for shell execution
 	escapedSysctlHardening := strings.ReplaceAll(sysctlHardening, "'", "'\\''")
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/sysctl.d/99-cmdline-hardening.conf", escapedSysctlHardening)); err != nil {
 		return fmt.Errorf("failed to write sysctl hardening: %w", err)
 	}
 
-	// 5. Memory protection sysctl
 	memfdVal := "1"
 	iouringVal := "2"
 	if u.EnableDebug {
@@ -81,13 +73,11 @@ kernel.unprivileged_userns_apparmor_policy=1
 kernel.io_uring_disabled=%s
 vm.memfd_noexec=%s
 kernel.ftrace_enabled=0`, iouringVal, memfdVal)
-	// Escape single quotes in memProtect for shell execution
 	escapedMemProtect := strings.ReplaceAll(memProtect, "'", "'\\''")
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/sysctl.d/98-hardening.conf", escapedMemProtect)); err != nil {
 		return fmt.Errorf("failed to write mem protection sysctl: %w", err)
 	}
 
-	// 6. Module blacklisting
 	modprobeBlacklist := `# Disable unnecessary network protocols
 install dccp /bin/false
 install sctp /bin/false
@@ -191,13 +181,11 @@ install psmouse /bin/false
 install input_leds /bin/false
 install mousedev /bin/false
 install joydev /bin/false`
-	// Escape single quotes in modprobeBlacklist for shell execution
 	escapedModprobeBlacklist := strings.ReplaceAll(modprobeBlacklist, "'", "'\\''")
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/modprobe.d/disabledModules.conf", escapedModprobeBlacklist)); err != nil {
 		return fmt.Errorf("failed to write modprobe blacklist: %w", err)
 	}
 
-	// 7. Set-permissions service
 	permissionsService := `#!/sbin/openrc-run
 
 name="set-permissions"
@@ -222,37 +210,31 @@ start() {
   /bin/chmod a-st -R /opt/
   eend $?
 }`
-	// Escape single quotes in permissionsService for shell execution
 	escapedPermissionsService := strings.ReplaceAll(permissionsService, "'", "'\\''")
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/init.d/set-permissions", escapedPermissionsService)); err != nil {
 		return fmt.Errorf("failed to write set-permissions service: %w", err)
 	}
-	permPath := filepath.Join(chroot, "/etc/init.d/set-permissions")
+	permPath := filepath.Join(chroot, "etc", "init.d", "set-permissions")
 	if err := os.Chmod(permPath, 0755); err != nil {
 		return fmt.Errorf("failed to chmod set-permissions: %w", err)
 	}
 
-	// 8. Disable core dumps
 	if _, err := shell.ExecuteCmd(chroot, "echo 'kernel.core_pattern=|/bin/false' > /etc/sysctl.d/97-disableCoreDumps.conf"); err != nil {
 		return fmt.Errorf("failed to write core dump config: %w", err)
 	}
 
-	// 11. Disable SUID dumps
 	if _, err := shell.ExecuteCmd(chroot, "echo 'fs.suid_dumpable=0' > /etc/sysctl.d/96-disableSuidDumps.conf"); err != nil {
 		return fmt.Errorf("failed to write suid dump config: %w", err)
 	}
 
-	// 12. ASLR
 	if _, err := shell.ExecuteCmd(chroot, "echo 'kernel.randomize_va_space=2' > /etc/sysctl.d/95-randomizeAddresses.conf"); err != nil {
 		return fmt.Errorf("failed to write ASLR config: %w", err)
 	}
 
-	// 13. Limit kernel logs
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo 'kernel.printk=%s' > /etc/sysctl.d/94-limitLogs.conf", printkVal)); err != nil {
 		return fmt.Errorf("failed to write log limit config: %w", err)
 	}
 
-	// 14. IPv4 hardening
 	ipv4Conf := `net.ipv4.tcp_syncookies=1
 net.ipv4.tcp_rfc1337=1
 net.ipv4.conf.all.rp_filter=1
@@ -273,18 +255,15 @@ net.ipv4.icmp_echo_ignore_broadcasts=1
 net.ipv4.icmp_ignore_bogus_error_responses=1
 net.ipv4.conf.all.log_martians=1
 net.ipv4.conf.default.log_martians=1`
-	// Escape single quotes in ipv4Conf for shell execution
 	escapedIpv4Conf := strings.ReplaceAll(ipv4Conf, "'", "'\\''")
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/sysctl.d/93-ipv4Configs.conf", escapedIpv4Conf)); err != nil {
 		return fmt.Errorf("failed to write ipv4 config: %w", err)
 	}
 
-	// 15. Secure boot and home directories
 	if _, err := shell.ExecuteCmd(chroot, "chmod 700 /boot /lib/modules"); err != nil {
 		fmt.Printf("[WARNING] Failed to chmod /boot: %v\n", err)
 	}
 
-	// 16. Secure umask
 	if _, err := shell.ExecuteCmd(chroot, "sed -i 's/umask 022/umask 0077/g' /etc/profile"); err != nil {
 		fmt.Printf("[WARNING] Failed to set umask: %v\n", err)
 	}

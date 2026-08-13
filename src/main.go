@@ -77,50 +77,14 @@ func main() {
 		log.Fatalf("[ERROR] Unknown disk layout: %s", conf.User.DiskLayout)
 	}
 
-	// 7. Bind Mounts (Virtual Filesystems)
-	fmt.Println("[INFO] Step 4: Mounting virtual filesystems...")
-	if err := hostPhase.MountVirtualFilesystems(conf.Internal.ChrootDir); err != nil {
-		log.Fatalf("[ERROR] Bind mounts failed: %v", err)
+	// 7. Host Phase (mounts, bootstrap, APK repos, hooks)
+	fmt.Println("[INFO] Step 4: Running host phase...")
+	if err := hostPhase.Run(conf); err != nil {
+		log.Fatalf("[ERROR] Host phase failed: %v", err)
 	}
 
-	// 8. Alpine Bootstrap
-	fmt.Println("[INFO] Step 5: Bootstrapping Alpine base system...")
-	if err := hostPhase.BootstrapAlpine(conf); err != nil {
-		log.Fatalf("[ERROR] Bootstrap failed: %v", err)
-	}
-
-	// 9. Host Side Preparation
-	fmt.Println("[INFO] Step 6: Preparing configuration files from host...")
-	if err := hostPhase.PrepareChrootEnv(conf); err != nil {
-		log.Fatalf("[ERROR] Chroot prep failed: %v", err)
-	}
-
-	// 10. Write Booster Config (booster.yaml + kernel cmdline)
-	fmt.Println("[INFO] Step 7: Writing booster configuration...")
-	if err := hostPhase.WriteBoosterConfig(conf); err != nil {
-		log.Fatalf("[ERROR] Booster config failed: %v", err)
-	}
-
-	// 11. Write Booster Hook (kernel upgrade hook)
-	fmt.Println("[INFO] Step 8: Writing booster kernel hook...")
-	if err := hostPhase.WriteBoosterHook(conf.Internal.ChrootDir); err != nil {
-		log.Fatalf("[ERROR] Booster hook failed: %v", err)
-	}
-
-	// 12. Write Secureboot Config
-	fmt.Println("[INFO] Step 9: Writing secureboot hook config...")
-	if err := hostPhase.WriteSecurebootConf(conf.Internal.ChrootDir); err != nil {
-		log.Fatalf("[ERROR] Secureboot hook config failed: %v", err)
-	}
-
-	// 13. Inject APK Hooks
-	fmt.Println("[INFO] Step 10: Injecting APK commit hooks...")
-	if err := hostPhase.InjectApkHooks(conf.Internal.ChrootDir); err != nil {
-		log.Fatalf("[ERROR] Hooks injection failed: %v", err)
-	}
-
-	// 14. Chroot Phase (Final Internal Configuration)
-	fmt.Println("[INFO] Step 11: Entering Chroot for final configuration...")
+	// 8. Chroot Phase (packages, config, UKI)
+	fmt.Println("[INFO] Step 5: Running chroot phase...")
 	if err := chrootPhase.Run(conf); err != nil {
 		log.Fatalf("[ERROR] Chroot phase failed: %v", err)
 	}

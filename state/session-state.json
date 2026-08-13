@@ -26,9 +26,34 @@
     "booster.go: Removed boosterDefaultModules map, uses u.Modules for modules_force_load",
     "incus chain: incus-feature → incus-feature-vm/client/utils; incus-feature-vm → qemu-system-x86_64",
     "Fixed kvm module: kvm-amd/kvm-intel → kvm (Alpine kernel)",
-    "Verified incus chain: incus-feature → incus-feature-vm → qemu-system-x86_64 → kvm module in booster.yaml"
+    "Verified incus chain: incus-feature → incus-feature-vm → qemu-system-x86_64 → kvm module in booster.yaml",
+    "Rev. 8 reorganization: both phases get orchestrators, main.go simplified to 2 calls",
+    "New chrootPhase files: boot.go, storage.go, logging.go, misc.go, network.go",
+    "New orchestrators: hostPhase/host_phase.go, chrootPhase/chroot_phase.go",
+    "Reduced services.go: only OpenRC runlevels (moved to misc.go/network.go)",
+    "Merged dmcrypt.go → zswap.go (local getPartitionSpacer/getDiskSuffix)",
+    "Renamed functions: InstallPackages→SetupPackages, BuildAndDeployUKI→BuildUKI",
+    "Removed enableEncryption (was defined but never checked — bug fix)",
+    "Deleted 7 old files: chroot_preparation.go, keyfile.go, booster.go, hooks.go, utils.go, dmcrypt.go, configurator.go",
+    "Folder reorganization: hostPhase/internal/, chrootPhase/internal/, chrootPhase/internal/features/",
+    "Lint: all go vet + golangci-lint issues fixed (errcheck, gofmt, gosec, gocritic, prealloc, errorlint, etc.)",
+    "Removed all bash aliases (bash never used, fish only)",
+    "Added ensureIncusAdminGroup: creates group if incus/incus-feature installed",
+    "Firmware detection: reduced log verbosity, only prints packages found",
+    "Log formatting: added newlines before commands and after results for readability",
+    "Build: All 5 binaries compile, go vet clean, golangci-lint clean"
   ],
   "decisions": [
+    {
+      "date": "2026-08-13",
+      "decision": "Rev. 8 reorganization: both phases get orchestrators, main.go simplified to 2 calls",
+      "rationale": "hostPhase/host_phase.go orchestrates MountVirtualFilesystems + BootstrapAlpine + PrepareChrootEnv + InjectApkHooks. chrootPhase/chroot_phase.go orchestrates 14 steps. main.go reduced to hostPhase.Run(conf) + chrootPhase.Run(conf)."
+    },
+    {
+      "date": "2026-08-13",
+      "decision": "Removed enableEncryption flag",
+      "rationale": "Flag was defined but never checked (LUKS always applied). Bug fix, separate from reorg."
+    },
     {
       "date": "2026-08-12",
       "decision": "Unified ExecuteCmd function replaces RunCommand/RunChrootCommand/WriteFileInChroot",

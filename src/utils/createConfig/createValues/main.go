@@ -19,11 +19,11 @@ func main() {
 	// 1. Find the required template
 	// Try common paths to ensure we find it
 	templatePaths := []string{
-		"src/variables/variables.yaml",                     // If run from project root
-		"variables/variables.yaml",                          // If run from src/
-		"../variables/variables.yaml",                       // If run from src/utils/createConfig/
-		"../../variables/variables.yaml",                    // If run from src/utils/createConfig/createValues/
-		"/usr/local/share/feralos/variables.yaml",           // Hypothetical system path
+		"src/variables/variables.yaml",            // If run from project root
+		"variables/variables.yaml",                // If run from src/
+		"../variables/variables.yaml",             // If run from src/utils/createConfig/
+		"../../variables/variables.yaml",          // If run from src/utils/createConfig/createValues/
+		"/usr/local/share/feralos/variables.yaml", // Hypothetical system path
 	}
 
 	var templatePath string
@@ -74,5 +74,5 @@ func saveConfigStandalone(conf *config.Config, filename string) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(filename, data, 0644)
+	return os.WriteFile(filename, data, 0600)
 }

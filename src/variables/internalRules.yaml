@@ -19,12 +19,9 @@ standardPackages:
   - kbd-bkeymaps
   - font-terminus
   # Secure Boot / UKI
-  - efi-mkkeys
-  - efitools
+  - efi-mkuki
   - openssl
   - ca-certificates
-  - secureboot-hook
-  - systemd-efistub
   - efibootmgr
   # Filesystem / Crypto
   - linux-lts
@@ -217,4 +214,3 @@ providePackages:
 baseModules:
   - r8169
   - binfmt_misc
-  - zsmalloc
