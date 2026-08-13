@@ -1,8 +1,8 @@
 package chrootPhase
 
 import (
+	"alpineInstaller/chrootPhase/features"
 	"alpineInstaller/chrootPhase/internal"
-	"alpineInstaller/chrootPhase/internal/features"
 	"alpineInstaller/utils/config"
 	"alpineInstaller/utils/shell"
 	"fmt"

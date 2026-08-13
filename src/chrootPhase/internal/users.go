@@ -112,7 +112,7 @@ func ensureIncusAdminGroup(chroot string) error {
 
 	// Check if group already exists
 	checkGroup, _ := shell.ExecuteCmd(chroot, "getent group incus-admin >/dev/null 2>&1 && echo EXISTS || echo NOT_EXISTS")
-	if strings.Contains(checkGroup, "EXISTS") {
+	if strings.TrimSpace(checkGroup) == "EXISTS" {
 		fmt.Println("[DEBUG] incus-admin group already exists")
 		return nil
 	}
@@ -123,6 +123,7 @@ func ensureIncusAdminGroup(chroot string) error {
 		return fmt.Errorf("failed to create incus-admin group: %w", err)
 	}
 
+	fmt.Println("[INFO] incus-admin group created successfully")
 	return nil
 }
 

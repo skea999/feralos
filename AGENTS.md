@@ -299,7 +299,21 @@ feralos_installer/
 
 ---
 
-*Updated: 2026-08-13*
+*Updated: 2026-08-14*
+
+### 2026-08-14 10:00 - Folder Reorganization + Lint + Fixes
+**Agent:** codebase
+**Summary:** Final folder reorganization, lint clean, bash removal, incus-admin fix, firmware silent
+- **Folder structure**: `hostPhase/internal/` (bootstrap, bind_mounts, chroot_env, hooks), `chrootPhase/internal/` (packages, firmware, network, boot, storage, logging, misc, services, users, uki), `chrootPhase/features/` (hardening, zswap, nix)
+- **`hostPhase/disks/`** stays in root — Go internal package rule prevents moving to internal/ (main.go imports disk layouts)
+- **`utils/shell/silent.go`**: New `ExecSilent(chroot, cmd)` for command execution without logging
+- **Firmware detection**: Uses `ExecSilent` to suppress verbose readlink/ls output
+- **Lint fully clean**: go vet + golangci-lint zero errors (errcheck, gofmt, gosec, gocritic, prealloc, errorlint, errorlint, gosimple, govet shadow, unparam, unused)
+- **Removed all bash aliases**: Fish-only environment (bash never used)
+- **incus-admin group fix**: `ensureIncusAdminGroup` creates group before adding user, exact string match
+- **Log formatting**: `\n` before commands, `\n\n` after results for readability
+- **Build**: All 5 binaries compile, go vet clean, golangci-lint clean
+- **Harness**: 25/25 checks pass with all features enabled
 
 ### 2026-08-13 16:00 - Rev. 8 Reorganization: Orchestrators + Modular Files
 **Agent:** codebase

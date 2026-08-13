@@ -7,6 +7,11 @@ import (
 	"strings"
 )
 
+// execSilent runs a command without logging (for firmware detection).
+func execSilent(chroot string, cmd string) (string, error) {
+	return shell.ExecSilent(chroot, cmd)
+}
+
 // DetectFirmwarePackages detects hardware and returns minimal firmware packages.
 func DetectFirmwarePackages(chroot string) []string {
 	modules := detectActiveModules(chroot)
@@ -40,14 +45,14 @@ func detectActiveModules(chroot string) []string {
 	moduleMap := make(map[string]bool)
 
 	driverLinksCmd := "ls /sys/bus/*/devices/*/driver 2>/dev/null || true"
-	if out, err := shell.ExecuteCmd(chroot, driverLinksCmd); err == nil {
+	if out, err := execSilent(chroot, driverLinksCmd); err == nil {
 		for _, line := range strings.Split(out, "\n") {
 			line = strings.TrimSpace(line)
 			if line == "" {
 				continue
 			}
 			readlinkCmd := fmt.Sprintf("readlink %s 2>/dev/null || true", line)
-			if target, err := shell.ExecuteCmd(chroot, readlinkCmd); err == nil {
+			if target, err := execSilent(chroot, readlinkCmd); err == nil {
 				target = strings.TrimSpace(target)
 				if target != "" {
 					mod := target[strings.LastIndex(target, "/")+1:]
@@ -60,7 +65,7 @@ func detectActiveModules(chroot string) []string {
 	}
 
 	busDirsCmd := "ls -d /sys/bus/*/drivers/*/ 2>/dev/null || true"
-	if out, err := shell.ExecuteCmd(chroot, busDirsCmd); err == nil {
+	if out, err := execSilent(chroot, busDirsCmd); err == nil {
 		for _, busDir := range strings.Split(out, "\n") {
 			busDir = strings.TrimSpace(busDir)
 			if busDir == "" {
@@ -73,7 +78,7 @@ func detectActiveModules(chroot string) []string {
 			}
 
 			entriesCmd := fmt.Sprintf("ls %s 2>/dev/null || true", busDir)
-			if entries, err := shell.ExecuteCmd(chroot, entriesCmd); err == nil {
+			if entries, err := execSilent(chroot, entriesCmd); err == nil {
 				hasDevices := false
 				for _, entry := range strings.Split(entries, "\n") {
 					entry = strings.TrimSpace(entry)
@@ -107,7 +112,7 @@ func extractNeededFirmware(chroot string, modules []string) []string {
 
 	for _, mod := range modules {
 		cmd := fmt.Sprintf("modinfo -F firmware %s 2>/dev/null || true", mod)
-		if out, err := shell.ExecuteCmd(chroot, cmd); err == nil {
+		if out, err := execSilent(chroot, cmd); err == nil {
 			for _, fw := range strings.Split(out, "\n") {
 				fw = strings.TrimSpace(fw)
 				if fw != "" {
@@ -128,10 +133,10 @@ func extractNeededFirmware(chroot string, modules []string) []string {
 func buildFirmwarePackageIndex(chroot string) map[string]string {
 	index := make(map[string]string)
 
-	_, _ = shell.ExecuteCmd(chroot, "apk update >/dev/null 2>&1 || true")
+	_, _ = execSilent(chroot, "apk update >/dev/null 2>&1 || true")
 
 	searchCmd := "apk search -q 'linux-firmware-*' 2>/dev/null || true"
-	pkgList, err := shell.ExecuteCmd(chroot, searchCmd)
+	pkgList, err := execSilent(chroot, searchCmd)
 	if err != nil {
 		return index
 	}
@@ -143,7 +148,7 @@ func buildFirmwarePackageIndex(chroot string) map[string]string {
 		}
 
 		fetchCmd := fmt.Sprintf("apk fetch -q --stdout %s 2>/dev/null | tar -tz 2>/dev/null | grep '^lib/firmware/' || true", pkg)
-		if out, err := shell.ExecuteCmd(chroot, fetchCmd); err == nil {
+		if out, err := execSilent(chroot, fetchCmd); err == nil {
 			for _, line := range strings.Split(out, "\n") {
 				line = strings.TrimSpace(line)
 				if strings.HasPrefix(line, "lib/firmware/") {

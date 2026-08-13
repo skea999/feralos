@@ -35,12 +35,13 @@
     "Renamed functions: InstallPackages→SetupPackages, BuildAndDeployUKI→BuildUKI",
     "Removed enableEncryption (was defined but never checked — bug fix)",
     "Deleted 7 old files: chroot_preparation.go, keyfile.go, booster.go, hooks.go, utils.go, dmcrypt.go, configurator.go",
-    "Folder reorganization: hostPhase/internal/, chrootPhase/internal/, chrootPhase/internal/features/",
+    "Folder reorganization: hostPhase/internal/, chrootPhase/internal/, chrootPhase/features/",
     "Lint: all go vet + golangci-lint issues fixed (errcheck, gofmt, gosec, gocritic, prealloc, errorlint, etc.)",
     "Removed all bash aliases (bash never used, fish only)",
     "Added ensureIncusAdminGroup: creates group if incus/incus-feature installed",
     "Firmware detection: reduced log verbosity, only prints packages found",
     "Log formatting: added newlines before commands and after results for readability",
+    "ExecSilent utility: command execution without logging (firmware detection)",
     "Build: All 5 binaries compile, go vet clean, golangci-lint clean"
   ],
   "decisions": [
