@@ -259,18 +259,10 @@ func setupSubvolumesAndMounts(chroot string, luksDevice string, d1 string, d2 st
 		}
 	}
 
-	// Step 3: Disable compression on NoCoW subvolumes via btrfs property set
-	for _, s := range subvols {
-		if s.NoCoW {
-			target := chroot + "/" + s.Name
-			if _, err := shell.ExecuteCmd("", fmt.Sprintf("btrfs property set %s compression none", target)); err != nil {
-				return fmt.Errorf("failed to disable compression on %s: %w", s.Name, err)
-			}
-		}
-	}
-
-	// Step 4: Set NoCoW attribute on NoCoW subvolumes (chattr +C)
-	// btrfs property set compression none only disables compression, NOT NoCoW.
+	// Step 3: Set NoCoW attribute on NoCoW subvolumes (chattr +C)
+	// NODATACOW implies no compression (btrfs docs), so no 'btrfs property
+	// set compression none' is needed — it would set the 'm' attribute on
+	// every file, which conflicts with chattr +C (NixOS/nixpkgs #384047).
 	// chattr +C on directory makes all files created within inherit NoCoW.
 	for _, s := range subvols {
 		if s.NoCoW {
@@ -281,22 +273,18 @@ func setupSubvolumesAndMounts(chroot string, luksDevice string, d1 string, d2 st
 		}
 	}
 
-	// Step 5: Unmount temporary root
+	// Step 4: Unmount temporary root
 	if _, err := shell.ExecuteCmd("", fmt.Sprintf("umount %s", chroot)); err != nil {
 		return fmt.Errorf("failed to unmount btrfs root: %w", err)
 	}
 
-	// Step 6: Mount each subvolume with its correct options
+	// Step 5: Mount each subvolume with its correct options
 	for _, s := range subvols {
 		target := chroot + s.Path
 		if s.Path != "" {
 			if err := os.MkdirAll(target, 0755); err != nil {
 				return fmt.Errorf("failed to create directory %s: %w", target, err)
 			}
-		}
-		// Disable compression on NoCoW directories BEFORE mounting
-		if s.NoCoW {
-			shell.ExecuteCmd("", fmt.Sprintf("btrfs property set %s compression none", target))
 		}
 		// Mount with compress=none in options
 		opts := "subvol=" + s.Name + "," + s.Options
@@ -305,10 +293,6 @@ func setupSubvolumesAndMounts(chroot string, luksDevice string, d1 string, d2 st
 		}
 		if _, err := shell.ExecuteCmd("", fmt.Sprintf("mount -t btrfs -o %s %s %s", opts, luksDevice, target)); err != nil {
 			return fmt.Errorf("failed to mount subvolume %s: %w", s.Name, err)
-		}
-		// Disable compression on NoCoW subvolumes AFTER mounting
-		if s.NoCoW {
-			shell.ExecuteCmd("", fmt.Sprintf("btrfs property set %s compression none", target))
 		}
 	}
 

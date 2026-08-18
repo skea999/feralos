@@ -1430,12 +1430,13 @@ func (service *Service) Verify(ctx context.Context, cfg VerifyConfig) (VerifyRes
 		"vector_running":     "pgrep -f '/usr/bin/vector' 2>/dev/null && echo 'running' || echo 'vector not running'",
 		"vector_diag":        "rc-status boot 2>/dev/null | grep vector; pgrep -la vector 2>/dev/null; ls -la /var/log/vector* 2>/dev/null; echo '===vector.log==='; cat /var/log/vector.log 2>/dev/null | tail -30; echo '===end==='; vector --version 2>&1 || true",
 		"zswap_status":       "cat /sys/kernel/debug/zswap/ 2>/dev/null || cat /sys/module/zswap/parameters/enabled 2>/dev/null || echo 'zswap not available'",
-		"swap_status":        "swapon --show 2>/dev/null || echo 'no swap active'",
+		"swap_status":        "swapon -s 2>/dev/null || cat /proc/swaps 2>/dev/null || echo 'no swap active'",
 		"apk_packages":       "apk info | sort",
 		"sudo_installed":     "apk info | grep '^sudo-rs$' && echo 'sudo-rs installed' || echo 'sudo-rs not installed'",
 		"sudo_wheel":         "grep '^%wheel' /etc/sudoers.d/wheel 2>/dev/null || echo 'no wheel sudoers config'",
 		"sudo_works":         "sudo -n id 2>&1 || echo 'sudo requires password (expected for non-root)'",
 		"less_dummy":         "echo '=== file type ==='; ls -la /usr/bin/less 2>&1; echo '=== readlink ==='; readlink -f /usr/bin/less 2>&1; echo '=== version ==='; /usr/bin/less --version 2>&1 | head -1 || echo 'less binary not found'",
+		"lsattr_nocow":       "echo '=== NoCoW subvolume attributes ==='; for dir in /swap /srv /var/lib/ex /var/log /var/spool /var/tmp /nix/var/log; do echo \"=== $dir ===\"; lsattr -d \"$dir\" 2>&1; f=$(find \"$dir\" -type f 2>/dev/null | head -1); if [ -n \"$f\" ]; then lsattr \"$f\" 2>&1; else echo 'no files in dir'; fi; done; echo '=== Compressed subvolume attributes ==='; for dir in / /home /opt /root /tmp /var /var/lib/libvirt /var/lib/incus /var/lib/containerd /var/lib/docker /var/lib/containers /var/lib/vector /var/cache /var/opt /usr/local /boot /nix/store /nix/var/nix /nix/var/nix/build /btrbk; do echo \"=== $dir ===\"; lsattr -d \"$dir\" 2>&1; done",
 	}
 
 	result := VerifyResult{RunDir: cfg.RunDir, Success: true, Checks: map[string]CheckResult{}}
@@ -1587,6 +1588,65 @@ func (service *Service) Verify(ctx context.Context, cfg VerifyConfig) (VerifyRes
 		}
 	}
 
+	// Validate NoCoW subvolume attributes (lsattr_nocow)
+	// NoCoW subvolumes: dir + first file must have C flag, must NOT have m flag
+	// (m = compression attribute, conflicts with C, NixOS/nixpkgs #384047).
+	// Compressed subvolumes: dir must NOT have C flag (must stay CoW).
+	if lsattrCheck, ok := result.Checks["lsattr_nocow"]; ok {
+		detail := lsattrCheck.Detail
+		var failures []string
+		for _, dir := range []string{"/swap", "/srv", "/var/lib/ex", "/var/log", "/var/spool", "/var/tmp", "/nix/var/log"} {
+			section := extractLsattrSection(detail, dir)
+			if section == "" {
+				failures = append(failures, dir+": section not found in lsattr output")
+				continue
+			}
+			for _, line := range strings.Split(section, "\n") {
+				line = strings.TrimSpace(line)
+				if line == "" || strings.HasPrefix(line, "===") || strings.HasPrefix(line, "no files") {
+					continue
+				}
+				fields := strings.Fields(line)
+				if len(fields) < 2 {
+					continue
+				}
+				attrs := fields[0]
+				if !strings.Contains(attrs, "C") {
+					failures = append(failures, dir+": missing C (NoCoW) flag on "+line)
+				}
+				if strings.Contains(attrs, "m") {
+					failures = append(failures, dir+": unexpected m (compression) flag on "+line)
+				}
+			}
+		}
+		for _, dir := range []string{"/", "/home", "/opt", "/root", "/tmp", "/var", "/var/lib/libvirt", "/var/lib/incus", "/var/lib/containerd", "/var/lib/docker", "/var/lib/containers", "/var/lib/vector", "/var/cache", "/var/opt", "/usr/local", "/boot", "/nix/store", "/nix/var/nix", "/nix/var/nix/build", "/btrbk"} {
+			section := extractLsattrSection(detail, dir)
+			if section == "" {
+				failures = append(failures, dir+": section not found in lsattr output")
+				continue
+			}
+			for _, line := range strings.Split(section, "\n") {
+				line = strings.TrimSpace(line)
+				if line == "" || strings.HasPrefix(line, "===") {
+					continue
+				}
+				fields := strings.Fields(line)
+				if len(fields) < 2 {
+					continue
+				}
+				if strings.Contains(fields[0], "C") {
+					failures = append(failures, dir+": unexpected C (NoCoW) flag on compressed subvolume "+line)
+				}
+			}
+		}
+		if len(failures) > 0 {
+			lsattrCheck.Pass = false
+			lsattrCheck.Detail = detail + "\n" + strings.Join(failures, "\n")
+			result.Checks["lsattr_nocow"] = lsattrCheck
+			result.Success = false
+		}
+	}
+
 	// Save apk info to files in run directory
 	if cfg.RunDir != "" {
 		if apkCheck, ok := result.Checks["apk_packages"]; ok && apkCheck.Pass {
@@ -1675,6 +1735,22 @@ func (service *Service) Verify(ctx context.Context, cfg VerifyConfig) (VerifyRes
 	// This is informational - sudo requires password which is correct behavior
 
 	return result, nil
+}
+
+// extractLsattrSection returns the lsattr output section for a given mount
+// point (between "=== <dir> ===" markers) from the lsattr_nocow check detail.
+func extractLsattrSection(detail, dir string) string {
+	startMarker := "=== " + dir + " ==="
+	idx := strings.Index(detail, startMarker)
+	if idx == -1 {
+		return ""
+	}
+	rest := detail[idx+len(startMarker):]
+	endIdx := strings.Index(rest, "===")
+	if endIdx == -1 {
+		return rest
+	}
+	return rest[:endIdx]
 }
 
 func hasHealthyBtrfsRaid1Layout(detail string) bool {

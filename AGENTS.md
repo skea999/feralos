@@ -298,21 +298,22 @@ feralos_installer/
 | ~~Vector crashes silently~~ | Resolved | Fixed: socket on `/run/vector/syslog.sock`, `vector-setup` boot service, config written after apk install. Harness vector_* checks pass. |
 | ~~Dummy packages: wrapper vs symlink~~ | Resolved | Wrapper scripts broke `efi-mkuki`. Reverted to symlink approach. `DummyPackageRule.Bin` field added for binary name override. |
 | ~~Ripgrep as grep drop-in~~ | Won't Fix | rg doesn't support POSIX BRE (`\+`). `efi-mkuki` uses `grep -q '^[0-9]\+\.[0-9]...'` for kernel version validation. GNU grep removed — BusyBox grep used instead. |
-| ~~Swapfile swapon Invalid argument~~ | Resolved | Root cause: `btrfs property set compression none` sets `m` attribute → conflicts with `chattr +C` (NixOS/nixpkgs #384047). Fix: @swap skips compression property (`NoCompressionProp`), `chattr +C` on dir before mount, `btrfs filesystem mkswapfile`. 28/28 checks pass, `swapon [ok]` at boot. |
+| ~~Swapfile swapon Invalid argument~~ | Resolved | Root cause: `btrfs property set compression none` sets `m` attribute → conflicts with `chattr +C` (NixOS/nixpkgs #384047). Fix: `chattr +C` on dir before mount, `btrfs filesystem mkswapfile`. 29/29 checks pass, `swapon [ok]` at boot. |
 
 ---
 
 *Updated: 2026-08-18*
 
-### 2026-08-18 16:00 - Swapfile Fixed: m Attribute Conflict + Debian Guide
+### 2026-08-18 16:00 - Swapfile Fixed: m Attribute Conflict + NoCoW Cleanup
 **Agent:** codebase
-**Summary:** btrfs swapfile now works — root cause was the `m` attribute blocking `chattr +C`
-- **Root cause found**: `btrfs property set compression none` on @swap sets the `m` attribute ("excluded from compression") on every file. `chattr +C` (NODATACOW) fails on files with `m` → `btrfs filesystem mkswapfile` aborts with `ERROR: cannot set NOCOW flag: Invalid argument`. Documented in NixOS/nixpkgs issue #384047 (identical scenario)
-- **Fix (Debian guide)**: `chattr +C` on the @swap directory BEFORE mount (files inherit NODATACOW), skip the compression property on @swap, then `btrfs filesystem mkswapfile --size 8g`
-- **New field**: `Subvolume.NoCompressionProp` — skips `btrfs property set compression none` (Step 3 + Step 6 pre/post mount) for @swap only
+**Summary:** btrfs swapfile works + compression property removed from ALL NoCoW subvolumes
+- **Root cause found**: `btrfs property set compression none` sets the `m` attribute ("excluded from compression") on every file. `chattr +C` (NODATACOW) fails on files with `m` → `btrfs filesystem mkswapfile` aborts with `ERROR: cannot set NOCOW flag: Invalid argument`. Documented in NixOS/nixpkgs issue #384047 (identical scenario)
+- **Swapfile fix (Debian guide)**: `chattr +C` on the @swap directory BEFORE mount (files inherit NODATACOW), skip compression property, then `btrfs filesystem mkswapfile --size 8g`
+- **NoCoW cleanup (Option A)**: compression property removed from ALL NoCoW subvolumes — NODATACOW implies no compression (btrfs docs), property was redundant AND harmful (`m` blocks `chattr +C` on existing files). `NoCompressionProp` field removed entirely
+- **New harness check `lsattr_nocow`**: verifies all 7 NoCoW subvolumes (dir + first file) have `C` and no `m`; verifies 19 compressed subvolumes stay CoW (no `C`)
+- **Harness check fix**: `swap_status` used `swapon --show` (util-linux flag) — busybox swapon only has `-s`; now `swapon -s || cat /proc/swaps`
+- **Harness**: 29/29 checks pass, `swapon [ok]` at boot, swapfile active (8388604 KB), `lsattr` shows `C` on dir + swapfile
 - **btrfsStandardServer**: no swapfile needed — dedicated LUKS swap partitions (`mkswap` on partitions, not files)
-- **Research confirmed**: mount options compress/nodatacow are FS-wide (first mount wins, per btrfs docs); per-subvolume compression must use `btrfs property set`; swapfile requires single data profile (RAID1 server can't use swapfiles)
-- **Harness**: 28/28 checks pass, `swapon [ok]` at boot, `lsattr` shows `C` flag on swapfile
 
 ### 2026-08-17 23:30 - Dummy Packages Investigation: Symlink vs Wrapper
 **Agent:** codebase

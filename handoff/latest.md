@@ -9,7 +9,7 @@
 
 ## Current Focus
 
-Phase 1: Go installer complete. Both btrfsStandard and btrfsStandardServer pass 28/28 verification checks with ALL features enabled. **Swapfile FIXED** — `btrfs filesystem mkswapfile` works: root cause was `btrfs property set compression none` setting the `m` attribute which conflicts with `chattr +C` (NixOS/nixpkgs #384047). @swap now skips the compression property, `chattr +C` on the dir before mount (Debian guide), `swapon [ok]` at boot. **Dummy packages working** — APK v3 `apk mkpkg` creates valid packages with symlinks. **Ripgrep NOT a drop-in for grep** — rg doesn't support POSIX BRE (`\+`), breaks `efi-mkuki`. GNU grep removed — BusyBox grep used instead.
+Phase 1: Go installer complete. Both btrfsStandard and btrfsStandardServer pass 29/29 verification checks with ALL features enabled. **Swapfile FIXED** — `btrfs filesystem mkswapfile` works: root cause was `btrfs property set compression none` setting the `m` attribute which conflicts with `chattr +C` (NixOS/nixpkgs #384047). **NoCoW cleanup** — compression property removed from ALL NoCoW subvolumes (NODATACOW implies no compression), new `lsattr_nocow` harness check verifies C flag on all 7 NoCoW subvolumes, no `m` flag, compressed subvolumes stay CoW. **Dummy packages working** — APK v3 `apk mkpkg` creates valid packages with symlinks. **Ripgrep NOT a drop-in for grep** — rg doesn't support POSIX BRE (`\+`), breaks `efi-mkuki`. GNU grep removed — BusyBox grep used instead.
 
 ## What's Working
 
@@ -41,8 +41,10 @@ Phase 1: Go installer complete. Both btrfsStandard and btrfsStandardServer pass 
 - **uutils-coreutils-more** — provides `/usr/bin/more`, dummy `util-linux-misc` satisfies `incus-feature-vm`
 - **Swapfile working** — `btrfs filesystem mkswapfile --size 8g` with `chattr +C` on @swap dir before mount
   - Root cause: `btrfs property set compression none` sets `m` attribute → conflicts with `chattr +C` (NixOS/nixpkgs #384047)
-  - Fix: `NoCompressionProp` field on @swap subvolume skips the property
   - btrfsStandardServer: no swapfile (dedicated LUKS swap partitions)
+- **NoCoW subvolumes clean** — no compression property anywhere (NODATACOW implies no compression)
+  - `chattr +C` on dir is the only mechanism; all 7 NoCoW subvolumes verified by `lsattr_nocow` harness check
+  - Compressed subvolumes verified to stay CoW (no C flag)
 
 ## What's Next
 
@@ -106,7 +108,7 @@ Phase 1: Go installer complete. Both btrfsStandard and btrfsStandardServer pass 
 - **GNU grep removed**: BusyBox grep provides POSIX BRE, zero reverse dependencies
 - **Dummy packages**: Symlink approach (APK content, not wrapper scripts)
 - **Swapfile**: `btrfs filesystem mkswapfile` + `chattr +C` on dir before mount (Debian guide)
-- **@swap compression property skipped**: `m` attribute conflicts with `chattr +C` (NixOS/nixpkgs #384047)
+- **NoCoW**: no compression property — `chattr +C` on dir only (NODATACOW implies no compression, `m` attribute conflicts with C)
 
 ## Memory-Safe Alternatives
 

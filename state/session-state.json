@@ -50,7 +50,11 @@
     "Swapfile FIXED: btrfs filesystem mkswapfile works (28/28 checks, swapon [ok] at boot)",
     "Root cause: 'btrfs property set compression none' sets 'm' attribute which conflicts with chattr +C (NixOS/nixpkgs #384047)",
     "Fix: @swap skips compression property (NoCompressionProp), chattr +C on dir before mount (Debian guide), mkswapfile creates swapfile",
-    "btrfsStandardServer: no swapfile needed (dedicated LUKS swap partitions)"
+    "btrfsStandardServer: no swapfile needed (dedicated LUKS swap partitions)",
+    "NoCoW cleanup: removed 'btrfs property set compression none' from ALL NoCoW subvolumes (m attribute conflicts with C, redundant since NODATACOW implies no compression)",
+    "Removed NoCompressionProp field (no longer needed — no subvolume uses the compression property)",
+    "New harness check lsattr_nocow: verifies C flag on all 7 NoCoW subvolumes, no m flag, no C on compressed subvolumes (29/29 checks)",
+    "Fixed swap_status harness check: busybox swapon has no --show flag, now uses swapon -s || /proc/swaps"
   ],
   "decisions": [
     {
@@ -207,6 +211,11 @@
       "date": "2026-08-18",
       "decision": "@swap skips 'btrfs property set compression none' (NoCompressionProp field)",
       "rationale": "The compression property sets the 'm' attribute on every file, which makes chattr +C fail ('cannot set NOCOW flag: Invalid argument' from mkswapfile). Documented in NixOS/nixpkgs #384047. Debian guide: chattr +C on the @swap directory before mount, then btrfs filesystem mkswapfile. btrfsStandardServer keeps dedicated LUKS swap partitions (no swapfile)."
+    },
+    {
+      "date": "2026-08-18",
+      "decision": "Removed 'btrfs property set compression none' from ALL NoCoW subvolumes (Option A)",
+      "rationale": "The 'm' attribute set by the compression property conflicts with chattr +C on every file (NixOS/nixpkgs #384047). NODATACOW implies no compression (btrfs docs), so the property is redundant. chattr +C on the subvolume directory is the only mechanism needed. NoCompressionProp field removed. Verified by new harness check lsattr_nocow: all 7 NoCoW subvolumes have C, no m, compressed subvolumes stay CoW. 29/29 checks pass."
     }
   ],
   "risks": [

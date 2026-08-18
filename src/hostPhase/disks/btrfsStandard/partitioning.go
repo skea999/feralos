@@ -14,11 +14,6 @@ type Subvolume struct {
 	Path    string
 	Options string
 	NoCoW   bool
-	// NoCompressionProp skips 'btrfs property set compression none' on this
-	// subvolume. The property sets the 'm' attribute on every file, which
-	// makes chattr +C fail (m conflicts with C). Required for @swap so that
-	// 'btrfs filesystem mkswapfile' can set NODATACOW on the swapfile.
-	NoCompressionProp bool
 }
 
 func RunBtrfsSetup(conf *config.Config) error {
@@ -105,10 +100,10 @@ func RunBtrfsSetup(conf *config.Config) error {
 }
 
 // createSwapfile creates a swapfile using btrfs native command.
-// Debian guide: chattr +C on the @swap directory BEFORE mount (Step 4) makes
+// Debian guide: chattr +C on the @swap directory BEFORE mount (Step 3) makes
 // new files inherit NODATACOW, so mkswapfile doesn't need to set it itself.
-// The 'm' attribute (from 'btrfs property set compression none') would make
-// chattr +C fail, hence @swap skips the compression property (NoCompressionProp).
+// No 'btrfs property set compression none' anywhere: the 'm' attribute it
+// sets would make chattr +C fail (NixOS/nixpkgs #384047).
 func createSwapfile(chroot string) error {
 	swapDir := chroot + "/swap"
 	swapFile := swapDir + "/swapfile"
@@ -160,7 +155,7 @@ func getBtrfsUUID(device string) string {
 func setupSubvolumesAndMounts(chroot string, luksDevice string, disk string) error {
 	subvols := []Subvolume{
 		{Name: "@", Path: "/", Options: "compress=zstd:3,autodefrag,ssd"},
-		{Name: "@swap", Path: "/swap", Options: "ssd,compress=none,nodev,noexec,nosuid", NoCoW: true, NoCompressionProp: true},
+		{Name: "@swap", Path: "/swap", Options: "ssd,compress=none,nodev,noexec,nosuid", NoCoW: true},
 		{Name: "@home", Path: "/home", Options: "compress=zstd:3,autodefrag,ssd"},
 		{Name: "@opt", Path: "/opt", Options: "compress=zstd:3,autodefrag,ssd"},
 		{Name: "@root", Path: "/root", Options: "compress=zstd:3,autodefrag,ssd"},
@@ -203,20 +198,10 @@ func setupSubvolumesAndMounts(chroot string, luksDevice string, disk string) err
 		}
 	}
 
-	// Step 3: Disable compression on NoCoW subvolumes via btrfs property set
-	// @swap is skipped: the property sets the 'm' attribute which conflicts
-	// with chattr +C needed by 'btrfs filesystem mkswapfile' (Debian guide).
-	for _, s := range subvols {
-		if s.NoCoW && !s.NoCompressionProp {
-			target := chroot + "/" + s.Name
-			if _, err := shell.ExecuteCmd("", fmt.Sprintf("btrfs property set %s compression none", target)); err != nil {
-				return fmt.Errorf("failed to disable compression on %s: %w", s.Name, err)
-			}
-		}
-	}
-
-	// Step 4: Set NoCoW attribute on NoCoW subvolumes (chattr +C)
-	// btrfs property set compression none only disables compression, NOT NoCoW.
+	// Step 3: Set NoCoW attribute on NoCoW subvolumes (chattr +C)
+	// NODATACOW implies no compression (btrfs docs), so no 'btrfs property
+	// set compression none' is needed — it would set the 'm' attribute on
+	// every file, which conflicts with chattr +C (NixOS/nixpkgs #384047).
 	// chattr +C on directory makes all files created within inherit NoCoW.
 	for _, s := range subvols {
 		if s.NoCoW {
@@ -227,23 +212,18 @@ func setupSubvolumesAndMounts(chroot string, luksDevice string, disk string) err
 		}
 	}
 
-	// Step 5: Unmount temporary root
+	// Step 4: Unmount temporary root
 	if _, err := shell.ExecuteCmd("", fmt.Sprintf("umount %s", chroot)); err != nil {
 		return fmt.Errorf("failed to unmount btrfs root: %w", err)
 	}
 
-	// Step 6: Mount each subvolume with its correct options
+	// Step 5: Mount each subvolume with its correct options
 	for _, s := range subvols {
 		target := chroot + s.Path
 		if s.Path != "" {
 			if err := os.MkdirAll(target, 0755); err != nil {
 				return fmt.Errorf("failed to create directory %s: %w", target, err)
 			}
-		}
-		// Disable compression on NoCoW directories BEFORE mounting
-		// (@swap skipped: 'm' attribute would break mkswapfile)
-		if s.NoCoW && !s.NoCompressionProp {
-			shell.ExecuteCmd("", fmt.Sprintf("btrfs property set %s compression none", target))
 		}
 		// Mount with compress=none in options
 		opts := "subvol=" + s.Name + "," + s.Options
@@ -252,11 +232,6 @@ func setupSubvolumesAndMounts(chroot string, luksDevice string, disk string) err
 		}
 		if _, err := shell.ExecuteCmd("", fmt.Sprintf("mount -t btrfs -o %s %s %s", opts, luksDevice, target)); err != nil {
 			return fmt.Errorf("failed to mount subvolume %s: %w", s.Name, err)
-		}
-		// Disable compression on NoCoW subvolumes AFTER mounting
-		// (@swap skipped: 'm' attribute would break mkswapfile)
-		if s.NoCoW && !s.NoCompressionProp {
-			shell.ExecuteCmd("", fmt.Sprintf("btrfs property set %s compression none", target))
 		}
 	}
 
