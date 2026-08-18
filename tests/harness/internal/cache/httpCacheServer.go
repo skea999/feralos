@@ -65,7 +65,7 @@ func StartHTTPMirrorServer(ctx context.Context, cfg HTTPMirrorServerConfig) (*HT
 		CacheDir:    cfg.CacheDir,
 		UpstreamURL: strings.TrimRight(cfg.UpstreamURL, "/"),
 	}
-	server.server = &http.Server{Handler: server}
+	server.server = &http.Server{Handler: server, ReadHeaderTimeout: 10 * time.Second}
 
 	port := listener.Addr().(*net.TCPAddr).Port
 	server.HostURL = fmt.Sprintf("http://127.0.0.1:%d", port)
@@ -151,8 +151,8 @@ func (server *HTTPMirrorServer) fetchAndCache(writer http.ResponseWriter, reques
 		return
 	}
 
-	if err := os.MkdirAll(filepath.Dir(bodyPath), 0o755); err != nil {
-		http.Error(writer, err.Error(), http.StatusInternalServerError)
+	if mkdirErr := os.MkdirAll(filepath.Dir(bodyPath), 0o755); mkdirErr != nil {
+		http.Error(writer, mkdirErr.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -171,21 +171,21 @@ func (server *HTTPMirrorServer) fetchAndCache(writer http.ResponseWriter, reques
 		return
 	}
 
-	if _, err := file.Write(body); err != nil {
+	if _, writeErr := file.Write(body); writeErr != nil {
 		_ = file.Close()
 		_ = os.Remove(tmpBodyPath)
-		http.Error(writer, err.Error(), http.StatusInternalServerError)
+		http.Error(writer, writeErr.Error(), http.StatusInternalServerError)
 		return
 	}
-	if err := file.Close(); err != nil {
+	if closeErr := file.Close(); closeErr != nil {
 		_ = os.Remove(tmpBodyPath)
-		http.Error(writer, err.Error(), http.StatusInternalServerError)
+		http.Error(writer, closeErr.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	if err := os.Rename(tmpBodyPath, bodyPath); err != nil {
+	if renameErr := os.Rename(tmpBodyPath, bodyPath); renameErr != nil {
 		_ = os.Remove(tmpBodyPath)
-		http.Error(writer, err.Error(), http.StatusInternalServerError)
+		http.Error(writer, renameErr.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -196,7 +196,7 @@ func (server *HTTPMirrorServer) fetchAndCache(writer http.ResponseWriter, reques
 	}
 	metaBlob, err := json.MarshalIndent(meta, "", "  ")
 	if err == nil {
-		_ = os.WriteFile(metaPath, metaBlob, 0o644)
+		_ = os.WriteFile(metaPath, metaBlob, 0o600)
 	}
 
 	if meta.ContentType != "" {

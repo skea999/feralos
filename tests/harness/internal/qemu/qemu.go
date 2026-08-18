@@ -57,15 +57,15 @@ type OVMFSnakeoil struct {
 }
 
 type SoftwareTPMConfig struct {
-	SocketPath  string
-	ControlPath string
-	StateDir    string
-	PIDFile     string
-	LogPath     string
+	SocketPath   string
+	ControlPath  string
+	StateDir     string
+	PIDFile      string
+	LogPath      string
 	StartTimeout time.Duration
 }
 
-func Start(ctx context.Context, cfg LaunchConfig) (*Instance, error) {
+func Start(ctx context.Context, cfg *LaunchConfig) (*Instance, error) {
 	if err := os.MkdirAll(filepath.Dir(cfg.LogPath), 0o755); err != nil {
 		return nil, fmt.Errorf("create qemu log directory: %w", err)
 	}
@@ -77,8 +77,10 @@ func Start(ctx context.Context, cfg LaunchConfig) (*Instance, error) {
 
 	var cmd *exec.Cmd
 	if cfg.Persistent {
+		// #nosec G204 -- harness launches QEMU with CLI-provided args by design
 		cmd = exec.Command(cfg.Binary, cfg.Args...)
 	} else {
+		// #nosec G204 -- harness launches QEMU with CLI-provided args by design
 		cmd = exec.CommandContext(ctx, cfg.Binary, cfg.Args...)
 	}
 	cmd.Stdout = logFile
@@ -219,7 +221,7 @@ func ResizeDisk(qemuImgBinary, diskPath, size string) error {
 	return nil
 }
 
-func StartSoftwareTPM(cfg SoftwareTPMConfig) error {
+func StartSoftwareTPM(cfg *SoftwareTPMConfig) error {
 	if cfg.StartTimeout <= 0 {
 		cfg.StartTimeout = 10 * time.Second
 	}
@@ -353,7 +355,7 @@ func CopyFile(src, dst string) error {
 		return fmt.Errorf("create destination directory: %w", err)
 	}
 
-	if err := os.WriteFile(dst, data, 0o644); err != nil {
+	if err := os.WriteFile(dst, data, 0o600); err != nil {
 		return fmt.Errorf("write %s: %w", dst, err)
 	}
 

@@ -17,15 +17,23 @@ import (
 	"syscall"
 	"time"
 
-	"gopkg.in/yaml.v3"
 	"skeaAlpineInstaller/tests/harness/internal/cache"
 	"skeaAlpineInstaller/tests/harness/internal/guest"
 	"skeaAlpineInstaller/tests/harness/internal/qemu"
 	"skeaAlpineInstaller/tests/harness/internal/runstate"
+
+	"gopkg.in/yaml.v3"
 )
 
 const defaultRunnerImageURL = "https://cloud.debian.org/images/cloud/trixie/latest/debian-13-genericcloud-amd64.qcow2"
 const defaultAlpineMirrorURL = "https://dl-cdn.alpinelinux.org/alpine"
+
+const (
+	statusRunning             = "running"
+	statusFailed              = "failed"
+	layoutBtrfsStandardServer = "btrfsStandardServer"
+	sshUserSkea               = "skea"
+)
 
 type Service struct{}
 
@@ -149,12 +157,8 @@ func LoadVariablesFile(cfg *RunConfig, filePath string) error {
 	if v.Mirror != "" {
 		cfg.AlpineMirror = v.Mirror
 	}
-	if v.Hostname != "" {
-		// Hostname is used by installer, harness uses it for verification
-	}
-	if v.DefaultNetworkInterface != "" {
-		// Network interface is used by installer
-	}
+	// Hostname and default network interface are consumed by the installer;
+	// the harness does not need them for verification.
 
 	// Feature toggles
 	cfg.EnableSecureboot = v.EnableSecureboot
@@ -277,8 +281,8 @@ func New() *Service {
 	return &Service{}
 }
 
-func (service *Service) PrepareRunner(ctx context.Context, cfg PrepareRunnerConfig) (PrepareRunnerResult, error) {
-	if err := ensurePrepareDefaults(&cfg); err != nil {
+func (service *Service) PrepareRunner(ctx context.Context, cfg *PrepareRunnerConfig) (PrepareRunnerResult, error) {
+	if err := ensurePrepareDefaults(cfg); err != nil {
 		return PrepareRunnerResult{}, err
 	}
 	if err := service.cleanupBeforeLaunch(ctx, cfg.ArtifactsRoot, cfg.SSHPort, 0); err != nil {
@@ -296,13 +300,13 @@ func (service *Service) PrepareRunner(ctx context.Context, cfg PrepareRunnerConf
 	baseImagePath := cfg.BaseImagePath
 	if baseImagePath == "" {
 		baseImagePath = filepath.Join(cfg.CacheDir, "base-images", filepath.Base(cfg.BaseImageURL))
-		if _, err := cache.EnsureDownloaded(ctx, cfg.BaseImageURL, baseImagePath); err != nil {
-			return PrepareRunnerResult{}, err
+		if _, dlErr := cache.EnsureDownloaded(ctx, cfg.BaseImageURL, baseImagePath); dlErr != nil {
+			return PrepareRunnerResult{}, dlErr
 		}
 	}
 
-	if _, err := os.Stat(baseImagePath); err != nil {
-		return PrepareRunnerResult{}, fmt.Errorf("base image %s: %w", baseImagePath, err)
+	if _, statErr := os.Stat(baseImagePath); statErr != nil {
+		return PrepareRunnerResult{}, fmt.Errorf("base image %s: %w", baseImagePath, statErr)
 	}
 
 	if cfg.RunnerImage == "" {
@@ -321,29 +325,29 @@ func (service *Service) PrepareRunner(ctx context.Context, cfg PrepareRunnerConf
 	userData := filepath.Join(runDir, "user-data")
 	metaData := filepath.Join(runDir, "meta-data")
 
-	if err := os.MkdirAll(runDir, 0o755); err != nil {
-		return PrepareRunnerResult{}, fmt.Errorf("create runner work directory: %w", err)
+	if mkdirErr := os.MkdirAll(runDir, 0o755); mkdirErr != nil {
+		return PrepareRunnerResult{}, fmt.Errorf("create runner work directory: %w", mkdirErr)
 	}
 
-	if _, err := os.Stat(cfg.RunnerImage); os.IsNotExist(err) {
-		if err := qemu.CreateOverlay(cfg.QemuImgBinary, baseImagePath, cfg.RunnerImage); err != nil {
-			return PrepareRunnerResult{}, err
+	if _, statErr := os.Stat(cfg.RunnerImage); os.IsNotExist(statErr) {
+		if overlayErr := qemu.CreateOverlay(cfg.QemuImgBinary, baseImagePath, cfg.RunnerImage); overlayErr != nil {
+			return PrepareRunnerResult{}, overlayErr
 		}
 	}
 
-	if err := writeCloudInitFiles(userData, metaData, cfg, keyPair); err != nil {
-		return PrepareRunnerResult{}, err
+	if writeErr := writeCloudInitFiles(userData, metaData, cfg, keyPair); writeErr != nil {
+		return PrepareRunnerResult{}, writeErr
 	}
 
-	if err := buildSeedISO(cfg.CloudLocaldsBin, seedISO, userData, metaData); err != nil {
-		return PrepareRunnerResult{}, err
+	if seedErr := buildSeedISO(cfg.CloudLocaldsBin, seedISO, userData, metaData); seedErr != nil {
+		return PrepareRunnerResult{}, seedErr
 	}
 
 	stateStore := runstate.New(cfg.ArtifactsRoot)
 	active := runstate.ActiveRun{
 		RunID:           filepath.Base(runDir),
 		Mode:            "prepare-runner",
-		Status:          "running",
+		Status:          statusRunning,
 		Phase:           "booting-runner",
 		RunDir:          runDir,
 		RunnerQMPPath:   qmpPath,
@@ -351,7 +355,7 @@ func (service *Service) PrepareRunner(ctx context.Context, cfg PrepareRunnerConf
 		RunnerQemuLog:   qemuLog,
 		RunnerSSHPort:   cfg.SSHPort,
 	}
-	_ = stateStore.Save(active)
+	_ = stateStore.Save(&active)
 
 	args := []string{
 		"-name", "skea-runner-prep",
@@ -369,7 +373,7 @@ func (service *Service) PrepareRunner(ctx context.Context, cfg PrepareRunnerConf
 		args = append(args, "-enable-kvm")
 	}
 
-	instance, err := qemu.Start(ctx, qemu.LaunchConfig{
+	instance, err := qemu.Start(ctx, &qemu.LaunchConfig{
 		Binary:       cfg.QemuBinary,
 		Args:         args,
 		LogPath:      qemuLog,
@@ -378,9 +382,9 @@ func (service *Service) PrepareRunner(ctx context.Context, cfg PrepareRunnerConf
 		StartTimeout: 10 * time.Second,
 	})
 	if err != nil {
-		active.Status = "failed"
+		active.Status = statusFailed
 		active.Error = err.Error()
-		_ = stateStore.Save(active)
+		_ = stateStore.Save(&active)
 		return PrepareRunnerResult{}, err
 	}
 	defer func() {
@@ -389,35 +393,35 @@ func (service *Service) PrepareRunner(ctx context.Context, cfg PrepareRunnerConf
 
 	runnerGuest := guest.Options{User: cfg.SSHUser, Port: cfg.SSHPort, PrivateKey: keyPair.PrivateKeyPath, Shell: "bash"}
 	active.Phase = "waiting-for-ssh"
-	_ = stateStore.Save(active)
+	_ = stateStore.Save(&active)
 	if err := guest.WaitForSSH(ctx, runnerGuest, cfg.BootTimeout); err != nil {
 		_ = instance.Kill()
-		active.Status = "failed"
+		active.Status = statusFailed
 		active.Error = err.Error()
-		_ = stateStore.Save(active)
+		_ = stateStore.Save(&active)
 		return PrepareRunnerResult{}, err
 	}
 
 	active.Phase = "waiting-for-cloud-init"
-	_ = stateStore.Save(active)
+	_ = stateStore.Save(&active)
 	if err := waitForGuestCommand(ctx, runnerGuest, "test -f /var/lib/cloud/instance/boot-finished", cfg.WaitTimeout); err != nil {
 		_ = instance.Kill()
-		active.Status = "failed"
+		active.Status = statusFailed
 		active.Error = err.Error()
-		_ = stateStore.Save(active)
+		_ = stateStore.Save(&active)
 		return PrepareRunnerResult{}, err
 	}
 
 	active.Phase = "powering-off"
-	_ = stateStore.Save(active)
+	_ = stateStore.Save(&active)
 	if err := guest.Run(ctx, runnerGuest, "sudo poweroff", io.Discard, io.Discard); err != nil {
 		_ = qemu.SystemPowerdown(qmpPath)
 	}
 
 	if err := instance.Wait(); err != nil {
-		active.Status = "failed"
+		active.Status = statusFailed
 		active.Error = err.Error()
-		_ = stateStore.Save(active)
+		_ = stateStore.Save(&active)
 		return PrepareRunnerResult{}, fmt.Errorf("runner preparation VM failed: %w", err)
 	}
 	instance = nil
@@ -436,8 +440,8 @@ func (service *Service) PrepareRunner(ctx context.Context, cfg PrepareRunnerConf
 	}, nil
 }
 
-func (service *Service) RunInstall(ctx context.Context, cfg RunConfig) (RunResult, error) {
-	if err := ensureRunDefaults(&cfg); err != nil {
+func (service *Service) RunInstall(ctx context.Context, cfg *RunConfig) (RunResult, error) {
+	if err := ensureRunDefaults(cfg); err != nil {
 		return RunResult{}, err
 	}
 	if err := service.cleanupBeforeLaunch(ctx, cfg.ArtifactsRoot, cfg.RunnerSSHPort, cfg.TargetSSHPort); err != nil {
@@ -451,8 +455,8 @@ func (service *Service) RunInstall(ctx context.Context, cfg RunConfig) (RunResul
 
 	runID := time.Now().UTC().Format("2006-01-02T15-04-05Z")
 	runDir := filepath.Join(cfg.ArtifactsRoot, "runs", runID)
-	if err := os.MkdirAll(runDir, 0o755); err != nil {
-		return RunResult{}, fmt.Errorf("create run directory: %w", err)
+	if mkdirErr := os.MkdirAll(runDir, 0o755); mkdirErr != nil {
+		return RunResult{}, fmt.Errorf("create run directory: %w", mkdirErr)
 	}
 
 	// Clean up old runs, keep only the last 2
@@ -486,37 +490,37 @@ func (service *Service) RunInstall(ctx context.Context, cfg RunConfig) (RunResul
 	}
 	cfg.AlpineMirror = alpineCacheServer.GuestURL
 
-	if err := qemu.CreateDisk(cfg.QemuImgBinary, disk1Path, cfg.DiskSize); err != nil {
-		return RunResult{}, err
+	if diskErr := qemu.CreateDisk(cfg.QemuImgBinary, disk1Path, cfg.DiskSize); diskErr != nil {
+		return RunResult{}, diskErr
 	}
 	// Only create second install disk for RAID1 layouts (btrfsStandardServer)
-	if cfg.DiskLayout == "btrfsStandardServer" {
-		if err := qemu.CreateDisk(cfg.QemuImgBinary, disk2Path, cfg.DiskSize); err != nil {
-			return RunResult{}, err
+	if cfg.DiskLayout == layoutBtrfsStandardServer {
+		if disk2Err := qemu.CreateDisk(cfg.QemuImgBinary, disk2Path, cfg.DiskSize); disk2Err != nil {
+			return RunResult{}, disk2Err
 		}
 	}
 	// Data disks (btrfs RAID1 + ZFS) — only for btrfsStandardServer
 	extraDiskSize := "8G"
-	if cfg.DiskLayout == "btrfsStandardServer" {
-		if err := qemu.CreateDisk(cfg.QemuImgBinary, btrfsDisk1Path, extraDiskSize); err != nil {
-			return RunResult{}, err
+	if cfg.DiskLayout == layoutBtrfsStandardServer {
+		if btrfs1Err := qemu.CreateDisk(cfg.QemuImgBinary, btrfsDisk1Path, extraDiskSize); btrfs1Err != nil {
+			return RunResult{}, btrfs1Err
 		}
-		if err := qemu.CreateDisk(cfg.QemuImgBinary, btrfsDisk2Path, extraDiskSize); err != nil {
-			return RunResult{}, err
+		if btrfs2Err := qemu.CreateDisk(cfg.QemuImgBinary, btrfsDisk2Path, extraDiskSize); btrfs2Err != nil {
+			return RunResult{}, btrfs2Err
 		}
 	}
 
 	stopTPM := false
 	if cfg.EnableTPM {
-		if err := qemu.StartSoftwareTPM(qemu.SoftwareTPMConfig{
+		if tpmErr := qemu.StartSoftwareTPM(&qemu.SoftwareTPMConfig{
 			SocketPath:   tpmSocketPath,
 			ControlPath:  tpmControlPath,
 			StateDir:     tpmStateDir,
 			PIDFile:      tpmPIDPath,
 			LogPath:      tpmLogPath,
 			StartTimeout: 10 * time.Second,
-		}); err != nil {
-			return RunResult{}, err
+		}); tpmErr != nil {
+			return RunResult{}, tpmErr
 		}
 		stopTPM = true
 		defer func() {
@@ -530,7 +534,7 @@ func (service *Service) RunInstall(ctx context.Context, cfg RunConfig) (RunResul
 	active := runstate.ActiveRun{
 		RunID:            runID,
 		Mode:             "run-install",
-		Status:           "running",
+		Status:           statusRunning,
 		Phase:            "booting-runner",
 		RunDir:           runDir,
 		RunnerQMPPath:    runnerQMPPath,
@@ -541,7 +545,7 @@ func (service *Service) RunInstall(ctx context.Context, cfg RunConfig) (RunResul
 		RunnerSSHPort:    cfg.RunnerSSHPort,
 		TargetSSHPort:    cfg.TargetSSHPort,
 	}
-	_ = stateStore.Save(active)
+	_ = stateStore.Save(&active)
 
 	runnerArgs := []string{
 		"-name", "skea-runner",
@@ -555,7 +559,7 @@ func (service *Service) RunInstall(ctx context.Context, cfg RunConfig) (RunResul
 		"-drive", "if=virtio,format=qcow2,file=" + cfg.RunnerImage,
 		"-drive", "if=virtio,format=qcow2,file=" + disk1Path,
 	}
-	if cfg.DiskLayout == "btrfsStandardServer" {
+	if cfg.DiskLayout == layoutBtrfsStandardServer {
 		runnerArgs = append(runnerArgs,
 			"-drive", "if=virtio,format=qcow2,file="+disk2Path,
 			"-drive", "if=virtio,format=qcow2,file="+btrfsDisk1Path,
@@ -572,7 +576,7 @@ func (service *Service) RunInstall(ctx context.Context, cfg RunConfig) (RunResul
 		runnerArgs = append(runnerArgs, tpmQEMUArgs(tpmControlPath)...)
 	}
 
-	runnerInstance, err := qemu.Start(ctx, qemu.LaunchConfig{
+	runnerInstance, err := qemu.Start(ctx, &qemu.LaunchConfig{
 		Binary:       cfg.QemuBinary,
 		Args:         runnerArgs,
 		LogPath:      runnerQemuLog,
@@ -581,9 +585,9 @@ func (service *Service) RunInstall(ctx context.Context, cfg RunConfig) (RunResul
 		StartTimeout: 10 * time.Second,
 	})
 	if err != nil {
-		active.Status = "failed"
+		active.Status = statusFailed
 		active.Error = err.Error()
-		_ = stateStore.Save(active)
+		_ = stateStore.Save(&active)
 		return RunResult{}, err
 	}
 	defer func() {
@@ -592,35 +596,35 @@ func (service *Service) RunInstall(ctx context.Context, cfg RunConfig) (RunResul
 
 	runnerGuest := guest.Options{User: cfg.RunnerSSHUser, Port: cfg.RunnerSSHPort, PrivateKey: keyPair.PrivateKeyPath, Shell: "bash"}
 	active.Phase = "waiting-for-runner-ssh"
-	_ = stateStore.Save(active)
-	if err := guest.WaitForSSH(ctx, runnerGuest, cfg.BootTimeout); err != nil {
+	_ = stateStore.Save(&active)
+	if sshErr := guest.WaitForSSH(ctx, runnerGuest, cfg.BootTimeout); sshErr != nil {
 		_ = runnerInstance.Kill()
-		active.Status = "failed"
-		active.Error = err.Error()
-		_ = stateStore.Save(active)
-		return RunResult{}, err
+		active.Status = statusFailed
+		active.Error = sshErr.Error()
+		_ = stateStore.Save(&active)
+		return RunResult{}, sshErr
 	}
 
 	active.Phase = "copying-repository"
-	_ = stateStore.Save(active)
+	_ = stateStore.Save(&active)
 	remoteRepoRoot := fmt.Sprintf("/home/%s/skeaAlpineInstaller", cfg.RunnerSSHUser)
 	remoteRepoArchive := remoteRepoRoot + ".tar.gz"
 	repoArchivePath := filepath.Join(runDir, "repo.tgz")
 
-	if err := createRepositoryArchive(cfg.RepoRoot, repoArchivePath); err != nil {
+	if archiveErr := createRepositoryArchive(cfg.RepoRoot, repoArchivePath); archiveErr != nil {
 		_ = runnerInstance.Kill()
-		active.Status = "failed"
-		active.Error = err.Error()
-		_ = stateStore.Save(active)
-		return RunResult{}, err
+		active.Status = statusFailed
+		active.Error = archiveErr.Error()
+		_ = stateStore.Save(&active)
+		return RunResult{}, archiveErr
 	}
 
-	if err := guest.CopyToGuest(ctx, runnerGuest, repoArchivePath, remoteRepoArchive, false); err != nil {
+	if copyErr := guest.CopyToGuest(ctx, runnerGuest, repoArchivePath, remoteRepoArchive, false); copyErr != nil {
 		_ = runnerInstance.Kill()
-		active.Status = "failed"
-		active.Error = err.Error()
-		_ = stateStore.Save(active)
-		return RunResult{}, err
+		active.Status = statusFailed
+		active.Error = copyErr.Error()
+		_ = stateStore.Save(&active)
+		return RunResult{}, copyErr
 	}
 
 	unpackCommand := strings.Join([]string{
@@ -629,96 +633,96 @@ func (service *Service) RunInstall(ctx context.Context, cfg RunConfig) (RunResul
 		"tar -xzf " + shellQuote(remoteRepoArchive) + " -C " + shellQuote(remoteRepoRoot),
 		"rm -f " + shellQuote(remoteRepoArchive),
 	}, " && ")
-	if _, err := guest.Output(ctx, runnerGuest, unpackCommand); err != nil {
+	if _, unpackErr := guest.Output(ctx, runnerGuest, unpackCommand); unpackErr != nil {
 		_ = runnerInstance.Kill()
-		active.Status = "failed"
-		active.Error = err.Error()
-		_ = stateStore.Save(active)
-		return RunResult{}, err
+		active.Status = statusFailed
+		active.Error = unpackErr.Error()
+		_ = stateStore.Save(&active)
+		return RunResult{}, unpackErr
 	}
 
 	varsPath := filepath.Join(runDir, "variables.yaml")
-	if err := writeHarnessVariables(cfg, keyPair, varsPath, alpineCacheServer.GuestURL); err != nil {
+	if varsErr := writeHarnessVariables(cfg, keyPair, varsPath, alpineCacheServer.GuestURL); varsErr != nil {
 		_ = runnerInstance.Kill()
-		active.Status = "failed"
-		active.Error = err.Error()
-		_ = stateStore.Save(active)
-		return RunResult{}, err
+		active.Status = statusFailed
+		active.Error = varsErr.Error()
+		_ = stateStore.Save(&active)
+		return RunResult{}, varsErr
 	}
 
-	if err := guest.CopyToGuest(ctx, runnerGuest, varsPath, remoteRepoRoot, false); err != nil {
+	if copyVarsErr := guest.CopyToGuest(ctx, runnerGuest, varsPath, remoteRepoRoot, false); copyVarsErr != nil {
 		_ = runnerInstance.Kill()
-		active.Status = "failed"
-		active.Error = err.Error()
-		_ = stateStore.Save(active)
-		return RunResult{}, err
+		active.Status = statusFailed
+		active.Error = copyVarsErr.Error()
+		_ = stateStore.Save(&active)
+		return RunResult{}, copyVarsErr
 	}
 
 	setupGitShimPath := filepath.Join(runDir, "git")
-	if err := writeHarnessSetupGitShim(setupGitShimPath); err != nil {
+	if gitShimErr := writeHarnessSetupGitShim(setupGitShimPath); gitShimErr != nil {
 		_ = runnerInstance.Kill()
-		active.Status = "failed"
-		active.Error = err.Error()
-		_ = stateStore.Save(active)
-		return RunResult{}, err
+		active.Status = statusFailed
+		active.Error = gitShimErr.Error()
+		_ = stateStore.Save(&active)
+		return RunResult{}, gitShimErr
 	}
 
 	remoteHarnessBinDir := filepath.Join(remoteRepoRoot, ".skea-harness-bin")
-	if _, err := guest.Output(ctx, runnerGuest, "mkdir -p "+shellQuote(remoteHarnessBinDir)); err != nil {
+	if _, mkdirBinErr := guest.Output(ctx, runnerGuest, "mkdir -p "+shellQuote(remoteHarnessBinDir)); mkdirBinErr != nil {
 		_ = runnerInstance.Kill()
-		active.Status = "failed"
-		active.Error = err.Error()
-		_ = stateStore.Save(active)
-		return RunResult{}, err
+		active.Status = statusFailed
+		active.Error = mkdirBinErr.Error()
+		_ = stateStore.Save(&active)
+		return RunResult{}, mkdirBinErr
 	}
-	if err := guest.CopyToGuest(ctx, runnerGuest, setupGitShimPath, remoteHarnessBinDir, false); err != nil {
+	if copyGitErr := guest.CopyToGuest(ctx, runnerGuest, setupGitShimPath, remoteHarnessBinDir, false); copyGitErr != nil {
 		_ = runnerInstance.Kill()
-		active.Status = "failed"
-		active.Error = err.Error()
-		_ = stateStore.Save(active)
-		return RunResult{}, err
+		active.Status = statusFailed
+		active.Error = copyGitErr.Error()
+		_ = stateStore.Save(&active)
+		return RunResult{}, copyGitErr
 	}
 
 	setupBashShimPath := filepath.Join(runDir, "bash")
-	if err := writeHarnessSetupBashShim(setupBashShimPath); err != nil {
+	if bashShimErr := writeHarnessSetupBashShim(setupBashShimPath); bashShimErr != nil {
 		_ = runnerInstance.Kill()
-		active.Status = "failed"
-		active.Error = err.Error()
-		_ = stateStore.Save(active)
-		return RunResult{}, err
+		active.Status = statusFailed
+		active.Error = bashShimErr.Error()
+		_ = stateStore.Save(&active)
+		return RunResult{}, bashShimErr
 	}
-	if err := guest.CopyToGuest(ctx, runnerGuest, setupBashShimPath, remoteHarnessBinDir, false); err != nil {
+	if copyBashErr := guest.CopyToGuest(ctx, runnerGuest, setupBashShimPath, remoteHarnessBinDir, false); copyBashErr != nil {
 		_ = runnerInstance.Kill()
-		active.Status = "failed"
-		active.Error = err.Error()
-		_ = stateStore.Save(active)
-		return RunResult{}, err
+		active.Status = statusFailed
+		active.Error = copyBashErr.Error()
+		_ = stateStore.Save(&active)
+		return RunResult{}, copyBashErr
 	}
 
 	setupFdiskShimPath := filepath.Join(runDir, "fdisk")
-	if err := writeHarnessSetupFdiskShim(setupFdiskShimPath); err != nil {
+	if fdiskShimErr := writeHarnessSetupFdiskShim(setupFdiskShimPath); fdiskShimErr != nil {
 		_ = runnerInstance.Kill()
-		active.Status = "failed"
-		active.Error = err.Error()
-		_ = stateStore.Save(active)
-		return RunResult{}, err
+		active.Status = statusFailed
+		active.Error = fdiskShimErr.Error()
+		_ = stateStore.Save(&active)
+		return RunResult{}, fdiskShimErr
 	}
-	if err := guest.CopyToGuest(ctx, runnerGuest, setupFdiskShimPath, remoteHarnessBinDir, false); err != nil {
+	if copyFdiskErr := guest.CopyToGuest(ctx, runnerGuest, setupFdiskShimPath, remoteHarnessBinDir, false); copyFdiskErr != nil {
 		_ = runnerInstance.Kill()
-		active.Status = "failed"
-		active.Error = err.Error()
-		_ = stateStore.Save(active)
-		return RunResult{}, err
+		active.Status = statusFailed
+		active.Error = copyFdiskErr.Error()
+		_ = stateStore.Save(&active)
+		return RunResult{}, copyFdiskErr
 	}
 
 	active.Phase = "running-installer"
-	_ = stateStore.Save(active)
+	_ = stateStore.Save(&active)
 	installerLogFile, err := os.Create(installerLogPath)
 	if err != nil {
 		_ = runnerInstance.Kill()
-		active.Status = "failed"
+		active.Status = statusFailed
 		active.Error = err.Error()
-		_ = stateStore.Save(active)
+		_ = stateStore.Save(&active)
 		return RunResult{}, fmt.Errorf("create installer log: %w", err)
 	}
 	defer installerLogFile.Close()
@@ -744,14 +748,14 @@ fi
 `
 	if err := guest.Run(ctx, runnerGuest, "sh -s -- <<'SCRIPT'\n"+installScript+"\nSCRIPT", installerLogFile, installerLogFile); err != nil {
 		_ = runnerInstance.Kill()
-		active.Status = "failed"
+		active.Status = statusFailed
 		active.Error = err.Error()
-		_ = stateStore.Save(active)
+		_ = stateStore.Save(&active)
 		return RunResult{}, err
 	}
 
 	active.Phase = "powering-off-runner"
-	_ = stateStore.Save(active)
+	_ = stateStore.Save(&active)
 	if err := guest.Run(ctx, runnerGuest, "sudo poweroff", io.Discard, io.Discard); err != nil {
 		_ = qemu.SystemPowerdown(runnerQMPPath)
 	}
@@ -764,7 +768,7 @@ fi
 	// socket. Restart swtpm (preserving tpm-state/) before booting the
 	// target so it can reconnect to the ctrl socket.
 	if cfg.EnableTPM && cfg.shouldBootInstalledTarget() {
-		if err := qemu.StartSoftwareTPM(qemu.SoftwareTPMConfig{
+		if err := qemu.StartSoftwareTPM(&qemu.SoftwareTPMConfig{
 			SocketPath:   tpmSocketPath,
 			ControlPath:  tpmControlPath,
 			StateDir:     tpmStateDir,
@@ -772,9 +776,9 @@ fi
 			LogPath:      tpmLogPath,
 			StartTimeout: 10 * time.Second,
 		}); err != nil {
-			active.Status = "failed"
+			active.Status = statusFailed
 			active.Error = err.Error()
-			_ = stateStore.Save(active)
+			_ = stateStore.Save(&active)
 			return RunResult{}, fmt.Errorf("restart swtpm after runner shutdown: %w", err)
 		}
 	}
@@ -805,7 +809,7 @@ fi
 	// Delay before booting the target to let the installed disk images settle.
 	time.Sleep(10 * time.Second)
 
-	targetResult, targetErr := service.bootAndVerifyTarget(ctx, cfg, runID, runDir, disk1Path, disk2Path, btrfsDisk1Path, btrfsDisk2Path, keyPair, verifyLogPath, stateStore, active)
+	targetResult, targetErr := service.bootAndVerifyTarget(ctx, cfg, runID, runDir, disk1Path, disk2Path, btrfsDisk1Path, btrfsDisk2Path, keyPair, verifyLogPath, stateStore, &active)
 	if targetErr != nil {
 		return result, targetErr
 	}
@@ -823,215 +827,21 @@ fi
 	return result, nil
 }
 
-// prepareSetupModeVars boots a disposable QEMU instance with the given VARS,
-// clears the Platform Key via UEFI shell interaction to put the firmware in
-// Setup Mode, then returns. The VARS file is modified in-place.
-// This simulates the "clear Secure Boot keys in BIOS" step that a real user
-// would perform before installing with custom certificates.
-func prepareSetupModeVars(varsPath, ovmfCodePath string) error {
-	tmpDir, err := os.MkdirTemp("", "skea-clearpk-*")
-	if err != nil {
-		return fmt.Errorf("create temp dir: %w", err)
-	}
-	defer os.RemoveAll(tmpDir)
-
-	qmpSock := filepath.Join(tmpDir, "qmp.sock")
-
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
-
-	// Save serial log next to the vars file so we can debug PK clearing.
-	serialLog := filepath.Dir(varsPath) + "/clearpk-serial.log"
-	qemuArgs := []string{
-		"-machine", "q35,smm=on",
-		"-display", "none",
-		"-global", "driver=cfi.pflash01,property=secure,value=off",
-		"-drive", "if=pflash,format=raw,readonly=on,file=" + ovmfCodePath,
-		"-drive", "if=pflash,format=raw,file=" + varsPath,
-		"-chardev", "file,id=serial-out,path=" + serialLog,
-		"-serial", "chardev:serial-out",
-		"-net", "none",
-		"-qmp", "unix:" + qmpSock + ",server=on,wait=off",
-		"-monitor", "none",
-	}
-
-	cmd := exec.CommandContext(ctx, "qemu-system-x86_64", qemuArgs...)
-	cmd.Stdout = os.Stderr
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("start qemu for pk clearing: %w", err)
-	}
-	defer func() {
-		// Kill QEMU if still running (e.g. early exit on error)
-		if cmd.Process != nil {
-			cmd.Process.Kill()
-			cmd.Wait()
-		}
-	}()
-
-	// Wait for QMP socket
-	var conn net.Conn
-	for i := 0; i < 50; i++ {
-		time.Sleep(200 * time.Millisecond)
-		c, dialErr := net.Dial("unix", qmpSock)
-		if dialErr == nil {
-			conn = c
-			break
-		}
-		if ctx.Err() != nil {
-			return ctx.Err()
-		}
-	}
-	if conn == nil {
-		return errors.New("qmp socket did not appear")
-	}
-	defer conn.Close()
-
-	decoder := json.NewDecoder(conn)
-	encoder := json.NewEncoder(conn)
-
-	// Read QMP greeting
-	var greeting map[string]any
-	if err := decoder.Decode(&greeting); err != nil {
-		return fmt.Errorf("read qmp greeting: %w", err)
-	}
-
-	// Send qmp_capabilities
-	if err := encoder.Encode(map[string]any{"execute": "qmp_capabilities"}); err != nil {
-		return fmt.Errorf("send qmp capabilities: %w", err)
-	}
-	if err := readQMPResponseDiscardEvents(decoder); err != nil {
-		return err
-	}
-
-	type keyEvent struct {
-		Type string `json:"type"`
-		Data string `json:"data"`
-	}
-	sendKey := func(keys ...string) error {
-		events := make([]keyEvent, len(keys))
-		for i, k := range keys {
-			events[i] = keyEvent{Type: "qcode", Data: k}
-		}
-		if err := encoder.Encode(map[string]any{
-			"execute": "send-key",
-			"arguments": map[string]any{"keys": events},
-		}); err != nil {
-			return fmt.Errorf("send-key encode: %w", err)
-		}
-		return readQMPResponseDiscardEvents(decoder)
-	}
-
-	// typeChar sends a single complete keystroke via QMP send-key.
-	// Each sendKey call sends both KEY_DOWN and KEY_UP events,
-	// producing exactly one character in the guest.
-	typeChar := func(key string) error {
-		if err := sendKey(key); err != nil {
-			return err
-		}
-		time.Sleep(80 * time.Millisecond)
-		return nil
-	}
-
-	// Wait for UEFI shell to be ready (OVMF needs time to initialize firmware,
-	// flash NVRAM, and fall through to the internal shell).
-	time.Sleep(8 * time.Second)
-
-	// Press Enter to skip the "Press ESC in 5 seconds" shell timeout.
-	if err := typeChar("ret"); err != nil {
-		return fmt.Errorf("skip shell timeout: %w", err)
-	}
-	time.Sleep(1 * time.Second)
-
-	// Type "dmpstore -d PK" plus Enter via QMP send-key.
-	// Capital letters use shift+key sent simultaneously.
-	chars := []func() error{
-		func() error { return typeChar("d") },
-		func() error { return typeChar("m") },
-		func() error { return typeChar("p") },
-		func() error { return typeChar("s") },
-		func() error { return typeChar("t") },
-		func() error { return typeChar("o") },
-		func() error { return typeChar("r") },
-		func() error { return typeChar("e") },
-		func() error { return typeChar("spc") },
-		func() error { return typeChar("minus") },
-		func() error { return typeChar("d") },
-		func() error { return typeChar("spc") },
-		func() error { if err := sendKey("shift", "p"); err != nil { return err }; time.Sleep(80 * time.Millisecond); return nil },
-		func() error { if err := sendKey("shift", "k"); err != nil { return err }; time.Sleep(80 * time.Millisecond); return nil },
-		func() error { return typeChar("ret") },
-	}
-
-	for _, fn := range chars {
-		if err := fn(); err != nil {
-			return fmt.Errorf("send key: %w", err)
-		}
-		if ctx.Err() != nil {
-			return ctx.Err()
-		}
-	}
-
-	// Wait for command to execute, then power off
-	time.Sleep(2 * time.Second)
-
-	if err := encoder.Encode(map[string]any{"execute": "system_powerdown"}); err != nil {
-		return fmt.Errorf("send system_powerdown: %w", err)
-	}
-	_ = readQMPResponseDiscardEvents(decoder)
-
-	// Wait for QEMU to exit gracefully so the VARS file is synced.
-	// system_powerdown tells the guest to shut down cleanly.
-	waitDone := make(chan error, 1)
-	go func() {
-		waitDone <- cmd.Wait()
-	}()
-	select {
-	case <-waitDone:
-		// QEMU exited cleanly
-	case <-time.After(15 * time.Second):
-		// Timeout — force kill
-		cmd.Process.Kill()
-		<-waitDone
-	}
-
-	return nil
-}
-
-// readQMPResponseDiscardEvents reads QMP responses until a non-event response
-// is seen, discarding events along the way.
-func readQMPResponseDiscardEvents(decoder *json.Decoder) error {
-	for {
-		var payload map[string]json.RawMessage
-		if err := decoder.Decode(&payload); err != nil {
-			return fmt.Errorf("decode qmp response: %w", err)
-		}
-		if _, ok := payload["event"]; ok {
-			continue
-		}
-		if raw, ok := payload["error"]; ok {
-			return fmt.Errorf("qmp error: %s", string(raw))
-		}
-		return nil
-	}
-}
-
-func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg RunConfig, runID, runDir, disk1Path, disk2Path, btrfsDisk1Path, btrfsDisk2Path string, keyPair guest.KeyPair, verifyLogPath string, stateStore runstate.Store, active runstate.ActiveRun) (RunResult, error) {
+func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg *RunConfig, runID, runDir, disk1Path, disk2Path, btrfsDisk1Path, btrfsDisk2Path string, keyPair guest.KeyPair, verifyLogPath string, stateStore runstate.Store, active *runstate.ActiveRun) (RunResult, error) {
 	ovmfPaths, err := qemu.FindOVMF()
 	if err != nil {
-		active.Status = "failed"
+		active.Status = statusFailed
 		active.Error = err.Error()
 		_ = stateStore.Save(active)
 		return RunResult{}, err
 	}
 
 	ovmfVarsPath := filepath.Join(runDir, "OVMF_VARS.fd")
-	if err := qemu.CopyFile(ovmfPaths.Vars, ovmfVarsPath); err != nil {
-		active.Status = "failed"
-		active.Error = err.Error()
+	if copyErr := qemu.CopyFile(ovmfPaths.Vars, ovmfVarsPath); copyErr != nil {
+		active.Status = statusFailed
+		active.Error = copyErr.Error()
 		_ = stateStore.Save(active)
-		return RunResult{}, err
+		return RunResult{}, copyErr
 	}
 	// First boot has no TPM (buildTargetArgs(false)) so OVMF stays in
 	// Setup Mode, allowing sbctl to enroll Secure Boot certificates.
@@ -1059,19 +869,19 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg RunConfig, 
 			"-drive", "if=pflash,format=raw,file=" + ovmfVarsPath,
 			"-netdev", fmt.Sprintf("user,id=net0,hostfwd=tcp::%d-:22", cfg.TargetSSHPort),
 			"-device", "virtio-net-pci,netdev=net0",
-		"-drive", "if=none,id=targetdisk1,format=qcow2,file=" + disk1Path,
-		"-device", "virtio-blk-pci,drive=targetdisk1,bootindex=1",
-	}
-	if cfg.DiskLayout == "btrfsStandardServer" {
-		args = append(args,
-			"-drive", "if=none,id=targetdisk2,format=qcow2,file="+disk2Path,
-			"-device", "virtio-blk-pci,drive=targetdisk2,bootindex=2",
-			"-drive", "if=none,id=btrfsdisk1,format=qcow2,file="+btrfsDisk1Path,
-			"-device", "virtio-blk-pci,drive=btrfsdisk1",
-			"-drive", "if=none,id=btrfsdisk2,format=qcow2,file="+btrfsDisk2Path,
-			"-device", "virtio-blk-pci,drive=btrfsdisk2",
-		)
-	}
+			"-drive", "if=none,id=targetdisk1,format=qcow2,file=" + disk1Path,
+			"-device", "virtio-blk-pci,drive=targetdisk1,bootindex=1",
+		}
+		if cfg.DiskLayout == layoutBtrfsStandardServer {
+			args = append(args,
+				"-drive", "if=none,id=targetdisk2,format=qcow2,file="+disk2Path,
+				"-device", "virtio-blk-pci,drive=targetdisk2,bootindex=2",
+				"-drive", "if=none,id=btrfsdisk1,format=qcow2,file="+btrfsDisk1Path,
+				"-device", "virtio-blk-pci,drive=btrfsdisk1",
+				"-drive", "if=none,id=btrfsdisk2,format=qcow2,file="+btrfsDisk2Path,
+				"-device", "virtio-blk-pci,drive=btrfsdisk2",
+			)
+		}
 		if includeTPM {
 			// QEMU 10 tpmdev emulator connects to the swtpm --ctrl socket (not
 			// the --server socket). QEMU provides its data fd via CMD_SET_DATAFD.
@@ -1104,8 +914,8 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg RunConfig, 
 		if attempt > 1 {
 			fmt.Fprintf(os.Stderr, "target boot attempt %d/%d\n", attempt, maxBootRetries)
 		}
-		var err error
-		targetInstance, err = qemu.Start(ctx, qemu.LaunchConfig{
+		var startErr error
+		targetInstance, startErr = qemu.Start(ctx, &qemu.LaunchConfig{
 			Binary:       cfg.QemuBinary,
 			Args:         targetArgs,
 			LogPath:      targetQemuLog,
@@ -1114,17 +924,17 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg RunConfig, 
 			StartTimeout: 10 * time.Second,
 			Persistent:   cfg.KeepTargetRunning,
 		})
-		if err != nil {
-			active.Status = "failed"
-			active.Error = err.Error()
+		if startErr != nil {
+			active.Status = statusFailed
+			active.Error = startErr.Error()
 			_ = stateStore.Save(active)
-			return RunResult{}, err
+			return RunResult{}, startErr
 		}
 
 		active.Phase = "waiting-for-target-ssh"
 		_ = stateStore.Save(active)
 		sshErr := waitForTargetSSH(ctx, targetInstance, targetGuest, cfg.BootTimeout, targetSerialLog, targetSerialSocketPath, targetQMPPath, cfg.InstalledPassword, true, 0, 2, func() {
-			active.Status = "running"
+			active.Status = statusRunning
 			active.Phase = "waiting-for-target-ssh"
 			_ = stateStore.Save(active)
 		})
@@ -1134,7 +944,7 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg RunConfig, 
 		_ = targetInstance.Kill()
 		targetInstance = nil
 		if attempt == maxBootRetries {
-			active.Status = "failed"
+			active.Status = statusFailed
 			active.Error = sshErr.Error()
 			_ = stateStore.Save(active)
 			return RunResult{}, sshErr
@@ -1155,7 +965,7 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg RunConfig, 
 	sbctlLogPath := filepath.Join(runDir, "sbctl.log")
 	sbctlDiag, sbctlErr := runSbctlOnTarget(ctx, targetGuest, cfg.RepoRoot)
 	if sbctlDiag != "" {
-		_ = os.WriteFile(sbctlLogPath, []byte(sbctlDiag), 0o644)
+		_ = os.WriteFile(sbctlLogPath, []byte(sbctlDiag), 0o600)
 	}
 	if sbctlErr != nil {
 		// Non-fatal — efivarfs may not be available in QEMU
@@ -1166,17 +976,18 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg RunConfig, 
 	tpm1LogPath := filepath.Join(runDir, "tpm-first-boot.log")
 	tpm1Diag, tpm1Err := runTPMOnTarget(ctx, targetGuest, cfg.InstalledPassword, cfg.RepoRoot)
 	if tpm1Diag != "" {
-		_ = os.WriteFile(tpm1LogPath, []byte(tpm1Diag), 0o644)
+		_ = os.WriteFile(tpm1LogPath, []byte(tpm1Diag), 0o600)
 	}
 	if tpm1Err != nil {
 		// Non-fatal on first boot — TPM not available
+		_ = tpm1Err
 	}
 
 	// Run diagnostics
 	postInstallDiag, err := runPostInstallDiag(ctx, targetGuest)
 	tpmBindingSuccessful := true
 	if postInstallDiag != "" {
-		_ = os.WriteFile(postInstallLogPath, []byte(postInstallDiag), 0o644)
+		_ = os.WriteFile(postInstallLogPath, []byte(postInstallDiag), 0o600)
 		if strings.Contains(postInstallDiag, "WARNING:") {
 			tpmBindingSuccessful = false
 		}
@@ -1188,7 +999,7 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg RunConfig, 
 	}
 	if err != nil {
 		_ = targetInstance.Kill()
-		active.Status = "failed"
+		active.Status = statusFailed
 		active.Error = err.Error()
 		_ = stateStore.Save(active)
 		return RunResult{}, err
@@ -1197,14 +1008,14 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg RunConfig, 
 	if cfg.EnableTPM {
 		active.Phase = "rebooting-target-for-tpm-validation"
 		_ = stateStore.Save(active)
-		if err := writeSerialLogOffset(filepath.Join(runDir, clevisRebootSerialOffsetFile), targetSerialLog); err != nil {
+		if offsetErr := writeSerialLogOffset(filepath.Join(runDir, clevisRebootSerialOffsetFile), targetSerialLog); offsetErr != nil {
 			_ = targetInstance.Kill()
-			active.Status = "failed"
-			active.Error = err.Error()
+			active.Status = statusFailed
+			active.Error = offsetErr.Error()
 			_ = stateStore.Save(active)
-			return RunResult{}, err
+			return RunResult{}, offsetErr
 		}
-		if err := guest.Run(ctx, targetGuest, "poweroff", io.Discard, io.Discard); err != nil {
+		if poweroffErr := guest.Run(ctx, targetGuest, "poweroff", io.Discard, io.Discard); poweroffErr != nil {
 			_ = qemu.SystemPowerdown(targetQMPPath)
 		}
 		_ = targetInstance.Wait()
@@ -1215,23 +1026,24 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg RunConfig, 
 		// boot so QEMU can reconnect to the ctrl socket.
 		// First boot didn't use TPM, so swtpm is still alive — stop it first.
 		_ = qemu.StopSoftwareTPM(filepath.Join(runDir, "tpm.pid"))
-		if err := qemu.StartSoftwareTPM(qemu.SoftwareTPMConfig{
+		if tpmRestartErr := qemu.StartSoftwareTPM(&qemu.SoftwareTPMConfig{
 			SocketPath:   filepath.Join(runDir, "tpm.sock"),
 			ControlPath:  filepath.Join(runDir, "tpm.sock.ctrl"),
 			StateDir:     filepath.Join(runDir, "tpm-state"),
 			PIDFile:      filepath.Join(runDir, "tpm.pid"),
 			LogPath:      filepath.Join(runDir, "tpm.log"),
 			StartTimeout: 10 * time.Second,
-		}); err != nil {
-			active.Status = "failed"
-			active.Error = fmt.Sprintf("restart swtpm for second boot: %s", err.Error())
+		}); tpmRestartErr != nil {
+			active.Status = statusFailed
+			active.Error = fmt.Sprintf("restart swtpm for second boot: %s", tpmRestartErr.Error())
 			_ = stateStore.Save(active)
-			return RunResult{}, fmt.Errorf("restart swtpm for second boot: %w", err)
+			return RunResult{}, fmt.Errorf("restart swtpm for second boot: %w", tpmRestartErr)
 		}
 
 		targetArgs = buildTargetArgs(true)
 
-		targetInstance, err = qemu.Start(ctx, qemu.LaunchConfig{
+		var startErr error
+		targetInstance, startErr = qemu.Start(ctx, &qemu.LaunchConfig{
 			Binary:       cfg.QemuBinary,
 			Args:         targetArgs,
 			LogPath:      targetQemuLog,
@@ -1240,27 +1052,27 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg RunConfig, 
 			StartTimeout: 10 * time.Second,
 			Persistent:   cfg.KeepTargetRunning,
 		})
-		if err != nil {
-			active.Status = "failed"
-			active.Error = err.Error()
+		if startErr != nil {
+			active.Status = statusFailed
+			active.Error = startErr.Error()
 			_ = stateStore.Save(active)
-			return RunResult{}, err
+			return RunResult{}, startErr
 		}
 
 		active.Phase = "waiting-for-target-ssh-after-tpm-bind"
 		_ = stateStore.Save(active)
 		allowPassphraseFallback = !tpmBindingSuccessful
 		clevisSerialOffset, _ := loadSerialLogOffset(filepath.Join(runDir, clevisRebootSerialOffsetFile))
-		if err := waitForTargetSSH(ctx, targetInstance, targetGuest, cfg.BootTimeout, targetSerialLog, targetSerialSocketPath, targetQMPPath, cfg.InstalledPassword, allowPassphraseFallback, clevisSerialOffset, 2, func() {
-			active.Status = "running"
+		if waitErr := waitForTargetSSH(ctx, targetInstance, targetGuest, cfg.BootTimeout, targetSerialLog, targetSerialSocketPath, targetQMPPath, cfg.InstalledPassword, allowPassphraseFallback, clevisSerialOffset, 2, func() {
+			active.Status = statusRunning
 			active.Phase = "waiting-for-target-ssh-after-tpm-bind"
 			_ = stateStore.Save(active)
-		}); err != nil {
+		}); waitErr != nil {
 			_ = targetInstance.Kill()
-			active.Status = "failed"
-			active.Error = err.Error()
+			active.Status = statusFailed
+			active.Error = waitErr.Error()
 			_ = stateStore.Save(active)
-			return RunResult{}, err
+			return RunResult{}, waitErr
 		}
 
 		// Run TPM binary on the second boot. Swtpm is already running
@@ -1269,11 +1081,11 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg RunConfig, 
 		tpm2LogPath := filepath.Join(runDir, "tpm-second-boot.log")
 		tpmDiag, tpmErr := runTPMOnTarget(ctx, targetGuest, cfg.InstalledPassword, cfg.RepoRoot)
 		if tpmDiag != "" {
-			_ = os.WriteFile(tpm2LogPath, []byte(tpmDiag), 0o644)
+			_ = os.WriteFile(tpm2LogPath, []byte(tpmDiag), 0o600)
 		}
 		if tpmErr != nil {
 			_ = targetInstance.Kill()
-			active.Status = "failed"
+			active.Status = statusFailed
 			active.Error = tpmErr.Error()
 			_ = stateStore.Save(active)
 			return RunResult{}, tpmErr
@@ -1285,29 +1097,29 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg RunConfig, 
 		}
 
 		// Reboot after TPM binding
-		if err := guest.Run(ctx, targetGuest, "poweroff", io.Discard, io.Discard); err != nil {
+		if poweroffErr := guest.Run(ctx, targetGuest, "poweroff", io.Discard, io.Discard); poweroffErr != nil {
 			_ = qemu.SystemPowerdown(targetQMPPath)
 		}
 		_ = targetInstance.Wait()
 		targetInstance = nil
 
 		// Restart swtpm and boot for verification
-		if err := qemu.StartSoftwareTPM(qemu.SoftwareTPMConfig{
+		if tpmRestartErr := qemu.StartSoftwareTPM(&qemu.SoftwareTPMConfig{
 			SocketPath:   filepath.Join(runDir, "tpm.sock"),
 			ControlPath:  filepath.Join(runDir, "tpm.sock.ctrl"),
 			StateDir:     filepath.Join(runDir, "tpm-state"),
 			PIDFile:      filepath.Join(runDir, "tpm.pid"),
 			LogPath:      filepath.Join(runDir, "tpm.log"),
 			StartTimeout: 10 * time.Second,
-		}); err != nil {
-			active.Status = "failed"
-			active.Error = fmt.Sprintf("restart swtpm for verification: %s", err.Error())
+		}); tpmRestartErr != nil {
+			active.Status = statusFailed
+			active.Error = fmt.Sprintf("restart swtpm for verification: %s", tpmRestartErr.Error())
 			_ = stateStore.Save(active)
-			return RunResult{}, fmt.Errorf("restart swtpm for verification: %w", err)
+			return RunResult{}, fmt.Errorf("restart swtpm for verification: %w", tpmRestartErr)
 		}
 
 		targetArgs = buildTargetArgs(true)
-		targetInstance, err = qemu.Start(ctx, qemu.LaunchConfig{
+		targetInstance, startErr = qemu.Start(ctx, &qemu.LaunchConfig{
 			Binary:       cfg.QemuBinary,
 			Args:         targetArgs,
 			LogPath:      targetQemuLog,
@@ -1316,32 +1128,32 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg RunConfig, 
 			StartTimeout: 10 * time.Second,
 			Persistent:   cfg.KeepTargetRunning,
 		})
-		if err != nil {
-			active.Status = "failed"
-			active.Error = err.Error()
+		if startErr != nil {
+			active.Status = statusFailed
+			active.Error = startErr.Error()
 			_ = stateStore.Save(active)
-			return RunResult{}, err
+			return RunResult{}, startErr
 		}
 
 		active.Phase = "waiting-for-target-ssh-verification"
 		_ = stateStore.Save(active)
 		allowPassphraseFallback = !tpmBindingSuccessful
-		if err := waitForTargetSSH(ctx, targetInstance, targetGuest, cfg.BootTimeout, targetSerialLog, targetSerialSocketPath, targetQMPPath, cfg.InstalledPassword, allowPassphraseFallback, 0, 2, func() {
-			active.Status = "running"
+		if waitErr := waitForTargetSSH(ctx, targetInstance, targetGuest, cfg.BootTimeout, targetSerialLog, targetSerialSocketPath, targetQMPPath, cfg.InstalledPassword, allowPassphraseFallback, 0, 2, func() {
+			active.Status = statusRunning
 			active.Phase = "waiting-for-target-ssh-verification"
 			_ = stateStore.Save(active)
-		}); err != nil {
+		}); waitErr != nil {
 			_ = targetInstance.Kill()
-			active.Status = "failed"
-			active.Error = err.Error()
+			active.Status = statusFailed
+			active.Error = waitErr.Error()
 			_ = stateStore.Save(active)
-			return RunResult{}, err
+			return RunResult{}, waitErr
 		}
 	}
 
 	active.Phase = "verifying"
 	_ = stateStore.Save(active)
-	verifyResult, err := service.Verify(ctx, VerifyConfig{
+	verifyResult, err := service.Verify(ctx, &VerifyConfig{
 		ArtifactsRoot: cfg.ArtifactsRoot,
 		RunDir:        runDir,
 		SSHPort:       cfg.TargetSSHPort,
@@ -1351,7 +1163,7 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg RunConfig, 
 		Timeout:       cfg.VerificationTimeout,
 	})
 	if err != nil {
-		active.Status = "failed"
+		active.Status = statusFailed
 		active.Error = err.Error()
 		_ = stateStore.Save(active)
 		return RunResult{}, err
@@ -1378,7 +1190,7 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg RunConfig, 
 	}
 
 	if cfg.KeepTargetRunning {
-		active.Status = "running"
+		active.Status = statusRunning
 		active.Phase = "target-active"
 		_ = stateStore.Save(active)
 		targetInstance = nil
@@ -1397,7 +1209,7 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg RunConfig, 
 	return result, nil
 }
 
-func (service *Service) Verify(ctx context.Context, cfg VerifyConfig) (VerifyResult, error) {
+func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyResult, error) {
 	if cfg.Timeout <= 0 {
 		cfg.Timeout = 2 * time.Minute
 	}
@@ -1456,7 +1268,7 @@ func (service *Service) Verify(ctx context.Context, cfg VerifyConfig) (VerifyRes
 		isSingle := hasHealthyBtrfsSingleLayout(storageCheck.Detail)
 		if !isRaid1 && !isSingle {
 			storageCheck.Pass = false
-			storageCheck.Detail = storageCheck.Detail + "\nExpected a mounted Btrfs root backed by LUKS — either RAID1 (2 devices, RAID1 profiles) or Single (1 device, single data, DUP metadata)"
+			storageCheck.Detail += "\nExpected a mounted Btrfs root backed by LUKS — either RAID1 (2 devices, RAID1 profiles) or Single (1 device, single data, DUP metadata)"
 			result.Checks["storage_layout"] = storageCheck
 			result.Success = false
 		}
@@ -1464,7 +1276,7 @@ func (service *Service) Verify(ctx context.Context, cfg VerifyConfig) (VerifyRes
 
 	if fstabCheck, ok := result.Checks["fstab"]; ok && !strings.Contains(fstabCheck.Detail, "LABEL=myroot") {
 		fstabCheck.Pass = false
-		fstabCheck.Detail = fstabCheck.Detail + "\nExpected LABEL=myroot entry in /etc/fstab"
+		fstabCheck.Detail += "\nExpected LABEL=myroot entry in /etc/fstab"
 		result.Checks["fstab"] = fstabCheck
 		result.Success = false
 	}
@@ -1479,7 +1291,7 @@ func (service *Service) Verify(ctx context.Context, cfg VerifyConfig) (VerifyRes
 		hasLuksName := strings.Count(cmdlineCheck.Detail, "rd.luks.name=") >= 1
 		if !hasRoot || !hasLuksName {
 			cmdlineCheck.Pass = false
-			cmdlineCheck.Detail = cmdlineCheck.Detail + "\nExpected /etc/kernel/cmdline to define root=UUID=<btrfs UUID> or root=/dev/mapper/luks-<uuid> and rd.luks.name for encrypted root device(s)"
+			cmdlineCheck.Detail += "\nExpected /etc/kernel/cmdline to define root=UUID=<btrfs UUID> or root=/dev/mapper/luks-<uuid> and rd.luks.name for encrypted root device(s)"
 			result.Checks["kernel_cmdline"] = cmdlineCheck
 			result.Success = false
 		}
@@ -1495,7 +1307,7 @@ func (service *Service) Verify(ctx context.Context, cfg VerifyConfig) (VerifyRes
 	if tpmExpected {
 		if deviceCheck, ok := result.Checks["tpm_devices"]; ok && !strings.Contains(deviceCheck.Detail, "/dev/tpm") {
 			deviceCheck.Pass = false
-			deviceCheck.Detail = deviceCheck.Detail + "\nExpected a TPM device node when TPM-backed LUKS unlock is enabled"
+			deviceCheck.Detail += "\nExpected a TPM device node when TPM-backed LUKS unlock is enabled"
 			result.Checks["tpm_devices"] = deviceCheck
 			result.Success = false
 		}
@@ -1506,7 +1318,7 @@ func (service *Service) Verify(ctx context.Context, cfg VerifyConfig) (VerifyRes
 			hasTCTI := strings.Contains(packageCheck.Detail, "tpm2-tss-tcti-device")
 			if !hasClevis || !hasJose || !hasTools || !hasTCTI {
 				packageCheck.Pass = false
-				packageCheck.Detail = packageCheck.Detail + "\nExpected clevis, jose, tpm2-tools, and tpm2-tss-tcti-device packages when TPM-backed LUKS unlock is enabled"
+				packageCheck.Detail += "\nExpected clevis, jose, tpm2-tools, and tpm2-tss-tcti-device packages when TPM-backed LUKS unlock is enabled"
 				result.Checks["clevis_packages"] = packageCheck
 				result.Success = false
 			}
@@ -1522,7 +1334,7 @@ func (service *Service) Verify(ctx context.Context, cfg VerifyConfig) (VerifyRes
 			}
 			if !hasClevisTPM2Bindings(bindingCheck.Detail, expectedBindings) {
 				bindingCheck.Pass = false
-				bindingCheck.Detail = bindingCheck.Detail + fmt.Sprintf("\nExpected Clevis TPM2 bindings on %d encrypted root volume(s)", expectedBindings)
+				bindingCheck.Detail += fmt.Sprintf("\nExpected Clevis TPM2 bindings on %d encrypted root volume(s)", expectedBindings)
 				result.Checks["clevis_bindings"] = bindingCheck
 				result.Success = false
 			}
@@ -1532,20 +1344,21 @@ func (service *Service) Verify(ctx context.Context, cfg VerifyConfig) (VerifyRes
 			serialPath := filepath.Join(cfg.RunDir, "target-serial.log")
 			serialOffset, offsetErr := loadSerialLogOffset(filepath.Join(cfg.RunDir, clevisRebootSerialOffsetFile))
 			data, err := readFileFromOffset(serialPath, serialOffset)
-			if offsetErr != nil {
+			switch {
+			case offsetErr != nil:
 				serialCheck.Pass = false
 				serialCheck.Detail = fmt.Sprintf("read serial offset: %v", offsetErr)
 				result.Success = false
-			} else if err != nil {
+			case err != nil:
 				serialCheck.Pass = false
 				serialCheck.Detail = fmt.Sprintf("read %s: %v", serialPath, err)
 				result.Success = false
-			} else if strings.Contains(string(data), "Enter passphrase for ") {
+			case strings.Contains(string(data), "Enter passphrase for "):
 				// Booster can show prompt text even when TPM token succeeds (fallback prompt).
 				// The real test: did SSH become ready? If we reached here, it did.
 				serialCheck.Detail = fmt.Sprintf("target serial log contains LUKS prompt text but SSH was reached — TPM token unlock likely succeeded (checked from byte offset %d)", serialOffset)
 				// Do NOT fail — SSH success proves boot worked
-			} else if serialOffset > 0 {
+			case serialOffset > 0:
 				serialCheck.Detail = fmt.Sprintf("target reached SSH after the Clevis binding reboot without any visible LUKS prompt text (checked from byte offset %d)", serialOffset)
 			}
 			result.Checks["tpm_auto_unlock"] = serialCheck
@@ -1554,7 +1367,7 @@ func (service *Service) Verify(ctx context.Context, cfg VerifyConfig) (VerifyRes
 
 	if securebootCheck, ok := result.Checks["secureboot_conf"]; ok && !strings.Contains(securebootCheck.Detail, "cmdline=") {
 		securebootCheck.Pass = false
-		securebootCheck.Detail = securebootCheck.Detail + "\nExpected cmdline entry in /etc/kernel-hooks.d/secureboot.conf"
+		securebootCheck.Detail += "\nExpected cmdline entry in /etc/kernel-hooks.d/secureboot.conf"
 		result.Checks["secureboot_conf"] = securebootCheck
 		result.Success = false
 	}
@@ -1564,7 +1377,7 @@ func (service *Service) Verify(ctx context.Context, cfg VerifyConfig) (VerifyRes
 		hasFallback := strings.Contains(ukiCheck.Detail, "BOOTX64.EFI")
 		if !hasSignedUKI || !hasFallback {
 			ukiCheck.Pass = false
-			ukiCheck.Detail = ukiCheck.Detail + "\nExpected signed linux-lts.efi and removable fallback BOOTX64.EFI on the ESP"
+			ukiCheck.Detail += "\nExpected signed linux-lts.efi and removable fallback BOOTX64.EFI on the ESP"
 			result.Checks["uki_artifacts"] = ukiCheck
 			result.Success = false
 		}
@@ -1652,7 +1465,7 @@ func (service *Service) Verify(ctx context.Context, cfg VerifyConfig) (VerifyRes
 		if apkCheck, ok := result.Checks["apk_packages"]; ok && apkCheck.Pass {
 			// Save full package list
 			allPackagesPath := filepath.Join(cfg.RunDir, "apk-packages-all.txt")
-			if err := os.WriteFile(allPackagesPath, []byte(apkCheck.Detail+"\n"), 0644); err != nil {
+			if err := os.WriteFile(allPackagesPath, []byte(apkCheck.Detail+"\n"), 0o600); err != nil {
 				fmt.Printf("[WARNING] Failed to write %s: %v\n", allPackagesPath, err)
 			}
 
@@ -1664,7 +1477,7 @@ func (service *Service) Verify(ctx context.Context, cfg VerifyConfig) (VerifyRes
 					openrcLines = append(openrcLines, line)
 				}
 			}
-			if err := os.WriteFile(openrcPackagesPath, []byte(strings.Join(openrcLines, "\n")+"\n"), 0644); err != nil {
+			if err := os.WriteFile(openrcPackagesPath, []byte(strings.Join(openrcLines, "\n")+"\n"), 0o600); err != nil {
 				fmt.Printf("[WARNING] Failed to write %s: %v\n", openrcPackagesPath, err)
 			}
 		}
@@ -1674,7 +1487,7 @@ func (service *Service) Verify(ctx context.Context, cfg VerifyConfig) (VerifyRes
 	if vectorCheck, ok := result.Checks["vector_service"]; ok {
 		if !strings.Contains(vectorCheck.Detail, "vector") {
 			vectorCheck.Pass = false
-			vectorCheck.Detail = vectorCheck.Detail + "\nExpected vector service in boot runlevel"
+			vectorCheck.Detail += "\nExpected vector service in boot runlevel"
 			result.Checks["vector_service"] = vectorCheck
 			result.Success = false
 		}
@@ -1684,7 +1497,7 @@ func (service *Service) Verify(ctx context.Context, cfg VerifyConfig) (VerifyRes
 	if vectorLogsCheck, ok := result.Checks["vector_logs"]; ok {
 		if strings.Contains(vectorLogsCheck.Detail, "no vector log files") {
 			vectorLogsCheck.Pass = false
-			vectorLogsCheck.Detail = vectorLogsCheck.Detail + "\nExpected vector log files to exist in /var/log/"
+			vectorLogsCheck.Detail += "\nExpected vector log files to exist in /var/log/"
 			result.Checks["vector_logs"] = vectorLogsCheck
 			result.Success = false
 		}
@@ -1694,7 +1507,7 @@ func (service *Service) Verify(ctx context.Context, cfg VerifyConfig) (VerifyRes
 	if vectorRunningCheck, ok := result.Checks["vector_running"]; ok {
 		if strings.Contains(vectorRunningCheck.Detail, "vector not running") {
 			vectorRunningCheck.Pass = false
-			vectorRunningCheck.Detail = vectorRunningCheck.Detail + "\nExpected vector process to be running"
+			vectorRunningCheck.Detail += "\nExpected vector process to be running"
 			result.Checks["vector_running"] = vectorRunningCheck
 			result.Success = false
 		}
@@ -1704,9 +1517,9 @@ func (service *Service) Verify(ctx context.Context, cfg VerifyConfig) (VerifyRes
 	if zswapCheck, ok := result.Checks["zswap_status"]; ok {
 		// zswap is optional - just log the status
 		if strings.Contains(zswapCheck.Detail, "not available") {
-			zswapCheck.Detail = zswapCheck.Detail + "\nzswap not enabled in this configuration"
+			zswapCheck.Detail += "\nzswap not enabled in this configuration"
 		} else if strings.Contains(zswapCheck.Detail, "enabled") {
-			zswapCheck.Detail = zswapCheck.Detail + "\nzswap is enabled"
+			zswapCheck.Detail += "\nzswap is enabled"
 		}
 		result.Checks["zswap_status"] = zswapCheck
 	}
@@ -1715,7 +1528,7 @@ func (service *Service) Verify(ctx context.Context, cfg VerifyConfig) (VerifyRes
 	if sudoInstalledCheck, ok := result.Checks["sudo_installed"]; ok {
 		if strings.Contains(sudoInstalledCheck.Detail, "not installed") {
 			sudoInstalledCheck.Pass = false
-			sudoInstalledCheck.Detail = sudoInstalledCheck.Detail + "\nExpected sudo-rs to be installed"
+			sudoInstalledCheck.Detail += "\nExpected sudo-rs to be installed"
 			result.Checks["sudo_installed"] = sudoInstalledCheck
 			result.Success = false
 		}
@@ -1725,7 +1538,7 @@ func (service *Service) Verify(ctx context.Context, cfg VerifyConfig) (VerifyRes
 	if sudoWheelCheck, ok := result.Checks["sudo_wheel"]; ok {
 		if strings.Contains(sudoWheelCheck.Detail, "no wheel sudoers config") {
 			sudoWheelCheck.Pass = false
-			sudoWheelCheck.Detail = sudoWheelCheck.Detail + "\nExpected %wheel group in /etc/sudoers.d/wheel"
+			sudoWheelCheck.Detail += "\nExpected %wheel group in /etc/sudoers.d/wheel"
 			result.Checks["sudo_wheel"] = sudoWheelCheck
 			result.Success = false
 		}
@@ -1923,7 +1736,7 @@ func (service *Service) Stop(_ context.Context, cfg StopConfig) (StopResult, err
 
 	active.Status = "stopping"
 	active.Phase = method
-	_ = store.Save(active)
+	_ = store.Save(&active)
 
 	return StopResult{Stopped: true, Method: method, RunID: active.RunID}, nil
 }
@@ -1949,7 +1762,7 @@ func (service *Service) Cleanup(_ context.Context, cfg CleanupConfig) (CleanupRe
 		}
 		result.ActiveRunID = active.RunID
 		ports = uniquePorts(append(ports, active.RunnerSSHPort, active.TargetSSHPort)...)
-		if !cfg.Force && activeRunHealthy(active) {
+		if !cfg.Force && activeRunHealthy(&active) {
 			result.Skipped = true
 			result.Reason = fmt.Sprintf("active harness run %s is still running in phase %s", active.RunID, active.Phase)
 			return result, nil
@@ -2034,7 +1847,7 @@ func ensurePrepareDefaults(cfg *PrepareRunnerConfig) error {
 		cfg.SSHPort = 2222
 	}
 	if cfg.SSHUser == "" {
-		cfg.SSHUser = "skea"
+		cfg.SSHUser = sshUserSkea
 	}
 	if cfg.MemoryMiB == 0 {
 		cfg.MemoryMiB = 4096
@@ -2073,7 +1886,7 @@ func (service *Service) cleanupBeforeLaunch(ctx context.Context, artifactsRoot s
 		return err
 	}
 	if cleanupResult.Skipped {
-		return fmt.Errorf(cleanupResult.Reason)
+		return errors.New(cleanupResult.Reason)
 	}
 	if len(cleanupResult.BusyPorts) > 0 {
 		return fmt.Errorf("required harness ports are still busy after cleanup: %v", cleanupResult.BusyPorts)
@@ -2098,7 +1911,7 @@ func ensureRunDefaults(cfg *RunConfig) error {
 		cfg.QemuImgBinary = "qemu-img"
 	}
 	if cfg.RunnerSSHUser == "" {
-		cfg.RunnerSSHUser = "skea"
+		cfg.RunnerSSHUser = sshUserSkea
 	}
 	if cfg.RunnerSSHPort == 0 {
 		cfg.RunnerSSHPort = 2222
@@ -2124,7 +1937,7 @@ func ensureRunDefaults(cfg *RunConfig) error {
 		cfg.DiskSize = "16G"
 	}
 	if cfg.InstalledUser == "" {
-		cfg.InstalledUser = "skea"
+		cfg.InstalledUser = sshUserSkea
 	}
 	if cfg.InstalledPassword == "" {
 		cfg.InstalledPassword = "Alpine.1"
@@ -2147,7 +1960,7 @@ func ensureRunDefaults(cfg *RunConfig) error {
 	return nil
 }
 
-func writeCloudInitFiles(userDataPath, metaDataPath string, cfg PrepareRunnerConfig, keyPair guest.KeyPair) error {
+func writeCloudInitFiles(userDataPath, metaDataPath string, cfg *PrepareRunnerConfig, keyPair guest.KeyPair) error {
 	var writeFiles string
 	if cfg.AptProxy != "" {
 		writeFiles = fmt.Sprintf(`write_files:
@@ -2178,12 +1991,12 @@ users:
 packages:
 %s%s`, cfg.SSHUser, keyPair.PublicKey, packages, writeFiles)
 
-	metaData := fmt.Sprintf("instance-id: skea-runner\nlocal-hostname: skea-runner\n")
+	metaData := "instance-id: skea-runner\nlocal-hostname: skea-runner\n"
 
-	if err := os.WriteFile(userDataPath, []byte(userData), 0o644); err != nil {
+	if err := os.WriteFile(userDataPath, []byte(userData), 0o600); err != nil {
 		return fmt.Errorf("write user-data: %w", err)
 	}
-	if err := os.WriteFile(metaDataPath, []byte(metaData), 0o644); err != nil {
+	if err := os.WriteFile(metaDataPath, []byte(metaData), 0o600); err != nil {
 		return fmt.Errorf("write meta-data: %w", err)
 	}
 
@@ -2199,24 +2012,7 @@ func buildSeedISO(cloudLocaldsBinary, seedISO, userData, metaData string) error 
 	return nil
 }
 
-func exportUnencryptedPEMKey(srcPath, dstPath string) error {
-	if err := os.MkdirAll(filepath.Dir(dstPath), 0o755); err != nil {
-		return fmt.Errorf("create secure boot key directory: %w", err)
-	}
-
-	decrypt := exec.Command("openssl", "pkey", "-in", srcPath, "-passin", "pass:snakeoil", "-out", dstPath)
-	if output, err := decrypt.CombinedOutput(); err != nil {
-		return fmt.Errorf("export unencrypted signing key %s: %w: %s", srcPath, err, string(output))
-	}
-
-	if err := os.Chmod(dstPath, 0o600); err != nil {
-		return fmt.Errorf("chmod %s: %w", dstPath, err)
-	}
-
-	return nil
-}
-
-func writeHarnessVariables(cfg RunConfig, keyPair guest.KeyPair, outputPath, alpineMirror string) error {
+func writeHarnessVariables(cfg *RunConfig, keyPair guest.KeyPair, outputPath, alpineMirror string) error {
 	yn := func(b bool) string {
 		if b {
 			return "true"
@@ -2226,7 +2022,7 @@ func writeHarnessVariables(cfg RunConfig, keyPair guest.KeyPair, outputPath, alp
 
 	disk1 := "/dev/vdb"
 	disk2 := "/dev/vdb"
-	if cfg.DiskLayout == "btrfsStandardServer" {
+	if cfg.DiskLayout == layoutBtrfsStandardServer {
 		disk2 = "/dev/vdc"
 	}
 
@@ -2329,6 +2125,7 @@ tar \
 	-C "$local_repo" -cf - . | tar -C "$destination" -xf -
 `
 
+	// #nosec G306 -- executable shell shim, 0755 required
 	if err := os.WriteFile(outputPath, []byte(content), 0o755); err != nil {
 		return fmt.Errorf("write harness git shim: %w", err)
 	}
@@ -2353,6 +2150,7 @@ fi
 exec /bin/bash "$@"
 `
 
+	// #nosec G306 -- executable shell shim, 0755 required
 	if err := os.WriteFile(outputPath, []byte(content), 0o755); err != nil {
 		return fmt.Errorf("write harness bash shim: %w", err)
 	}
@@ -2385,6 +2183,7 @@ fi
 exec "$real_fdisk" "$@"
 `
 
+	// #nosec G306 -- executable shell shim, 0755 required
 	if err := os.WriteFile(outputPath, []byte(content), 0o755); err != nil {
 		return fmt.Errorf("write harness setup fdisk shim: %w", err)
 	}
@@ -2392,7 +2191,7 @@ exec "$real_fdisk" "$@"
 	return nil
 }
 
-func resolveHarnessAlpineMirror(cfg RunConfig) (string, error) {
+func resolveHarnessAlpineMirror(cfg *RunConfig) (string, error) {
 	if strings.TrimSpace(cfg.AlpineMirror) != "" {
 		return strings.TrimRight(cfg.AlpineMirror, "/"), nil
 	}
@@ -2410,12 +2209,12 @@ func resolveHarnessAlpineMirror(cfg RunConfig) (string, error) {
 	}
 
 	rawValue := matches[1]
-	value, err := strconv.Unquote(rawValue)
-	if err != nil {
-		return strings.TrimRight(rawValue, `"'`), nil
+	value, unquoteErr := strconv.Unquote(rawValue)
+	if unquoteErr == nil {
+		return strings.TrimRight(value, "/"), nil
 	}
-
-	return strings.TrimRight(value, "/"), nil
+	// rawValue may be an unquoted mirror string — fall back to trimming quotes manually
+	return strings.TrimRight(rawValue, `"'`), nil
 }
 
 func cleanOldRuns(runsDir string, keep int) {
@@ -2675,7 +2474,7 @@ func copyGuidesToTarget(ctx context.Context, targetGuest guest.Options, repoRoot
 			}
 
 			// Copy binary to target
-			remotePath := filepath.Join("/root/guides", binName)
+			remotePath := "/root/guides/" + binName
 			_ = guest.CopyToGuest(ctx, targetGuest, binPath, remotePath, false)
 			_ = guest.Run(ctx, targetGuest, "chmod +x "+remotePath, io.Discard, io.Discard)
 			os.Remove(binPath)
@@ -2792,8 +2591,8 @@ func serialLogCount(path string, maxBytes int64, minOffset int64, needle string)
 	if startOffset < minOffset {
 		startOffset = minOffset
 	}
-	if _, err := file.Seek(startOffset, io.SeekStart); err != nil {
-		return 0, fmt.Errorf("seek serial log %s: %w", path, err)
+	if _, seekErr := file.Seek(startOffset, io.SeekStart); seekErr != nil {
+		return 0, fmt.Errorf("seek serial log %s: %w", path, seekErr)
 	}
 
 	data, err := io.ReadAll(file)
@@ -2809,7 +2608,7 @@ func writeSerialLogOffset(offsetPath, serialLogPath string) error {
 	if err != nil {
 		return fmt.Errorf("stat serial log %s: %w", serialLogPath, err)
 	}
-	if err := os.WriteFile(offsetPath, []byte(strconv.FormatInt(info.Size(), 10)), 0o644); err != nil {
+	if err := os.WriteFile(offsetPath, []byte(strconv.FormatInt(info.Size(), 10)), 0o600); err != nil {
 		return fmt.Errorf("write serial offset %s: %w", offsetPath, err)
 	}
 	return nil
@@ -2881,7 +2680,7 @@ type processInfo struct {
 	Command string
 }
 
-func activeRunHealthy(active runstate.ActiveRun) bool {
+func activeRunHealthy(active *runstate.ActiveRun) bool {
 	qmpPath := active.TargetQMPPath
 	if qmpPath == "" {
 		qmpPath = active.RunnerQMPPath
@@ -3046,6 +2845,6 @@ func appendUniqueInts(existing []int, values ...int) []int {
 	return result
 }
 
-func (cfg RunConfig) shouldBootInstalledTarget() bool {
+func (cfg *RunConfig) shouldBootInstalledTarget() bool {
 	return true
 }

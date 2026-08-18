@@ -58,12 +58,12 @@ func ParseRunArgs(args []string) (RunConfig, error) {
 	fs.BoolVar(&defaults.EnableKVM, "enable-kvm", false, "enable KVM acceleration")
 	fs.BoolVar(&defaults.DryRun, "dry-run", false, "print the QEMU launch plan without starting the VM")
 
-	if err := fs.Parse(args); err != nil {
-		return RunConfig{}, err
+	if parseErr := fs.Parse(args); parseErr != nil {
+		return RunConfig{}, parseErr
 	}
 
-	if err := validate(defaults); err != nil {
-		return RunConfig{}, err
+	if validateErr := validate(&defaults); validateErr != nil {
+		return RunConfig{}, validateErr
 	}
 
 	defaults.RunnerImage, err = filepath.Abs(defaults.RunnerImage)
@@ -79,7 +79,7 @@ func ParseRunArgs(args []string) (RunConfig, error) {
 	return defaults, nil
 }
 
-func validate(cfg RunConfig) error {
+func validate(cfg *RunConfig) error {
 	if strings.TrimSpace(cfg.RunnerImage) == "" {
 		return fmt.Errorf("--runner-image is required")
 	}

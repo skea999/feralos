@@ -66,7 +66,7 @@ func (server *Server) Serve(ctx context.Context, input io.Reader, output io.Writ
 			return fmt.Errorf("decode MCP request: %w", err)
 		}
 
-		resp := server.handleRequest(ctx, req)
+		resp := server.handleRequest(ctx, &req)
 		if resp == nil || len(req.ID) == 0 {
 			continue
 		}
@@ -77,7 +77,7 @@ func (server *Server) Serve(ctx context.Context, input io.Reader, output io.Writ
 	}
 }
 
-func (server *Server) handleRequest(ctx context.Context, req request) *response {
+func (server *Server) handleRequest(ctx context.Context, req *request) *response {
 	switch req.Method {
 	case "initialize":
 		return &response{JSONRPC: "2.0", ID: req.ID, Result: map[string]any{
@@ -96,7 +96,7 @@ func (server *Server) handleRequest(ctx context.Context, req request) *response 
 	}
 }
 
-func (server *Server) handleToolCall(ctx context.Context, req request) *response {
+func (server *Server) handleToolCall(ctx context.Context, req *request) *response {
 	var params struct {
 		Name      string                 `json:"name"`
 		Arguments map[string]interface{} `json:"arguments"`
@@ -135,7 +135,7 @@ func (server *Server) handleToolCall(ctx context.Context, req request) *response
 			AptProxy:        stringArg(params.Arguments, "aptProxy", ""),
 			BootTimeout:     time.Duration(intArg(params.Arguments, "bootTimeoutSeconds", 300)) * time.Second,
 		}
-		result, err := server.service.PrepareRunner(ctx, cfg)
+		result, err := server.service.PrepareRunner(ctx, &cfg)
 		if err != nil {
 			return toolResponse(map[string]any{"error": err.Error()}, true)
 		}
@@ -165,7 +165,7 @@ func (server *Server) handleToolCall(ctx context.Context, req request) *response
 			VerificationTimeout: time.Duration(intArg(params.Arguments, "verifyTimeoutSeconds", 120)) * time.Second,
 		}
 
-		go server.runAsyncJob(ctx, job.ID, cfg)
+		go server.runAsyncJob(ctx, job.ID, &cfg)
 		return toolResponse(map[string]any{"jobId": job.ID, "status": job.Status}, false)
 	case "get_status":
 		status, err := server.service.Status(ctx, stringArg(params.Arguments, "artifactsRoot", server.artifactsRoot))
@@ -202,7 +202,7 @@ func (server *Server) handleToolCall(ctx context.Context, req request) *response
 		}
 		return toolResponse(result, false)
 	case "verify_target":
-		result, err := server.service.Verify(ctx, service.VerifyConfig{ArtifactsRoot: stringArg(params.Arguments, "artifactsRoot", server.artifactsRoot), RunDir: stringArg(params.Arguments, "runDir", ""), SSHPort: intArg(params.Arguments, "sshPort", 2223), SSHUser: stringArg(params.Arguments, "sshUser", "root"), PrivateKey: stringArg(params.Arguments, "privateKey", filepath.Join(server.artifactsRoot, "cache", "keys", "id_ed25519")), InstalledUser: stringArg(params.Arguments, "installedUser", "skea"), Timeout: time.Duration(intArg(params.Arguments, "timeoutSeconds", 120)) * time.Second})
+		result, err := server.service.Verify(ctx, &service.VerifyConfig{ArtifactsRoot: stringArg(params.Arguments, "artifactsRoot", server.artifactsRoot), RunDir: stringArg(params.Arguments, "runDir", ""), SSHPort: intArg(params.Arguments, "sshPort", 2223), SSHUser: stringArg(params.Arguments, "sshUser", "root"), PrivateKey: stringArg(params.Arguments, "privateKey", filepath.Join(server.artifactsRoot, "cache", "keys", "id_ed25519")), InstalledUser: stringArg(params.Arguments, "installedUser", "skea"), Timeout: time.Duration(intArg(params.Arguments, "timeoutSeconds", 120)) * time.Second})
 		if err != nil {
 			return toolResponse(map[string]any{"error": err.Error()}, true)
 		}
@@ -212,7 +212,7 @@ func (server *Server) handleToolCall(ctx context.Context, req request) *response
 	}
 }
 
-func (server *Server) runAsyncJob(ctx context.Context, jobID string, cfg service.RunConfig) {
+func (server *Server) runAsyncJob(ctx context.Context, jobID string, cfg *service.RunConfig) {
 	result, err := server.service.RunInstall(ctx, cfg)
 
 	server.mu.Lock()

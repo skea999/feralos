@@ -9,25 +9,25 @@ import (
 )
 
 type ActiveRun struct {
-	RunID            string    `json:"runId"`
-	Mode             string    `json:"mode"`
-	Status           string    `json:"status"`
-	Phase            string    `json:"phase"`
-	RunDir           string    `json:"runDir"`
-	RunnerQMPPath    string    `json:"runnerQmpPath,omitempty"`
-	TargetQMPPath    string    `json:"targetQmpPath,omitempty"`
-	RunnerSerialLog  string    `json:"runnerSerialLog,omitempty"`
-	TargetSerialLog  string    `json:"targetSerialLog,omitempty"`
-	RunnerQemuLog    string    `json:"runnerQemuLog,omitempty"`
-	TargetQemuLog    string    `json:"targetQemuLog,omitempty"`
-	TargetFirmwareLog string   `json:"targetFirmwareLog,omitempty"`
-	InstallerLogPath string    `json:"installerLogPath,omitempty"`
-	VerifyLogPath    string    `json:"verifyLogPath,omitempty"`
-	RunnerSSHPort    int       `json:"runnerSshPort,omitempty"`
-	TargetSSHPort    int       `json:"targetSshPort,omitempty"`
-	UpdatedAt        time.Time `json:"updatedAt"`
-	StartedAt        time.Time `json:"startedAt"`
-	Error            string    `json:"error,omitempty"`
+	RunID             string    `json:"runId"`
+	Mode              string    `json:"mode"`
+	Status            string    `json:"status"`
+	Phase             string    `json:"phase"`
+	RunDir            string    `json:"runDir"`
+	RunnerQMPPath     string    `json:"runnerQmpPath,omitempty"`
+	TargetQMPPath     string    `json:"targetQmpPath,omitempty"`
+	RunnerSerialLog   string    `json:"runnerSerialLog,omitempty"`
+	TargetSerialLog   string    `json:"targetSerialLog,omitempty"`
+	RunnerQemuLog     string    `json:"runnerQemuLog,omitempty"`
+	TargetQemuLog     string    `json:"targetQemuLog,omitempty"`
+	TargetFirmwareLog string    `json:"targetFirmwareLog,omitempty"`
+	InstallerLogPath  string    `json:"installerLogPath,omitempty"`
+	VerifyLogPath     string    `json:"verifyLogPath,omitempty"`
+	RunnerSSHPort     int       `json:"runnerSshPort,omitempty"`
+	TargetSSHPort     int       `json:"targetSshPort,omitempty"`
+	UpdatedAt         time.Time `json:"updatedAt"`
+	StartedAt         time.Time `json:"startedAt"`
+	Error             string    `json:"error,omitempty"`
 }
 
 type Store struct {
@@ -38,7 +38,7 @@ func New(root string) Store {
 	return Store{root: root}
 }
 
-func (store Store) Save(active ActiveRun) error {
+func (store Store) Save(active *ActiveRun) error {
 	active.UpdatedAt = time.Now().UTC()
 	if active.StartedAt.IsZero() {
 		active.StartedAt = active.UpdatedAt
@@ -53,7 +53,7 @@ func (store Store) Save(active ActiveRun) error {
 		return fmt.Errorf("marshal active state: %w", err)
 	}
 
-	return os.WriteFile(store.activePath(), blob, 0o644)
+	return os.WriteFile(store.activePath(), blob, 0o600)
 }
 
 func (store Store) Load() (ActiveRun, error) {
