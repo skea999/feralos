@@ -9,7 +9,7 @@
 
 ## Current Focus
 
-Phase 1: Go installer complete. Both btrfsStandard and btrfsStandardServer pass 29/29 verification checks with ALL features enabled. **Swapfile FIXED** — `btrfs filesystem mkswapfile` works: root cause was `btrfs property set compression none` setting the `m` attribute which conflicts with `chattr +C` (NixOS/nixpkgs #384047). **NoCoW cleanup** — compression property removed from ALL NoCoW subvolumes (NODATACOW implies no compression), new `lsattr_nocow` harness check verifies C flag on all 7 NoCoW subvolumes, no `m` flag, compressed subvolumes stay CoW. **Dummy packages working** — APK v3 `apk mkpkg` creates valid packages with symlinks. **Ripgrep NOT a drop-in for grep** — rg doesn't support POSIX BRE (`\+`), breaks `efi-mkuki`. GNU grep removed — BusyBox grep used instead.
+Phase 1: Go installer complete. Both btrfsStandard and btrfsStandardServer pass 29/29 verification checks with ALL features enabled. **Swapfile FIXED** — `btrfs filesystem mkswapfile` works: root cause was `btrfs property set compression none` setting the `m` attribute which conflicts with `chattr +C` (NixOS/nixpkgs #384047). **NoCoW cleanup** — compression property removed from ALL NoCoW subvolumes (NODATACOW implies no compression), new `lsattr_nocow` harness check verifies C flag on all 7 NoCoW subvolumes, no `m` flag, compressed subvolumes stay CoW. **Swap shutdown FIXED** — OpenRC swap service `before localmount` guaranteed start order only, not stop order: localmount unmounted /swap while swapfile active ("in use but fuser finds nothing"). Fix: swap moved to boot runlevel + `sed 's/before localmount/need localmount/' /etc/init.d/swap` in SetupServices. Shutdown now clean: `Deactivating swap devices [ ok ]` → `Unmounting /swap [ ok ]`. **Dummy packages working** — APK v3 `apk mkpkg` creates valid packages with symlinks. **Ripgrep NOT a drop-in for grep** — rg doesn't support POSIX BRE (`\+`), breaks `efi-mkuki`. GNU grep removed — BusyBox grep used instead.
 
 ## What's Working
 
@@ -109,6 +109,7 @@ Phase 1: Go installer complete. Both btrfsStandard and btrfsStandardServer pass 
 - **Dummy packages**: Symlink approach (APK content, not wrapper scripts)
 - **Swapfile**: `btrfs filesystem mkswapfile` + `chattr +C` on dir before mount (Debian guide)
 - **NoCoW**: no compression property — `chattr +C` on dir only (NODATACOW implies no compression, `m` attribute conflicts with C)
+- **Swap service**: boot runlevel + `need localmount` (sed replaces `before localmount` — start order only, not stop order)
 
 ## Memory-Safe Alternatives
 

@@ -299,10 +299,20 @@ feralos_installer/
 | ~~Dummy packages: wrapper vs symlink~~ | Resolved | Wrapper scripts broke `efi-mkuki`. Reverted to symlink approach. `DummyPackageRule.Bin` field added for binary name override. |
 | ~~Ripgrep as grep drop-in~~ | Won't Fix | rg doesn't support POSIX BRE (`\+`). `efi-mkuki` uses `grep -q '^[0-9]\+\.[0-9]...'` for kernel version validation. GNU grep removed — BusyBox grep used instead. |
 | ~~Swapfile swapon Invalid argument~~ | Resolved | Root cause: `btrfs property set compression none` sets `m` attribute → conflicts with `chattr +C` (NixOS/nixpkgs #384047). Fix: `chattr +C` on dir before mount, `btrfs filesystem mkswapfile`. 29/29 checks pass, `swapon [ok]` at boot. |
+| ~~Swap shutdown: /swap in use~~ | Resolved | OpenRC swap service has `before localmount` → wrong stop order (localmount unmounts /swap while swapfile active, "in use but fuser finds nothing"). Fix: swap moved to boot runlevel + `sed 's/before localmount/need localmount/' /etc/init.d/swap` in SetupServices. NOTE: apk upgrade of openrc overwrites the sed. |
 
 ---
 
 *Updated: 2026-08-18*
+
+### 2026-08-18 17:30 - Swap Service Ordering Fixed: before → need localmount
+**Agent:** codebase
+**Summary:** Shutdown "Unmounting /swap ... in use but fuser finds nothing" fixed — swap now in boot runlevel with hard dependency on localmount
+- **Root cause found**: OpenRC upstream `swap.initd` has `before localmount` — `before` guarantees start order only, NOT stop order (OpenRC service-script-guide: "on calling stop the two are independent"). At shutdown localmount unmounted /swap while swapfile still active; fuser can't see swapfiles (not processes)
+- **Runlevel analysis**: localmount in boot, swap in default — moving swap to boot alone would BREAK start (swap would run before localmount, swapon -a fails silently via `eend 0`). Verified btrfs-scan (`before localmount`) has no broken dependency: chain btrfs-scan → localmount → swap is correct
+- **Fix**: swap moved to boot runlevel (internalRules.yaml) + `sed -i 's/before localmount/need localmount/' /etc/init.d/swap` in SetupServices — `need` = hard dependency: start after localmount, stop BEFORE localmount (swapoff before umount /swap)
+- **Harness**: 29/29 checks pass, boot order `Mounting local filesystems [ ok ]` → `Activating swap devices [ ok ]`, shutdown order `Deactivating swap devices [ ok ]` → `Unmounting /swap [ ok ]`, zero "in use but fuser finds nothing"
+- **Known risk**: apk upgrade of openrc overwrites /etc/init.d/swap (sed lost) — documented in Known Issues
 
 ### 2026-08-18 16:00 - Swapfile Fixed: m Attribute Conflict + NoCoW Cleanup
 **Agent:** codebase

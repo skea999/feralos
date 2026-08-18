@@ -54,7 +54,10 @@
     "NoCoW cleanup: removed 'btrfs property set compression none' from ALL NoCoW subvolumes (m attribute conflicts with C, redundant since NODATACOW implies no compression)",
     "Removed NoCompressionProp field (no longer needed — no subvolume uses the compression property)",
     "New harness check lsattr_nocow: verifies C flag on all 7 NoCoW subvolumes, no m flag, no C on compressed subvolumes (29/29 checks)",
-    "Fixed swap_status harness check: busybox swapon has no --show flag, now uses swapon -s || /proc/swaps"
+    "Fixed swap_status harness check: busybox swapon has no --show flag, now uses swapon -s || /proc/swaps",
+    "Swap service ordering FIXED: swap moved to boot runlevel + sed 'before localmount' → 'need localmount' in /etc/init.d/swap (SetupServices)",
+    "Root cause: OpenRC swap.initd has 'before localmount' — start order only, NOT stop order (service-script-guide: 'on calling stop the two are independent')",
+    "Shutdown now: Deactivating swap devices [ ok ] → Unmounting /swap [ ok ], zero 'in use but fuser finds nothing' (29/29 checks)"
   ],
   "decisions": [
     {
@@ -216,6 +219,11 @@
       "date": "2026-08-18",
       "decision": "Removed 'btrfs property set compression none' from ALL NoCoW subvolumes (Option A)",
       "rationale": "The 'm' attribute set by the compression property conflicts with chattr +C on every file (NixOS/nixpkgs #384047). NODATACOW implies no compression (btrfs docs), so the property is redundant. chattr +C on the subvolume directory is the only mechanism needed. NoCompressionProp field removed. Verified by new harness check lsattr_nocow: all 7 NoCoW subvolumes have C, no m, compressed subvolumes stay CoW. 29/29 checks pass."
+    },
+    {
+      "date": "2026-08-18",
+      "decision": "swap service moved to boot runlevel + 'before localmount' → 'need localmount' via sed in SetupServices",
+      "rationale": "OpenRC upstream swap.initd has 'before localmount' which guarantees start order only, NOT stop order (service-script-guide: 'on calling stop the two are independent'). At shutdown localmount unmounted /swap while swapfile still active ('in use but fuser finds nothing' — fuser can't see swapfiles). 'need localmount' = hard dependency: start after localmount, stop BEFORE localmount. Moving swap to boot alone would break start (swapon -a before /swap mounted, eend 0 hides failure). btrfs-scan (before localmount) verified: no broken dependency. Known risk: apk upgrade of openrc overwrites the sed."
     }
   ],
   "risks": [
@@ -240,6 +248,12 @@
       "severity": "high",
       "status": "resolved",
       "mitigation": "Root cause: 'btrfs property set compression none' sets 'm' attribute conflicting with chattr +C (NixOS/nixpkgs #384047). Fixed: @swap skips compression property, chattr +C on dir before mount, btrfs filesystem mkswapfile. 28/28 checks pass, swapon [ok] at boot."
+    },
+    {
+      "risk": "apk upgrade of openrc overwrites /etc/init.d/swap (sed 'need localmount' lost)",
+      "severity": "medium",
+      "status": "open",
+      "mitigation": "Re-run installer or re-apply sed manually. Documented in AGENTS.md Known Issues. Consider custom service or rc_need in conf.d if this becomes a problem."
     }
   ],
   "next_actions": [

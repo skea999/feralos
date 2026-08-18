@@ -5,8 +5,8 @@ chrootDir: "/mnt"
 # NOTE: udev services are in packageLogic under eudev (Alpine uses mdev by default)
 defaultRunlevels:
   sysinit: ["devfs", "dmesg", "sysctl", "sysfs"]
-  boot: ["hwclock", "hostname", "bootmisc", "binfmt", "fsck", "root", "procfs", "loadkmap", "localmount"]
-  default: ["swap", "cgroups", "networking"]
+  boot: ["hwclock", "hostname", "bootmisc", "binfmt", "fsck", "root", "procfs", "loadkmap", "localmount", "swap"]
+  default: ["cgroups", "networking"]
   shutdown: ["mount-ro", "killprocs", "savecache"]
 
 # Fixed system packages — matches reference skeaSimpleServer exactly
