@@ -33,6 +33,7 @@ const (
 	statusFailed              = "failed"
 	layoutBtrfsStandardServer = "btrfsStandardServer"
 	sshUserSkea               = "skea"
+	desktopNiri               = "niri"
 )
 
 type Service struct{}
@@ -90,6 +91,7 @@ type RunConfig struct {
 	EnableKVM           bool
 	DiskSize            string
 	DiskLayout          string
+	DesktopEnvironment  string
 	AlpineMirror        string
 	InstalledUser       string
 	InstalledPassword   string
@@ -154,6 +156,9 @@ func LoadVariablesFile(cfg *RunConfig, filePath string) error {
 	if v.DiskLayout != "" {
 		cfg.DiskLayout = v.DiskLayout
 	}
+	if v.DesktopEnvironment != "" {
+		cfg.DesktopEnvironment = v.DesktopEnvironment
+	}
 	if v.Mirror != "" {
 		cfg.AlpineMirror = v.Mirror
 	}
@@ -194,13 +199,14 @@ type RunResult struct {
 }
 
 type VerifyConfig struct {
-	ArtifactsRoot string
-	RunDir        string
-	SSHPort       int
-	SSHUser       string
-	PrivateKey    string
-	InstalledUser string
-	Timeout       time.Duration
+	ArtifactsRoot      string
+	RunDir             string
+	SSHPort            int
+	SSHUser            string
+	PrivateKey         string
+	InstalledUser      string
+	DesktopEnvironment string
+	Timeout            time.Duration
 }
 
 type VerifyResult struct {
@@ -882,6 +888,11 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg *RunConfig,
 				"-device", "virtio-blk-pci,drive=btrfsdisk2",
 			)
 		}
+		if cfg.DesktopEnvironment == desktopNiri {
+			// niri needs a DRM render node (/dev/dri/renderD128) — virtio-gpu
+			// provides it headless (like VMSVGA+3D on VirtualBox).
+			args = append(args, "-device", "virtio-gpu-pci")
+		}
 		if includeTPM {
 			// QEMU 10 tpmdev emulator connects to the swtpm --ctrl socket (not
 			// the --server socket). QEMU provides its data fd via CMD_SET_DATAFD.
@@ -1154,13 +1165,14 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg *RunConfig,
 	active.Phase = "verifying"
 	_ = stateStore.Save(active)
 	verifyResult, err := service.Verify(ctx, &VerifyConfig{
-		ArtifactsRoot: cfg.ArtifactsRoot,
-		RunDir:        runDir,
-		SSHPort:       cfg.TargetSSHPort,
-		SSHUser:       "root",
-		PrivateKey:    keyPair.PrivateKeyPath,
-		InstalledUser: cfg.InstalledUser,
-		Timeout:       cfg.VerificationTimeout,
+		ArtifactsRoot:      cfg.ArtifactsRoot,
+		RunDir:             runDir,
+		SSHPort:            cfg.TargetSSHPort,
+		SSHUser:            "root",
+		PrivateKey:         keyPair.PrivateKeyPath,
+		InstalledUser:      cfg.InstalledUser,
+		DesktopEnvironment: cfg.DesktopEnvironment,
+		Timeout:            cfg.VerificationTimeout,
 	})
 	if err != nil {
 		active.Status = statusFailed
@@ -1250,6 +1262,16 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		"less_dummy":         "echo '=== file type ==='; ls -la /usr/bin/less 2>&1; echo '=== readlink ==='; readlink -f /usr/bin/less 2>&1; echo '=== version ==='; /usr/bin/less --version 2>&1 | head -1 || echo 'less binary not found'",
 		"lsattr_nocow":       "echo '=== NoCoW subvolume attributes ==='; for dir in /swap /srv /var/lib/ex /var/log /var/spool /var/tmp /nix/var/log; do echo \"=== $dir ===\"; lsattr -d \"$dir\" 2>&1; f=$(find \"$dir\" -type f 2>/dev/null | head -1); if [ -n \"$f\" ]; then lsattr \"$f\" 2>&1; else echo 'no files in dir'; fi; done; echo '=== Compressed subvolume attributes ==='; for dir in / /home /opt /root /tmp /var /var/lib/libvirt /var/lib/incus /var/lib/containerd /var/lib/docker /var/lib/containers /var/lib/vector /var/cache /var/opt /usr/local /boot /nix/store /nix/var/nix /nix/var/nix/build /btrbk; do echo \"=== $dir ===\"; lsattr -d \"$dir\" 2>&1; done",
 		"services_status":    "rc-status --all 2>/dev/null || rc-status 2>/dev/null",
+	}
+
+	// niri desktop environment checks — greetd session, niri configs,
+	// wayvnc (apk), DMS (nix profile).
+	if cfg.DesktopEnvironment == desktopNiri {
+		checks["niri_config_valid"] = fmt.Sprintf("niri validate --config /var/lib/greetd/.config/niri/config.kdl && niri validate --config /home/%s/.config/niri/config.kdl", cfg.InstalledUser)
+		checks["greetd_config"] = "ls /etc/greetd/config.toml /etc/greetd/greeter.sh /etc/greetd/regreet.toml /var/lib/greetd/.config/niri/config.kdl && test -x /etc/greetd/greeter.sh"
+		checks["niri_greeter"] = "pgrep -x niri"
+		checks["wayvnc_installed"] = fmt.Sprintf("apk info | grep -q '^wayvnc$' && ls /home/%s/.config/wayvnc/config", cfg.InstalledUser)
+		checks["dms_installed"] = fmt.Sprintf("su - %s -c 'nix profile list 2>/dev/null | grep -E \"dms-shell|quickshell\"' && test -x /home/%s/.local/state/nix/profiles/profile/bin/dms", cfg.InstalledUser, cfg.InstalledUser)
 	}
 
 	result := VerifyResult{RunDir: cfg.RunDir, Success: true, Checks: map[string]CheckResult{}}
@@ -1560,8 +1582,12 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		// EFI vars — expected, command runs with || true, exit 0), smartd
 		// "start-stop-daemon: no matching processes found" (no SMART hardware
 		// in QEMU — daemon never starts), fsck "fsck.vfat: No such file or
-		// directory" (fsck.vfat not installed — ESP check cannot run in QEMU).
-		allowRe := regexp.MustCompile(`(?i)(0 errors|no errors|errors: 0|0 failed|no failed|failed: 0|zero errors|libgpg-error|error trace:|start-stop-daemon: no matching processes found|fsck\.vfat: No such file or directory)`)
+		// directory" (fsck.vfat not installed — ESP check cannot run in QEMU),
+		// runner-side Debian "dpkg was interrupted" (stale runner image, not
+		// the installer) — including the retry lines that contain bare "failed",
+		// and the installer's non-interactive "ignoring error and continuing"
+		// warning (informational — retries exhausted, continues).
+		allowRe := regexp.MustCompile(`(?i)(0 errors|no errors|errors: 0|0 failed|no failed|failed: 0|zero errors|libgpg-error|error trace:|start-stop-daemon: no matching processes found|fsck\.vfat: No such file or directory|dpkg was interrupted|dpkg --configure -a|failed, retrying in|ignoring error and continuing)`)
 		var problems []string
 		for _, logName := range []string{"target-serial.log", "installer.log"} {
 			path := filepath.Join(cfg.RunDir, logName)
@@ -1606,6 +1632,10 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 			"acpid", "irqbalance", "fwupd", "earlyoom", "incusd", "udev-postmount",
 		}
 		states := parseRCStatus(svcCheck.Detail)
+		// greetd + elogind are only expected when the niri desktop is enabled.
+		if cfg.DesktopEnvironment == desktopNiri {
+			expected = append(expected, "greetd", "elogind")
+		}
 		var notStarted []string
 		for _, name := range expected {
 			if state, ok := states[name]; !ok {
@@ -2101,7 +2131,7 @@ func writeHarnessVariables(cfg *RunConfig, keyPair guest.KeyPair, outputPath, al
   branch: "latest-stable"
 
   diskLayout: "%s"
-  desktopEnvironment: "none"
+  desktopEnvironment: "%s"
   videoDriver: "none"
 
   sshAuthorizedKey: "%s"
@@ -2129,6 +2159,7 @@ func writeHarnessVariables(cfg *RunConfig, keyPair guest.KeyPair, outputPath, al
 		escapeDoubleQuotes(cfg.InstalledPassword),
 		alpineMirror,
 		cfg.DiskLayout,
+		deOrDefault(cfg.DesktopEnvironment),
 		sshKey,
 		yn(cfg.EnableSecureboot),
 		yn(cfg.EnableTPM),
@@ -2244,6 +2275,14 @@ exec "$real_fdisk" "$@"
 	}
 
 	return nil
+}
+
+// deOrDefault returns the desktop environment name, defaulting to "none".
+func deOrDefault(de string) string {
+	if strings.TrimSpace(de) == "" {
+		return "none"
+	}
+	return de
 }
 
 func resolveHarnessAlpineMirror(cfg *RunConfig) (string, error) {

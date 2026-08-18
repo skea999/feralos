@@ -1,6 +1,7 @@
 package chrootPhase
 
 import (
+	"alpineInstaller/chrootPhase/desktops"
 	"alpineInstaller/chrootPhase/features"
 	"alpineInstaller/chrootPhase/internal"
 	"alpineInstaller/utils/config"
@@ -52,14 +53,22 @@ func Run(conf *config.Config) error {
 		return fmt.Errorf("service setup failed: %w", err)
 	}
 
-	// 7. Setup zswap (dmcrypt + zswap)
-	if err := features.SetupZswap(conf); err != nil {
-		return fmt.Errorf("zswap setup failed: %w", err)
-	}
-
-	// 8. Setup nix (optional)
+	// 7. Setup nix (optional) — must run before desktop setup so nix-installed
+	// binaries (e.g. dms) are available for configuration steps.
 	if err := features.SetupNix(conf); err != nil {
 		return fmt.Errorf("nix setup failed: %w", err)
+	}
+
+	// 6a. Setup desktop environment (configurations — kde/gnome need none)
+	if conf.User.DesktopEnvironment == "niri" {
+		if err := desktops.SetupNiri(conf); err != nil {
+			return fmt.Errorf("niri desktop setup failed: %w", err)
+		}
+	}
+
+	// 8. Setup zswap (dmcrypt + zswap)
+	if err := features.SetupZswap(conf); err != nil {
+		return fmt.Errorf("zswap setup failed: %w", err)
 	}
 
 	// 9. Setup storage

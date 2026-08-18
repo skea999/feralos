@@ -40,6 +40,11 @@ All notable changes to FeralOS will be documented in this file.
 - `log_errors` harness check — non-regression guard scanning target-serial.log + installer.log for error/failed markers, fails the run on any match (whitelist for known innocuous lines)
 - `services_status` harness check — verifies configured OpenRC services are actually STARTED via `rc-status --all` (not just `[ ok ]` at boot); excludes QEMU-only services (smartd, fsck, udev-settle); parses supervise-daemon format `[ started 00:00:36 (0) ]`
 - `lsattr_nocow` harness check — verifies C flag on all 7 NoCoW subvolumes, no `m` flag, compressed subvolumes stay CoW
+- **niri desktop environment** — greetd + regreet + niri + wayvnc + DMS:
+  - `nixPackages` field in internalRules (same behavior as apk — data selects install, auto-enables Nix)
+  - `chrootPhase/desktops/niri.go`: greetd config, greeter.sh, regreet.toml, niri configs (greeter + user), wayvnc config, xdg-su wrapper, OpenRC dms service
+  - DMS (DankMaterialShell) + quickshell from stable nixpkgs channel (nixos-26.05)
+  - Harness checks: niri_config_valid, greetd_config, niri_greeter, wayvnc_installed, dms_installed
 
 ### Fixed
 - Pointer copy bug in configurator.go, hardening.go, zswap.go (u := conf.User → u := &conf.User)
@@ -61,6 +66,9 @@ All notable changes to FeralOS will be documented in this file.
 - `swap_status` harness check: busybox swapon has no `--show` flag — now uses `swapon -s || cat /proc/swaps`
 - gofmt in src (config.go comment alignment, packages.go EOF newline)
 - Harness lint cleanup: errcheck, nilerr, dead code removal, goconst, shadow, gosec, gocritic, hugeParam pointer refactors (commit `6b42ff3`)
+- niri greetd crash: missing `wayland-libs-server` (niri dlopens libwayland-server.so.0 at runtime → NoWaylandLib panic) + greeter not in `greetd` group (couldn't traverse /var/lib/greetd 750)
+- nix build in chroot: sandbox pivot_root EINVAL — `--option sandbox false` chroot-only (trusted-users = root @wheel), TMPDIR on @nix-var-nix-build subvolume (/tmp is noexec+0755)
+- nix stable channel: default flake registry maps nixpkgs→unstable — `nix registry add nixpkgs github:NixOS/nixpkgs/nixos-26.05`
 
 ### Changed
 - Migrated from monolithic shell script to modular Go architecture

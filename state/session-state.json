@@ -66,7 +66,12 @@
     "Harness full run after lint refactor: 30/30 PASS (run 2026-08-18T17-11-56Z) — behavior unchanged",
     "New harness check services_status: verifies configured OpenRC services are actually STARTED via rc-status --all; excludes QEMU-only (smartd crashed, fsck fsck.vfat missing, udev-settle one-shot); parses supervise-daemon format '[ started 00:00:36 (0) ]' — commit 47b2d50",
     "log_errors whitelist extended: 'start-stop-daemon: no matching processes found' (smartd stop) + 'fsck.vfat: No such file or directory' (fsck) — both QEMU-only false positives",
-    "services_status calibrated: first run 30/31 (parser missed supervise-daemon format → vector/fwupd missing), regex fixed, simulated re-check 0 not-active"
+    "services_status calibrated: first run 30/31 (parser missed supervise-daemon format → vector/fwupd missing), regex fixed, simulated re-check 0 not-active",
+    "niri desktop environment: nixPackages field in internalRules (auto-enables Nix), chrootPhase/desktops/niri.go (greetd/regreet/niri configs, wayvnc, xdg-su, OpenRC dms service), dispatcher in chroot_phase.go",
+    "nix fixes: --option sandbox false chroot-only (trusted-users = root @wheel), TMPDIR=/nix/var/nix/build/tmp on @nix-var-nix-build subvolume (/tmp noexec+0755), nix registry pinned to nixos-26.05 stable (default maps nixpkgs→unstable)",
+    "Alpine fixes: wayland-libs-server (niri NoWaylandLib panic), greeter in greetd group, elogind seat provider (not seatd), render group removed (doesn't exist on Alpine), turnstile removed (edge only)",
+    "Harness DE=niri: DesktopEnvironment in RunConfig/VerifyConfig, virtio-gpu-pci, checks niri_config_valid/greetd_config/niri_greeter/wayvnc_installed/dms_installed, services_status greetd+elogind",
+    "niri harness calibrated: 35/36 (log_errors false positive — dpkg retry + non-interactive warning whitelisted), simulated re-check 0 matches; dms-shell 1.4.6 + quickshell 0.3.0 from stable 26.05"
   ],
   "decisions": [
     {
@@ -241,8 +246,18 @@
     },
     {
       "date": "2026-08-18",
-      "decision": "Harness full golangci-lint cleanup (commit 6b42ff3)",
-      "rationale": "~60 lint issues fixed in tests/harness: errcheck (Kill/Wait), nilerr, 3 dead functions removed (prepareSetupModeVars, readQMPResponseDiscardEvents, exportUnencryptedPEMKey), SA9003, goconst constants, govet shadow renames, gosec (0600 perms, ReadHeaderTimeout, #nosec G204 QEMU), gocritic (assignOp, ifElseChain, filepathJoin, dynamicFmtString, S1039), hugeParam pointer refactors. golangci-lint at ~/projects/go/bin (not in PATH, pre-commit hook never runs it). Full harness run after refactor: 30/30 PASS — behavior unchanged."
+      "decision": "niri desktop: data in internalRules (nixPackages field) + config logic in chrootPhase/desktops/niri.go",
+      "rationale": "kde/gnome are pure data (packages/services/groups) — stay in internalRules. niri needs configs (greetd, regreet, niri configs, wayvnc, xdg-su, dms service) — chrootPhase/desktops/niri.go, same pattern as features/. nixPackages field behaves like apk: data selects install, auto-enables Nix. DMS + quickshell from stable nixpkgs channel (nixos-26.05) — dms-shell is packaged in nixpkgs, no external flake."
+    },
+    {
+      "date": "2026-08-18",
+      "decision": "nix sandbox disabled only for chroot install (--option sandbox false), not in nix.conf",
+      "rationale": "The nix build sandbox uses pivot_root which fails inside the installer chroot (EINVAL — / is not a mountpoint). trusted-users = root @wheel in nix.conf so the flag is honored (was ignored: 'not a trusted user'). The installed system keeps the default sandbox. TMPDIR=/nix/var/nix/build/tmp on the @nix-var-nix-build subvolume (permanent via profile.d) — /tmp is noexec+0755 for security."
+    },
+    {
+      "date": "2026-08-18",
+      "decision": "elogind as seat provider (not seatd); render group removed; turnstile removed",
+      "rationale": "greetd crashed because libseat had no backend — elogind provides logind via D-Bus (starts after dbus, before greetd). render group does not exist on Alpine (video covers DRM access). turnstile is edge-only, not in Alpine 3.24 — removed with comment to include when stable."
     }
   ],
   "risks": [

@@ -305,6 +305,17 @@ feralos_installer/
 
 *Updated: 2026-08-18*
 
+### 2026-08-18 21:30 - niri Desktop Environment (greetd + DMS + wayvnc)
+**Agent:** codebase
+**Summary:** niri DE implemented: data in internalRules + config module in chrootPhase/desktops
+- **`nixPackages` in internalRules**: new field in DynamicPackageRules — same behavior as apk (data selects install). Auto-enables Nix when non-empty. SetupNix installs via `nix profile add` as the real user
+- **`chrootPhase/desktops/niri.go`**: greetd config.toml, greeter.sh (niri -- regreet), regreet.toml (timezone), niri configs (greeter + user, keymap), wayvnc config (spawn-at-startup), xdg-su wrapper, OpenRC dms service (adapted from systemd user service — waits for wayland socket), dms setup
+- **Nix fixes**: `--option sandbox false` chroot-only (pivot_root EINVAL in chroot; `trusted-users = root @wheel` so the flag is honored — NOT in nix.conf), `nix registry add nixpkgs github:NixOS/nixpkgs/nixos-26.05` (default registry maps nixpkgs→unstable, overriding stable channel), TMPDIR=/nix/var/nix/build/tmp (on @nix-var-nix-build subvolume — /tmp is noexec+0755 for security)
+- **Alpine fixes**: `wayland-libs-server` (niri dlopens libwayland-server.so.0 at runtime — missing caused NoWaylandLib panic → greetd crashed), greeter in `greetd` group (traverse /var/lib/greetd 750), elogind instead of seatd (seat provider), render group removed (doesn't exist on Alpine — video covers DRM), turnstile removed (edge only, not 3.24)
+- **Harness**: DesktopEnvironment in RunConfig/VerifyConfig, virtio-gpu-pci for niri (render node), checks: niri_config_valid, greetd_config, niri_greeter, wayvnc_installed, dms_installed; services_status expects greetd+elogind when DE=niri
+- **Calibration**: 35/36 (log_errors false positive — dpkg retry lines + non-interactive warning whitelisted), simulated re-check 0 matches
+- **Known issue (separate)**: /etc/sudoers has `@includedir /etc/sudoers.d` commented out — wheel sudo denied (sudo_works passes only as root)
+
 ### 2026-08-18 20:15 - Services Active Check + QEMU-Only Whitelist
 **Agent:** codebase
 **Summary:** New `services_status` harness check + log_errors whitelist for services that cannot work under QEMU

@@ -37,6 +37,13 @@ func ApplyRules(conf *config.Config) {
 	u.AllPackages = appendUnique(u.AllPackages, i.StandardPackages...)
 	u.AllPackages = appendUnique(u.AllPackages, u.ExtraPackages...)
 
+	// If any rule requested Nix packages, enable Nix automatically.
+	// Same behavior as apk: data in internalRules selects the install path.
+	if len(u.NixPackages) > 0 && !u.EnableNix {
+		fmt.Printf("[WARNING] Nix packages requested (%d), enabling Nix automatically\n", len(u.NixPackages))
+		u.EnableNix = true
+	}
+
 	processed := make(map[string]bool)
 	for {
 		added := false
@@ -58,6 +65,7 @@ func ApplyRules(conf *config.Config) {
 
 func applyRule(u *config.UserVariables, rule *config.DynamicPackageRules) {
 	u.AllPackages = appendUnique(u.AllPackages, rule.Packages...)
+	u.NixPackages = appendUnique(u.NixPackages, rule.NixPackages...)
 	u.UserGroups = appendUnique(u.UserGroups, rule.Groups...)
 	u.Modules = appendUnique(u.Modules, rule.Modules...)
 	u.KernelCmdline = appendUnique(u.KernelCmdline, rule.KernelCmdline...)

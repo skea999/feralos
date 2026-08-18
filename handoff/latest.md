@@ -17,6 +17,13 @@ Phase 1: Go installer complete. Both btrfsStandard and btrfsStandardServer pass 
 - **`log_errors` harness check** — non-regression guard: scans target-serial.log + installer.log for error/failed markers, fails run on any match. Whitelist: counters, `libgpg-error` package name, efibootmgr `error trace:` (QEMU, no EFI vars), smartd `start-stop-daemon: no matching processes found`, fsck `fsck.vfat: No such file or directory` (both QEMU-only).
 - **`services_status` harness check** — verifies configured OpenRC services are actually STARTED via `rc-status --all` (not just `[ ok ]` at boot). Excludes QEMU-only: smartd (no SMART hardware — crashed), fsck (fsck.vfat not installed), udev-settle (one-shot). Parser handles supervise-daemon format `[ started 00:00:36 (0) ]`.
 - **Harness lint clean** — full golangci-lint cleanup (commit `6b42ff3`): errcheck, nilerr, dead code removed, goconst, shadow, gosec, gocritic, hugeParam pointer refactors. Behavior verified: full run 30/30 PASS after refactor.
+- **niri desktop environment** — greetd + regreet + niri + wayvnc + DMS (DankMaterialShell):
+  - `nixPackages` field in internalRules (same behavior as apk — data selects install, auto-enables Nix)
+  - `chrootPhase/desktops/niri.go`: greetd config, greeter.sh (`niri -- regreet`), regreet.toml, niri configs (greeter + user, keymap), wayvnc config (spawn-at-startup), xdg-su wrapper, OpenRC dms service (waits for wayland socket)
+  - DMS + quickshell from **stable nixpkgs channel** (nixos-26.05) — dms-shell is packaged in nixpkgs
+  - Nix: `--option sandbox false` chroot-only (trusted-users), TMPDIR on @nix-var-nix-build subvolume, registry pinned to stable
+  - Alpine: wayland-libs-server, greeter in greetd group, elogind seat provider, no render group, no turnstile (edge only)
+  - Harness: virtio-gpu-pci, checks niri_config_valid/greetd_config/niri_greeter/wayvnc_installed/dms_installed — 35/36 calibrated (log_errors whitelist extended)
 - **Dummy packages working** — APK v3 `apk mkpkg` creates valid packages with symlinks.
 - **Ripgrep NOT a drop-in for grep** — rg doesn't support POSIX BRE (`\+`), breaks `efi-mkuki`. GNU grep removed — BusyBox grep used instead.
 
@@ -123,6 +130,9 @@ Phase 1: Go installer complete. Both btrfsStandard and btrfsStandardServer pass 
 - **Swap service**: boot runlevel + `need localmount` (sed replaces `before localmount` — start order only, not stop order). apk preserves modified /etc files as `.apk-new` — the sed survives upgrades
 - **Log errors check**: harness `log_errors` scans target-serial.log + installer.log for error/failed markers, fails run on any match (non-regression guard, whitelist for known innocuous lines incl. QEMU-only smartd/fsck)
 - **Services active check**: harness `services_status` verifies configured services are actually started via `rc-status --all`; excludes QEMU-only services (smartd, fsck, udev-settle); parses supervise-daemon format
+- **niri DE**: data in internalRules (`nixPackages` field, auto-enables Nix) + config logic in `chrootPhase/desktops/niri.go` (kde/gnome stay data-only)
+- **Nix stable**: registry pinned to nixos-26.05 (default maps nixpkgs→unstable); sandbox disabled only for chroot install; TMPDIR on nix build subvolume
+- **Seat provider**: elogind (not seatd); no render group (Alpine uses video); no turnstile (edge only)
 
 ## Memory-Safe Alternatives
 

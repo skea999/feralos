@@ -45,6 +45,7 @@ type UserVariables struct {
 	UserGroups    []string
 	Runlevels     map[string][]string
 	AllPackages   []string
+	NixPackages   []string
 	Modules       []string
 	KernelCmdline []string
 }
@@ -73,6 +74,7 @@ type DummyPackageRule struct {
 // Ensure the field is named "Packages" to match logic.go
 type DynamicPackageRules struct {
 	Packages      []string          `yaml:"packages"`
+	NixPackages   []string          `yaml:"nixPackages"`
 	Groups        []string          `yaml:"groups"`
 	Services      map[string]string `yaml:"services"`
 	Modules       []string          `yaml:"modules"`

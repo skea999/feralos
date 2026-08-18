@@ -100,13 +100,18 @@ diskLayouts:
 # 2. Desktop Environments Definitions
 desktopEnvironments:
   kde:
-    packages: ["plasma", "sddm", "konsole", "dolphin", "dbus-x11", "desktop-file-utils", "turnstile"]
-    services: {"sddm": "default", "dbus": "default", "turnstile": "default"}
+    packages: ["plasma", "sddm", "konsole", "dolphin", "dbus-x11", "desktop-file-utils"]
+    services: {"sddm": "default", "dbus": "default"}
     groups: ["video", "input"]
   niri:
-    packages: ["niri", "greetd", "greetd-regreet", "greetd-openrc", "foot", "xdg-desktop-portal-wlr", "pipewire", "polkit-elogind", "turnstile"]
-    services: {"greetd": "default", "turnstile": "default"}
+    packages: ["niri", "niri-portalsconf", "greetd", "greetd-regreet", "greetd-openrc", "elogind", "elogind-openrc", "dbus", "foot", "wayvnc", "xdg-desktop-portal-wlr", "xdg-desktop-portal-gtk", "pipewire", "polkit-elogind", "polkit-gnome", "xwayland-satellite", "wl-clipboard", "mesa-dri-gallium", "wayland-libs-server"]
+    # turnstile: edge only (not in Alpine 3.24) — include when stable
+    services: {"greetd": "default", "elogind": "default"}
+    # render group does not exist on Alpine (video covers DRM access)
     groups: ["video", "input"]
+    # Both from the stable nixpkgs channel (nixos-26.05) — dms-shell is
+    # packaged in nixpkgs (no external flake needed)
+    nixPackages: ["nixpkgs#quickshell", "nixpkgs#dms-shell"]
 
 # 3. Video Drivers Definitions
 videoDrivers:
