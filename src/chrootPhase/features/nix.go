@@ -23,6 +23,9 @@ func SetupNix(conf *config.Config) error {
 	// trusted-users: lets the wheel user pass --option sandbox false during
 	// chroot install (the nix build sandbox pivot_root fails inside the
 	// installer chroot). The installed system keeps the default sandbox.
+	// NOTE: allow-unfree/allow-insecure are NOT recognized by Alpine's nix
+	// build (unknown setting warnings) — NIXPKGS_ALLOW_* env vars in
+	// /etc/profile.d/nix-daemon.sh (and fish/bash) carry that permanently.
 	nixConf := `build-dir = /nix/var/nix/build
 extra-experimental-features = nix-command flakes
 trusted-users = root @wheel`

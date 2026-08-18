@@ -92,6 +92,11 @@ root soft nofile 100000
 	if _, err := shell.ExecuteCmd(chroot, "echo '%wheel ALL=(ALL) ALL' > /etc/sudoers.d/wheel"); err != nil {
 		return fmt.Errorf("failed to write sudoers wheel config: %w", err)
 	}
+	// Alpine's default /etc/sudoers has @includedir commented out — enable it
+	// so /etc/sudoers.d/wheel is actually loaded (wheel sudo was denied).
+	if _, err := shell.ExecuteCmd(chroot, "sed -i 's/^# @includedir/@includedir/' /etc/sudoers"); err != nil {
+		return fmt.Errorf("failed to enable sudoers includedir: %w", err)
+	}
 
 	// 12. LXC
 	fmt.Println("[INFO] Writing LXC service configuration...")

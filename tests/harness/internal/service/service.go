@@ -1258,6 +1258,7 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		"apk_packages":       "apk info | sort",
 		"sudo_installed":     "apk info | grep '^sudo-rs$' && echo 'sudo-rs installed' || echo 'sudo-rs not installed'",
 		"sudo_wheel":         "grep '^%wheel' /etc/sudoers.d/wheel 2>/dev/null || echo 'no wheel sudoers config'",
+		"sudoers_includedir": "grep -q '^@includedir' /etc/sudoers && echo 'includedir enabled' || echo 'includedir disabled'",
 		"sudo_works":         "sudo -n id 2>&1 || echo 'sudo requires password (expected for non-root)'",
 		"less_dummy":         "echo '=== file type ==='; ls -la /usr/bin/less 2>&1; echo '=== readlink ==='; readlink -f /usr/bin/less 2>&1; echo '=== version ==='; /usr/bin/less --version 2>&1 | head -1 || echo 'less binary not found'",
 		"lsattr_nocow":       "echo '=== NoCoW subvolume attributes ==='; for dir in /swap /srv /var/lib/ex /var/log /var/spool /var/tmp /nix/var/log; do echo \"=== $dir ===\"; lsattr -d \"$dir\" 2>&1; f=$(find \"$dir\" -type f 2>/dev/null | head -1); if [ -n \"$f\" ]; then lsattr \"$f\" 2>&1; else echo 'no files in dir'; fi; done; echo '=== Compressed subvolume attributes ==='; for dir in / /home /opt /root /tmp /var /var/lib/libvirt /var/lib/incus /var/lib/containerd /var/lib/docker /var/lib/containers /var/lib/vector /var/cache /var/opt /usr/local /boot /nix/store /nix/var/nix /nix/var/nix/build /btrbk; do echo \"=== $dir ===\"; lsattr -d \"$dir\" 2>&1; done",
@@ -1563,6 +1564,17 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 			sudoWheelCheck.Pass = false
 			sudoWheelCheck.Detail += "\nExpected %wheel group in /etc/sudoers.d/wheel"
 			result.Checks["sudo_wheel"] = sudoWheelCheck
+			result.Success = false
+		}
+	}
+
+	// Validate sudoers @includedir is enabled (Alpine default comments it out,
+	// which would make /etc/sudoers.d/wheel ineffective — wheel sudo denied)
+	if sudoersCheck, ok := result.Checks["sudoers_includedir"]; ok {
+		if strings.Contains(sudoersCheck.Detail, "includedir disabled") {
+			sudoersCheck.Pass = false
+			sudoersCheck.Detail += "\nExpected @includedir /etc/sudoers.d enabled in /etc/sudoers"
+			result.Checks["sudoers_includedir"] = sudoersCheck
 			result.Success = false
 		}
 	}
