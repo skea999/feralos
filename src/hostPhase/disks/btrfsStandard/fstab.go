@@ -23,7 +23,7 @@ func GenerateFstab(conf *config.Config) error {
 
 	disk := u.Disks[0]
 
-	fmt.Println("[INFO] Writing /etc/fstab for LUKS + Btrfs Standard Layout (swapfile)...")
+	fmt.Println("[INFO] Writing /etc/fstab for LUKS + Btrfs Standard Layout...")
 
 	fstabPath := i.ChrootDir + "/etc/fstab"
 	if err := os.MkdirAll(i.ChrootDir+"/etc", 0755); err != nil {
