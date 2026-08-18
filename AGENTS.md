@@ -299,11 +299,19 @@ feralos_installer/
 | ~~Dummy packages: wrapper vs symlink~~ | Resolved | Wrapper scripts broke `efi-mkuki`. Reverted to symlink approach. `DummyPackageRule.Bin` field added for binary name override. |
 | ~~Ripgrep as grep drop-in~~ | Won't Fix | rg doesn't support POSIX BRE (`\+`). `efi-mkuki` uses `grep -q '^[0-9]\+\.[0-9]...'` for kernel version validation. GNU grep removed — BusyBox grep used instead. |
 | ~~Swapfile swapon Invalid argument~~ | Resolved | Root cause: `btrfs property set compression none` sets `m` attribute → conflicts with `chattr +C` (NixOS/nixpkgs #384047). Fix: `chattr +C` on dir before mount, `btrfs filesystem mkswapfile`. 29/29 checks pass, `swapon [ok]` at boot. |
-| ~~Swap shutdown: /swap in use~~ | Resolved | OpenRC swap service has `before localmount` → wrong stop order (localmount unmounts /swap while swapfile active, "in use but fuser finds nothing"). Fix: swap moved to boot runlevel + `sed 's/before localmount/need localmount/' /etc/init.d/swap` in SetupServices. NOTE: apk upgrade of openrc overwrites the sed. |
+| ~~Swap shutdown: /swap in use~~ | Resolved | OpenRC swap service has `before localmount` → wrong stop order (localmount unmounts /swap while swapfile active, "in use but fuser finds nothing"). Fix: swap moved to boot runlevel + `sed 's/before localmount/need localmount/' /etc/init.d/swap` in SetupServices. Safe on upgrade: apk preserves modified /etc files as `.apk-new` (verified in Alpine docs) — the sed survives. |
 
 ---
 
 *Updated: 2026-08-18*
+
+### 2026-08-18 18:45 - Log Error Harness Check + apk-new Verified
+**Agent:** codebase
+**Summary:** New `log_errors` non-regression check in harness + apk-new behavior verified (swap sed survives upgrades)
+- **New harness check `log_errors`** (Verify, service.go): scans `target-serial.log` + `installer.log` for `error|failed|critical|[ !! ]|in use but fuser finds nothing|invalid argument|cannot set` (case-insensitive), fails the run on any match — non-regression guard so boot/shutdown regressions surface immediately
+- **Whitelist** (innocuous): counters/negations (`0 errors`, `no failed`, `errors: 0`), package name `libgpg-error`, efibootmgr `error trace:` on QEMU (no real EFI vars — expected, `|| true`, exit 0)
+- **First run**: 29/30 (5 false positives found → whitelisted), simulated re-check on same run: 0 matches, harness build clean
+- **apk-new verified** (Alpine docs): "apk will avoid overwriting files you may have changed... writes its file to that filename with `.apk-new` appended" — `/etc/init.d/swap` is protected, the sed survives openrc upgrades, no re-apply needed (corrected earlier claim that the sed was lost)
 
 ### 2026-08-18 17:30 - Swap Service Ordering Fixed: before → need localmount
 **Agent:** codebase
@@ -312,7 +320,7 @@ feralos_installer/
 - **Runlevel analysis**: localmount in boot, swap in default — moving swap to boot alone would BREAK start (swap would run before localmount, swapon -a fails silently via `eend 0`). Verified btrfs-scan (`before localmount`) has no broken dependency: chain btrfs-scan → localmount → swap is correct
 - **Fix**: swap moved to boot runlevel (internalRules.yaml) + `sed -i 's/before localmount/need localmount/' /etc/init.d/swap` in SetupServices — `need` = hard dependency: start after localmount, stop BEFORE localmount (swapoff before umount /swap)
 - **Harness**: 29/29 checks pass, boot order `Mounting local filesystems [ ok ]` → `Activating swap devices [ ok ]`, shutdown order `Deactivating swap devices [ ok ]` → `Unmounting /swap [ ok ]`, zero "in use but fuser finds nothing"
-- **Known risk**: apk upgrade of openrc overwrites /etc/init.d/swap (sed lost) — documented in Known Issues
+- **Known risk**: apk upgrade preserves modified /etc files as `.apk-new` (verified in Alpine docs) — the sed survives upgrades, no re-apply needed
 
 ### 2026-08-18 16:00 - Swapfile Fixed: m Attribute Conflict + NoCoW Cleanup
 **Agent:** codebase

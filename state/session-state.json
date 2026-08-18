@@ -57,7 +57,9 @@
     "Fixed swap_status harness check: busybox swapon has no --show flag, now uses swapon -s || /proc/swaps",
     "Swap service ordering FIXED: swap moved to boot runlevel + sed 'before localmount' → 'need localmount' in /etc/init.d/swap (SetupServices)",
     "Root cause: OpenRC swap.initd has 'before localmount' — start order only, NOT stop order (service-script-guide: 'on calling stop the two are independent')",
-    "Shutdown now: Deactivating swap devices [ ok ] → Unmounting /swap [ ok ], zero 'in use but fuser finds nothing' (29/29 checks)"
+    "Shutdown now: Deactivating swap devices [ ok ] → Unmounting /swap [ ok ], zero 'in use but fuser finds nothing' (29/29 checks)",
+    "apk-new verified: apk preserves modified /etc files as .apk-new (Alpine docs) — the swap sed survives openrc upgrades",
+    "New harness check log_errors: scans target-serial.log + installer.log for error/failed markers, fails run on any match (non-regression guard)"
   ],
   "decisions": [
     {
@@ -250,10 +252,10 @@
       "mitigation": "Root cause: 'btrfs property set compression none' sets 'm' attribute conflicting with chattr +C (NixOS/nixpkgs #384047). Fixed: @swap skips compression property, chattr +C on dir before mount, btrfs filesystem mkswapfile. 28/28 checks pass, swapon [ok] at boot."
     },
     {
-      "risk": "apk upgrade of openrc overwrites /etc/init.d/swap (sed 'need localmount' lost)",
-      "severity": "medium",
-      "status": "open",
-      "mitigation": "Re-run installer or re-apply sed manually. Documented in AGENTS.md Known Issues. Consider custom service or rc_need in conf.d if this becomes a problem."
+      "risk": "apk upgrade of openrc and the sed on /etc/init.d/swap",
+      "severity": "low",
+      "status": "resolved",
+      "mitigation": "apk preserves modified /etc files as .apk-new (verified in Alpine docs: 'Whenever apk wants to install a file, but realizes a potentially edited one is already present, it will write its file to that filename with .apk-new appended'). /etc/init.d/swap is protected — the sed survives upgrades, no re-apply needed."
     }
   ],
   "next_actions": [

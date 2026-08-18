@@ -1734,6 +1734,42 @@ func (service *Service) Verify(ctx context.Context, cfg VerifyConfig) (VerifyRes
 	// sudo_works check: just verify the command ran (password expected for non-root)
 	// This is informational - sudo requires password which is correct behavior
 
+	// Log error check — non-regression guard: scan boot + installer logs for
+	// error/failed markers. Any match fails the run so regressions (e.g.
+	// "in use but fuser finds nothing", OpenRC [ !! ], apk failures) surface
+	// immediately instead of being masked by passing service checks.
+	if cfg.RunDir != "" {
+		logCheck := CheckResult{Pass: true, Detail: "no error/failed markers found in logs"}
+		logErrRe := regexp.MustCompile(`(?i)(error|failed|critical|\[ !! \]|in use but fuser finds nothing|invalid argument|cannot set)`)
+		// Innocuous lines: counters/negations ("0 errors", "no failed", ...),
+		// package name libgpg-error, efibootmgr "error trace:" on QEMU (no real
+		// EFI vars — expected, command runs with || true, exit 0).
+		allowRe := regexp.MustCompile(`(?i)(0 errors|no errors|errors: 0|0 failed|no failed|failed: 0|zero errors|libgpg-error|error trace:)`)
+		var problems []string
+		for _, logName := range []string{"target-serial.log", "installer.log"} {
+			path := filepath.Join(cfg.RunDir, logName)
+			data, err := os.ReadFile(path)
+			if err != nil {
+				if os.IsNotExist(err) {
+					continue
+				}
+				problems = append(problems, fmt.Sprintf("%s: read error: %v", logName, err))
+				continue
+			}
+			for i, line := range strings.Split(string(data), "\n") {
+				if logErrRe.MatchString(line) && !allowRe.MatchString(line) {
+					problems = append(problems, fmt.Sprintf("%s:%d: %s", logName, i+1, strings.TrimSpace(line)))
+				}
+			}
+		}
+		if len(problems) > 0 {
+			logCheck.Pass = false
+			logCheck.Detail = "error/failed markers found in logs:\n" + strings.Join(problems, "\n")
+			result.Success = false
+		}
+		result.Checks["log_errors"] = logCheck
+	}
+
 	return result, nil
 }
 

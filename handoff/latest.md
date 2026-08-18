@@ -109,7 +109,8 @@ Phase 1: Go installer complete. Both btrfsStandard and btrfsStandardServer pass 
 - **Dummy packages**: Symlink approach (APK content, not wrapper scripts)
 - **Swapfile**: `btrfs filesystem mkswapfile` + `chattr +C` on dir before mount (Debian guide)
 - **NoCoW**: no compression property — `chattr +C` on dir only (NODATACOW implies no compression, `m` attribute conflicts with C)
-- **Swap service**: boot runlevel + `need localmount` (sed replaces `before localmount` — start order only, not stop order)
+- **Swap service**: boot runlevel + `need localmount` (sed replaces `before localmount` — start order only, not stop order). apk preserves modified /etc files as `.apk-new` — the sed survives upgrades
+- **Log errors check**: harness `log_errors` scans target-serial.log + installer.log for error/failed markers, fails run on any match (non-regression guard, whitelist for known innocuous lines)
 
 ## Memory-Safe Alternatives
 
