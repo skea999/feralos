@@ -50,7 +50,10 @@
     "Added nodatacow mount option for NoCoW subvolumes (@swap, @srv, @var-log, etc.)",
     "Removed autodefrag from @swap subvolume (btrfs recommends against for swap)",
     "chattr +C fails on btrfs with Invalid argument (btrfs sets NoCoW automatically)",
-    "Swapfile still fails at boot: swapon Invalid argument (kernel 6.18 regression?)"
+    "Swapfile still fails at boot: swapon Invalid argument (kernel 6.18 regression?)",
+    "Used btrfs filesystem mkswapfile (native command) instead of dd+mkswap",
+    "Added compress=none to @swap mount options (inherits zstd from root)",
+    "mkswapfile fails: cannot set NOCOW flag (compression conflict)"
   ],
   "decisions": [
     {
@@ -222,10 +225,10 @@
       "mitigation": "LUKS keyfile auto-unlock, console=ttyS0,115200, per-device keyfile args"
     },
     {
-      "risk": "btrfs swapfile swapon fails on kernel 6.18",
-      "severity": "medium",
+      "risk": "btrfs swapfile swapon fails on kernel 6.18 - CRITICAL",
+      "severity": "high",
       "status": "open",
-      "mitigation": "Investigate kernel 6.18 btrfs swapfile requirements. May need different approach."
+      "mitigation": "Needs deep investigation: btrfs-progs version, kernel 6.18 changes, or alternative approach"
     }
   ],
   "next_actions": [
