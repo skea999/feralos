@@ -66,7 +66,10 @@ func Run(conf *config.Config) error {
 		}
 	}
 
-	// 8. Setup zswap (dmcrypt + zswap)
+	// 8. Setup zswap (server always enabled; other layouts toggleable)
+	if err := features.SetupZswapServer(conf); err != nil {
+		return fmt.Errorf("zswap server setup failed: %w", err)
+	}
 	if err := features.SetupZswap(conf); err != nil {
 		return fmt.Errorf("zswap setup failed: %w", err)
 	}

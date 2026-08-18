@@ -32,6 +32,7 @@ const (
 	statusRunning             = "running"
 	statusFailed              = "failed"
 	layoutBtrfsStandardServer = "btrfsStandardServer"
+	layoutBtrfsRaid0          = "btrfsRaid0"
 	sshUserSkea               = "skea"
 	desktopNiri               = "niri"
 )
@@ -88,6 +89,7 @@ type RunConfig struct {
 	EnableHardening     bool
 	EnableZswap         bool
 	EnableNix           bool
+	EnableSwapfile      bool
 	EnableKVM           bool
 	DiskSize            string
 	DiskLayout          string
@@ -127,6 +129,7 @@ type VariablesYAML struct {
 		EnableHardening         bool     `yaml:"enableHardening"`
 		EnableZswap             bool     `yaml:"enableZswap"`
 		EnableNix               bool     `yaml:"enableNix"`
+		EnableSwapfile          bool     `yaml:"enableSwapfile"`
 		EnableDebug             bool     `yaml:"enableDebug"`
 		ExtraPackages           []string `yaml:"extraPackages"`
 	} `yaml:"variables"`
@@ -171,6 +174,7 @@ func LoadVariablesFile(cfg *RunConfig, filePath string) error {
 	cfg.EnableHardening = v.EnableHardening
 	cfg.EnableZswap = v.EnableZswap
 	cfg.EnableNix = v.EnableNix
+	cfg.EnableSwapfile = v.EnableSwapfile
 
 	return nil
 }
@@ -499,8 +503,8 @@ func (service *Service) RunInstall(ctx context.Context, cfg *RunConfig) (RunResu
 	if diskErr := qemu.CreateDisk(cfg.QemuImgBinary, disk1Path, cfg.DiskSize); diskErr != nil {
 		return RunResult{}, diskErr
 	}
-	// Only create second install disk for RAID1 layouts (btrfsStandardServer)
-	if cfg.DiskLayout == layoutBtrfsStandardServer {
+	// Only create second install disk for multi-disk layouts (btrfsStandardServer, btrfsRaid0)
+	if cfg.DiskLayout == layoutBtrfsStandardServer || cfg.DiskLayout == layoutBtrfsRaid0 {
 		if disk2Err := qemu.CreateDisk(cfg.QemuImgBinary, disk2Path, cfg.DiskSize); disk2Err != nil {
 			return RunResult{}, disk2Err
 		}
@@ -570,6 +574,10 @@ func (service *Service) RunInstall(ctx context.Context, cfg *RunConfig) (RunResu
 			"-drive", "if=virtio,format=qcow2,file="+disk2Path,
 			"-drive", "if=virtio,format=qcow2,file="+btrfsDisk1Path,
 			"-drive", "if=virtio,format=qcow2,file="+btrfsDisk2Path,
+		)
+	} else if cfg.DiskLayout == layoutBtrfsRaid0 {
+		runnerArgs = append(runnerArgs,
+			"-drive", "if=virtio,format=qcow2,file="+disk2Path,
 		)
 	}
 	if cfg.EnableKVM {
@@ -886,6 +894,11 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg *RunConfig,
 				"-device", "virtio-blk-pci,drive=btrfsdisk1",
 				"-drive", "if=none,id=btrfsdisk2,format=qcow2,file="+btrfsDisk2Path,
 				"-device", "virtio-blk-pci,drive=btrfsdisk2",
+			)
+		} else if cfg.DiskLayout == layoutBtrfsRaid0 {
+			args = append(args,
+				"-drive", "if=none,id=targetdisk2,format=qcow2,file="+disk2Path,
+				"-device", "virtio-blk-pci,drive=targetdisk2,bootindex=2",
 			)
 		}
 		if cfg.DesktopEnvironment == desktopNiri {
@@ -1290,9 +1303,10 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 	if storageCheck, ok := result.Checks["storage_layout"]; ok {
 		isRaid1 := hasHealthyBtrfsRaid1Layout(storageCheck.Detail)
 		isSingle := hasHealthyBtrfsSingleLayout(storageCheck.Detail)
-		if !isRaid1 && !isSingle {
+		isRaid0 := hasHealthyBtrfsRaid0Layout(storageCheck.Detail)
+		if !isRaid1 && !isSingle && !isRaid0 {
 			storageCheck.Pass = false
-			storageCheck.Detail += "\nExpected a mounted Btrfs root backed by LUKS — either RAID1 (2 devices, RAID1 profiles) or Single (1 device, single data, DUP metadata)"
+			storageCheck.Detail += "\nExpected a mounted Btrfs root backed by LUKS — either RAID1 (2 devices, RAID1 profiles), RAID0 (2 devices, RAID0 profiles) or Single (1 device, single data, DUP metadata)"
 			result.Checks["storage_layout"] = storageCheck
 			result.Success = false
 		}
@@ -1352,7 +1366,7 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 			// btrfsStandard has 1 LUKS device, btrfsStandardServer has 2.
 			expectedBindings := 1
 			if storageCheck, ok := result.Checks["storage_layout"]; ok {
-				if hasHealthyBtrfsRaid1Layout(storageCheck.Detail) {
+				if hasHealthyBtrfsRaid1Layout(storageCheck.Detail) || hasHealthyBtrfsRaid0Layout(storageCheck.Detail) {
 					expectedBindings = 2
 				}
 			}
@@ -1740,6 +1754,22 @@ func hasHealthyBtrfsSingleLayout(detail string) bool {
 	return hasMountedBtrfsRoot && hasOneEncryptedDevice && hasOneBtrfsDevice && hasSingleData && hasDupMetadata
 }
 
+// hasHealthyBtrfsRaid0Layout validates a dual-disk btrfs RAID0 layout
+// (btrfsRaid0): two LUKS devices, RAID0 data + metadata profiles.
+func hasHealthyBtrfsRaid0Layout(detail string) bool {
+	lowerDetail := strings.ToLower(detail)
+	// Accept both /dev/mapper/luks-* and /dev/dm-* in the mount line
+	hasMountedBtrfsRoot := regexp.MustCompile(`(?m)^/dev/(mapper/luks-|dm-)[^ ]+ / btrfs `).MatchString(detail)
+	hasEncryptedRootDevices := strings.Count(detail, "/dev/mapper/luks-") >= 2
+	hasTwoBtrfsDevices := len(regexp.MustCompile(`(?m)^\s*devid\s+[0-9]+`).FindAllString(detail, -1)) >= 2
+	hasRaid0ProfileHeader := regexp.MustCompile(`(?m)^Id Path\s+RAID0\s+RAID0(?:\s+RAID0)?(?:\s|$)`).MatchString(detail)
+	hasDataRaid0 := regexp.MustCompile(`(?m)\bData(?:,\s*RAID0:|\s+RAID0\b)`).MatchString(detail) || hasRaid0ProfileHeader
+	hasMetadataRaid0 := regexp.MustCompile(`(?m)\bMetadata(?:,\s*RAID0:|\s+RAID0\b)`).MatchString(detail) || hasRaid0ProfileHeader
+	hasMissingDevice := strings.Contains(lowerDetail, " is missing")
+
+	return hasMountedBtrfsRoot && hasEncryptedRootDevices && hasTwoBtrfsDevices && hasDataRaid0 && hasMetadataRaid0 && !hasMissingDevice
+}
+
 func hasClevisTPM2Bindings(detail string, expectedDevices int) bool {
 	if expectedDevices <= 0 {
 		expectedDevices = 1
@@ -2119,7 +2149,7 @@ func writeHarnessVariables(cfg *RunConfig, keyPair guest.KeyPair, outputPath, al
 
 	disk1 := "/dev/vdb"
 	disk2 := "/dev/vdb"
-	if cfg.DiskLayout == layoutBtrfsStandardServer {
+	if cfg.DiskLayout == layoutBtrfsStandardServer || cfg.DiskLayout == layoutBtrfsRaid0 {
 		disk2 = "/dev/vdc"
 	}
 
@@ -2155,6 +2185,7 @@ func writeHarnessVariables(cfg *RunConfig, keyPair guest.KeyPair, outputPath, al
   enableHardening: %s
   enableZswap: %s
   enableNix: %s
+  enableSwapfile: %s
   enableDebug: false
 
   extraPackages:
@@ -2178,6 +2209,7 @@ func writeHarnessVariables(cfg *RunConfig, keyPair guest.KeyPair, outputPath, al
 		yn(cfg.EnableHardening),
 		yn(cfg.EnableZswap),
 		yn(cfg.EnableNix),
+		yn(cfg.EnableSwapfile),
 	)
 
 	if err := os.WriteFile(outputPath, []byte(content), 0o600); err != nil {

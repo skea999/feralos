@@ -75,10 +75,15 @@ func RunBtrfsSetup(conf *config.Config) error {
 		return err
 	}
 
-	// 6. Create swapfile in @swap subvolume
-	fmt.Println("[INFO] Creating swapfile in /swap subvolume...")
-	if err := createSwapfile(i.ChrootDir); err != nil {
-		return fmt.Errorf("swapfile creation failed: %w", err)
+	// 6. Create swapfile in @swap subvolume (only if enabled — the @swap
+	// subvolume itself is always created so swap can be enabled later)
+	if u.EnableSwapfile {
+		fmt.Println("[INFO] Creating swapfile in /swap subvolume...")
+		if err := createSwapfile(i.ChrootDir); err != nil {
+			return fmt.Errorf("swapfile creation failed: %w", err)
+		}
+	} else {
+		fmt.Println("[INFO] Swapfile disabled — @swap subvolume kept for future use")
 	}
 
 	// 7. Inject kernel cmdline for booster

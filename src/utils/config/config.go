@@ -36,6 +36,7 @@ type UserVariables struct {
 	EnableHardening  bool `yaml:"enableHardening"`
 	EnableZswap      bool `yaml:"enableZswap"`
 	EnableNix        bool `yaml:"enableNix"`
+	EnableSwapfile   bool `yaml:"enableSwapfile"`
 	EnableDebug      bool `yaml:"enableDebug"`
 
 	// Network

@@ -122,12 +122,15 @@ func GenerateFstab(conf *config.Config) error {
 		return fmt.Errorf("failed to write fstab EFI entry: %w", err)
 	}
 
-	// 3. Swapfile (in @swap subvolume, NoCoW required for btrfs)
-	if _, err := file.WriteString("# Swapfile: NoCoW set via 'chattr +C' + compress=none mount option\n"); err != nil {
-		return err
-	}
-	if _, err := file.WriteString("/swap/swapfile             none                    swap   defaults                                          0  0\n"); err != nil {
-		return fmt.Errorf("failed to write fstab swapfile entry: %w", err)
+	// 3. Swapfile (in @swap subvolume, NoCoW required for btrfs) — only when
+	// enabled; the @swap subvolume is always created for future use
+	if u.EnableSwapfile {
+		if _, err := file.WriteString("# Swapfile: NoCoW set via 'chattr +C' + compress=none mount option\n"); err != nil {
+			return err
+		}
+		if _, err := file.WriteString("/swap/swapfile             none                    swap   defaults                                          0  0\n"); err != nil {
+			return fmt.Errorf("failed to write fstab swapfile entry: %w", err)
+		}
 	}
 
 	return nil
