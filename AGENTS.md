@@ -305,6 +305,14 @@ feralos_installer/
 
 *Updated: 2026-08-18*
 
+### 2026-08-18 19:30 - Harness Full Lint Cleanup
+**Agent:** codebase
+**Summary:** golangci-lint clean on tests/harness (was ~60 issues) + src gofmt fixes
+- **src/**: 2 gofmt fixes (config.go comment alignment, packages.go EOF newline) — lint clean (commit `5d036e7`)
+- **tests/harness**: full cleanup (commit `6b42ff3`, +327/−527): errcheck (Kill/Wait), nilerr, 3 dead funcs removed (prepareSetupModeVars, readQMPResponseDiscardEvents, exportUnencryptedPEMKey), SA9003, goconst constants (statusRunning/statusFailed/layoutBtrfsStandardServer/sshUserSkea), govet shadow renames, gosec (0600 perms, ReadHeaderTimeout, #nosec G204 QEMU), gocritic (assignOp, ifElseChain, filepathJoin, dynamicFmtString, S1039), hugeParam pointer refactors (RunConfig/PrepareRunnerConfig/VerifyConfig/ActiveRun/LaunchConfig/SoftwareTPMConfig/request), gofmt+goimports
+- **Verification**: build + go vet + go test + golangci-lint CLEAN on both modules
+- **Note**: golangci-lint at `~/projects/go/bin/golangci-lint` (v1.64.8) — not in PATH; pre-commit hook never runs it (npx lint-staged requires package.json)
+
 ### 2026-08-18 18:45 - Log Error Harness Check + apk-new Verified
 **Agent:** codebase
 **Summary:** New `log_errors` non-regression check in harness + apk-new behavior verified (swap sed survives upgrades)
