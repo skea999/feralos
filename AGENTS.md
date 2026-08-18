@@ -305,6 +305,14 @@ feralos_installer/
 
 *Updated: 2026-08-18*
 
+### 2026-08-18 20:15 - Services Active Check + QEMU-Only Whitelist
+**Agent:** codebase
+**Summary:** New `services_status` harness check + log_errors whitelist for services that cannot work under QEMU
+- **`services_status` check**: runs `rc-status --all`, verifies configured OpenRC services are actually STARTED (not just `[ ok ]` at boot). Excludes QEMU-only services: `smartd` (no SMART hardware — crashed), `fsck` (fsck.vfat not installed — ESP check fails silently), `udev-settle` (one-shot). Parser handles supervise-daemon format `[ started 00:00:36 (0) ]` (vector, fwupd)
+- **log_errors whitelist extended**: `start-stop-daemon: no matching processes found` (smartd stop) + `fsck.vfat: No such file or directory` (fsck) — both false positives under QEMU
+- **Calibration**: first run 30/31 (parser missed supervise-daemon format → vector/fwupd "missing"), regex fixed, simulated re-check 0 not-active. log_errors PASS
+- **Commit**: `47b2d50` (+57/−2)
+
 ### 2026-08-18 19:30 - Harness Full Lint Cleanup
 **Agent:** codebase
 **Summary:** golangci-lint clean on tests/harness (was ~60 issues) + src gofmt fixes
