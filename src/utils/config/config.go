@@ -66,8 +66,8 @@ type InternalRules struct {
 // If the key (replacement) is installed, creates a symlink for replaced package.
 // Bin is the replacement binary name (defaults to map key if empty).
 type DummyPackageRule struct {
-	Replace string `yaml:"replace"`        // package name to replace
-	Bin     string `yaml:"bin,omitempty"`  // replacement binary name (default: map key)
+	Replace string `yaml:"replace"`       // package name to replace
+	Bin     string `yaml:"bin,omitempty"` // replacement binary name (default: map key)
 }
 
 // Ensure the field is named "Packages" to match logic.go
