@@ -9,7 +9,16 @@
 
 ## Current Focus
 
-Phase 1: Go installer complete. Both btrfsStandard and btrfsStandardServer pass 29/29 verification checks with ALL features enabled. **Swapfile FIXED** — `btrfs filesystem mkswapfile` works: root cause was `btrfs property set compression none` setting the `m` attribute which conflicts with `chattr +C` (NixOS/nixpkgs #384047). **NoCoW cleanup** — compression property removed from ALL NoCoW subvolumes (NODATACOW implies no compression), new `lsattr_nocow` harness check verifies C flag on all 7 NoCoW subvolumes, no `m` flag, compressed subvolumes stay CoW. **Swap shutdown FIXED** — OpenRC swap service `before localmount` guaranteed start order only, not stop order: localmount unmounted /swap while swapfile active ("in use but fuser finds nothing"). Fix: swap moved to boot runlevel + `sed 's/before localmount/need localmount/' /etc/init.d/swap` in SetupServices. Shutdown now clean: `Deactivating swap devices [ ok ]` → `Unmounting /swap [ ok ]`. **Dummy packages working** — APK v3 `apk mkpkg` creates valid packages with symlinks. **Ripgrep NOT a drop-in for grep** — rg doesn't support POSIX BRE (`\+`), breaks `efi-mkuki`. GNU grep removed — BusyBox grep used instead.
+Phase 1: Go installer complete. Both btrfsStandard and btrfsStandardServer pass verification checks with ALL features enabled (latest run 30/30 + `services_status` = 31 checks). Highlights:
+
+- **Swapfile FIXED** — `btrfs filesystem mkswapfile` works: root cause was `btrfs property set compression none` setting the `m` attribute which conflicts with `chattr +C` (NixOS/nixpkgs #384047). `chattr +C` on @swap dir before mount.
+- **NoCoW cleanup** — compression property removed from ALL NoCoW subvolumes (NODATACOW implies no compression), verified by `lsattr_nocow` harness check.
+- **Swap shutdown FIXED** — OpenRC swap service `before localmount` guaranteed start order only, not stop order. Fix: swap moved to boot runlevel + `sed 's/before localmount/need localmount/' /etc/init.d/swap` in SetupServices. apk `.apk-new` verified: the sed survives openrc upgrades.
+- **`log_errors` harness check** — non-regression guard: scans target-serial.log + installer.log for error/failed markers, fails run on any match. Whitelist: counters, `libgpg-error` package name, efibootmgr `error trace:` (QEMU, no EFI vars), smartd `start-stop-daemon: no matching processes found`, fsck `fsck.vfat: No such file or directory` (both QEMU-only).
+- **`services_status` harness check** — verifies configured OpenRC services are actually STARTED via `rc-status --all` (not just `[ ok ]` at boot). Excludes QEMU-only: smartd (no SMART hardware — crashed), fsck (fsck.vfat not installed), udev-settle (one-shot). Parser handles supervise-daemon format `[ started 00:00:36 (0) ]`.
+- **Harness lint clean** — full golangci-lint cleanup (commit `6b42ff3`): errcheck, nilerr, dead code removed, goconst, shadow, gosec, gocritic, hugeParam pointer refactors. Behavior verified: full run 30/30 PASS after refactor.
+- **Dummy packages working** — APK v3 `apk mkpkg` creates valid packages with symlinks.
+- **Ripgrep NOT a drop-in for grep** — rg doesn't support POSIX BRE (`\+`), breaks `efi-mkuki`. GNU grep removed — BusyBox grep used instead.
 
 ## What's Working
 
@@ -40,7 +49,6 @@ Phase 1: Go installer complete. Both btrfsStandard and btrfsStandardServer pass 
 - **providePackages** — empty dummies for dependency satisfaction (e.g., `util-linux-misc`)
 - **uutils-coreutils-more** — provides `/usr/bin/more`, dummy `util-linux-misc` satisfies `incus-feature-vm`
 - **Swapfile working** — `btrfs filesystem mkswapfile --size 8g` with `chattr +C` on @swap dir before mount
-  - Root cause: `btrfs property set compression none` sets `m` attribute → conflicts with `chattr +C` (NixOS/nixpkgs #384047)
   - btrfsStandardServer: no swapfile (dedicated LUKS swap partitions)
 - **NoCoW subvolumes clean** — no compression property anywhere (NODATACOW implies no compression)
   - `chattr +C` on dir is the only mechanism; all 7 NoCoW subvolumes verified by `lsattr_nocow` harness check
@@ -49,7 +57,7 @@ Phase 1: Go installer complete. Both btrfsStandard and btrfsStandardServer pass 
 ## What's Next
 
 ### Phase 1 (Installer)
-1. Test Secure Boot error fix (efi-mkkeys after package install)
+1. Run full harness to confirm 31/31 (services_status now in check suite)
 2. Test on real hardware with 2x NVMe
 3. Test with partial features (Secure Boot only, TPM only)
 4. Add more unit tests for verify checks
@@ -77,16 +85,19 @@ Phase 1: Go installer complete. Both btrfsStandard and btrfsStandardServer pass 
 |------|---------|
 | `src/main.go` | Installer entry point |
 | `src/utils/config/config.go` | Config types + LoadConfig |
-| `src/utils/shell/shell.go` | RunCommand, RunChrootCommand |
+| `src/utils/shell/execute.go` | Unified ExecuteCmd (retry, logging) |
 | `src/variables/variables.yaml` | Template with defaults |
 | `src/variables/internalRules.yaml` | Dynamic rules (packages, services) |
-| `src/hostPhase/` | Host-side operations |
+| `src/hostPhase/` | Host-side operations (orchestrator + internal/) |
 | `src/hostPhase/disks/` | Storage layouts (Go packages) |
-| `src/chrootPhase/` | Chroot operations |
-| `src/chrootPhase/configurator.go` | Main orchestrator |
+| `src/chrootPhase/` | Chroot operations (orchestrator + internal/ + features/) |
+| `src/firstBoot/` | Standalone first-boot programs (secureboot, tpm) |
 | `setup.sh` | Automated setup script |
 | `tests/harness/` | QEMU-based test harness |
 | `tests/debug-run/` | Debug tool for existing runs |
+| `docs/INSTALLER.md` | Installer architecture documentation |
+| `docs/USAGE.md` | Usage guide and configuration |
+| `CONTEXT.md` | Domain vocabulary |
 
 ## Decisions Made
 
@@ -110,7 +121,8 @@ Phase 1: Go installer complete. Both btrfsStandard and btrfsStandardServer pass 
 - **Swapfile**: `btrfs filesystem mkswapfile` + `chattr +C` on dir before mount (Debian guide)
 - **NoCoW**: no compression property — `chattr +C` on dir only (NODATACOW implies no compression, `m` attribute conflicts with C)
 - **Swap service**: boot runlevel + `need localmount` (sed replaces `before localmount` — start order only, not stop order). apk preserves modified /etc files as `.apk-new` — the sed survives upgrades
-- **Log errors check**: harness `log_errors` scans target-serial.log + installer.log for error/failed markers, fails run on any match (non-regression guard, whitelist for known innocuous lines)
+- **Log errors check**: harness `log_errors` scans target-serial.log + installer.log for error/failed markers, fails run on any match (non-regression guard, whitelist for known innocuous lines incl. QEMU-only smartd/fsck)
+- **Services active check**: harness `services_status` verifies configured services are actually started via `rc-status --all`; excludes QEMU-only services (smartd, fsck, udev-settle); parses supervise-daemon format
 
 ## Memory-Safe Alternatives
 
@@ -126,103 +138,6 @@ Phase 1: Go installer complete. Both btrfsStandard and btrfsStandardServer pass 
 | grep (GNU) | BusyBox grep | POSIX BRE | Yes (built-in) |
 | find (GNU) | fd | Rust | No (different syntax) |
 | less | bat | Rust | Yes (symlink) |
-
----
-
-*See `state/session-state.json` for current goals, decisions, risks, and next actions.*
-*See `AGENTS.md` for project context and milestone history.*
-*See `docs/PROJECT.md` for full distribution vision.*
-
-## What's Next
-
-### Phase 1 (Installer)
-1. **Fix Vector VRL syntax error** — critical for logging to work
-2. Test vector logging end-to-end
-3. Test on real hardware with 2x NVMe
-4. Test with partial features (Secure Boot only, TPM only)
-5. Add more unit tests for verify checks
-6. Complete CI/CD pipeline
-
-### Phase 2 (Distribution)
-1. Dinit init system (replace OpenRC)
-2. Custom FeralOS repository
-3. Nix integration (glibc + alternatives)
-4. Full distribution release
-
-## Architecture Principle
-
-**Standard core, pluggable data.**
-
-- Installer logic never changes
-- Storage layouts are Go packages
-- Essential packages hardcoded in Go
-- Optional packages + rules in YAML
-- Parser always same code, only data changes
-
-## Key Files
-
-| File | Purpose |
-|------|---------|
-| `src/main.go` | Installer entry point |
-| `src/utils/config/config.go` | Config types + LoadConfig |
-| `src/utils/shell/shell.go` | RunCommand, RunChrootCommand, RunCommandStrict |
-| `src/variables/variables.yaml` | Template with defaults |
-| `src/variables/internalRules.yaml` | Dynamic rules |
-| `src/hostPhase/` | Host-side operations |
-| `src/hostPhase/keyfile.go` | LUKS keyfile generation + embedding |
-| `src/hostPhase/booster.go` | booster.yaml + kernel cmdline |
-| `src/chrootPhase/` | Chroot operations |
-| `src/hostPhase/disks/` | Storage layouts (Go packages) |
-| `setup.sh` | Automated setup script |
-| `tests/harness/` | QEMU-based test harness |
-| `docs/INSTALLER.md` | Installer architecture documentation |
-| `docs/USAGE.md` | Usage guide and configuration |
-| `CONTEXT.md` | Domain vocabulary |
-
-## Decisions Made
-
-- **Go** chosen over shell for maintainability
-- **Shell scripts** kept as reference in `internal/`
-- **YAML** for both user config and internal rules
-- **Storage layouts** as Go packages (not YAML)
-- **Essential packages** hardcoded in Go
-- **Generator** can run standalone or integrated
-- **Nix** for glibc and alternative software
-- **Dinit** will replace OpenRC in Phase 2
-- **Custom repository** for FeralOS-specific services
-- **booster** instead of mkinitfs for initramfs
-- **Signed UKI** instead of GRUB for boot
-- **LUKS2** encryption on RAID and Swap partitions
-- **Btrfs RAID1** on LUKS (not mdadm)
-- **Phase separation**: hostPhase (writes files) vs chrootPhase (runs commands)
-- **Module isolation**: Each functionality is a separate module
-- **LUKS keyfile** embedded in initramfs for headless auto-unlock
-- **Per-device keyfile args** required for multi-LUKS layouts (booster requirement)
-- **EFI guarded** — efibootmgr skipped on BIOS runner, BOOTX64.EFI fallback handles boot
-- **Clevis TPM2 bind policy** — empty `{}` (TPM identity only, no PCR policy)
-- **setup.sh** — launcher only, no configuration logic
-- **Harness writes variables.yaml** — direct file generation, no stdin
-- **btrfsStandard** — only 1 install disk (no ZFS or btrfs-data)
-- **Auto-clean old runs** — keeps last 2, saves disk space
-- **Test artifacts** — `tests/artifacts/<tool-name>/<timestamp>/` pattern
-- **rsyslog → vector** — memory-safe logging pipeline (Rust)
-- **zram-init → zswap** — kernel compressed swap cache with swap file
-- **btrbk** — btrfs backup/snapshot tool for data protection
-- **turnstile** — session tracker for desktop environments
-
-## Memory-Safe Alternatives
-
-| Traditional (C) | FeralOS Alternative | Language |
-|-----------------|------------------|----------|
-| coreutils | uutils-coreutils | Rust |
-| vim/nano | micro | Go |
-| sudo | sudo-rs | Rust |
-| rsyslog/logrotate | vector | Rust |
-| bash/zsh | fish | Rust |
-| lxd | incus | Go |
-| openrc | dinit (future) | C++ |
-| grep (GNU) | ripgrep (optional) | Rust |
-| find (GNU) | fd (optional) | Rust |
 
 ---
 

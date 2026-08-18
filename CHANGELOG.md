@@ -37,6 +37,9 @@ All notable changes to FeralOS will be documented in this file.
 - `providePackages` in internalRules.yaml for empty dependency-satisfying dummies
 - `util-linux-misc` dummy to resolve `uutils-coreutils-more` conflict with `incus-feature-vm`
 - `less_dummy` harness check (verifies symlink chain to bat)
+- `log_errors` harness check — non-regression guard scanning target-serial.log + installer.log for error/failed markers, fails the run on any match (whitelist for known innocuous lines)
+- `services_status` harness check — verifies configured OpenRC services are actually STARTED via `rc-status --all` (not just `[ ok ]` at boot); excludes QEMU-only services (smartd, fsck, udev-settle); parses supervise-daemon format `[ started 00:00:36 (0) ]`
+- `lsattr_nocow` harness check — verifies C flag on all 7 NoCoW subvolumes, no `m` flag, compressed subvolumes stay CoW
 
 ### Fixed
 - Pointer copy bug in configurator.go, hardening.go, zswap.go (u := conf.User → u := &conf.User)
@@ -53,6 +56,11 @@ All notable changes to FeralOS will be documented in this file.
 - Secure Boot hook failure: EFI keys now generated after package install
 - btrbk `snapshot_dir` path (was `/mnt/btrbk/snapshots`)
 - "FeralOS Server" → "FeralOS" in user-facing strings
+- Swap shutdown: localmount unmounted /swap while swapfile active ("in use but fuser finds nothing") — swap moved to boot runlevel + `sed 's/before localmount/need localmount/'` in SetupServices (`before` guarantees start order only, not stop order)
+- Swapfile: `btrfs property set compression none` set the `m` attribute conflicting with `chattr +C` (NixOS/nixpkgs #384047) — compression property removed from ALL NoCoW subvolumes, `chattr +C` on dir before mount + `btrfs filesystem mkswapfile`
+- `swap_status` harness check: busybox swapon has no `--show` flag — now uses `swapon -s || cat /proc/swaps`
+- gofmt in src (config.go comment alignment, packages.go EOF newline)
+- Harness lint cleanup: errcheck, nilerr, dead code removal, goconst, shadow, gosec, gocritic, hugeParam pointer refactors (commit `6b42ff3`)
 
 ### Changed
 - Migrated from monolithic shell script to modular Go architecture
@@ -66,6 +74,9 @@ All notable changes to FeralOS will be documented in this file.
 - earlyoom moved to standardPackages
 - e2fsprogs removed from standardPackages
 - Package masking removed (apk `!pkg` conflicts with explicit dependencies)
+- Swap service in boot runlevel (moved from default) + `need localmount` dependency
+- apk `.apk-new` behavior verified: modified /etc files (swap init.d sed) survive openrc upgrades
+- log_errors whitelist: `start-stop-daemon: no matching processes found` (smartd, no SMART hardware in QEMU) + `fsck.vfat: No such file or directory` (fsck, QEMU-only)
 
 ### Open Issues
 - Secure Boot fix (efi-mkkeys after install) — pending harness revalidation
