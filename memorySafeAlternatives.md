@@ -376,3 +376,8 @@ These C packages remain because no memory-safe alternative exists or the compone
 - **Issue**: `uutils-coreutils-more` and `util-linux-misc` both provide `/usr/bin/more`
 - **Root cause**: `incus-feature-vm` depends on `util-linux-misc`, which conflicts with uutils more
 - **Resolution**: Created empty dummy `util-linux-misc` (v999) via `providePackages` in internalRules.yaml. Dummy satisfies dependency without file conflicts. `uutils-coreutils-more` provides real `/usr/bin/more`.
+
+### Ripgrep as grep Drop-in (Won't Fix)
+- **Issue**: ripgrep (`rg`) doesn't support POSIX BRE (`\+`)
+- **Root cause**: `efi-mkuki` uses `grep -q '^[0-9]\+\.[0-9][0-9A-Za-z_.-]*$'` for kernel version validation. `rg` uses Rust regex which doesn't support `\+`.
+- **Resolution**: Ripgrep NOT used as grep drop-in. Kept as optional interactive tool only. GNU grep removed — BusyBox grep provides POSIX BRE. Dummy packages only replace `less` → `bat` (true drop-in).

@@ -20,10 +20,13 @@ func InstallDummyPackages(conf *config.Config) error {
 
 	for replacement, rule := range dummies {
 		replaced := rule.Replace
-		replacementBin := "/usr/bin/" + replacement
-		replacedBin := "/usr/bin/" + replaced
+		binName := replacement
+		if rule.Bin != "" {
+			binName = rule.Bin
+		}
+		replacementBin := "/usr/bin/" + binName
 
-		if err := createDummySymlinkPackage(chroot, replaced, replacementBin, replacedBin); err != nil {
+		if err := createDummySymlinkPackage(chroot, replaced, replacementBin); err != nil {
 			fmt.Printf("[WARNING] Failed to create dummy %s: %v\n", replaced, err)
 			continue
 		}
@@ -68,11 +71,11 @@ func createProvideDummy(chroot, pkgName string) error {
 	return nil
 }
 
-func createDummySymlinkPackage(chroot, replacedPkg, replacementBin, replacedBin string) error {
-	fmt.Printf("[INFO] Creating dummy %s → symlink to %s\n", replacedPkg, replacementBin)
-
+// createDummySymlinkPackage creates a symlink from replaced to replacement binary inside an APK package.
+func createDummySymlinkPackage(chroot, replacedPkg, replacementBin string) error {
 	tmpDir := fmt.Sprintf("/tmp/dummy-%s", replacedPkg)
 	apkPath := fmt.Sprintf("/tmp/dummy-%s.apk", replacedPkg)
+	replacedBin := fmt.Sprintf("/usr/bin/%s", replacedPkg)
 
 	_, _ = shell.ExecuteCmd(chroot, "rm -rf "+tmpDir+" "+apkPath)
 
@@ -80,15 +83,18 @@ func createDummySymlinkPackage(chroot, replacedPkg, replacementBin, replacedBin 
 		return fmt.Errorf("failed to create dir: %w", err)
 	}
 
+	// Create symlink inside package content
 	symlinkCmd := fmt.Sprintf("ln -s %s %s%s", replacementBin, tmpDir, replacedBin)
 	if _, err := shell.ExecuteCmd(chroot, symlinkCmd); err != nil {
 		return fmt.Errorf("failed to create symlink %s → %s: %w", replacedBin, replacementBin, err)
 	}
 
+	desc := fmt.Sprintf("Dummy %s replaced by %s", replacedPkg, replacementBin)
+
 	infoName := fmt.Sprintf("name:%s", replacedPkg)
 	mkpkgCmd := fmt.Sprintf(
-		"apk mkpkg --files %s --info %s --info version:999 --info description:Dummy %s replaced by %s --info arch:noarch --output %s",
-		tmpDir, infoName, replacedPkg, replacementBin, apkPath,
+		"apk mkpkg --files %s --info %s --info version:999 --info description:%q --info arch:noarch --output %s",
+		tmpDir, infoName, desc, apkPath,
 	)
 	if _, err := shell.ExecuteCmd(chroot, mkpkgCmd); err != nil {
 		return fmt.Errorf("apk mkpkg failed for %s: %w", replacedPkg, err)
@@ -100,7 +106,7 @@ func createDummySymlinkPackage(chroot, replacedPkg, replacementBin, replacedBin 
 
 	verify, _ := shell.ExecuteCmd(chroot, "apk info -e "+replacedPkg+" 2>/dev/null && echo INSTALLED || echo NOT_INSTALLED")
 	if strings.Contains(verify, "INSTALLED") {
-		fmt.Printf("[INFO] Dummy %s v999 installed (symlink to %s)\n", replacedPkg, replacementBin)
+		fmt.Printf("[INFO] Dummy %s v999 installed (symlink → %s)\n", replacedPkg, replacementBin)
 	} else {
 		fmt.Printf("[WARNING] Dummy %s may not be properly installed\n", replacedPkg)
 	}
@@ -169,5 +175,6 @@ func FinalUpgrade(chroot string) error {
 	if _, err := shell.ExecuteCmd(chroot, "apk update && apk upgrade"); err != nil {
 		fmt.Printf("[WARNING] Final apk upgrade failed: %v\n", err)
 	}
+
 	return nil
 }

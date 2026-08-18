@@ -9,7 +9,7 @@
 
 ## Current Focus
 
-Phase 1: Go installer complete. Both btrfsStandard and btrfsStandardServer pass 22/22 verification checks with ALL features enabled. **Dummy packages working** — APK v3 `apk mkpkg` creates valid packages, `providePackages` resolves dependency conflicts.
+Phase 1: Go installer complete. Both btrfsStandard and btrfsStandardServer pass 27/27 verification checks with ALL features enabled. **Dummy packages working** — APK v3 `apk mkpkg` creates valid packages with symlinks. **Ripgrep NOT a drop-in for grep** — rg doesn't support POSIX BRE (`\+`), breaks `efi-mkuki`. GNU grep removed — BusyBox grep used instead.
 
 ## What's Working
 
@@ -92,26 +92,30 @@ Phase 1: Go installer complete. Both btrfsStandard and btrfsStandardServer pass 
 - **udev services**: In packageLogic under eudev (Alpine uses mdev by default)
 - **modules service**: Removed (booster loads /etc/modules automatically)
 - **btrbk snapshot_dir**: `/btrbk/snapshots` (not `/mnt/btrbk/snapshots`)
-- **less package**: open issue — solve via dummy package (masking conflicts with bat dependency)
+- **less package**: Solved via dummy package symlink (bat replaces less)
 - **booster** instead of mkinitfs for initramfs
 - **Signed UKI** instead of GRUB for boot
 - **LUKS2** encryption on RAID and Swap partitions
 - **Btrfs RAID1** on LUKS (not mdadm)
 - **Phase separation**: hostPhase (writes files) vs chrootPhase (runs commands)
+- **Ripgrep NOT a drop-in for grep**: rg doesn't support POSIX BRE (`\+`), breaks `efi-mkuki`
+- **GNU grep removed**: BusyBox grep provides POSIX BRE, zero reverse dependencies
+- **Dummy packages**: Symlink approach (APK content, not wrapper scripts)
 
 ## Memory-Safe Alternatives
 
-| Traditional (C) | FeralOS Alternative | Language |
-|-----------------|------------------|----------|
-| coreutils | uutils-coreutils | Rust |
-| vim/nano | micro | Go |
-| sudo | sudo-rs | Rust |
-| rsyslog/logrotate | vector | Rust |
-| bash/zsh | fish | Rust |
-| lxd | incus | Go |
-| openrc | dinit (future) | C++ |
-| grep (GNU) | ripgrep (optional) | Rust |
-| find (GNU) | fd (optional) | Rust |
+| Traditional (C) | FeralOS Alternative | Language | Drop-in? |
+|-----------------|------------------|----------|----------|
+| coreutils | uutils-coreutils | Rust | No |
+| vim/nano | micro | Go | No |
+| sudo | sudo-rs | Rust | No |
+| rsyslog/logrotate | vector | Rust | No |
+| bash/zsh | fish | Rust | No |
+| lxd | incus | Go | No |
+| openrc | dinit (future) | C++ | No |
+| grep (GNU) | BusyBox grep | POSIX BRE | Yes (built-in) |
+| find (GNU) | fd | Rust | No (different syntax) |
+| less | bat | Rust | Yes (symlink) |
 
 ---
 

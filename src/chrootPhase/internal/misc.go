@@ -9,28 +9,13 @@ import (
 	"strings"
 )
 
-// SetupMisc configures shell aliases, editor, PS1, timezone, pager,
+// SetupMisc configures editor, PS1, timezone, pager,
 // subuid/subgid, limits, sudoers, LXC, mkinitfs removal, smartd, cron, keymap.
 func SetupMisc(conf *config.Config) error {
 	chroot := conf.Internal.ChrootDir
 	u := conf.User
 
-	// 1. Shell aliases (fish only — bash not used)
-	fmt.Println("[INFO] Injecting shell aliases...")
-	if err := os.MkdirAll(filepath.Join(chroot, "etc", "profile.d"), 0755); err != nil {
-		return fmt.Errorf("failed to create /etc/profile.d directory: %w", err)
-	}
-	aliasContent := `echo 'alias ll="ls -lah"
-alias nano=micro
-alias rm="rm -i"
-alias apk="apk --progress"
-alias untar="tar xzvkf"
-alias mv="mv -v"' > /etc/profile.d/alias.sh`
-	if _, err := shell.ExecuteCmd(chroot, aliasContent); err != nil {
-		return fmt.Errorf("failed to write alias.sh: %w", err)
-	}
-
-	// 2. Editor
+	// 1. Editor
 	fmt.Println("[INFO] Setting editor to micro...")
 	if _, err := shell.ExecuteCmd(chroot, "echo 'export EDITOR=micro' > /etc/profile.d/editor.sh"); err != nil {
 		return fmt.Errorf("failed to write editor.sh: %w", err)
@@ -75,13 +60,7 @@ fi' > /etc/profile.d/console.sh`
 		return fmt.Errorf("failed to write pager.fish: %w", err)
 	}
 
-	// 8. Symlink alias to fish
-	fmt.Println("[INFO] Configuring shell symlinks...")
-	if _, err := shell.ExecuteCmd(chroot, "ln -sfn /etc/profile.d/alias.sh /etc/fish/conf.d/alias.fish"); err != nil {
-		fmt.Printf("[WARNING] Failed to symlink fish alias: %v\n", err)
-	}
-
-	// 9. Subuid/subgid
+	// 8. Subuid/subgid
 	fmt.Println("[INFO] Configuring subuid/subgid...")
 	if _, err := shell.ExecuteCmd(chroot, "echo 'root:100000:65536' > /etc/subuid"); err != nil {
 		return fmt.Errorf("failed to write subuid: %w", err)

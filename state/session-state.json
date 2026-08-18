@@ -42,7 +42,11 @@
     "Firmware detection: reduced log verbosity, only prints packages found",
     "Log formatting: added newlines before commands and after results for readability",
     "ExecSilent utility: command execution without logging (firmware detection)",
-    "Build: All 5 binaries compile, go vet clean, golangci-lint clean"
+    "Build: All 5 binaries compile, go vet clean, golangci-lint clean",
+    "Dummy packages: symlink approach (not wrapper scripts), APK v3 apk mkpkg",
+    "Ripgrep NOT a drop-in for grep: rg doesn't support GNU regex extensions (\\+)",
+    "GNU grep removed: BusyBox grep provides POSIX BRE (supports \\+)",
+    "Removed aliases from misc.go (now handled by dummy packages or removed)"
   ],
   "decisions": [
     {
@@ -179,6 +183,21 @@
       "date": "2026-07-26",
       "decision": "Btrfs RAID1 on LUKS (not mdadm)",
       "rationale": "Btrfs native RAID1 is simpler and more reliable than mdadm"
+    },
+    {
+      "date": "2026-08-17",
+      "decision": "Ripgrep NOT used as grep drop-in replacement",
+      "rationale": "rg doesn't support GNU regex extensions (\\+). efi-mkuki uses grep with \\+ for kernel version validation. Symlink grep→rg breaks UKI build."
+    },
+    {
+      "date": "2026-08-17",
+      "decision": "Aliases removed from misc.go",
+      "rationale": "Shell aliases (ll, nano, rm -i, apk --progress, untar, mv -v) removed. Some handled by dummy packages, others simply removed."
+    },
+    {
+      "date": "2026-08-17",
+      "decision": "GNU grep removed, using BusyBox grep",
+      "rationale": "GNU grep has zero reverse dependencies. BusyBox grep provides POSIX BRE (supports \\+). Saves package space."
     }
   ],
   "risks": [

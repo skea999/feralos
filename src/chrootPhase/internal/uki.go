@@ -32,11 +32,11 @@ func BuildUKI(conf *config.Config) error {
 		return fmt.Errorf("failed to create EFI output directory: %w", err)
 	}
 
-	ukiCmd := "CMDLINE=$(cat /etc/kernel/cmdline) && "
+	ukiCmd := "CMDLINE=$(cat /etc/kernel/cmdline) && KERNEL_VER=$(ls /lib/modules/ | head -1) && "
 	if ucodeImg != "" {
-		ukiCmd += fmt.Sprintf("efi-mkuki -c \"${CMDLINE}\" -o /boot/efi/Alpine/linux-lts.efi /boot/vmlinuz-lts %s /boot/booster-lts.img", ucodeImg)
+		ukiCmd += fmt.Sprintf("efi-mkuki -k \"${KERNEL_VER}\" -c \"${CMDLINE}\" -o /boot/efi/Alpine/linux-lts.efi /boot/vmlinuz-lts %s /boot/booster-lts.img", ucodeImg)
 	} else {
-		ukiCmd += "efi-mkuki -c \"${CMDLINE}\" -o /boot/efi/Alpine/linux-lts.efi /boot/vmlinuz-lts /boot/booster-lts.img"
+		ukiCmd += "efi-mkuki -k \"${KERNEL_VER}\" -c \"${CMDLINE}\" -o /boot/efi/Alpine/linux-lts.efi /boot/vmlinuz-lts /boot/booster-lts.img"
 	}
 	if _, err := shell.ExecuteCmd(chroot, ukiCmd); err != nil {
 		return fmt.Errorf("efi-mkuki failed: %w", err)

@@ -39,7 +39,7 @@ standardPackages:
   - mount
   - sed
   - blkid
-  - grep
+  # grep: provided by busybox (POSIX BRE, supports \+)
   # Hardware
   - pciutils
   - usbutils
@@ -119,23 +119,13 @@ videoDrivers:
   intel:
     packages: ["xf86-video-intel", "mesa-dri-intel"]
 
-# Dummy packages: if key is installed, create dummy for replaced package
-# Binary path inferred as /usr/bin/<replaced>
+# Dummy packages: if key is installed, creates symlink for replaced package
+# Symlink goes from /usr/bin/<replaced> → /usr/bin/<replacement>
+# Bin overrides replacement binary name (e.g. ripgrep → rg)
+# NOTE: grep NOT replaced — rg doesn't support GNU regex extensions (\+)
 dummyPackages:
   bat:
     replace: less
-  ripgrep:
-    replace: grep
-  fd:
-    replace: find
-  procs:
-    replace: ps
-  bottom:
-    replace: top
-  viddy:
-    replace: watch
-  gping:
-    replace: ping
 
 # Dynamic logic: if a package is in the install list, apply these changes
 packageLogic:

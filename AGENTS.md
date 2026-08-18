@@ -296,10 +296,26 @@ feralos_installer/
 | Issue | Status | Notes |
 |-------|--------|-------|
 | ~~Vector crashes silently~~ | Resolved | Fixed: socket on `/run/vector/syslog.sock`, `vector-setup` boot service, config written after apk install. Harness vector_* checks pass. |
+| ~~Dummy packages: wrapper vs symlink~~ | Resolved | Wrapper scripts broke `efi-mkuki`. Reverted to symlink approach. `DummyPackageRule.Bin` field added for binary name override. |
+| ~~Ripgrep as grep drop-in~~ | Won't Fix | rg doesn't support POSIX BRE (`\+`). `efi-mkuki` uses `grep -q '^[0-9]\+\.[0-9]...'` for kernel version validation. GNU grep removed — BusyBox grep used instead. |
 
 ---
 
-*Updated: 2026-08-14*
+*Updated: 2026-08-17*
+
+### 2026-08-17 23:30 - Dummy Packages Investigation: Symlink vs Wrapper
+**Agent:** codebase
+**Summary:** Investigated wrapper scripts for dummy packages, reverted to symlinks, found ripgrep incompatibility
+- **Wrapper scripts tested**: Created wrapper scripts (`#!/bin/sh\nexec rg "$@"`) to replace symlinks — broke `efi-mkuki`
+- **Root cause found**: `efi-mkuki` is a POSIX shell script that uses `grep` with POSIX BRE (`\+`). `rg` (Rust regex) doesn't support `\+` → `invalid kernel version` error
+- **Aliases removed**: Shell aliases (ll, nano, rm -i, apk --progress, untar, mv -v) removed from `misc.go`
+- **Dummy packages**: Reverted to symlink approach (APK content, not wrapper scripts)
+- **Bin field added**: `DummyPackageRule.Bin` allows overriding replacement binary name (e.g., `rg` for `ripgrep`)
+- **Ripgrep NOT a drop-in**: rg doesn't support POSIX BRE (`\+`), `-E`/`-G` flags, `--include`/`--exclude` (uses `--glob` instead)
+- **GNU grep removed**: Zero reverse dependencies. BusyBox grep provides POSIX BRE (supports `\+`). Saves package space.
+- **Memory-safe audit**: 480 packages installed, ~13% memory-safe. Most C packages are Alpine base (musl, busybox, kernel) with no memory-safe alternatives available.
+- **Harness**: 27/27 checks pass
+- **Build**: All 5 binaries compile, go vet clean
 
 ### 2026-08-14 10:00 - Folder Reorganization + Lint + Fixes
 **Agent:** codebase
