@@ -221,7 +221,7 @@ func getMinDiskSize(d1, d2 string) (int64, error) {
 func setupSubvolumesAndMounts(chroot string, luksDevice string, d1 string, d2 string) error {
 	subvols := []Subvolume{
 		{Name: "@", Path: "/", Options: "compress=zstd:3,autodefrag,ssd"},
-		{Name: "@swap", Path: "/swap", Options: "autodefrag,ssd,nodev,noexec,nosuid", NoCoW: true},
+		{Name: "@swap", Path: "/swap", Options: "ssd,nodev,noexec,nosuid", NoCoW: true},
 		{Name: "@home", Path: "/home", Options: "compress=zstd:3,autodefrag,ssd"},
 		{Name: "@opt", Path: "/opt", Options: "compress=zstd:3,autodefrag,ssd"},
 		{Name: "@root", Path: "/root", Options: "compress=zstd:3,autodefrag,ssd"},
@@ -269,8 +269,17 @@ func setupSubvolumesAndMounts(chroot string, luksDevice string, d1 string, d2 st
 		}
 	}
 
-	// Step 4: NoCoW already handled by btrfs property set compression none (Step 3)
-	// chattr +C is not needed on btrfs subvolumes — btrfs property set handles it
+	// Step 4: Set NoCoW attribute on NoCoW subvolumes (chattr +C)
+	// btrfs property set compression none only disables compression, NOT NoCoW.
+	// chattr +C on directory makes all files created within inherit NoCoW.
+	for _, s := range subvols {
+		if s.NoCoW {
+			target := chroot + "/" + s.Name
+			if _, err := shell.ExecuteCmd("", fmt.Sprintf("chattr +C %s", target)); err != nil {
+				return fmt.Errorf("failed to set NoCoW on %s: %w", s.Name, err)
+			}
+		}
+	}
 
 	// Step 5: Unmount temporary root
 	if _, err := shell.ExecuteCmd("", fmt.Sprintf("umount %s", chroot)); err != nil {
@@ -286,6 +295,9 @@ func setupSubvolumesAndMounts(chroot string, luksDevice string, d1 string, d2 st
 			}
 		}
 		opts := "subvol=" + s.Name + "," + s.Options
+		if s.NoCoW {
+			opts += ",nodatacow"
+		}
 		if _, err := shell.ExecuteCmd("", fmt.Sprintf("mount -t btrfs -o %s %s %s", opts, luksDevice, target)); err != nil {
 			return fmt.Errorf("failed to mount subvolume %s: %w", s.Name, err)
 		}

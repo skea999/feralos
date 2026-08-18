@@ -74,7 +74,7 @@ func GenerateFstab(conf *config.Config) error {
 		NoCoW   bool
 	}{
 		{Name: "@", Path: "/", Options: "compress=zstd:3,autodefrag,ssd,subvol=@"},
-		{Name: "@swap", Path: "/swap", Options: "autodefrag,ssd,subvol=@swap", NoCoW: true},
+		{Name: "@swap", Path: "/swap", Options: "ssd,subvol=@swap", NoCoW: true},
 		{Name: "@home", Path: "/home", Options: "compress=zstd:3,autodefrag,ssd,subvol=@home"},
 		{Name: "@opt", Path: "/opt", Options: "compress=zstd:3,autodefrag,ssd,subvol=@opt"},
 		{Name: "@root", Path: "/root", Options: "compress=zstd:3,autodefrag,ssd,subvol=@root"},
@@ -100,14 +100,15 @@ func GenerateFstab(conf *config.Config) error {
 	}
 
 	for _, s := range subvols {
-		// Add comment for NoCoW subvolumes
+		opts := s.Options
 		if s.NoCoW {
-			comment := fmt.Sprintf("# %s: NoCoW via 'chattr +C' + btrfs property set compression none\n", s.Name)
+			opts += ",nodatacow"
+			comment := fmt.Sprintf("# %s: NoCoW via nodatacow + btrfs property set compression none\n", s.Name)
 			if _, err := file.WriteString(comment); err != nil {
 				return fmt.Errorf("failed to write fstab comment for %s: %w", s.Name, err)
 			}
 		}
-		line := fmt.Sprintf("LABEL=myroot  %-25s  btrfs  %-70s  0  0\n", s.Path, s.Options)
+		line := fmt.Sprintf("LABEL=myroot  %-25s  btrfs  %-70s  0  0\n", s.Path, opts)
 		if _, err := file.WriteString(line); err != nil {
 			return fmt.Errorf("failed to write fstab entry for %s: %w", s.Name, err)
 		}

@@ -100,9 +100,9 @@ func RunBtrfsSetup(conf *config.Config) error {
 }
 
 // createSwapfile creates a swapfile in the @swap subvolume.
-// Btrfs requires NoCoW for swapfiles.
-// NoCoW is already set on /swap directory by setupSubvolumesAndMounts (chattr +C).
-// Compression is disabled via compress=none mount option on @swap subvolume.
+// Btrfs requires NoCoW + no compression for swapfiles.
+// NoCoW is handled by nodatacow mount option on @swap subvolume.
+// Compression is disabled via btrfs property set compression none.
 func createSwapfile(chroot string) error {
 	swapDir := chroot + "/swap"
 	swapFile := swapDir + "/swapfile"
@@ -112,13 +112,16 @@ func createSwapfile(chroot string) error {
 		return fmt.Errorf("failed to create swap directory: %w", err)
 	}
 
-	// Verify NoCoW is set on directory
+	// Verify NoCoW is set (nodatacow mount option handles this)
 	fmt.Println("[INFO] Verifying NoCoW on /swap directory...")
 	if _, err := shell.ExecuteCmd("", fmt.Sprintf("lsattr -d %s", swapDir)); err != nil {
 		fmt.Printf("[WARNING] Could not verify NoCoW: %v\n", err)
 	}
 
-	// Create swapfile with dd (8G)
+	// Remove old swapfile if exists
+	_, _ = shell.ExecuteCmd("", fmt.Sprintf("rm -f %s", swapFile))
+
+	// Create swapfile with dd (8G) — fallocate not supported on btrfs
 	if _, err := shell.ExecuteCmd("", fmt.Sprintf("dd if=/dev/zero of=%s bs=1M count=8192 status=progress", swapFile)); err != nil {
 		return fmt.Errorf("failed to create swapfile: %w", err)
 	}
@@ -127,6 +130,11 @@ func createSwapfile(chroot string) error {
 	if _, err := shell.ExecuteCmd("", fmt.Sprintf("chmod 600 %s", swapFile)); err != nil {
 		return fmt.Errorf("failed to chmod swapfile: %w", err)
 	}
+
+	// Verify NoCoW on swapfile
+	fmt.Println("[INFO] Verifying NoCoW on swapfile...")
+	lsattrOut, _ := shell.ExecuteCmd("", fmt.Sprintf("lsattr %s", swapFile))
+	fmt.Printf("[INFO] lsattr swapfile: %s\n", strings.TrimSpace(lsattrOut))
 
 	// Format as swap
 	if _, err := shell.ExecuteCmd("", fmt.Sprintf("mkswap %s", swapFile)); err != nil {
@@ -162,7 +170,7 @@ func getBtrfsUUID(device string) string {
 func setupSubvolumesAndMounts(chroot string, luksDevice string, disk string) error {
 	subvols := []Subvolume{
 		{Name: "@", Path: "/", Options: "compress=zstd:3,autodefrag,ssd"},
-		{Name: "@swap", Path: "/swap", Options: "autodefrag,ssd,nodev,noexec,nosuid", NoCoW: true},
+		{Name: "@swap", Path: "/swap", Options: "ssd,nodev,noexec,nosuid", NoCoW: true},
 		{Name: "@home", Path: "/home", Options: "compress=zstd:3,autodefrag,ssd"},
 		{Name: "@opt", Path: "/opt", Options: "compress=zstd:3,autodefrag,ssd"},
 		{Name: "@root", Path: "/root", Options: "compress=zstd:3,autodefrag,ssd"},
@@ -215,8 +223,17 @@ func setupSubvolumesAndMounts(chroot string, luksDevice string, disk string) err
 		}
 	}
 
-	// Step 4: NoCoW already handled by btrfs property set compression none (Step 3)
-	// chattr +C is not needed on btrfs subvolumes — btrfs property set handles it
+	// Step 4: Set NoCoW attribute on NoCoW subvolumes (chattr +C)
+	// btrfs property set compression none only disables compression, NOT NoCoW.
+	// chattr +C on directory makes all files created within inherit NoCoW.
+	for _, s := range subvols {
+		if s.NoCoW {
+			target := chroot + "/" + s.Name
+			if _, err := shell.ExecuteCmd("", fmt.Sprintf("chattr +C %s", target)); err != nil {
+				return fmt.Errorf("failed to set NoCoW on %s: %w", s.Name, err)
+			}
+		}
+	}
 
 	// Step 5: Unmount temporary root
 	if _, err := shell.ExecuteCmd("", fmt.Sprintf("umount %s", chroot)); err != nil {
@@ -232,6 +249,9 @@ func setupSubvolumesAndMounts(chroot string, luksDevice string, disk string) err
 			}
 		}
 		opts := "subvol=" + s.Name + "," + s.Options
+		if s.NoCoW {
+			opts += ",nodatacow"
+		}
 		if _, err := shell.ExecuteCmd("", fmt.Sprintf("mount -t btrfs -o %s %s %s", opts, luksDevice, target)); err != nil {
 			return fmt.Errorf("failed to mount subvolume %s: %w", s.Name, err)
 		}
