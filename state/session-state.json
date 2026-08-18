@@ -1,5 +1,5 @@
 {
-  "goal": "Build FeralOS — a new Linux distribution based on Alpine, focused on memory safety and security",
+  "goal": "Build FeralOS \u2014 a new Linux distribution based on Alpine, focused on memory safety and security",
   "status": "active",
   "phase": "Phase 1: Installer",
   "active_goals": [
@@ -21,19 +21,19 @@
     "Code review completed: modules moved to packageLogic",
     "Removed additional modules from services.go (booster doesn't use /etc/modules)",
     "Moved qemu/kvm groups from hardcoded extraGroups to internalRules.yaml",
-    "Modules to packageLogic: 8021q→vlan, bridge/br_netfilter→bridge, zstd_compress→zstd, overlay→incus/podman/docker",
+    "Modules to packageLogic: 8021q\u2192vlan, bridge/br_netfilter\u2192bridge, zstd_compress\u2192zstd, overlay\u2192incus/podman/docker",
     "baseModules in internalRules.yaml: r8169, bonding, binfmt_misc, zsmalloc",
     "booster.go: Removed boosterDefaultModules map, uses u.Modules for modules_force_load",
-    "incus chain: incus-feature → incus-feature-vm/client/utils; incus-feature-vm → qemu-system-x86_64",
-    "Fixed kvm module: kvm-amd/kvm-intel → kvm (Alpine kernel)",
-    "Verified incus chain: incus-feature → incus-feature-vm → qemu-system-x86_64 → kvm module in booster.yaml",
+    "incus chain: incus-feature \u2192 incus-feature-vm/client/utils; incus-feature-vm \u2192 qemu-system-x86_64",
+    "Fixed kvm module: kvm-amd/kvm-intel \u2192 kvm (Alpine kernel)",
+    "Verified incus chain: incus-feature \u2192 incus-feature-vm \u2192 qemu-system-x86_64 \u2192 kvm module in booster.yaml",
     "Rev. 8 reorganization: both phases get orchestrators, main.go simplified to 2 calls",
     "New chrootPhase files: boot.go, storage.go, logging.go, misc.go, network.go",
     "New orchestrators: hostPhase/host_phase.go, chrootPhase/chroot_phase.go",
     "Reduced services.go: only OpenRC runlevels (moved to misc.go/network.go)",
-    "Merged dmcrypt.go → zswap.go (local getPartitionSpacer/getDiskSuffix)",
-    "Renamed functions: InstallPackages→SetupPackages, BuildAndDeployUKI→BuildUKI",
-    "Removed enableEncryption (was defined but never checked — bug fix)",
+    "Merged dmcrypt.go \u2192 zswap.go (local getPartitionSpacer/getDiskSuffix)",
+    "Renamed functions: InstallPackages\u2192SetupPackages, BuildAndDeployUKI\u2192BuildUKI",
+    "Removed enableEncryption (was defined but never checked \u2014 bug fix)",
     "Deleted 7 old files: chroot_preparation.go, keyfile.go, booster.go, hooks.go, utils.go, dmcrypt.go, configurator.go",
     "Folder reorganization: hostPhase/internal/, chrootPhase/internal/, chrootPhase/features/",
     "Lint: all go vet + golangci-lint issues fixed (errcheck, gofmt, gosec, gocritic, prealloc, errorlint, etc.)",
@@ -46,7 +46,11 @@
     "Dummy packages: symlink approach (not wrapper scripts), APK v3 apk mkpkg",
     "Ripgrep NOT a drop-in for grep: rg doesn't support GNU regex extensions (\\+)",
     "GNU grep removed: BusyBox grep provides POSIX BRE (supports \\+)",
-    "Removed aliases from misc.go (now handled by dummy packages or removed)"
+    "Removed aliases from misc.go (now handled by dummy packages or removed)",
+    "Added nodatacow mount option for NoCoW subvolumes (@swap, @srv, @var-log, etc.)",
+    "Removed autodefrag from @swap subvolume (btrfs recommends against for swap)",
+    "chattr +C fails on btrfs with Invalid argument (btrfs sets NoCoW automatically)",
+    "Swapfile still fails at boot: swapon Invalid argument (kernel 6.18 regression?)"
   ],
   "decisions": [
     {
@@ -87,7 +91,7 @@
     {
       "date": "2026-08-08",
       "decision": "Vector socket path: /run/vector/syslog.sock (not /dev/log)",
-      "rationale": "Vector user can't create socket in /dev (root-owned). /run/ is tmpfs, writable by all. Symlink /dev/log → /run/vector/syslog.sock for compatibility."
+      "rationale": "Vector user can't create socket in /dev (root-owned). /run/ is tmpfs, writable by all. Symlink /dev/log \u2192 /run/vector/syslog.sock for compatibility."
     },
     {
       "date": "2026-08-08",
@@ -167,7 +171,7 @@
     {
       "date": "2026-07-28",
       "decision": "LUKS keyfile embedded in initramfs for auto-unlock",
-      "rationale": "booster waits for interactive passphrase in QEMU headless — keyfile in initramfs enables automatic unlock."
+      "rationale": "booster waits for interactive passphrase in QEMU headless \u2014 keyfile in initramfs enables automatic unlock."
     },
     {
       "date": "2026-07-26",
@@ -187,7 +191,7 @@
     {
       "date": "2026-08-17",
       "decision": "Ripgrep NOT used as grep drop-in replacement",
-      "rationale": "rg doesn't support GNU regex extensions (\\+). efi-mkuki uses grep with \\+ for kernel version validation. Symlink grep→rg breaks UKI build."
+      "rationale": "rg doesn't support GNU regex extensions (\\+). efi-mkuki uses grep with \\+ for kernel version validation. Symlink grep\u2192rg breaks UKI build."
     },
     {
       "date": "2026-08-17",
@@ -216,6 +220,12 @@
       "severity": "high",
       "status": "mitigated",
       "mitigation": "LUKS keyfile auto-unlock, console=ttyS0,115200, per-device keyfile args"
+    },
+    {
+      "risk": "btrfs swapfile swapon fails on kernel 6.18",
+      "severity": "medium",
+      "status": "open",
+      "mitigation": "Investigate kernel 6.18 btrfs swapfile requirements. May need different approach."
     }
   ],
   "next_actions": [
