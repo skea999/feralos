@@ -1249,6 +1249,7 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		"sudo_works":         "sudo -n id 2>&1 || echo 'sudo requires password (expected for non-root)'",
 		"less_dummy":         "echo '=== file type ==='; ls -la /usr/bin/less 2>&1; echo '=== readlink ==='; readlink -f /usr/bin/less 2>&1; echo '=== version ==='; /usr/bin/less --version 2>&1 | head -1 || echo 'less binary not found'",
 		"lsattr_nocow":       "echo '=== NoCoW subvolume attributes ==='; for dir in /swap /srv /var/lib/ex /var/log /var/spool /var/tmp /nix/var/log; do echo \"=== $dir ===\"; lsattr -d \"$dir\" 2>&1; f=$(find \"$dir\" -type f 2>/dev/null | head -1); if [ -n \"$f\" ]; then lsattr \"$f\" 2>&1; else echo 'no files in dir'; fi; done; echo '=== Compressed subvolume attributes ==='; for dir in / /home /opt /root /tmp /var /var/lib/libvirt /var/lib/incus /var/lib/containerd /var/lib/docker /var/lib/containers /var/lib/vector /var/cache /var/opt /usr/local /boot /nix/store /nix/var/nix /nix/var/nix/build /btrbk; do echo \"=== $dir ===\"; lsattr -d \"$dir\" 2>&1; done",
+		"services_status":    "rc-status --all 2>/dev/null || rc-status 2>/dev/null",
 	}
 
 	result := VerifyResult{RunDir: cfg.RunDir, Success: true, Checks: map[string]CheckResult{}}
@@ -1556,8 +1557,11 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		logErrRe := regexp.MustCompile(`(?i)(error|failed|critical|\[ !! \]|in use but fuser finds nothing|invalid argument|cannot set)`)
 		// Innocuous lines: counters/negations ("0 errors", "no failed", ...),
 		// package name libgpg-error, efibootmgr "error trace:" on QEMU (no real
-		// EFI vars — expected, command runs with || true, exit 0).
-		allowRe := regexp.MustCompile(`(?i)(0 errors|no errors|errors: 0|0 failed|no failed|failed: 0|zero errors|libgpg-error|error trace:)`)
+		// EFI vars — expected, command runs with || true, exit 0), smartd
+		// "start-stop-daemon: no matching processes found" (no SMART hardware
+		// in QEMU — daemon never starts), fsck "fsck.vfat: No such file or
+		// directory" (fsck.vfat not installed — ESP check cannot run in QEMU).
+		allowRe := regexp.MustCompile(`(?i)(0 errors|no errors|errors: 0|0 failed|no failed|failed: 0|zero errors|libgpg-error|error trace:|start-stop-daemon: no matching processes found|fsck\.vfat: No such file or directory)`)
 		var problems []string
 		for _, logName := range []string{"target-serial.log", "installer.log"} {
 			path := filepath.Join(cfg.RunDir, logName)
@@ -1583,6 +1587,41 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		result.Checks["log_errors"] = logCheck
 	}
 
+	// Services active check — verify configured services are actually
+	// running (rc-status), not just that their init scripts printed [ ok ].
+	// Excluded services that cannot work under QEMU:
+	//   - smartd: no SMART-capable hardware in QEMU, daemon never starts
+	//   - fsck:   fsck.vfat not installed, ESP check fails silently
+	//   - udev-settle: one-shot wait service, not persistent
+	if svcCheck, ok := result.Checks["services_status"]; ok {
+		expected := []string{
+			// sysinit
+			"devfs", "dmesg", "sysctl", "sysfs",
+			// boot
+			"hwclock", "hostname", "bootmisc", "binfmt", "root", "procfs",
+			"loadkmap", "localmount", "swap", "btrfs-scan", "dmcrypt",
+			"udev", "udev-trigger", "vector", "vector-setup",
+			// default
+			"cgroups", "networking", "cronie", "chronyd", "dbus", "sshd",
+			"acpid", "irqbalance", "fwupd", "earlyoom", "incusd", "udev-postmount",
+		}
+		states := parseRCStatus(svcCheck.Detail)
+		var notStarted []string
+		for _, name := range expected {
+			if state, ok := states[name]; !ok {
+				notStarted = append(notStarted, name+"=missing")
+			} else if state != "started" {
+				notStarted = append(notStarted, name+"="+state)
+			}
+		}
+		if len(notStarted) > 0 {
+			svcCheck.Pass = false
+			svcCheck.Detail += "\nServices not active: " + strings.Join(notStarted, ", ")
+			result.Success = false
+		}
+		result.Checks["services_status"] = svcCheck
+	}
+
 	return result, nil
 }
 
@@ -1600,6 +1639,22 @@ func extractLsattrSection(detail, dir string) string {
 		return rest
 	}
 	return rest[:endIdx]
+}
+
+// parseRCStatus parses `rc-status --all` output into a map of service name
+// to state. Lines look like: "  sshd  [ started  ]" or, for supervise-daemon
+// services: "  vector  [ started 00:00:36 (0) ]" (uptime + exit code).
+func parseRCStatus(detail string) map[string]string {
+	states := make(map[string]string)
+	stateRe := regexp.MustCompile(`^\s*(\S+)\s+\[\s*(\w+)`)
+	for _, line := range strings.Split(detail, "\n") {
+		m := stateRe.FindStringSubmatch(line)
+		if m == nil {
+			continue
+		}
+		states[m[1]] = m[2]
+	}
+	return states
 }
 
 func hasHealthyBtrfsRaid1Layout(detail string) bool {
