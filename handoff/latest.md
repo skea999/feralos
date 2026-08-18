@@ -23,7 +23,9 @@ Phase 1: Go installer complete. Both btrfsStandard and btrfsStandardServer pass 
   - DMS + quickshell from **stable nixpkgs channel** (nixos-26.05) — dms-shell is packaged in nixpkgs
   - Nix: `--option sandbox false` chroot-only (trusted-users), TMPDIR on @nix-var-nix-build subvolume, registry pinned to stable
   - Alpine: wayland-libs-server, greeter in greetd group, elogind seat provider, no render group, no turnstile (edge only)
-  - Harness: virtio-gpu-pci, checks niri_config_valid/greetd_config/niri_greeter/wayvnc_installed/dms_installed — 35/36 calibrated (log_errors whitelist extended)
+  - Harness: virtio-gpu-pci, checks niri_config_valid/greetd_config/niri_greeter/wayvnc_installed/dms_installed — **37/37 PASS** (run 2026-08-18T20-25-07Z)
+- **sudoers fix** — Alpine default `/etc/sudoers` has `@includedir` commented out → `/etc/sudoers.d/wheel` ineffective (wheel sudo denied). Enabled with sed in misc.go + new `sudoers_includedir` harness check
+- **nix.conf clean** — `allow-unfree`/`allow-insecure` not recognized by Alpine's nix build (warning noise) — removed; NIXPKGS_ALLOW_* env vars in profile.d/fish/bash carry it permanently
 - **Dummy packages working** — APK v3 `apk mkpkg` creates valid packages with symlinks.
 - **Ripgrep NOT a drop-in for grep** — rg doesn't support POSIX BRE (`\+`), breaks `efi-mkuki`. GNU grep removed — BusyBox grep used instead.
 
@@ -131,8 +133,9 @@ Phase 1: Go installer complete. Both btrfsStandard and btrfsStandardServer pass 
 - **Log errors check**: harness `log_errors` scans target-serial.log + installer.log for error/failed markers, fails run on any match (non-regression guard, whitelist for known innocuous lines incl. QEMU-only smartd/fsck)
 - **Services active check**: harness `services_status` verifies configured services are actually started via `rc-status --all`; excludes QEMU-only services (smartd, fsck, udev-settle); parses supervise-daemon format
 - **niri DE**: data in internalRules (`nixPackages` field, auto-enables Nix) + config logic in `chrootPhase/desktops/niri.go` (kde/gnome stay data-only)
-- **Nix stable**: registry pinned to nixos-26.05 (default maps nixpkgs→unstable); sandbox disabled only for chroot install; TMPDIR on nix build subvolume
+- **Nix stable**: registry pinned to nixos-26.05 (default maps nixpkgs→unstable); sandbox disabled only for chroot install; TMPDIR on nix build subvolume; NIXPKGS_ALLOW_* env vars (not nix.conf — unknown settings)
 - **Seat provider**: elogind (not seatd); no render group (Alpine uses video); no turnstile (edge only)
+- **sudoers**: `@includedir /etc/sudoers.d` enabled (Alpine default comments it out — wheel sudo was denied)
 
 ## Memory-Safe Alternatives
 

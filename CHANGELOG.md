@@ -69,6 +69,8 @@ All notable changes to FeralOS will be documented in this file.
 - niri greetd crash: missing `wayland-libs-server` (niri dlopens libwayland-server.so.0 at runtime → NoWaylandLib panic) + greeter not in `greetd` group (couldn't traverse /var/lib/greetd 750)
 - nix build in chroot: sandbox pivot_root EINVAL — `--option sandbox false` chroot-only (trusted-users = root @wheel), TMPDIR on @nix-var-nix-build subvolume (/tmp is noexec+0755)
 - nix stable channel: default flake registry maps nixpkgs→unstable — `nix registry add nixpkgs github:NixOS/nixpkgs/nixos-26.05`
+- sudoers: Alpine default `/etc/sudoers` has `@includedir` commented out → `/etc/sudoers.d/wheel` ineffective (wheel sudo denied) — enabled with sed + new `sudoers_includedir` harness check
+- nix.conf: removed `allow-unfree`/`allow-insecure` (unknown settings in Alpine's nix build — warning noise; NIXPKGS_ALLOW_* env vars carry it permanently)
 
 ### Changed
 - Migrated from monolithic shell script to modular Go architecture

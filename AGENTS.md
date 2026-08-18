@@ -313,8 +313,9 @@ feralos_installer/
 - **Nix fixes**: `--option sandbox false` chroot-only (pivot_root EINVAL in chroot; `trusted-users = root @wheel` so the flag is honored — NOT in nix.conf), `nix registry add nixpkgs github:NixOS/nixpkgs/nixos-26.05` (default registry maps nixpkgs→unstable, overriding stable channel), TMPDIR=/nix/var/nix/build/tmp (on @nix-var-nix-build subvolume — /tmp is noexec+0755 for security)
 - **Alpine fixes**: `wayland-libs-server` (niri dlopens libwayland-server.so.0 at runtime — missing caused NoWaylandLib panic → greetd crashed), greeter in `greetd` group (traverse /var/lib/greetd 750), elogind instead of seatd (seat provider), render group removed (doesn't exist on Alpine — video covers DRM), turnstile removed (edge only, not 3.24)
 - **Harness**: DesktopEnvironment in RunConfig/VerifyConfig, virtio-gpu-pci for niri (render node), checks: niri_config_valid, greetd_config, niri_greeter, wayvnc_installed, dms_installed; services_status expects greetd+elogind when DE=niri
-- **Calibration**: 35/36 (log_errors false positive — dpkg retry lines + non-interactive warning whitelisted), simulated re-check 0 matches
-- **Known issue (separate)**: /etc/sudoers has `@includedir /etc/sudoers.d` commented out — wheel sudo denied (sudo_works passes only as root)
+- **Calibration**: 35/36 (log_errors false positive — dpkg retry lines + non-interactive warning whitelisted), simulated re-check 0 matches; final run 37/37 PASS (commit `9becf36`)
+- **sudoers fix**: Alpine default /etc/sudoers has `@includedir` commented out → /etc/sudoers.d/wheel ineffective (wheel sudo denied). Fixed: `sed -i 's/^# @includedir/@includedir/' /etc/sudoers` in misc.go + new `sudoers_includedir` harness check
+- **nix.conf cleanup**: `allow-unfree`/`allow-insecure` are NOT recognized by Alpine's nix build (unknown setting warnings on every command) — removed. NIXPKGS_ALLOW_* env vars in /etc/profile.d/nix-daemon.sh + fish/bash carry it permanently
 
 ### 2026-08-18 20:15 - Services Active Check + QEMU-Only Whitelist
 **Agent:** codebase

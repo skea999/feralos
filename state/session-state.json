@@ -71,7 +71,10 @@
     "nix fixes: --option sandbox false chroot-only (trusted-users = root @wheel), TMPDIR=/nix/var/nix/build/tmp on @nix-var-nix-build subvolume (/tmp noexec+0755), nix registry pinned to nixos-26.05 stable (default maps nixpkgs→unstable)",
     "Alpine fixes: wayland-libs-server (niri NoWaylandLib panic), greeter in greetd group, elogind seat provider (not seatd), render group removed (doesn't exist on Alpine), turnstile removed (edge only)",
     "Harness DE=niri: DesktopEnvironment in RunConfig/VerifyConfig, virtio-gpu-pci, checks niri_config_valid/greetd_config/niri_greeter/wayvnc_installed/dms_installed, services_status greetd+elogind",
-    "niri harness calibrated: 35/36 (log_errors false positive — dpkg retry + non-interactive warning whitelisted), simulated re-check 0 matches; dms-shell 1.4.6 + quickshell 0.3.0 from stable 26.05"
+    "niri harness calibrated: 35/36 (log_errors false positive — dpkg retry + non-interactive warning whitelisted), simulated re-check 0 matches; dms-shell 1.4.6 + quickshell 0.3.0 from stable 26.05",
+    "sudoers fix: Alpine default /etc/sudoers has @includedir commented out → /etc/sudoers.d/wheel ineffective (wheel sudo denied). Fixed: sed in misc.go + new sudoers_includedir harness check",
+    "nix.conf cleanup: allow-unfree/allow-insecure NOT recognized by Alpine's nix build (unknown setting warnings) — removed; NIXPKGS_ALLOW_* env vars in profile.d/fish/bash carry it permanently",
+    "Final niri harness run: 37/37 PASS (run 2026-08-18T20-25-07Z) — greetd/elogind/dms/nix-daemon/vector started, niri greeter active, sudoers_includedir enabled, log_errors clean"
   ],
   "decisions": [
     {
@@ -258,6 +261,16 @@
       "date": "2026-08-18",
       "decision": "elogind as seat provider (not seatd); render group removed; turnstile removed",
       "rationale": "greetd crashed because libseat had no backend — elogind provides logind via D-Bus (starts after dbus, before greetd). render group does not exist on Alpine (video covers DRM access). turnstile is edge-only, not in Alpine 3.24 — removed with comment to include when stable."
+    },
+    {
+      "date": "2026-08-18",
+      "decision": "NIXPKGS_ALLOW_* env vars (not nix.conf allow-unfree/allow-insecure) for unfree/insecure packages",
+      "rationale": "allow-unfree/allow-insecure are NOT recognized by Alpine's nix build (unknown setting warnings on every nix command). The NIXPKGS_ALLOW_INSECURE/NIXPKGS_ALLOW_UNFREE env vars in /etc/profile.d/nix-daemon.sh + fish/bash are the working mechanism and are permanent. TMPDIR=/nix/var/nix/build/tmp also permanent via profile.d (not a nix.conf option)."
+    },
+    {
+      "date": "2026-08-18",
+      "decision": "sudoers @includedir enabled (sed in misc.go)",
+      "rationale": "Alpine's default /etc/sudoers has '@includedir /etc/sudoers.d' commented out, so /etc/sudoers.d/wheel (%wheel ALL=(ALL) ALL) was never loaded — wheel sudo denied. Enabled with sed; verified by new sudoers_includedir harness check (37/37 PASS)."
     }
   ],
   "risks": [
