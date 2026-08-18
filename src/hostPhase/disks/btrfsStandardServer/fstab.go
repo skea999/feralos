@@ -95,6 +95,11 @@ func GenerateFstab(conf *config.Config) error {
 		{Name: "@var-tmp", Path: "/var/tmp", Options: "autodefrag,ssd,nodev,noexec,nosuid,subvol=@var-tmp", NoCoW: true},
 		{Name: "@usr-local", Path: "/usr/local", Options: "compress=zstd:3,autodefrag,ssd,subvol=@usr-local"},
 		{Name: "@boot", Path: "/boot", Options: "compress=zstd:3,autodefrag,ssd,subvol=@boot"},
+		// Nix package manager (always present — Nix can be enabled later)
+		{Name: "@nix-store", Path: "/nix/store", Options: "compress=zstd:3,autodefrag,ssd,subvol=@nix-store"},
+		{Name: "@nix-var-nix", Path: "/nix/var/nix", Options: "compress=zstd:3,autodefrag,ssd,subvol=@nix-var-nix"},
+		{Name: "@nix-var-log", Path: "/nix/var/log", Options: "autodefrag,ssd,nodev,noexec,nosuid,subvol=@nix-var-log", NoCoW: true},
+		{Name: "@nix-var-nix-build", Path: "/nix/var/nix/build", Options: "compress=zstd:3,autodefrag,ssd,subvol=@nix-var-nix-build"},
 		// Btrbk backup
 		{Name: "@btrbk", Path: "/btrbk", Options: "compress=zstd:3,autodefrag,ssd,subvol=@btrbk"},
 	}
@@ -125,14 +130,15 @@ func GenerateFstab(conf *config.Config) error {
 		return fmt.Errorf("failed to write fstab EFI2 entry: %w", err)
 	}
 
-	// 3. Swap (LUKS-backed, using labels)
+	// 3. Swap (LUKS-backed dm-crypt mappers — use /dev/mapper paths, not
+	// LABEL: busybox swapon -a can't resolve by-label symlinks at swap time)
 	s1lower := strings.ToLower(diskSuffix(d1))
 	s2lower := strings.ToLower(diskSuffix(d2))
 
-	if _, err := fmt.Fprintf(file, "\nLABEL=swap-%s%s  none                    swap   defaults,sw,pri=2  0  0\n", s1lower, sp1+"3"); err != nil {
+	if _, err := fmt.Fprintf(file, "\n/dev/mapper/swap-%s%s  none                    swap   defaults,sw,pri=2  0  0\n", s1lower, sp1+"3"); err != nil {
 		return fmt.Errorf("failed to write fstab swap1 entry: %w", err)
 	}
-	if _, err := fmt.Fprintf(file, "LABEL=swap-%s%s  none                    swap   defaults,sw,pri=2  0  0\n", s2lower, sp2+"3"); err != nil {
+	if _, err := fmt.Fprintf(file, "/dev/mapper/swap-%s%s  none                    swap   defaults,sw,pri=2  0  0\n", s2lower, sp2+"3"); err != nil {
 		return fmt.Errorf("failed to write fstab swap2 entry: %w", err)
 	}
 

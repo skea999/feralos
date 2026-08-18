@@ -1616,8 +1616,10 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		// runner-side Debian "dpkg was interrupted" (stale runner image, not
 		// the installer) — including the retry lines that contain bare "failed",
 		// and the installer's non-interactive "ignoring error and continuing"
-		// warning (informational — retries exhausted, continues).
-		allowRe := regexp.MustCompile(`(?i)(0 errors|no errors|errors: 0|0 failed|no failed|failed: 0|zero errors|libgpg-error|error trace:|start-stop-daemon: no matching processes found|fsck\.vfat: No such file or directory|dpkg was interrupted|dpkg --configure -a|failed, retrying in|ignoring error and continuing)`)
+		// warning (informational — retries exhausted, continues). Also
+		// mdadm "error opening /dev/md?" (no pre-existing RAID) and mkfs.btrfs
+		// usage-help example lines (contain "error" in the example text).
+		allowRe := regexp.MustCompile(`(?i)(0 errors|no errors|errors: 0|0 failed|no failed|failed: 0|zero errors|libgpg-error|error trace:|start-stop-daemon: no matching processes found|fsck\.vfat: No such file or directory|dpkg was interrupted|dpkg --configure -a|failed, retrying in|ignoring error and continuing|error opening /dev/md|E\.g\.: dev1)`)
 		var problems []string
 		for _, logName := range []string{"target-serial.log", "installer.log"} {
 			path := filepath.Join(cfg.RunDir, logName)
@@ -1685,6 +1687,22 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 			result.Success = false
 		}
 		result.Checks["services_status"] = svcCheck
+	}
+
+	// swap_status must be truthful: when swap is expected (enableSwapfile for
+	// btrfsStandard, always for btrfsStandardServer LUKS swap), the check
+	// fails if no swap device is actually active (swapon -s header-only).
+	if swapCheck, ok := result.Checks["swap_status"]; ok {
+		swapExpected := cfg.EnableSwapfile || cfg.DiskLayout == layoutBtrfsStandardServer
+		hasActiveSwap := strings.Contains(swapCheck.Detail, "/swap/swapfile") ||
+			strings.Contains(swapCheck.Detail, "/dev/mapper/swap-") ||
+			strings.Contains(swapCheck.Detail, "/dev/zram")
+		if swapExpected && !hasActiveSwap {
+			swapCheck.Pass = false
+			swapCheck.Detail += "\nExpected active swap (enableSwapfile or btrfsStandardServer) but none found"
+			result.Checks["swap_status"] = swapCheck
+			result.Success = false
+		}
 	}
 
 	return result, nil

@@ -134,13 +134,12 @@ func RunBtrfsSetup(conf *config.Config) error {
 		return fmt.Errorf("mkswap failed on %s: %w", d2, err)
 	}
 
-	// 5a. Configure dmcrypt LUKS swap (keyfile + conf.d) for auto-unlock.
-	// Part of the disk layout (hostPhase): files written via the shell
-	// wrapper with host paths (no chroot commands), cryptsetup runs outside
-	// the chroot on the host devices.
-	swapKey := "/etc/dmcrypt/swap.key"
-	hostSwapKey := i.ChrootDir + swapKey
-	if _, err := shell.ExecuteCmd("", fmt.Sprintf("mkdir -p %s/etc/dmcrypt && dd if=/dev/urandom of=%s bs=512 count=4 && chmod 400 %s", i.ChrootDir, hostSwapKey, hostSwapKey)); err != nil {
+	// 5a. Configure dmcrypt LUKS swap keyfile for auto-unlock.
+	// The chroot root fs is NOT mounted yet — use a host temp path for the
+	// keyfile (luksAddKey runs on host devices). The keyfile + dmcrypt conf
+	// are installed into the chroot after the subvolumes are mounted (step 6a).
+	hostSwapKey := "/tmp/feralos-swap.key"
+	if _, err := shell.ExecuteCmd("", fmt.Sprintf("dd if=/dev/urandom of=%s bs=512 count=4 && chmod 400 %s", hostSwapKey, hostSwapKey)); err != nil {
 		return fmt.Errorf("failed to create swap keyfile: %w", err)
 	}
 	if err := LuksAddKey(swapPart1, hostSwapKey, u.Password); err != nil {
@@ -148,22 +147,6 @@ func RunBtrfsSetup(conf *config.Config) error {
 	}
 	if err := LuksAddKey(swapPart2, hostSwapKey, u.Password); err != nil {
 		return fmt.Errorf("failed to add key to swap2: %w", err)
-	}
-
-	dmcryptConf := fmt.Sprintf(`
-target=swap-%s%s
-source=UUID=%s
-key=%s
-
-target=swap-%s%s
-source=UUID=%s
-key=%s
-
-`, swapSuffix1, getPartitionSpacer(d1)+"3", swapUUID1, swapKey,
-		swapSuffix2, getPartitionSpacer(d2)+"3", swapUUID2, swapKey)
-	escapedDmcryptConf := strings.ReplaceAll(dmcryptConf, "'", "'\\''")
-	if _, err := shell.ExecuteCmd("", fmt.Sprintf("echo '%s' > %s/etc/conf.d/dmcrypt", escapedDmcryptConf, i.ChrootDir)); err != nil {
-		return fmt.Errorf("failed to write dmcrypt config: %w", err)
 	}
 
 	// 6. Format data partitions (partition 4)
@@ -186,6 +169,28 @@ key=%s
 	// 8. Setup subvolumes and mounts
 	if err := setupSubvolumesAndMounts(i.ChrootDir, luksRAID1, d1, d2); err != nil {
 		return err
+	}
+
+	// 8a. Install swap keyfile + dmcrypt conf into the chroot (root fs is
+	// now mounted at ChrootDir). apk never overwrites these new files.
+	swapKey := "/etc/dmcrypt/swap.key"
+	if _, err := shell.ExecuteCmd("", fmt.Sprintf("mkdir -p %s/etc/dmcrypt %s/etc/conf.d && install -m 400 /tmp/feralos-swap.key %s/etc/dmcrypt/swap.key && rm -f /tmp/feralos-swap.key", i.ChrootDir, i.ChrootDir, i.ChrootDir)); err != nil {
+		return fmt.Errorf("failed to install swap keyfile: %w", err)
+	}
+	dmcryptConf := fmt.Sprintf(`
+target=swap-%s%s
+source=UUID=%s
+key=%s
+
+target=swap-%s%s
+source=UUID=%s
+key=%s
+
+`, swapSuffix1, getPartitionSpacer(d1)+"3", swapUUID1, swapKey,
+		swapSuffix2, getPartitionSpacer(d2)+"3", swapUUID2, swapKey)
+	escapedDmcryptConf := strings.ReplaceAll(dmcryptConf, "'", "'\\''")
+	if _, err := shell.ExecuteCmd("", fmt.Sprintf("echo '%s' > %s/etc/conf.d/dmcrypt", escapedDmcryptConf, i.ChrootDir)); err != nil {
+		return fmt.Errorf("failed to write dmcrypt config: %w", err)
 	}
 
 	// 9. Inject kernel cmdline for booster
@@ -277,6 +282,11 @@ func setupSubvolumesAndMounts(chroot string, luksDevice string, d1 string, d2 st
 		{Name: "@var-tmp", Path: "/var/tmp", Options: "autodefrag,ssd,nodev,noexec,nosuid", NoCoW: true},
 		{Name: "@usr-local", Path: "/usr/local", Options: "compress=zstd:3,autodefrag,ssd"},
 		{Name: "@boot", Path: "/boot", Options: "compress=zstd:3,autodefrag,ssd"},
+		// Nix package manager (always present — Nix can be enabled later)
+		{Name: "@nix-store", Path: "/nix/store", Options: "compress=zstd:3,autodefrag,ssd"},
+		{Name: "@nix-var-nix", Path: "/nix/var/nix", Options: "compress=zstd:3,autodefrag,ssd"},
+		{Name: "@nix-var-log", Path: "/nix/var/log", Options: "autodefrag,ssd,nodev,noexec,nosuid", NoCoW: true},
+		{Name: "@nix-var-nix-build", Path: "/nix/var/nix/build", Options: "compress=zstd:3,autodefrag,ssd"},
 		// Btrbk backup
 		{Name: "@btrbk", Path: "/btrbk", Options: "compress=zstd:3,autodefrag,ssd"},
 	}
