@@ -7,83 +7,11 @@ import (
 	"strings"
 )
 
-// SetupDmcryptSwap configures LUKS swap with dmcrypt for auto-unlock at boot.
-func SetupDmcryptSwap(conf *config.Config) error {
-	u := conf.User
-
-	if u.DiskLayout == "btrfsStandard" {
-		fmt.Println("[INFO] btrfsStandard layout: skipping dmcrypt (uses swapfile)")
-		return nil
-	}
-
-	if len(u.Disks) < 2 {
-		return fmt.Errorf("dmcrypt swap requires at least 2 disks")
-	}
-
-	chroot := conf.Internal.ChrootDir
-	d1 := u.Disks[0]
-	d2 := u.Disks[1]
-	sp1 := getPartitionSpacer(d1)
-	sp2 := getPartitionSpacer(d2)
-
-	swapKey := "/etc/dmcrypt/swap.key"
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p /etc/dmcrypt && touch %s && chmod 400 %s && dd bs=512 count=4 if=/dev/urandom of=%s", swapKey, swapKey, swapKey)); err != nil {
-		return fmt.Errorf("failed to create swap keyfile: %w", err)
-	}
-
-	swapPart1 := d1 + sp1 + "3"
-	swapPart2 := d2 + sp2 + "3"
-
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("printf '%%s' '%s' | cryptsetup luksAddKey %s %s", u.Password, swapPart1, swapKey)); err != nil {
-		return fmt.Errorf("failed to add key to swap1: %w", err)
-	}
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("printf '%%s' '%s' | cryptsetup luksAddKey %s %s", u.Password, swapPart2, swapKey)); err != nil {
-		return fmt.Errorf("failed to add key to swap2: %w", err)
-	}
-
-	swapUUID1, err := shell.ExecuteCmd(chroot, fmt.Sprintf("blkid -o value -s UUID %s", swapPart1))
-	if err != nil {
-		return fmt.Errorf("failed to get swap1 UUID: %w", err)
-	}
-	swapUUID2, err := shell.ExecuteCmd(chroot, fmt.Sprintf("blkid -o value -s UUID %s", swapPart2))
-	if err != nil {
-		return fmt.Errorf("failed to get swap2 UUID: %w", err)
-	}
-
-	swapUUID1 = strings.TrimSpace(swapUUID1)
-	swapUUID2 = strings.TrimSpace(swapUUID2)
-
-	s1 := getDiskSuffix(d1)
-	s2 := getDiskSuffix(d2)
-
-	dmcryptConf := fmt.Sprintf(`
-target=swap-%s%s
-source=UUID=%s
-key=%s
-
-target=swap-%s%s
-source=UUID=%s
-key=%s
-
-`, s1, sp1+"3", swapUUID1, swapKey,
-		s2, sp2+"3", swapUUID2, swapKey)
-
-	escapedDmcryptConf := strings.ReplaceAll(dmcryptConf, "'", "'\\''")
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/conf.d/dmcrypt", escapedDmcryptConf)); err != nil {
-		return fmt.Errorf("failed to write dmcrypt config: %w", err)
-	}
-
-	return nil
-}
-
-// SetupZswap configures dmcrypt LUKS swap and zswap compressed swap.
+// SetupZswap configures the zswap compressed swap cache.
+// NOTE: LUKS swap partition setup (dmcrypt) lives in the disk layout
+// (hostPhase/disks/btrfsStandardServer/swap.go) — this file only activates
+// the zswap kernel feature.
 func SetupZswap(conf *config.Config) error {
-	// 1. Dmcrypt LUKS swap (always for btrfsStandardServer)
-	if err := SetupDmcryptSwap(conf); err != nil {
-		return fmt.Errorf("dmcrypt swap setup failed: %w", err)
-	}
-
-	// 2. Zswap compressed swap (conditional on EnableZswap)
 	if !conf.User.EnableZswap {
 		fmt.Println("[INFO] zswap disabled, skipping...")
 		return nil
@@ -163,16 +91,4 @@ alias zswapMonitor2="fd . /sys/kernel/debug/zswap/ -x rg . {}"`
 
 	fmt.Println("[INFO] zswap configured with swap file.")
 	return nil
-}
-
-func getPartitionSpacer(disk string) string {
-	if strings.Contains(disk, "nvme") {
-		return "p"
-	}
-	return ""
-}
-
-func getDiskSuffix(disk string) string {
-	parts := strings.Split(disk, "/")
-	return parts[len(parts)-1]
 }

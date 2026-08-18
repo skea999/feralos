@@ -173,7 +173,13 @@ func RunBtrfsSetup(conf *config.Config) error {
 	// 10. Add modules
 	u.Modules = append(u.Modules, "dm_mod", "dm_crypt", "crc32c_cryptoapi", "zstd", "btrfs", "efivarfs", "nvme")
 
-	// 11. Generate Fstab
+	// 11. Configure dmcrypt LUKS swap (keyfile + conf.d) — moved here from
+	// chrootPhase/features (zswap_server.go only activates zswap now)
+	if err := SetupDmcryptSwap(conf); err != nil {
+		return fmt.Errorf("dmcrypt swap setup failed: %w", err)
+	}
+
+	// 12. Generate Fstab
 	return GenerateFstab(conf)
 }
 
