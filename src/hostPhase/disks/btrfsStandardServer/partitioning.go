@@ -205,6 +205,9 @@ key=%s
 	// 10. Add modules
 	u.Modules = append(u.Modules, "dm_mod", "dm_crypt", "crc32c_cryptoapi", "zstd", "btrfs", "efivarfs", "nvme")
 
+	// 10a. swap service always in runlevel for btrfsStandardServer (LUKS swap)
+	u.Runlevels["boot"] = append(u.Runlevels["boot"], "swap")
+
 	// 11. Generate Fstab
 	return GenerateFstab(conf)
 }

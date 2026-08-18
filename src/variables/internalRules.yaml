@@ -5,7 +5,7 @@ chrootDir: "/mnt"
 # NOTE: udev services are in packageLogic under eudev (Alpine uses mdev by default)
 defaultRunlevels:
   sysinit: ["devfs", "dmesg", "sysctl", "sysfs"]
-  boot: ["hwclock", "hostname", "bootmisc", "binfmt", "fsck", "root", "procfs", "loadkmap", "localmount", "swap"]
+  boot: ["hwclock", "hostname", "bootmisc", "binfmt", "fsck", "root", "procfs", "loadkmap", "localmount"]
   default: ["cgroups", "networking"]
   shutdown: ["mount-ro", "killprocs", "savecache"]
 

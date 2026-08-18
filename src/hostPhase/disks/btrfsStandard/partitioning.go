@@ -82,6 +82,8 @@ func RunBtrfsSetup(conf *config.Config) error {
 		if err := createSwapfile(i.ChrootDir); err != nil {
 			return fmt.Errorf("swapfile creation failed: %w", err)
 		}
+		// swap service is conditional — only in the runlevel when swap exists
+		u.Runlevels["boot"] = append(u.Runlevels["boot"], "swap")
 	} else {
 		fmt.Println("[INFO] Swapfile disabled — @swap subvolume kept for future use")
 	}

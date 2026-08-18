@@ -210,6 +210,8 @@ type VerifyConfig struct {
 	PrivateKey         string
 	InstalledUser      string
 	DesktopEnvironment string
+	EnableSwapfile     bool
+	DiskLayout         string
 	Timeout            time.Duration
 }
 
@@ -1185,6 +1187,8 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg *RunConfig,
 		PrivateKey:         keyPair.PrivateKeyPath,
 		InstalledUser:      cfg.InstalledUser,
 		DesktopEnvironment: cfg.DesktopEnvironment,
+		EnableSwapfile:     cfg.EnableSwapfile,
+		DiskLayout:         cfg.DiskLayout,
 		Timeout:            cfg.VerificationTimeout,
 	})
 	if err != nil {
@@ -1651,7 +1655,7 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 			"devfs", "dmesg", "sysctl", "sysfs",
 			// boot
 			"hwclock", "hostname", "bootmisc", "binfmt", "root", "procfs",
-			"loadkmap", "localmount", "swap", "btrfs-scan", "dmcrypt",
+			"loadkmap", "localmount", "btrfs-scan", "dmcrypt",
 			"udev", "udev-trigger", "vector", "vector-setup",
 			// default
 			"cgroups", "networking", "cronie", "chronyd", "dbus", "sshd",
@@ -1661,6 +1665,11 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		// greetd + elogind are only expected when the niri desktop is enabled.
 		if cfg.DesktopEnvironment == desktopNiri {
 			expected = append(expected, "greetd", "elogind")
+		}
+		// swap service is conditional: only when swap exists (enableSwapfile
+		// for btrfsStandard, always for btrfsStandardServer LUKS swap).
+		if cfg.EnableSwapfile || cfg.DiskLayout == layoutBtrfsStandardServer {
+			expected = append(expected, "swap")
 		}
 		var notStarted []string
 		for _, name := range expected {
