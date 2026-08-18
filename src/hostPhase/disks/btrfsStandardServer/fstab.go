@@ -74,7 +74,7 @@ func GenerateFstab(conf *config.Config) error {
 		NoCoW   bool
 	}{
 		{Name: "@", Path: "/", Options: "compress=zstd:3,autodefrag,ssd,subvol=@"},
-		{Name: "@swap", Path: "/swap", Options: "ssd,subvol=@swap", NoCoW: true},
+		{Name: "@swap", Path: "/swap", Options: "ssd,compress=none,subvol=@swap", NoCoW: true},
 		{Name: "@home", Path: "/home", Options: "compress=zstd:3,autodefrag,ssd,subvol=@home"},
 		{Name: "@opt", Path: "/opt", Options: "compress=zstd:3,autodefrag,ssd,subvol=@opt"},
 		{Name: "@root", Path: "/root", Options: "compress=zstd:3,autodefrag,ssd,subvol=@root"},

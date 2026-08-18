@@ -221,7 +221,7 @@ func getMinDiskSize(d1, d2 string) (int64, error) {
 func setupSubvolumesAndMounts(chroot string, luksDevice string, d1 string, d2 string) error {
 	subvols := []Subvolume{
 		{Name: "@", Path: "/", Options: "compress=zstd:3,autodefrag,ssd"},
-		{Name: "@swap", Path: "/swap", Options: "ssd,nodev,noexec,nosuid", NoCoW: true},
+		{Name: "@swap", Path: "/swap", Options: "ssd,compress=none,nodev,noexec,nosuid", NoCoW: true},
 		{Name: "@home", Path: "/home", Options: "compress=zstd:3,autodefrag,ssd"},
 		{Name: "@opt", Path: "/opt", Options: "compress=zstd:3,autodefrag,ssd"},
 		{Name: "@root", Path: "/root", Options: "compress=zstd:3,autodefrag,ssd"},
