@@ -298,10 +298,21 @@ feralos_installer/
 | ~~Vector crashes silently~~ | Resolved | Fixed: socket on `/run/vector/syslog.sock`, `vector-setup` boot service, config written after apk install. Harness vector_* checks pass. |
 | ~~Dummy packages: wrapper vs symlink~~ | Resolved | Wrapper scripts broke `efi-mkuki`. Reverted to symlink approach. `DummyPackageRule.Bin` field added for binary name override. |
 | ~~Ripgrep as grep drop-in~~ | Won't Fix | rg doesn't support POSIX BRE (`\+`). `efi-mkuki` uses `grep -q '^[0-9]\+\.[0-9]...'` for kernel version validation. GNU grep removed — BusyBox grep used instead. |
+| ~~Swapfile swapon Invalid argument~~ | Resolved | Root cause: `btrfs property set compression none` sets `m` attribute → conflicts with `chattr +C` (NixOS/nixpkgs #384047). Fix: @swap skips compression property (`NoCompressionProp`), `chattr +C` on dir before mount, `btrfs filesystem mkswapfile`. 28/28 checks pass, `swapon [ok]` at boot. |
 
 ---
 
-*Updated: 2026-08-17*
+*Updated: 2026-08-18*
+
+### 2026-08-18 16:00 - Swapfile Fixed: m Attribute Conflict + Debian Guide
+**Agent:** codebase
+**Summary:** btrfs swapfile now works — root cause was the `m` attribute blocking `chattr +C`
+- **Root cause found**: `btrfs property set compression none` on @swap sets the `m` attribute ("excluded from compression") on every file. `chattr +C` (NODATACOW) fails on files with `m` → `btrfs filesystem mkswapfile` aborts with `ERROR: cannot set NOCOW flag: Invalid argument`. Documented in NixOS/nixpkgs issue #384047 (identical scenario)
+- **Fix (Debian guide)**: `chattr +C` on the @swap directory BEFORE mount (files inherit NODATACOW), skip the compression property on @swap, then `btrfs filesystem mkswapfile --size 8g`
+- **New field**: `Subvolume.NoCompressionProp` — skips `btrfs property set compression none` (Step 3 + Step 6 pre/post mount) for @swap only
+- **btrfsStandardServer**: no swapfile needed — dedicated LUKS swap partitions (`mkswap` on partitions, not files)
+- **Research confirmed**: mount options compress/nodatacow are FS-wide (first mount wins, per btrfs docs); per-subvolume compression must use `btrfs property set`; swapfile requires single data profile (RAID1 server can't use swapfiles)
+- **Harness**: 28/28 checks pass, `swapon [ok]` at boot, `lsattr` shows `C` flag on swapfile
 
 ### 2026-08-17 23:30 - Dummy Packages Investigation: Symlink vs Wrapper
 **Agent:** codebase

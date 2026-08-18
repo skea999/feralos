@@ -294,12 +294,21 @@ func setupSubvolumesAndMounts(chroot string, luksDevice string, d1 string, d2 st
 				return fmt.Errorf("failed to create directory %s: %w", target, err)
 			}
 		}
+		// Disable compression on NoCoW directories BEFORE mounting
+		if s.NoCoW {
+			shell.ExecuteCmd("", fmt.Sprintf("btrfs property set %s compression none", target))
+		}
+		// Mount with compress=none in options
 		opts := "subvol=" + s.Name + "," + s.Options
 		if s.NoCoW {
 			opts += ",nodatacow"
 		}
 		if _, err := shell.ExecuteCmd("", fmt.Sprintf("mount -t btrfs -o %s %s %s", opts, luksDevice, target)); err != nil {
 			return fmt.Errorf("failed to mount subvolume %s: %w", s.Name, err)
+		}
+		// Disable compression on NoCoW subvolumes AFTER mounting
+		if s.NoCoW {
+			shell.ExecuteCmd("", fmt.Sprintf("btrfs property set %s compression none", target))
 		}
 	}
 

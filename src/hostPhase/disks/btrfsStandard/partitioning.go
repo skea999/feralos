@@ -14,6 +14,11 @@ type Subvolume struct {
 	Path    string
 	Options string
 	NoCoW   bool
+	// NoCompressionProp skips 'btrfs property set compression none' on this
+	// subvolume. The property sets the 'm' attribute on every file, which
+	// makes chattr +C fail (m conflicts with C). Required for @swap so that
+	// 'btrfs filesystem mkswapfile' can set NODATACOW on the swapfile.
+	NoCompressionProp bool
 }
 
 func RunBtrfsSetup(conf *config.Config) error {
@@ -99,9 +104,11 @@ func RunBtrfsSetup(conf *config.Config) error {
 	return GenerateFstab(conf)
 }
 
-// createSwapfile creates a swapfile in the @swap subvolume using btrfs native command.
-// btrfs filesystem mkswapfile handles NODATACOW, preallocation, and formatting.
-// Requirements: subvolume mounted with nodatacow, compression disabled via btrfs property.
+// createSwapfile creates a swapfile using btrfs native command.
+// Debian guide: chattr +C on the @swap directory BEFORE mount (Step 4) makes
+// new files inherit NODATACOW, so mkswapfile doesn't need to set it itself.
+// The 'm' attribute (from 'btrfs property set compression none') would make
+// chattr +C fail, hence @swap skips the compression property (NoCompressionProp).
 func createSwapfile(chroot string) error {
 	swapDir := chroot + "/swap"
 	swapFile := swapDir + "/swapfile"
@@ -114,14 +121,13 @@ func createSwapfile(chroot string) error {
 	// Remove old swapfile if exists
 	_, _ = shell.ExecuteCmd("", fmt.Sprintf("rm -f %s", swapFile))
 
-	// Create swapfile using btrfs native command (handles NODATACOW + preallocation + mkswap)
+	// Create swapfile using btrfs native command
 	fmt.Println("[INFO] Creating swapfile with btrfs filesystem mkswapfile...")
 	if _, err := shell.ExecuteCmd("", fmt.Sprintf("btrfs filesystem mkswapfile --size 8g %s", swapFile)); err != nil {
 		return fmt.Errorf("failed to create swapfile: %w", err)
 	}
 
-	// Verify NoCoW on swapfile
-	fmt.Println("[INFO] Verifying swapfile properties...")
+	// Verify
 	lsattrOut, _ := shell.ExecuteCmd("", fmt.Sprintf("lsattr %s", swapFile))
 	fmt.Printf("[INFO] lsattr swapfile: %s\n", strings.TrimSpace(lsattrOut))
 
@@ -154,7 +160,7 @@ func getBtrfsUUID(device string) string {
 func setupSubvolumesAndMounts(chroot string, luksDevice string, disk string) error {
 	subvols := []Subvolume{
 		{Name: "@", Path: "/", Options: "compress=zstd:3,autodefrag,ssd"},
-		{Name: "@swap", Path: "/swap", Options: "ssd,compress=none,nodev,noexec,nosuid", NoCoW: true},
+		{Name: "@swap", Path: "/swap", Options: "ssd,compress=none,nodev,noexec,nosuid", NoCoW: true, NoCompressionProp: true},
 		{Name: "@home", Path: "/home", Options: "compress=zstd:3,autodefrag,ssd"},
 		{Name: "@opt", Path: "/opt", Options: "compress=zstd:3,autodefrag,ssd"},
 		{Name: "@root", Path: "/root", Options: "compress=zstd:3,autodefrag,ssd"},
@@ -198,8 +204,10 @@ func setupSubvolumesAndMounts(chroot string, luksDevice string, disk string) err
 	}
 
 	// Step 3: Disable compression on NoCoW subvolumes via btrfs property set
+	// @swap is skipped: the property sets the 'm' attribute which conflicts
+	// with chattr +C needed by 'btrfs filesystem mkswapfile' (Debian guide).
 	for _, s := range subvols {
-		if s.NoCoW {
+		if s.NoCoW && !s.NoCompressionProp {
 			target := chroot + "/" + s.Name
 			if _, err := shell.ExecuteCmd("", fmt.Sprintf("btrfs property set %s compression none", target)); err != nil {
 				return fmt.Errorf("failed to disable compression on %s: %w", s.Name, err)
@@ -232,10 +240,23 @@ func setupSubvolumesAndMounts(chroot string, luksDevice string, disk string) err
 				return fmt.Errorf("failed to create directory %s: %w", target, err)
 			}
 		}
+		// Disable compression on NoCoW directories BEFORE mounting
+		// (@swap skipped: 'm' attribute would break mkswapfile)
+		if s.NoCoW && !s.NoCompressionProp {
+			shell.ExecuteCmd("", fmt.Sprintf("btrfs property set %s compression none", target))
+		}
+		// Mount with compress=none in options
 		opts := "subvol=" + s.Name + "," + s.Options
-		// NOTE: Do NOT add nodatacow here — btrfs filesystem mkswapfile handles NODATACOW
+		if s.NoCoW {
+			opts += ",nodatacow"
+		}
 		if _, err := shell.ExecuteCmd("", fmt.Sprintf("mount -t btrfs -o %s %s %s", opts, luksDevice, target)); err != nil {
 			return fmt.Errorf("failed to mount subvolume %s: %w", s.Name, err)
+		}
+		// Disable compression on NoCoW subvolumes AFTER mounting
+		// (@swap skipped: 'm' attribute would break mkswapfile)
+		if s.NoCoW && !s.NoCompressionProp {
+			shell.ExecuteCmd("", fmt.Sprintf("btrfs property set %s compression none", target))
 		}
 	}
 
