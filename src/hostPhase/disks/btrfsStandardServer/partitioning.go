@@ -134,6 +134,38 @@ func RunBtrfsSetup(conf *config.Config) error {
 		return fmt.Errorf("mkswap failed on %s: %w", d2, err)
 	}
 
+	// 5a. Configure dmcrypt LUKS swap (keyfile + conf.d) for auto-unlock.
+	// Part of the disk layout (hostPhase): files written via the shell
+	// wrapper with host paths (no chroot commands), cryptsetup runs outside
+	// the chroot on the host devices.
+	swapKey := "/etc/dmcrypt/swap.key"
+	hostSwapKey := i.ChrootDir + swapKey
+	if _, err := shell.ExecuteCmd("", fmt.Sprintf("mkdir -p %s/etc/dmcrypt && dd if=/dev/urandom of=%s bs=512 count=4 && chmod 400 %s", i.ChrootDir, hostSwapKey, hostSwapKey)); err != nil {
+		return fmt.Errorf("failed to create swap keyfile: %w", err)
+	}
+	if err := LuksAddKey(swapPart1, hostSwapKey, u.Password); err != nil {
+		return fmt.Errorf("failed to add key to swap1: %w", err)
+	}
+	if err := LuksAddKey(swapPart2, hostSwapKey, u.Password); err != nil {
+		return fmt.Errorf("failed to add key to swap2: %w", err)
+	}
+
+	dmcryptConf := fmt.Sprintf(`
+target=swap-%s%s
+source=UUID=%s
+key=%s
+
+target=swap-%s%s
+source=UUID=%s
+key=%s
+
+`, swapSuffix1, getPartitionSpacer(d1)+"3", swapUUID1, swapKey,
+		swapSuffix2, getPartitionSpacer(d2)+"3", swapUUID2, swapKey)
+	escapedDmcryptConf := strings.ReplaceAll(dmcryptConf, "'", "'\\''")
+	if _, err := shell.ExecuteCmd("", fmt.Sprintf("echo '%s' > %s/etc/conf.d/dmcrypt", escapedDmcryptConf, i.ChrootDir)); err != nil {
+		return fmt.Errorf("failed to write dmcrypt config: %w", err)
+	}
+
 	// 6. Format data partitions (partition 4)
 	fmt.Println("[INFO] Formatting data partitions...")
 	dataPart1 := d1 + getPartitionSpacer(d1) + "4"
@@ -173,13 +205,7 @@ func RunBtrfsSetup(conf *config.Config) error {
 	// 10. Add modules
 	u.Modules = append(u.Modules, "dm_mod", "dm_crypt", "crc32c_cryptoapi", "zstd", "btrfs", "efivarfs", "nvme")
 
-	// 11. Configure dmcrypt LUKS swap (keyfile + conf.d) — moved here from
-	// chrootPhase/features (zswap_server.go only activates zswap now)
-	if err := SetupDmcryptSwap(conf); err != nil {
-		return fmt.Errorf("dmcrypt swap setup failed: %w", err)
-	}
-
-	// 12. Generate Fstab
+	// 11. Generate Fstab
 	return GenerateFstab(conf)
 }
 
