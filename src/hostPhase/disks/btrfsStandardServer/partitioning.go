@@ -134,21 +134,6 @@ func RunBtrfsSetup(conf *config.Config) error {
 		return fmt.Errorf("mkswap failed on %s: %w", d2, err)
 	}
 
-	// 5a. Configure dmcrypt LUKS swap keyfile for auto-unlock.
-	// The chroot root fs is NOT mounted yet — use a host temp path for the
-	// keyfile (luksAddKey runs on host devices). The keyfile + dmcrypt conf
-	// are installed into the chroot after the subvolumes are mounted (step 6a).
-	hostSwapKey := "/tmp/feralos-swap.key"
-	if _, err := shell.ExecuteCmd("", fmt.Sprintf("dd if=/dev/urandom of=%s bs=512 count=4 && chmod 400 %s", hostSwapKey, hostSwapKey)); err != nil {
-		return fmt.Errorf("failed to create swap keyfile: %w", err)
-	}
-	if err := LuksAddKey(swapPart1, hostSwapKey, u.Password); err != nil {
-		return fmt.Errorf("failed to add key to swap1: %w", err)
-	}
-	if err := LuksAddKey(swapPart2, hostSwapKey, u.Password); err != nil {
-		return fmt.Errorf("failed to add key to swap2: %w", err)
-	}
-
 	// 6. Format data partitions (partition 4)
 	fmt.Println("[INFO] Formatting data partitions...")
 	dataPart1 := d1 + getPartitionSpacer(d1) + "4"
@@ -171,11 +156,21 @@ func RunBtrfsSetup(conf *config.Config) error {
 		return err
 	}
 
-	// 8a. Install swap keyfile + dmcrypt conf into the chroot (root fs is
-	// now mounted at ChrootDir). apk never overwrites these new files.
+	// 8a. Configure dmcrypt LUKS swap (keyfile + luksAddKey + conf.d).
+	// Root fs is now mounted at ChrootDir — write the keyfile directly into
+	// the chroot (no temp copy). The swap LUKS partitions are still open
+	// (mappers active), so luksAddKey works here. apk never overwrites these
+	// new files.
 	swapKey := "/etc/dmcrypt/swap.key"
-	if _, err := shell.ExecuteCmd("", fmt.Sprintf("mkdir -p %s/etc/dmcrypt %s/etc/conf.d && install -m 400 /tmp/feralos-swap.key %s/etc/dmcrypt/swap.key && rm -f /tmp/feralos-swap.key", i.ChrootDir, i.ChrootDir, i.ChrootDir)); err != nil {
-		return fmt.Errorf("failed to install swap keyfile: %w", err)
+	hostSwapKey := i.ChrootDir + swapKey
+	if _, err := shell.ExecuteCmd("", fmt.Sprintf("mkdir -p %s/etc/dmcrypt %s/etc/conf.d && dd if=/dev/urandom of=%s bs=512 count=4 && chmod 400 %s", i.ChrootDir, i.ChrootDir, hostSwapKey, hostSwapKey)); err != nil {
+		return fmt.Errorf("failed to create swap keyfile: %w", err)
+	}
+	if err := LuksAddKey(swapPart1, hostSwapKey, u.Password); err != nil {
+		return fmt.Errorf("failed to add key to swap1: %w", err)
+	}
+	if err := LuksAddKey(swapPart2, hostSwapKey, u.Password); err != nil {
+		return fmt.Errorf("failed to add key to swap2: %w", err)
 	}
 	dmcryptConf := fmt.Sprintf(`
 target=swap-%s%s
