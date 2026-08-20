@@ -303,7 +303,23 @@ feralos_installer/
 
 ---
 
-*Updated: 2026-08-18*
+*Updated: 2026-08-20*
+
+### 2026-08-20 10:00 - btrfsRaid0 Layout + enableSwap/swapSize Refactor
+**Agent:** codebase
+**Summary:** btrfsRaid0 completed (was WIP) + enableSwapfile → enableSwap/swapSize (128/128 PASS)
+- **btrfsRaid0** (commit `48ad7bc`): dual-disk pure RAID0 (data+metadata), EFI on both disks, 2 LUKS swap partitions (partition 2, swapSize/2 each) gated by `enableSwap`, root on partition 3 (remainder — no size formulas). Swapfile removed (impossible on RAID0: btrfs SWAPFILE_SUPPORT requires single device + single data profile). dmcrypt keyfile+conf.d after subvol mounts (step 6a), fstab `/dev/mapper/swap-*`, swap service conditional (fixes latent bug: swap never activated on RAID0)
+- **enableSwapfile → enableSwap** (generic): btrfsStandard keeps swapfile, btrfsRaid0 uses LUKS swap partitions, btrfsStandardServer unchanged (always LUKS swap). New `swapSize` variable (default `auto` = 2× RAM) resolved via `utils/swap.ResolveSwapSizeMiB` (reads /proc/meminfo MemTotal ×2, or parses `8G`/`4096M`)
+- **Harness**: EnableSwapfile → EnableSwap + SwapSize (RunConfig/VariablesYAML/VerifyConfig/setup-input), swap_status/services_status use `cfg.EnableSwap || layout==Server`, 5 fixtures updated
+- **Verified**: raid0 32/32, standard 32/32 (swapfile 7.66GiB from swapSize), noswap 32/32 (no swap anywhere), server 32/32 (unchanged)
+
+### 2026-08-20 09:00 - btrfsStandardServer LUKS Swap Fix + Keyfile Refactor
+**Agent:** codebase
+**Summary:** LUKS swap root cause fixed (32/32 PASS), keyfile refactored to direct chroot write
+- **Root cause**: dmcrypt keyfile+conf.d were written in hostPhase BEFORE the btrfs root was mounted at /mnt → files landed in host /mnt (lost) → dmcrypt never opened swap mappers → swapon failed. Pre-existing bug (old swap_status check was non-truthful)
+- **Fix (commit `2f4558d`)**: keyfile at /tmp for luksAddKey, installed into chroot after subvol mounts (step 8a); fstab swap `LABEL=swap-*` → `/dev/mapper/swap-*` (busybox `swapon -a` can't resolve LABEL in fstab); swap_status check now truthful (fails if swap expected but not active)
+- **Refactor (commit `7a5b60f`)**: /tmp keyfile + copy dropped — step 8a creates keyfile directly in chroot (`dd` → `/mnt/etc/dmcrypt/swap.key` + chmod 400), luksAddKey ×2 (mappers still open), then conf.d. Step 5a removed
+- **Verified**: 32/32 PASS; boot uses keyfile (no passphrase fallback); apk preserves our conf.d as `.apk-new` (never overwrites new files)
 
 ### 2026-08-18 21:30 - niri Desktop Environment (greetd + DMS + wayvnc)
 **Agent:** codebase

@@ -45,6 +45,8 @@ All notable changes to FeralOS will be documented in this file.
   - `chrootPhase/desktops/niri.go`: greetd config, greeter.sh, regreet.toml, niri configs (greeter + user), wayvnc config, xdg-su wrapper, OpenRC dms service
   - DMS (DankMaterialShell) + quickshell from stable nixpkgs channel (nixos-26.05)
   - Harness checks: niri_config_valid, greetd_config, niri_greeter, wayvnc_installed, dms_installed
+- **btrfsRaid0 layout** — dual-disk pure RAID0 (data+metadata), EFI on both disks, 2 LUKS swap partitions (partition 2, swapSize/2 each) gated by `enableSwap`, root on partition 3 (remainder — no size formulas)
+- **`enableSwap` + `swapSize`** — generic swap toggle replacing `enableSwapfile`: btrfsStandard keeps swapfile, btrfsRaid0 uses LUKS swap partitions, btrfsStandardServer unchanged (always LUKS swap). `swapSize` default `auto` = 2× RAM (via `utils/swap.ResolveSwapSizeMiB`), or explicit `8G`/`4096M`
 
 ### Fixed
 - Pointer copy bug in configurator.go, hardening.go, zswap.go (u := conf.User → u := &conf.User)
@@ -71,6 +73,8 @@ All notable changes to FeralOS will be documented in this file.
 - nix stable channel: default flake registry maps nixpkgs→unstable — `nix registry add nixpkgs github:NixOS/nixpkgs/nixos-26.05`
 - sudoers: Alpine default `/etc/sudoers` has `@includedir` commented out → `/etc/sudoers.d/wheel` ineffective (wheel sudo denied) — enabled with sed + new `sudoers_includedir` harness check
 - nix.conf: removed `allow-unfree`/`allow-insecure` (unknown settings in Alpine's nix build — warning noise; NIXPKGS_ALLOW_* env vars carry it permanently)
+- btrfsStandardServer LUKS swap never activated: dmcrypt keyfile+conf.d written in hostPhase BEFORE the btrfs root was mounted at /mnt → files lost in host /mnt. Fixed: keyfile written directly into chroot after subvol mounts (step 8a) + fstab swap `LABEL=swap-*` → `/dev/mapper/swap-*` (busybox `swapon -a` can't resolve LABEL in fstab) + `swap_status` check now truthful
+- btrfsRaid0 swap never activated (latent bug): swap service was never added to the runlevel — now conditional on `enableSwap`
 
 ### Changed
 - Migrated from monolithic shell script to modular Go architecture
@@ -87,6 +91,7 @@ All notable changes to FeralOS will be documented in this file.
 - Swap service in boot runlevel (moved from default) + `need localmount` dependency
 - apk `.apk-new` behavior verified: modified /etc files (swap init.d sed) survive openrc upgrades
 - log_errors whitelist: `start-stop-daemon: no matching processes found` (smartd, no SMART hardware in QEMU) + `fsck.vfat: No such file or directory` (fsck, QEMU-only)
+- `enableSwapfile` → `enableSwap` (generic swap toggle) + new `swapSize` variable (default `auto` = 2× RAM)
 
 ### Open Issues
 - Secure Boot fix (efi-mkkeys after install) — pending harness revalidation

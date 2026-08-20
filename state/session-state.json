@@ -74,7 +74,12 @@
     "niri harness calibrated: 35/36 (log_errors false positive — dpkg retry + non-interactive warning whitelisted), simulated re-check 0 matches; dms-shell 1.4.6 + quickshell 0.3.0 from stable 26.05",
     "sudoers fix: Alpine default /etc/sudoers has @includedir commented out → /etc/sudoers.d/wheel ineffective (wheel sudo denied). Fixed: sed in misc.go + new sudoers_includedir harness check",
     "nix.conf cleanup: allow-unfree/allow-insecure NOT recognized by Alpine's nix build (unknown setting warnings) — removed; NIXPKGS_ALLOW_* env vars in profile.d/fish/bash carry it permanently",
-    "Final niri harness run: 37/37 PASS (run 2026-08-18T20-25-07Z) — greetd/elogind/dms/nix-daemon/vector started, niri greeter active, sudoers_includedir enabled, log_errors clean"
+    "Final niri harness run: 37/37 PASS (run 2026-08-18T20-25-07Z) — greetd/elogind/dms/nix-daemon/vector started, niri greeter active, sudoers_includedir enabled, log_errors clean",
+    "btrfsStandardServer LUKS swap root cause FIXED: dmcrypt keyfile+conf.d were written in hostPhase BEFORE the btrfs root was mounted at /mnt → files landed in host /mnt (lost) → dmcrypt never opened swap mappers → swapon failed. Fix: keyfile at /tmp for luksAddKey, installed into chroot after subvol mounts (step 8a); fstab swap LABEL=swap-* → /dev/mapper/swap-* (busybox swapon -a can't resolve LABEL in fstab — pre-existing bug); swap_status check now truthful (fails if swap expected but not active) — commit 2f4558d, 32/32 PASS",
+    "dmcrypt swap keyfile refactored: /tmp keyfile + copy dropped — step 8a creates keyfile directly in chroot (dd → /mnt/etc/dmcrypt/swap.key + chmod 400), luksAddKey ×2 (mappers still open), then writes /etc/conf.d/dmcrypt. Step 5a removed — commit 7a5b60f, 32/32 PASS, boot uses keyfile (no passphrase fallback), apk preserves our conf.d as .apk-new",
+    "btrfsRaid0 layout COMPLETED (was WIP): dual-disk pure RAID0 (data+metadata), EFI on both disks, 2 LUKS swap partitions (partition 2, swapSize/2 each) gated by enableSwap, root on partition 3 (remainder — no size formulas). Swapfile removed (impossible on RAID0: btrfs SWAPFILE_SUPPORT requires single device + single data profile). dmcrypt keyfile+conf.d after subvol mounts (step 6a), fstab /dev/mapper/swap-*, swap service conditional (fixes latent bug: swap never activated on RAID0)",
+    "enableSwapfile → enableSwap refactor (generic): btrfsStandard keeps swapfile, btrfsRaid0 uses LUKS swap partitions, btrfsStandardServer unchanged (always LUKS swap). New swapSize variable (default auto = 2x RAM) resolved via utils/swap.ResolveSwapSizeMiB (reads /proc/meminfo MemTotal ×2, or parses 8G/4096M). Harness: EnableSwapfile → EnableSwap + SwapSize (RunConfig/VariablesYAML/VerifyConfig/setup-input), swap_status/services_status use cfg.EnableSwap || layout==Server, 5 fixtures updated — commit 48ad7bc",
+    "Verified after refactor: raid0 32/32 (swap partitions active, 2x RAM), standard 32/32 (swapfile 7.66GiB from swapSize), noswap 32/32 (no swap anywhere, service not in runlevel), server 32/32 (unchanged) — 128/128 total"
   ],
   "decisions": [
     {
@@ -271,6 +276,26 @@
       "date": "2026-08-18",
       "decision": "sudoers @includedir enabled (sed in misc.go)",
       "rationale": "Alpine's default /etc/sudoers has '@includedir /etc/sudoers.d' commented out, so /etc/sudoers.d/wheel (%wheel ALL=(ALL) ALL) was never loaded — wheel sudo denied. Enabled with sed; verified by new sudoers_includedir harness check (37/37 PASS)."
+    },
+    {
+      "date": "2026-08-20",
+      "decision": "fstab swap entries use /dev/mapper/swap-* (not LABEL=swap-*)",
+      "rationale": "busybox swapon -a does NOT resolve LABEL=/UUID= in fstab — it reads the device field as a literal path. LABEL=swap-vdb3 never resolves to /dev/disk/by-label/swap-vdb3 → 'No such file or directory'. dmcrypt opens real /dev/mapper/swap-* nodes, so swapon opens those paths directly. Pre-existing bug (old swap_status check was non-truthful)."
+    },
+    {
+      "date": "2026-08-20",
+      "decision": "dmcrypt swap keyfile written directly in chroot (no /tmp + copy)",
+      "rationale": "The swap LUKS partitions stay open (mappers active) until the end of RunBtrfsSetup, so luksAddKey can run after the subvolumes are mounted. Step 8a creates the keyfile directly at /mnt/etc/dmcrypt/swap.key (dd + chmod 400), runs luksAddKey ×2, then writes /etc/conf.d/dmcrypt. Simpler than /tmp + install copy. apk never overwrites new files (saves as .apk-new)."
+    },
+    {
+      "date": "2026-08-20",
+      "decision": "enableSwapfile → enableSwap (generic) + swapSize variable (default auto = 2x RAM)",
+      "rationale": "btrfsStandard keeps swapfile, btrfsRaid0 uses 2 LUKS swap partitions (partition 2, swapSize/2 each), btrfsStandardServer unchanged (always LUKS swap — user: 'mandatory by design'). swapSize = TOTAL swap size split across partitions; auto = 2x RAM via /proc/meminfo MemTotal. Resolved by utils/swap.ResolveSwapSizeMiB. swap service conditional on enableSwap (fixes latent bug: swap never activated on RAID0)."
+    },
+    {
+      "date": "2026-08-20",
+      "decision": "btrfsRaid0: swap on partition 2, root on partition 3 (remainder)",
+      "rationale": "User chose: swap partition is number 2, root takes the remainder (no size formulas — respects the original RAID0 requirement). swapSize total split across the 2 swap partitions. Without swap: 1: EFI, 2: root (as before)."
     }
   ],
   "risks": [
@@ -304,7 +329,7 @@
     }
   ],
   "next_actions": [
-    "Run full harness to confirm 31/31 (services_status now in check suite)",
+    "btrfsStandardUnencrypted layout (planned)",
     "Test on real hardware with 2x NVMe",
     "Test with partial features (Secure Boot only, TPM only)",
     "Add more unit tests for verify checks",
