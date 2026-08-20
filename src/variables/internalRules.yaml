@@ -96,6 +96,9 @@ diskLayouts:
   btrfsStandard:
     packages: ["btrfs-progs", "cryptsetup", "efibootmgr", "btrbk"]
     modules: ["dm_mod", "dm_crypt", "crc32c_cryptoapi", "zstd", "btrfs", "efivarfs", "nvme"]
+  btrfsRaid0:
+    packages: ["btrfs-progs", "cryptsetup", "efibootmgr", "btrbk"]
+    modules: ["dm_mod", "dm_crypt", "crc32c_cryptoapi", "zstd", "btrfs", "efivarfs", "nvme"]
 
 # 2. Desktop Environments Definitions
 desktopEnvironments:

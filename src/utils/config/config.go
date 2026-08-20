@@ -31,13 +31,14 @@ type UserVariables struct {
 	SshAuthorizedKey   string   `yaml:"sshAuthorizedKey"`
 
 	// Feature toggles
-	EnableSecureboot bool `yaml:"enableSecureboot"`
-	EnableTPM        bool `yaml:"enableTPM"`
-	EnableHardening  bool `yaml:"enableHardening"`
-	EnableZswap      bool `yaml:"enableZswap"`
-	EnableNix        bool `yaml:"enableNix"`
-	EnableSwapfile   bool `yaml:"enableSwapfile"`
-	EnableDebug      bool `yaml:"enableDebug"`
+	EnableSecureboot bool   `yaml:"enableSecureboot"`
+	EnableTPM        bool   `yaml:"enableTPM"`
+	EnableHardening  bool   `yaml:"enableHardening"`
+	EnableZswap      bool   `yaml:"enableZswap"`
+	EnableNix        bool   `yaml:"enableNix"`
+	EnableSwap       bool   `yaml:"enableSwap"`
+	SwapSize         string `yaml:"swapSize"`
+	EnableDebug      bool   `yaml:"enableDebug"`
 
 	// Network
 	DefaultNetworkInterface string `yaml:"defaultNetworkInterface"`

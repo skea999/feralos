@@ -89,7 +89,8 @@ type RunConfig struct {
 	EnableHardening     bool
 	EnableZswap         bool
 	EnableNix           bool
-	EnableSwapfile      bool
+	EnableSwap          bool
+	SwapSize            string
 	EnableKVM           bool
 	DiskSize            string
 	DiskLayout          string
@@ -129,7 +130,8 @@ type VariablesYAML struct {
 		EnableHardening         bool     `yaml:"enableHardening"`
 		EnableZswap             bool     `yaml:"enableZswap"`
 		EnableNix               bool     `yaml:"enableNix"`
-		EnableSwapfile          bool     `yaml:"enableSwapfile"`
+		EnableSwap              bool     `yaml:"enableSwap"`
+		SwapSize                string   `yaml:"swapSize"`
 		EnableDebug             bool     `yaml:"enableDebug"`
 		ExtraPackages           []string `yaml:"extraPackages"`
 	} `yaml:"variables"`
@@ -174,7 +176,8 @@ func LoadVariablesFile(cfg *RunConfig, filePath string) error {
 	cfg.EnableHardening = v.EnableHardening
 	cfg.EnableZswap = v.EnableZswap
 	cfg.EnableNix = v.EnableNix
-	cfg.EnableSwapfile = v.EnableSwapfile
+	cfg.EnableSwap = v.EnableSwap
+	cfg.SwapSize = v.SwapSize
 
 	return nil
 }
@@ -210,7 +213,8 @@ type VerifyConfig struct {
 	PrivateKey         string
 	InstalledUser      string
 	DesktopEnvironment string
-	EnableSwapfile     bool
+	EnableSwap         bool
+	SwapSize           string
 	DiskLayout         string
 	Timeout            time.Duration
 }
@@ -1187,7 +1191,8 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg *RunConfig,
 		PrivateKey:         keyPair.PrivateKeyPath,
 		InstalledUser:      cfg.InstalledUser,
 		DesktopEnvironment: cfg.DesktopEnvironment,
-		EnableSwapfile:     cfg.EnableSwapfile,
+		EnableSwap:         cfg.EnableSwap,
+		SwapSize:           cfg.SwapSize,
 		DiskLayout:         cfg.DiskLayout,
 		Timeout:            cfg.VerificationTimeout,
 	})
@@ -1668,9 +1673,9 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		if cfg.DesktopEnvironment == desktopNiri {
 			expected = append(expected, "greetd", "elogind")
 		}
-		// swap service is conditional: only when swap exists (enableSwapfile
-		// for btrfsStandard, always for btrfsStandardServer LUKS swap).
-		if cfg.EnableSwapfile || cfg.DiskLayout == layoutBtrfsStandardServer {
+		// swap service is conditional: only when swap exists (enableSwap for
+		// btrfsStandard/btrfsRaid0, always for btrfsStandardServer LUKS swap).
+		if cfg.EnableSwap || cfg.DiskLayout == layoutBtrfsStandardServer {
 			expected = append(expected, "swap")
 		}
 		var notStarted []string
@@ -1689,17 +1694,17 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		result.Checks["services_status"] = svcCheck
 	}
 
-	// swap_status must be truthful: when swap is expected (enableSwapfile for
-	// btrfsStandard, always for btrfsStandardServer LUKS swap), the check
-	// fails if no swap device is actually active (swapon -s header-only).
+	// swap_status must be truthful: when swap is expected (enableSwap for
+	// btrfsStandard/btrfsRaid0, always for btrfsStandardServer LUKS swap), the
+	// check fails if no swap device is actually active (swapon -s header-only).
 	if swapCheck, ok := result.Checks["swap_status"]; ok {
-		swapExpected := cfg.EnableSwapfile || cfg.DiskLayout == layoutBtrfsStandardServer
+		swapExpected := cfg.EnableSwap || cfg.DiskLayout == layoutBtrfsStandardServer
 		hasActiveSwap := strings.Contains(swapCheck.Detail, "/swap/swapfile") ||
 			strings.Contains(swapCheck.Detail, "/dev/mapper/swap-") ||
 			strings.Contains(swapCheck.Detail, "/dev/zram")
 		if swapExpected && !hasActiveSwap {
 			swapCheck.Pass = false
-			swapCheck.Detail += "\nExpected active swap (enableSwapfile or btrfsStandardServer) but none found"
+			swapCheck.Detail += "\nExpected active swap (enableSwap or btrfsStandardServer) but none found"
 			result.Checks["swap_status"] = swapCheck
 			result.Success = false
 		}
@@ -2212,7 +2217,8 @@ func writeHarnessVariables(cfg *RunConfig, keyPair guest.KeyPair, outputPath, al
   enableHardening: %s
   enableZswap: %s
   enableNix: %s
-  enableSwapfile: %s
+  enableSwap: %s
+  swapSize: "%s"
   enableDebug: false
 
   extraPackages:
@@ -2236,7 +2242,8 @@ func writeHarnessVariables(cfg *RunConfig, keyPair guest.KeyPair, outputPath, al
 		yn(cfg.EnableHardening),
 		yn(cfg.EnableZswap),
 		yn(cfg.EnableNix),
-		yn(cfg.EnableSwapfile),
+		yn(cfg.EnableSwap),
+		cfg.SwapSize,
 	)
 
 	if err := os.WriteFile(outputPath, []byte(content), 0o600); err != nil {

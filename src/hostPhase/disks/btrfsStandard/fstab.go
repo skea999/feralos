@@ -124,7 +124,7 @@ func GenerateFstab(conf *config.Config) error {
 
 	// 3. Swapfile (in @swap subvolume, NoCoW required for btrfs) — only when
 	// enabled; the @swap subvolume is always created for future use
-	if u.EnableSwapfile {
+	if u.EnableSwap {
 		if _, err := file.WriteString("# Swapfile: NoCoW set via 'chattr +C' + compress=none mount option\n"); err != nil {
 			return err
 		}

@@ -37,7 +37,8 @@ variables:
   enableHardening: false
   enableZswap: false
   enableNix: false
-  enableSwapfile: true
+  enableSwap: true
+  swapSize: auto # auto = 2x RAM, or explicit like 8G / 4096M
   enableDebug: false
 
   # Extra Packages

@@ -9,6 +9,7 @@ import (
 
 	"alpineInstaller/chrootPhase"
 	"alpineInstaller/hostPhase"
+	"alpineInstaller/hostPhase/disks/btrfsRaid0"
 	"alpineInstaller/hostPhase/disks/btrfsStandard"
 	"alpineInstaller/hostPhase/disks/btrfsStandardServer"
 	"alpineInstaller/utils/config"
@@ -72,6 +73,10 @@ func main() {
 	case "btrfsStandard":
 		if err := btrfsStandard.RunBtrfsSetup(conf); err != nil {
 			log.Fatalf("[ERROR] btrfsStandard setup failed: %v", err)
+		}
+	case "btrfsRaid0":
+		if err := btrfsRaid0.RunBtrfsSetup(conf); err != nil {
+			log.Fatalf("[ERROR] btrfsRaid0 setup failed: %v", err)
 		}
 	default:
 		log.Fatalf("[ERROR] Unknown disk layout: %s", conf.User.DiskLayout)

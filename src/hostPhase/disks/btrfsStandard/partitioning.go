@@ -3,6 +3,7 @@ package btrfsStandard
 import (
 	"alpineInstaller/utils/config"
 	"alpineInstaller/utils/shell"
+	"alpineInstaller/utils/swap"
 	"fmt"
 	"os"
 	"os/exec"
@@ -77,9 +78,13 @@ func RunBtrfsSetup(conf *config.Config) error {
 
 	// 6. Create swapfile in @swap subvolume (only if enabled — the @swap
 	// subvolume itself is always created so swap can be enabled later)
-	if u.EnableSwapfile {
+	if u.EnableSwap {
+		swapSizeMiB, err := swap.ResolveSwapSizeMiB(u.SwapSize)
+		if err != nil {
+			return fmt.Errorf("failed to resolve swap size: %w", err)
+		}
 		fmt.Println("[INFO] Creating swapfile in /swap subvolume...")
-		if err := createSwapfile(i.ChrootDir); err != nil {
+		if err := createSwapfile(i.ChrootDir, swapSizeMiB); err != nil {
 			return fmt.Errorf("swapfile creation failed: %w", err)
 		}
 		// swap service is conditional — only in the runlevel when swap exists
@@ -111,7 +116,7 @@ func RunBtrfsSetup(conf *config.Config) error {
 // new files inherit NODATACOW, so mkswapfile doesn't need to set it itself.
 // No 'btrfs property set compression none' anywhere: the 'm' attribute it
 // sets would make chattr +C fail (NixOS/nixpkgs #384047).
-func createSwapfile(chroot string) error {
+func createSwapfile(chroot string, sizeMiB int) error {
 	swapDir := chroot + "/swap"
 	swapFile := swapDir + "/swapfile"
 
@@ -125,7 +130,7 @@ func createSwapfile(chroot string) error {
 
 	// Create swapfile using btrfs native command
 	fmt.Println("[INFO] Creating swapfile with btrfs filesystem mkswapfile...")
-	if _, err := shell.ExecuteCmd("", fmt.Sprintf("btrfs filesystem mkswapfile --size 8g %s", swapFile)); err != nil {
+	if _, err := shell.ExecuteCmd("", fmt.Sprintf("btrfs filesystem mkswapfile --size %dM %s", sizeMiB, swapFile)); err != nil {
 		return fmt.Errorf("failed to create swapfile: %w", err)
 	}
 

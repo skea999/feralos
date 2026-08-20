@@ -37,7 +37,8 @@ variables:
   enableHardening: false
   enableZswap: false
   enableNix: true
-  enableSwapfile: true
+  enableSwap: true
+  swapSize: auto
   enableDebug: false
 
   # Extra Packages
