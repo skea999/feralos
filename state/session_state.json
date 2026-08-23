@@ -20,9 +20,9 @@
     "Harness 25/25 checks pass",
     "Code review completed: modules moved to packageLogic",
     "Removed additional modules from services.go (booster doesn't use /etc/modules)",
-    "Moved qemu/kvm groups from hardcoded extraGroups to internalRules.yaml",
+    "Moved qemu/kvm groups from hardcoded extraGroups to internal_rules.yaml",
     "Modules to packageLogic: 8021q\u2192vlan, bridge/br_netfilter\u2192bridge, zstd_compress\u2192zstd, overlay\u2192incus/podman/docker",
-    "baseModules in internalRules.yaml: r8169, bonding, binfmt_misc, zsmalloc",
+    "baseModules in internal_rules.yaml: r8169, bonding, binfmt_misc, zsmalloc",
     "booster.go: Removed boosterDefaultModules map, uses u.Modules for modules_force_load",
     "incus chain: incus-feature \u2192 incus-feature-vm/client/utils; incus-feature-vm \u2192 qemu-system-x86_64",
     "Fixed kvm module: kvm-amd/kvm-intel \u2192 kvm (Alpine kernel)",
@@ -67,7 +67,7 @@
     "New harness check services_status: verifies configured OpenRC services are actually STARTED via rc-status --all; excludes QEMU-only (smartd crashed, fsck fsck.vfat missing, udev-settle one-shot); parses supervise-daemon format '[ started 00:00:36 (0) ]' — commit 47b2d50",
     "log_errors whitelist extended: 'start-stop-daemon: no matching processes found' (smartd stop) + 'fsck.vfat: No such file or directory' (fsck) — both QEMU-only false positives",
     "services_status calibrated: first run 30/31 (parser missed supervise-daemon format → vector/fwupd missing), regex fixed, simulated re-check 0 not-active",
-    "niri desktop environment: nixPackages field in internalRules (auto-enables Nix), chrootPhase/desktops/niri.go (greetd/regreet/niri configs, wayvnc, xdg-su, OpenRC dms service), dispatcher in chroot_phase.go",
+    "niri desktop environment: nixPackages field in internal_rules (auto-enables Nix), chrootPhase/desktops/niri.go (greetd/regreet/niri configs, wayvnc, xdg-su, OpenRC dms service), dispatcher in chroot_phase.go",
     "nix fixes: --option sandbox false chroot-only (trusted-users = root @wheel), TMPDIR=/nix/var/nix/build/tmp on @nix-var-nix-build subvolume (/tmp noexec+0755), nix registry pinned to nixos-26.05 stable (default maps nixpkgs→unstable)",
     "Alpine fixes: wayland-libs-server (niri NoWaylandLib panic), greeter in greetd group, elogind seat provider (not seatd), render group removed (doesn't exist on Alpine), turnstile removed (edge only)",
     "Harness DE=niri: DesktopEnvironment in RunConfig/VerifyConfig, virtio-gpu-pci, checks niri_config_valid/greetd_config/niri_greeter/wayvnc_installed/dms_installed, services_status greetd+elogind",
@@ -147,7 +147,7 @@
     },
     {
       "date": "2026-08-08",
-      "decision": "internalRules.yaml: only base OS in defaultRunlevels",
+      "decision": "internal_rules.yaml: only base OS in defaultRunlevels",
       "rationale": "Services moved to packageLogic. defaultRunlevels only contains kernel/OS services."
     },
     {
@@ -257,8 +257,8 @@
     },
     {
       "date": "2026-08-18",
-      "decision": "niri desktop: data in internalRules (nixPackages field) + config logic in chrootPhase/desktops/niri.go",
-      "rationale": "kde/gnome are pure data (packages/services/groups) — stay in internalRules. niri needs configs (greetd, regreet, niri configs, wayvnc, xdg-su, dms service) — chrootPhase/desktops/niri.go, same pattern as features/. nixPackages field behaves like apk: data selects install, auto-enables Nix. DMS + quickshell from stable nixpkgs channel (nixos-26.05) — dms-shell is packaged in nixpkgs, no external flake."
+      "decision": "niri desktop: data in internal_rules (nixPackages field) + config logic in chrootPhase/desktops/niri.go",
+      "rationale": "kde/gnome are pure data (packages/services/groups) — stay in internal_rules. niri needs configs (greetd, regreet, niri configs, wayvnc, xdg-su, dms service) — chrootPhase/desktops/niri.go, same pattern as features/. nixPackages field behaves like apk: data selects install, auto-enables Nix. DMS + quickshell from stable nixpkgs channel (nixos-26.05) — dms-shell is packaged in nixpkgs, no external flake."
     },
     {
       "date": "2026-08-18",

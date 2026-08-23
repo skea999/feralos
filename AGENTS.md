@@ -103,7 +103,7 @@ Standard core, pluggable data — installer logic never changes, storage layouts
 
 ## Compatibility
 
-No backward compat. Breaking changes allowed without fallback (e.g., `internalRules.yaml` → `internal_rules.yaml` without deprecated path). Installer is single-run.
+No backward compat. Breaking changes allowed without fallback (e.g., breaking changes to `internal_rules.yaml` without deprecated path). Installer is single-run.
 
 ## Project Structure
 
