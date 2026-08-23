@@ -40,8 +40,8 @@ temp/
 tests/harness/work/
 tests/harness/iso/
 tests/harness/coverage.out
-tests/harness/skea-harness
-tests/debug-run/debug-run
+tests/harness/skea_harness
+tests/debug_run/debug_run
 
 # Artifacts - ignore all files, keep .gitkeep for structure
 tests/artifacts/**/*

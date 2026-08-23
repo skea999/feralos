@@ -333,7 +333,7 @@ sudo ./feralos_installer -config src/variables/variables.yaml
 ```bash
 # Run harness
 cd tests/harness
-go run ./cmd/skea-harness run --keep-target-running
+go run ./cmd/skea_harness run --keep-target-running
 
 # Access target
 ssh -p 2222 skea@localhost

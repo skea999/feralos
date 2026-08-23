@@ -30,7 +30,7 @@ All notable changes to FeralOS will be documented in this file.
 - earlyoom in standardPackages with service in packageLogic
 - uutils subpackages: groups, more, uptime (stat removed — doesn't exist)
 - Harness checks: `fstab_vs_mount`, `vector_service`, `vector_logs`, `vector_running`, `vector_diag`, `apk_packages` (dumps to run dir), `sudo_installed/wheel/works`
-- `tests/debug-run/` — boot existing run without reinstalling (auto-detects latest run)
+- `tests/debug_run/` — boot existing run without reinstalling (auto-detects latest run)
 - EFI keys generated AFTER package install (matches reference flow)
 - `WriteSecurebootConf` skips when `/etc/uefi-keys/db.key` missing
 - APK v3 dummy packages via `apk mkpkg` (replaces binary manipulation)

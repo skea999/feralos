@@ -41,12 +41,12 @@ Available agents (invoke via @mention):
 Active skills: 19 language/domain/utility skill packs loadable via skill tool.
 Active commands: 14 slash commands (type / to see autocomplete).
 
-Memory: state/session-state.json and handoff/latest.md preserve working state.
+Memory: state/session_state.json and handoff/latest.md preserve working state.
 Context persistence: AGENTS.md tracks project milestones across sessions.`);
 
       // Persist critical state markers
       output.context.push(`## Session State Reminder
-- Current phase: Read state/session-state.json for working memory
+- Current phase: Read state/session_state.json for working memory
 - Check handoff/latest.md for continuation context
 - Review AGENTS.md for recent milestones and patterns`);
     },

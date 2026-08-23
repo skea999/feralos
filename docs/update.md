@@ -34,7 +34,7 @@ curl -fsSL https://raw.githubusercontent.com/JuliusBrussee/caveman/main/agents/c
 
 ## Universal skills (`.agents/skills/`)
 
-Tracked in `skills-lock.json` via `skills.sh` CLI (Vercel Labs). Auto-installs on first run.
+Tracked in `skills_lock.json` via `skills.sh` CLI (Vercel Labs). Auto-installs on first run.
 
 ```bash
 npx skills update
@@ -77,5 +77,5 @@ If the key in `~/.config/opencode/opencode.json` expires, replace it from https:
 ## Notes
 
 - User-created agents are safe from overwrites (no manifest entry).
-- User-modified skills (`session-memory`, `using-agent-skills`) are excluded from `skills-lock.json` — `npx skills update` skips them.
+- User-modified skills (`session-memory`, `using-agent-skills`) are excluded from `skills_lock.json` — `npx skills update` skips them.
 - Caveman re-run steps are idempotent — safe to run anytime.

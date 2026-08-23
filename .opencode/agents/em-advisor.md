@@ -145,11 +145,11 @@ Urgent + Important: Do now | Important, not urgent: Schedule | Urgent, not impor
 
 **At session start:**
 1. Read `AGENTS.md` for project context and review existing EM-related documents.
-2. Read `state/session-state.json` for active goals/risks (if present).
+2. Read `state/session_state.json` for active goals/risks (if present).
 3. Read `handoff/latest.md` for continuation context (if present).
 
 **At task completion:**
-1. Update `state/session-state.json` with key recommendations, risks, and next actions.
+1. Update `state/session_state.json` with key recommendations, risks, and next actions.
 2. Generate or refresh handoff packet using project tooling when advisory state changed.
 3. Then update `AGENTS.md` with timestamped entry (latest first, 3-5 bullets max):
 

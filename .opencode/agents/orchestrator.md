@@ -163,12 +163,12 @@ For iterative execution tasks, enforce a bounded loop:
 
 **At session start:**
 1. Read `AGENTS.md` for project context and recent activity
-2. Read `state/session-state.json` for working memory (if present)
+2. Read `state/session_state.json` for working memory (if present)
 3. Read `handoff/latest.md` for continuation context (if present)
 4. Apply successful orchestration patterns from previous sessions
 
 **At task completion:**
-1. Refresh `state/session-state.json` with current phase, risks, decisions, and next actions.
+1. Refresh `state/session_state.json` with current phase, risks, decisions, and next actions.
 2. Generate or refresh handoff packet using project tooling when phase state changed.
 3. Then update `AGENTS.md` with timestamped entry (latest first):
 

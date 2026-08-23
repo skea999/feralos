@@ -24,7 +24,7 @@ Transform the installer output into a complete FeralOS distribution with Dinit, 
 | v0.2 | — | Done | Go installer: btrfsStandardServer (2-disk RAID1) |
 | v0.3 | — | Done | Go installer: btrfsStandard (single disk) |
 | v0.4 | — | Done | Generator (interactive + standalone) |
-| v0.5 | — | Done | Test suite: harness + debug-run |
+| v0.5 | — | Done | Test suite: harness + debug_run |
 | v0.6 | — | Done | Nix integration |
 | v0.7 | — | Planned | Go installer: btrfsRaid0 (2-disk RAID0) |
 | v0.8 | — | Planned | Go installer: btrfsStandardUnencrypted (VM layout, no LUKS) |
@@ -64,7 +64,7 @@ Transform the installer output into a complete FeralOS distribution with Dinit, 
 | GRUB dual EFI | P1 | Done | configurator.go |
 | Fstab generation | P1 | Done | fstab.go per layout |
 | Nix integration | P1 | Done | nix.go, subvolumes, daemon config |
-| Test suite | P2 | Done | harness (QEMU) + debug-run |
+| Test suite | P2 | Done | harness (QEMU) + debug_run |
 
 ## Phase 2 Pipeline
 

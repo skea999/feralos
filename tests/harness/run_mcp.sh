@@ -36,7 +36,7 @@ if binary_needs_rebuild; then
 	echo "info: building harness binary at $binary_path" >&2
 	(
 		cd "$harness_src_dir"
-		go build -o "$binary_path" ./cmd/skea-harness
+		go build -o "$binary_path" ./cmd/skea_harness
 	)
 fi
 

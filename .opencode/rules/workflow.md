@@ -17,7 +17,7 @@ keywords:
   - "release"
   - "ci/cd"
 ---
-- agent-chain (complex): @orchestrator → @planner (plan→state/session-state.json) → @codebase (reads state/session-state.json, impl) → parallel(@review @code-reviewer) → @debugger → @docs → save summary. See AGENTS.md#Workflow
+- agent-chain (complex): @orchestrator → @planner (plan→state/session_state.json) → @codebase (reads state/session_state.json, impl) → parallel(@review @code-reviewer) → @debugger → @docs → save summary. See AGENTS.md#Workflow
 - skill-chain (simple): 0: context+recall → 1: interview-me / idea-refine → 2: spec → 3: plan → 4: implement (incremental-implementation | subagent-driven-development) → 4.1: parallel(@review @code-reviewer on git diff); if any blocker → 4 → 5: test-driven-development → 6: debugging → 7: code-review-and-quality + security-and-hardening + performance-optimization (parallel) → 8: code-simplification → 9: grill-with-docs → 10: git-workflow-and-versioning → 11: ci-cd-and-automation → 12: deprecation-and-migration → 13: save summary
 - parallel: indep features, agents-in-step, review+tests, policy
 - never parallel: tests(need code first)

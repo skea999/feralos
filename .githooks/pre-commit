@@ -79,7 +79,7 @@ for FILE in $FILES; do
     # Allow dummy passwords in test fixtures/harness (QEMU fixtures, not real secrets)
     if echo "$PATTERN" | grep -q "password|secret"; then
       case "$FILE" in
-        tests/fixtures/*|tests/harness/variables_*.yaml|docs/*|src/variables/variables.yaml) continue ;;
+        tests/fixtures/*|tests/harness/variables_*.yaml|tests/harness/*.go|docs/*|src/variables/variables.yaml) continue ;;
       esac
     fi
     if git show ":${FILE}" | grep -qiE -- "$PATTERN"; then

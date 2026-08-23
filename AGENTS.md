@@ -8,7 +8,7 @@
 
 **Chain** (complex): context/recall → interview/refine → @planner → approve → @codebase → PARALLEL(@review+@code-reviewer+@vulnerability-scan+@information-scan) → @debugger/tests → @docs/docs → save
 **Direct** (simple): @codebase or specialist
-State: `state/session-state.json` | Handoff: `handoff/latest.md`
+State: `state/session_state.json` | Handoff: `handoff/latest.md`
 
 Installer Workflow: Understand Requirements (CONTEXT, ROADMAP, shell ref) → Plan (hostPhase/chrootPhase modules) → Implement (Go, naming conventions) → Test locally → Test harness (QEMU) → Review → Commit (conventional)
 
@@ -40,7 +40,7 @@ cd src && go build -o ../feralos_secureboot ./firstBoot/secureboot/
 cd src && go build -o ../feralos_tpm ./firstBoot/tpm/
 
 # Build harness
-cd tests/harness && go build -o skea-harness ./cmd/skea-harness/
+cd tests/harness && go build -o skea-harness ./cmd/skea_harness/
 
 # Run installer (requires root + live)
 sudo ./feralos_installer -config variables.yaml

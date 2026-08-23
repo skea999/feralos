@@ -50,10 +50,10 @@ feralos_installer/
 │       └── desktops/ (niri.go, kde.go, gnome.go)
 ├── tests/
 │   ├── fixtures/variables/ (14 templates + README — all scenarios)
-│   ├── harness/ (cmd/skea-harness, internal/, variables-*.yaml deprecated shims)
+│   ├── harness/ (cmd/skea_harness, internal/, variables-*.yaml deprecated shims)
 │   └── artifacts/ (gitignored: cache, prepare, runs, state)
 ├── docs/ (PROJECT.md, INSTALLER.md, USAGE.md)
-├── state/session-state.json
+├── state/session_state.json
 └── handoff/latest.md
 ```
 
@@ -259,7 +259,7 @@ feralos_installer/
 - **Artifacts**: Test outputs in tests/artifacts/ (gitignored)
 - **Modes**: Install, boot, shell access for manual testing
 - **Checks**: 22/22 verification checks incl. `fstab_vs_mount`, `vector_*`, `apk_packages` dumps
-- **debug-run**: `tests/debug-run/` boots an existing run without reinstalling (auto-detects latest run dir)
+- **debug-run**: `tests/debug_run/` boots an existing run without reinstalling (auto-detects latest run dir)
 
 ## Build & Run
 

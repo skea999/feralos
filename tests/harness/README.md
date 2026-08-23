@@ -44,12 +44,12 @@ Tier1 CI gate: minimal + noswap per layout. Tier2 nightly: explicit + isolate. T
 From inside `installer/tools/harness/`:
 
 ```bash
-go run ./cmd/skea-harness prepare-runner
-go run ./cmd/skea-harness run --keep-target-running
-go run ./cmd/skea-harness status
-go run ./cmd/skea-harness cleanup
-go run ./cmd/skea-harness logs --log installer
-go run ./cmd/skea-harness stop
+go run ./cmd/skea_harness prepare-runner
+go run ./cmd/skea_harness run --keep-target-running
+go run ./cmd/skea_harness status
+go run ./cmd/skea_harness cleanup
+go run ./cmd/skea_harness logs --log installer
+go run ./cmd/skea_harness stop
 ```
 
 ## Artifacts
@@ -88,7 +88,7 @@ Per run, the harness writes these files when relevant:
 Use:
 
 ```bash
-go run ./cmd/skea-harness logs --run-dir /abs/path/to/run --log installer
+go run ./cmd/skea_harness logs --run-dir /abs/path/to/run --log installer
 ```
 
 ## Installer integration
@@ -123,7 +123,7 @@ The target then reboots for a second boot, which validates that TPM auto-unlock 
 The harness exposes a stdio MCP server through:
 
 ```bash
-go run ./cmd/skea-harness mcp
+go run ./cmd/skea_harness mcp
 ```
 
 For path-agnostic local launches from a built workspace, use:
