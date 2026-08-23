@@ -150,7 +150,13 @@ All prior swap/vector/dummy issues resolved. See `CHANGELOG.md` Fixed section. C
 
 ---
 
-*Updated: 2026-08-23*
+*Updated: 2026-08-24*
+
+### 2026-08-24 — btrfsStandardServer RAID1 fix (dead data disks removed)
+**Agent:** codebase — **All 3 layouts PASS with secureboot+tpm: standard 31/31, raid0 33/33, server 32/32**
+- Removed unused 8GB btrfs data disks (`btrfsDisk1Path`/`btrfsDisk2Path`) from harness QEMU args — created but never mounted/referenced by installer, causing udev race → `dm-1` missing → busybox fallback
+- `BootTimeout` increased to 10min for 3-boot flow with always-present swtpm
+- 3-boot harness flow stable: runner installs, target first-boot runs secureboot+tpm, verification passes
 
 ### 2026-08-23 17:00 - AGENTS compress + githooks vet/lint + fixtures validation
 **Agent:** codebase — **AGENTS <200 lines + hook vet/lint + 3 harness runs PASS**

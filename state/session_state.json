@@ -82,7 +82,9 @@
     "Verified after refactor: raid0 32/32 (swap partitions active, 2x RAM), standard 32/32 (swapfile 7.66GiB from swapSize), noswap 32/32 (no swap anywhere, service not in runlevel), server 32/32 (unchanged) — 128/128 total",
     "AGENTS.md compressed: moved detailed structure to docs/INSTALLER.md#project-structure, pointer only in AGENTS.md (<200 lines), preserved Build & Test examples verbatim, known issues → CHANGELOG, alternatives → CONTEXT",
     "Githooks pre-commit now runs go vet + golangci-lint on staged Go files (src/harness) + secrets scan, fixed grep -- leading dash bug, set core.hooksPath=.githooks",
-    "Fixtures library validated: 14/14 YAML valid, vet/lint clean both modules, swap 25/25 PASS (K ceil fix), harness critical gap btrfsRaid0-noswap 32/32 (swap_status header-only, RAID0 pure), explicit 8G both layouts 32/32 (8192M file / 4G per partition)"
+    "Fixtures library validated: 14/14 YAML valid, vet/lint clean both modules, swap 25/25 PASS (K ceil fix), harness critical gap btrfsRaid0-noswap 32/32 (swap_status header-only, RAID0 pure), explicit 8G both layouts 32/32 (8192M file / 4G per partition)",
+    "btrfsStandardServer RAID1 fix: removed dead 8GB btrfs data disks (btrfsDisk1Path/btrfsDisk2Path) from harness QEMU args — created but never mounted/referenced by installer, causing udev race → dm-1 missing → busybox fallback. All 3 layouts now pass with secureboot+tpm: standard 31/31, raid0 33/33, server 32/32. BootTimeout increased to 10min for 3-boot flow with always-present swtpm.",
+    "Fixtures library: 14 curated variables.yaml templates covering btrfsStandard/Server/Raid0 x swap on/off x swapSize auto/8G x secureboot/tpm/hardening isolate x niri x full_stack"
   ],
   "decisions": [
     {

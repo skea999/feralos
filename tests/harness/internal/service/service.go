@@ -480,8 +480,6 @@ func (service *Service) RunInstall(ctx context.Context, cfg *RunConfig) (RunResu
 
 	disk1Path := filepath.Join(runDir, "install-disk-1.qcow2")
 	disk2Path := filepath.Join(runDir, "install-disk-2.qcow2")
-	btrfsDisk1Path := filepath.Join(runDir, "btrfs-disk-1.qcow2")
-	btrfsDisk2Path := filepath.Join(runDir, "btrfs-disk-2.qcow2")
 	runnerSerialLog := filepath.Join(runDir, "runner-serial.log")
 	runnerQemuLog := filepath.Join(runDir, "runner-qemu.log")
 	runnerQMPPath := filepath.Join(runDir, "runner-qmp.sock")
@@ -513,16 +511,6 @@ func (service *Service) RunInstall(ctx context.Context, cfg *RunConfig) (RunResu
 	if cfg.DiskLayout == layoutBtrfsStandardServer || cfg.DiskLayout == layoutBtrfsRaid0 {
 		if disk2Err := qemu.CreateDisk(cfg.QemuImgBinary, disk2Path, cfg.DiskSize); disk2Err != nil {
 			return RunResult{}, disk2Err
-		}
-	}
-	// Data disks (btrfs RAID1 + ZFS) — only for btrfsStandardServer
-	extraDiskSize := "8G"
-	if cfg.DiskLayout == layoutBtrfsStandardServer {
-		if btrfs1Err := qemu.CreateDisk(cfg.QemuImgBinary, btrfsDisk1Path, extraDiskSize); btrfs1Err != nil {
-			return RunResult{}, btrfs1Err
-		}
-		if btrfs2Err := qemu.CreateDisk(cfg.QemuImgBinary, btrfsDisk2Path, extraDiskSize); btrfs2Err != nil {
-			return RunResult{}, btrfs2Err
 		}
 	}
 
@@ -576,8 +564,6 @@ func (service *Service) RunInstall(ctx context.Context, cfg *RunConfig) (RunResu
 	if cfg.DiskLayout == layoutBtrfsStandardServer {
 		runnerArgs = append(runnerArgs,
 			"-drive", "if=virtio,format=qcow2,file="+disk2Path,
-			"-drive", "if=virtio,format=qcow2,file="+btrfsDisk1Path,
-			"-drive", "if=virtio,format=qcow2,file="+btrfsDisk2Path,
 		)
 	} else if cfg.DiskLayout == layoutBtrfsRaid0 {
 		runnerArgs = append(runnerArgs,
@@ -823,7 +809,7 @@ fi
 	// Delay before booting the target to let the installed disk images settle.
 	time.Sleep(10 * time.Second)
 
-	targetResult, targetErr := service.bootAndVerifyTarget(ctx, cfg, runID, runDir, disk1Path, disk2Path, btrfsDisk1Path, btrfsDisk2Path, keyPair, verifyLogPath, stateStore, &active)
+	targetResult, targetErr := service.bootAndVerifyTarget(ctx, cfg, runID, runDir, disk1Path, disk2Path, keyPair, verifyLogPath, stateStore, &active)
 	if targetErr != nil {
 		return result, targetErr
 	}
@@ -841,7 +827,7 @@ fi
 	return result, nil
 }
 
-func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg *RunConfig, runID, runDir, disk1Path, disk2Path, btrfsDisk1Path, btrfsDisk2Path string, keyPair guest.KeyPair, verifyLogPath string, stateStore runstate.Store, active *runstate.ActiveRun) (RunResult, error) {
+func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg *RunConfig, runID, runDir, disk1Path, disk2Path string, keyPair guest.KeyPair, verifyLogPath string, stateStore runstate.Store, active *runstate.ActiveRun) (RunResult, error) {
 	ovmfPaths, err := qemu.FindOVMF()
 	if err != nil {
 		active.Status = statusFailed
@@ -890,10 +876,6 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg *RunConfig,
 			args = append(args,
 				"-drive", "if=none,id=targetdisk2,format=qcow2,file="+disk2Path,
 				"-device", "virtio-blk-pci,drive=targetdisk2,bootindex=2",
-				"-drive", "if=none,id=btrfsdisk1,format=qcow2,file="+btrfsDisk1Path,
-				"-device", "virtio-blk-pci,drive=btrfsdisk1",
-				"-drive", "if=none,id=btrfsdisk2,format=qcow2,file="+btrfsDisk2Path,
-				"-device", "virtio-blk-pci,drive=btrfsdisk2",
 			)
 		} else if cfg.DiskLayout == layoutBtrfsRaid0 {
 			args = append(args,

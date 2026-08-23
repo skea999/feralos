@@ -5,6 +5,7 @@
 **Agents:** `review` (isolation + security) + `explore` (feature confinement) + `explore` (i18n + naming) + `review` (vulnerability + information-scan) — parallel
 **Status:** 🔴 Requires Changes before release — 3 Critical (secrets leakage + shell injection + dmsetup), multiple High/Major
 **Stats:** 14 templates + swap 25/25 + 3 harness 32/32 (raid0-noswap + 2× explicit 8G) prior to review
+**Progress:** §1 Feature Confinement ✅ DONE (8/8 confined, hotspots cleared)
 
 > **How to use:** Go checkbox by checkbox `[ ] → [x]`. Each item has `file:line` + severity + fix snippet. Commit per section with `fix(review): <area>`. Italian→English and naming fixes already applied (see §6, §7 — verify).
 
@@ -25,19 +26,19 @@
 
 | Feature | Confined? | Files touching flag | Hotspot | Severity | Fix |
 |---------|-----------|---------------------|---------|----------|-----|
-| `EnableSecureboot` | ❌ dead | `config.go:34` DEF only; `firstBoot/secureboot/main.go` (no flag); `chrootPhase/internal/misc.go:112` unconditional `rm /etc/kernel-hooks.d/50-secureboot.hook` | `misc.go:112` | **CRITICAL** | Create `features/secureboot.go:SetupSecureboot` with guard `if !EnableSecureboot {return}`; move `misc.go:112` there or guard it. Or remove flag if truly firstBoot-only and document. |
-| `EnableTPM` | ❌ | `config.go:35` + `chrootPhase/internal/packages.go:137` `allPkgs append tpm2-*` + `firstBoot/tpm/main.go` | `packages.go:137` | **HIGH** | Create `features/tpm.go` owning `ShouldInstallTPM` + `TpmPackages` slice; `packages.go` should call `features.TpmPackages(conf)` not inline. |
-| `EnableHardening` | ❌ scattered | `features/hardening.go:14` guard + `packages.go:155` `bubblewrap,apparmor` | `packages.go:155` | **MEDIUM** | Centralize in `hardening.go`: export `HardeningPackages []string` and have `packages.go` import it, or make `packages.go` generic and call `hardening.AddPackages`. |
-| `EnableZswap` | ❌ 3 files + 2-file split | `features/zswap.go:11,22` toggleable + `features/zswap_server.go:12` always-on + `utils/logic/logic.go:18` `zsmalloc` module | `logic.go:18` | **MEDIUM** | Merge or document exception: either `zswap.go` single file with `if DiskLayout==server {aggressive} else {conservative+guard}` and `logic.go:18` → `zswap.Modules()` helper, or keep 2-file split with comment `layout specialization exempt`. |
-| `EnableNix` | ❌ 3 files | `features/nix.go:12` + `packages.go:151` `nix,nix-openrc` + `logic.go:42` auto-enable `if len(NixPackages)>0` | `packages.go:151` + `logic.go:42` | **MEDIUM** | Export `NixPackages` from `nix.go`, have `packages.go` import; move auto-enable helper to `nix.ShouldEnable(conf)` called from `logic.go`. |
+| `EnableSecureboot` | ✅ done | `config.go:34` DEF only; `firstBoot/secureboot/main.go` (no flag); `chrootPhase/internal/misc.go:112` unconditional `rm /etc/kernel-hooks.d/50-secureboot.hook` | `misc.go:112` | **CRITICAL** | Create `features/secureboot.go:SetupSecureboot` with guard `if !EnableSecureboot {return}`; move `misc.go:112` there or guard it. Or remove flag if truly firstBoot-only and document. |
+| `EnableTPM` | ✅ done | `config.go:35` + `chrootPhase/internal/packages.go:137` `allPkgs append tpm2-*` + `firstBoot/tpm/main.go` | `packages.go:137` | **HIGH** | Create `features/tpm.go` owning `ShouldInstallTPM` + `TpmPackages` slice; `packages.go` should call `features.TpmPackages(conf)` not inline. |
+| `EnableHardening` | ✅ done | `features/hardening.go:14` guard + `packages.go:155` `bubblewrap,apparmor` | `packages.go:155` | **MEDIUM** | Centralize in `hardening.go`: export `HardeningPackages []string` and have `packages.go` import it, or make `packages.go` generic and call `hardening.AddPackages`. |
+| `EnableZswap` | ✅ done | `features/zswap.go:11,22` toggleable + `features/zswap_server.go:12` always-on + `utils/logic/logic.go:18` `zsmalloc` module | `logic.go:18` | **MEDIUM** | Merge or document exception: either `zswap.go` single file with `if DiskLayout==server {aggressive} else {conservative+guard}` and `logic.go:18` → `zswap.Modules()` helper, or keep 2-file split with comment `layout specialization exempt`. |
+| `EnableNix` | ✅ done | `features/nix.go:12` + `packages.go:151` `nix,nix-openrc` + `logic.go:42` auto-enable `if len(NixPackages)>0` | `packages.go:151` + `logic.go:42` | **MEDIUM** | Export `NixPackages` from `nix.go`, have `packages.go` import; move auto-enable helper to `nix.ShouldEnable(conf)` called from `logic.go`. |
 | `EnableSwap` | ⚠️ acceptable exception | `btrfsStandard/partitioning.go:81,127` + `btrfsRaid0/partitioning.go:53,61,69,106,163,131` + `btrfsStandardServer/*` ignores flag (always) per user decision | `hostPhase/disks/` layer | **LOW** | Keep in `hostPhase/disks/` (correct layer, not `features/`). DRY: extract `hostPhase/disks/common/swap.go` helper `ResolveSwapSize`, `WriteDmcryptConf`, `AddSwapRunlevel` to reduce 4-file duplication. Server hard-code intentional — log warning if `EnableSwap:false` on server. |
-| `EnableDebug` | ❌ embedded | `config.go:41` + `features/hardening.go:33,66` two branches | `hardening.go:33` | **LOW** | Extract `func debugOverrides()` or `features/debug.go` returning overrides, `hardening.go` applies. |
-| `DesktopEnvironment` | ❌ 3 places | `config.go:29,60` + `logic.go:27` `applyRule(DesktopEnvironments[de])` + `chroot_phase.go:63` `if == "niri"` + `desktops/niri.go:15` | `chroot_phase.go:63` | **MEDIUM** | Generic dispatcher: `desktops.Setup(conf)` registry map, move `logic.go:27` package injection into `desktops` package. Add `kde.go` stub for consistency (currently only niri has impl). |
+| `EnableDebug` | ✅ done | `config.go:41` + `features/hardening.go:33,66` two branches | `hardening.go:33` | **LOW** | Extract `func debugOverrides()` or `features/debug.go` returning overrides, `hardening.go` applies. |
+| `DesktopEnvironment` | ✅ done | `config.go:29,60` + `logic.go:27` `applyRule(DesktopEnvironments[de])` + `chroot_phase.go:63` `if == "niri"` + `desktops/niri.go:15` | `chroot_phase.go:63` | **MEDIUM** | Generic dispatcher: `desktops.Setup(conf)` registry map, move `logic.go:27` package injection into `desktops` package. Add `kde.go` stub for consistency (currently only niri has impl). |
 
 **Hotspots to refactor:**
-- `src/chrootPhase/internal/packages.go:137,151,155` — 3 features in one non-feature file (main violation). Delegate to feature files.
-- `src/utils/logic/logic.go:18,27,42` — 3 flags outside features.
-- `src/chrootPhase/chroot_phase.go:63` hard-coded niri check.
+- ~~`src/chrootPhase/internal/packages.go:137,151,155` — 3 features in one non-feature file (main violation). Delegate to feature files.~~ ✅ Done
+- ~~`src/utils/logic/logic.go:18,27,42` — 3 flags outside features.~~ ✅ Done
+- ~~`src/chrootPhase/chroot_phase.go:63` hard-coded niri check.~~ ✅ Done
 
 **Checklist:**
 - [x] Create `features/secureboot.go` + guard `misc.go:112`
@@ -235,7 +236,7 @@ No Italian-named variables/functions found.
 
 ### P1 — Next Sprint (correctness + DRY)
 
-- [ ] **6. Feature confinement** — Create `features/secureboot.go` + `features/tpm.go`; centralize `packages.go:137,151,155` into feature files via `HardeningPackages`/`NixPackages` helpers; genericize `desktops.Setup` + `logic.go:27` (see §1 checklist 8 items)
+- [x] **6. Feature confinement** — Create `features/secureboot.go` + `features/tpm.go`; centralize `packages.go:137,151,155` into feature files via `HardeningPackages`/`NixPackages` helpers; genericize `desktops.Setup` + `logic.go:27` (see §1 checklist 8 items)
 - [ ] **7. Swap keyfile TOCTOU + swapSize cap + `ignore` forbid** — `btrfsRaid0:166` `install -m 400` + `swap.go:45` `maxSwapMiB` + `execute.go:141` `critical` param (H4-H6)
 - [ ] **8. File writes shell→Go** — `network.go:16` `echo > /etc/hostname` + `boot.go:23` `echo > /etc/kernel/cmdline` + `misc.go:36` `ln -sf` → `os.WriteFile` or `shellescape.Quote` (M1)
 - [ ] **9. DRY: `utils/misc` + `disks/common`** — delete local `getPartitionSpacer/getDiskSuffix/getBtrfsUUID/Subvolume/luks.go` duplicates → `import "alpineInstaller/utils/misc"` + `disks/common` (see §4 majors)
