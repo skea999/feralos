@@ -1125,6 +1125,9 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg *RunConfig,
 		if strings.Contains(tpmDiag, "TPM binding complete") {
 			tpmBindingSuccessful = true
 		}
+		if strings.Contains(tpmDiag, "No LUKS devices were bound") {
+			tpmBindingSuccessful = false
+		}
 
 		// Reboot after TPM binding
 		if poweroffErr := guest.Run(ctx, targetGuest, "poweroff", io.Discard, io.Discard); poweroffErr != nil {
@@ -2629,12 +2632,12 @@ func runSbctlOnTarget(ctx context.Context, targetGuest guest.Options, repoRoot s
 	}
 
 	// Secureboot binary is pre-installed by the installer at
-	// /home/user/feralos_secureboot — no build/copy needed.
+	// /opt/feralos_secureboot — no build/copy needed.
 	script := `set -eu
 export SKEA_NONINTERACTIVE=1
 export SKEA_NONINTERACTIVE_DECISION=ignore
 [ -x /root/debug.sh ] && sh /root/debug.sh || true
-[ -x /home/user/feralos_secureboot ] && /home/user/feralos_secureboot || true
+[ -x /opt/feralos_secureboot ] && /opt/feralos_secureboot || true
 `
 	var outBuf, errBuf strings.Builder
 	if err := guest.Run(ctx, targetGuest, "sh -s -- <<'SCRIPT'\n"+script+"\nSCRIPT", &outBuf, &errBuf); err != nil {
@@ -2655,12 +2658,12 @@ func runTPMOnTarget(ctx context.Context, targetGuest guest.Options, password str
 		password = "Alpine.1"
 	}
 	// TPM binary is pre-installed by the installer at
-	// /home/user/feralos_tpm — no build/copy needed.
+	// /opt/feralos_tpm — no build/copy needed.
 	script := `set -eu
 export SKEA_NONINTERACTIVE=1
 export SKEA_NONINTERACTIVE_DECISION=ignore
 export SKEA_LUKS_PASSWORD=` + shellQuote(password) + `
-/home/user/feralos_tpm
+/opt/feralos_tpm
 `
 
 	var outBuf, errBuf strings.Builder

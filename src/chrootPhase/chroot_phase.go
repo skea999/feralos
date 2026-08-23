@@ -48,6 +48,11 @@ func Run(conf *config.Config) error {
 		return fmt.Errorf("user setup failed: %w", err)
 	}
 
+	// 5a. Fix firstBoot binary permissions (compiled in hostPhase into /opt/)
+	for _, bin := range []string{"feralos_secureboot", "feralos_tpm"} {
+		_, _ = shell.ExecuteCmd(chroot, "chmod 755 /opt/"+bin)
+	}
+
 	// 6. Setup services (OpenRC runlevels)
 	if err := internal.SetupServices(conf); err != nil {
 		return fmt.Errorf("service setup failed: %w", err)
@@ -80,14 +85,6 @@ func Run(conf *config.Config) error {
 	// 10. Setup hardening
 	if err := features.SetupHardening(conf); err != nil {
 		return fmt.Errorf("hardening failed: %w", err)
-	}
-
-	// 10a. Build and install firstBoot binaries for activatable features
-	if err := features.SetupSecureboot(conf); err != nil {
-		fmt.Printf("[WARNING] secureboot setup: %v\n", err)
-	}
-	if err := features.SetupTpm(conf); err != nil {
-		fmt.Printf("[WARNING] tpm setup: %v\n", err)
 	}
 
 	// 11. Setup boot (booster config, cmdline, hooks)

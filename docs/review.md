@@ -47,8 +47,10 @@
 - [x] Merge or document `zswap` 2-file split + move `logic.go:18` `zsmalloc` into helper
 - [x] Extract `debug` overrides from `hardening.go:33,66`
 - [x] Genericize `desktops.Setup` + move `logic.go:27` desktop handling
-- [x] FirstBoot binaries: installer compiles + copies to `/home/user/`, harness runs from target (no build in post-install)
+- [x] FirstBoot binaries: installer compiles + copies to `/opt/`, harness runs from target
 - [x] Removed dead `copyGuidesToTarget` function from harness
+- [x] Config YAML written to `/opt/feralos/config.yaml` (disk layout, LUKS UUIDs, user info)
+- [x] TPM binary reads config YAML + fallback kernel cmdline; includes tpm2-tools
 - [ ] (Optional) `hostPhase/disks/common/swap.go` DRY helper
 
 ---

@@ -8,8 +8,54 @@ import (
 	"regexp"
 	"strings"
 
+	"gopkg.in/yaml.v3"
+
 	"alpineInstaller/utils/shell"
 )
+
+// InstallConfig matches the YAML written by hostPhase/features/install_config.go
+type InstallConfig struct {
+	DiskLayout string   `yaml:"disk_layout"`
+	Disks      []string `yaml:"disks"`
+	LuksUUIDs  []string `yaml:"luks_uuids"`
+	UserName   string   `yaml:"user_name"`
+	Hostname   string   `yaml:"hostname"`
+	Mirror     string   `yaml:"mirror"`
+	Branch     string   `yaml:"branch"`
+}
+
+func loadConfig() *InstallConfig {
+	cfg := &InstallConfig{}
+	data, err := os.ReadFile("/opt/feralos/config.yaml")
+	if err != nil {
+		// Fallback: parse kernel cmdline
+		uuids := getLUKSUUIDsFromCmdline()
+		cfg.LuksUUIDs = uuids
+		return cfg
+	}
+	_ = yaml.Unmarshal(data, cfg)
+
+	// If no LUKS UUIDs in config, fallback to kernel cmdline
+	if len(cfg.LuksUUIDs) == 0 {
+		cfg.LuksUUIDs = getLUKSUUIDsFromCmdline()
+	}
+	return cfg
+}
+
+func getLUKSUUIDsFromCmdline() []string {
+	cmdline, err := os.ReadFile("/etc/kernel/cmdline")
+	if err != nil {
+		return nil
+	}
+	re := regexp.MustCompile(`rd\.luks\.name=([0-9a-f-]+)=`)
+	var uuids []string
+	for _, m := range re.FindAllStringSubmatch(string(cmdline), -1) {
+		if len(m) >= 2 {
+			uuids = append(uuids, m[1])
+		}
+	}
+	return uuids
+}
 
 func main() {
 	shell.SetCaller("tpm")
@@ -21,13 +67,13 @@ func main() {
 		fmt.Println("TPM auto-unlock will not be configured.")
 		return
 	}
-
 	fmt.Println("TPM detected, binding LUKS volumes...")
 
-	// --- 2. Get LUKS UUIDs from kernel cmdline ---
-	uuids := getLUKSUUIDs()
+	// --- 2. Load config ---
+	cfg := loadConfig()
+	uuids := cfg.LuksUUIDs
 	if len(uuids) == 0 {
-		fmt.Fprintln(os.Stderr, "Error: No LUKS UUIDs found in kernel cmdline.")
+		fmt.Fprintln(os.Stderr, "Error: No LUKS UUIDs found in config or kernel cmdline.")
 		os.Exit(1)
 	}
 
@@ -43,7 +89,6 @@ func main() {
 			break
 		}
 	}
-
 	if !needsBinding {
 		fmt.Println("All root LUKS devices already have Clevis TPM2 bindings.")
 		return
@@ -55,25 +100,26 @@ func main() {
 		defer os.Remove(tempFile)
 	}
 
-	// --- 5. Add @edge repo and install clevis ---
+	// --- 5. Install clevis + tpm2-tools ---
 	installClevis()
 
 	// --- 6. Bind each LUKS device to TPM ---
+	bindingOK := false
 	for _, uuid := range uuids {
 		device := findDeviceByUUID(uuid)
 		if device == "" {
 			continue
 		}
-
 		if hasClevisTPM2Binding(device) {
 			fmt.Printf("%s already has a Clevis TPM2 binding, skipping.\n", device)
 			continue
 		}
 
 		fmt.Printf("Binding %s to Clevis TPM2...\n", device)
-		// Use empty PCR policy (TPM identity only)
 		if _, err := shell.ExecuteCmd("", fmt.Sprintf("clevis luks bind -y -d %s -k %s tpm2 {}", device, passFile)); err != nil {
 			fmt.Fprintf(os.Stderr, "WARNING: failed to bind %s: %v\n", device, err)
+		} else {
+			bindingOK = true
 		}
 	}
 
@@ -89,31 +135,16 @@ func main() {
 	rebuildSignedUKI()
 
 	fmt.Println("\n=== TPM binding complete ===")
-	fmt.Println("Reboot to test automatic LUKS unlock via Clevis TPM2.")
-	fmt.Println()
-	fmt.Println("If TPM fails, the system will fall back to passphrase.")
-}
-
-func getLUKSUUIDs() []string {
-	cmdline, err := os.ReadFile("/etc/kernel/cmdline")
-	if err != nil {
-		return nil
+	if bindingOK {
+		fmt.Println("Reboot to test automatic LUKS unlock via Clevis TPM2.")
+	} else {
+		fmt.Println("WARNING: No LUKS devices were bound to TPM2.")
+		fmt.Println("Check tpm2-tools and /dev/tpmrm0 availability.")
 	}
-
-	re := regexp.MustCompile(`rd\.luks\.name=([0-9a-f-]+)=`)
-	matches := re.FindAllStringSubmatch(string(cmdline), -1)
-
-	var uuids []string
-	for _, match := range matches {
-		if len(match) >= 2 {
-			uuids = append(uuids, match[1])
-		}
-	}
-	return uuids
 }
 
 func findDeviceByUUID(uuid string) string {
-	out, err := exec.Command("findfs", "UUID="+uuid).CombinedOutput() //nolint:gosec // G204: UUID is from blkid, not user input
+	out, err := exec.Command("findfs", "UUID="+uuid).CombinedOutput() //nolint:gosec // G204: UUID is from config/cmdline
 	if err != nil {
 		return ""
 	}
@@ -138,7 +169,6 @@ func getPassphraseFile() (string, string) {
 		return passFile, ""
 	}
 
-	// Check environment variable
 	if pw := os.Getenv("SKEA_LUKS_PASSWORD"); pw != "" {
 		tmpFile, err := os.CreateTemp("", "luks-pass-*.tmp")
 		if err != nil {
@@ -151,7 +181,6 @@ func getPassphraseFile() (string, string) {
 		return tmpFile.Name(), tmpFile.Name()
 	}
 
-	// Interactive prompt
 	fmt.Fprint(os.Stderr, "Enter existing LUKS passphrase: ")
 	var password string
 	_, _ = fmt.Scanln(&password)
@@ -164,8 +193,6 @@ func getPassphraseFile() (string, string) {
 	_, _ = tmpFile.WriteString(password)
 	tmpFile.Close()
 	_ = os.Chmod(tmpFile.Name(), 0o600)
-
-	// Clear password from memory
 	password = ""
 	return tmpFile.Name(), tmpFile.Name()
 }
@@ -183,7 +210,6 @@ func installClevis() {
 	mirrorBase := ""
 	for _, line := range lines {
 		if re.MatchString(line) {
-			// Strip last two path components
 			mirrorBase = strings.TrimSpace(line)
 			parts := strings.Split(mirrorBase, "/")
 			if len(parts) >= 3 {
@@ -212,12 +238,10 @@ func installClevis() {
 
 	// Update and install
 	_, _ = shell.ExecuteCmd("", "apk update")
-	_, _ = shell.ExecuteCmd("", "apk add --no-cache clevis@edge")
+	_, _ = shell.ExecuteCmd("", "apk add --no-cache clevis@edge tpm2-tools tpm2-tss tpm2-tss-tcti-device")
 
 	// Remove clevis from world
 	removeFromWorld("clevis@edge")
-
-	// Remove @edge repos
 	removeEdgeRepos()
 }
 
@@ -226,7 +250,6 @@ func removeFromWorld(pkg string) {
 	if err != nil {
 		return
 	}
-
 	var lines []string
 	for _, line := range strings.Split(string(data), "\n") {
 		if strings.TrimSpace(line) != pkg {
@@ -241,14 +264,13 @@ func removeEdgeRepos() {
 	if err != nil {
 		return
 	}
-
 	var lines []string
 	for _, line := range strings.Split(string(data), "\n") {
 		if !strings.HasPrefix(strings.TrimSpace(line), "@edge") {
 			lines = append(lines, line)
 		}
 	}
-	_ = os.WriteFile("/etc/apk/repositories", []byte(strings.Join(lines, "\n")), 0o600)
+	_ = os.WriteFile("/etc/apk/repositories", []byte(strings.Join(lines, "\n")), 0o600) //nolint:gosec // /etc/apk/repositories is system-readable
 }
 
 func removeTemporaryKey(passFile string, uuids []string) {
@@ -270,16 +292,12 @@ func removeTemporaryKey(passFile string, uuids []string) {
 
 func rebuildInitramfs() {
 	fmt.Println("\nRebuilding initramfs...")
-
-	// Get kernel version
 	entries, err := os.ReadDir("/lib/modules")
 	if err != nil || len(entries) == 0 {
 		fmt.Fprintln(os.Stderr, "WARNING: cannot find kernel modules")
 		return
 	}
 	kernelVersion := entries[0].Name()
-
-	// Build booster initramfs
 	imgPath := filepath.Join("boot", "booster-lts.img")
 	if _, err := shell.ExecuteCmd("", fmt.Sprintf("booster build --force --kernel-version %s %s", kernelVersion, imgPath)); err != nil {
 		fmt.Fprintf(os.Stderr, "WARNING: booster build failed: %v\n", err)
@@ -288,16 +306,12 @@ func rebuildInitramfs() {
 
 func rebuildSignedUKI() {
 	fmt.Println("Rebuilding signed UKI...")
-
-	// Read kernel cmdline
 	cmdLine, err := os.ReadFile("/etc/kernel/cmdline")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "WARNING: cannot read /etc/kernel/cmdline: %v\n", err)
 		return
 	}
 	cmdline := strings.TrimSpace(string(cmdLine))
-
-	// Build UKI
 	ukiPath := "/boot/efi/Alpine/linux-lts.efi"
 	vmlinuz := "/boot/vmlinuz-lts"
 	boosterImg := "/boot/booster-lts.img"
@@ -306,14 +320,10 @@ func rebuildSignedUKI() {
 		fmt.Fprintf(os.Stderr, "WARNING: efi-mkuki failed: %v\n", err)
 		return
 	}
-
-	// Sign UKI
 	if _, err := shell.ExecuteCmd("", fmt.Sprintf("sbsign --key /etc/uefi-keys/db.key --cert /etc/uefi-keys/db.crt --output %s %s", ukiPath, ukiPath)); err != nil {
 		fmt.Fprintf(os.Stderr, "WARNING: sbsign failed: %v\n", err)
 		return
 	}
-
-	// Copy to fallback ESP
 	_ = copyFile(ukiPath, "/boot/efi/EFI/BOOT/BOOTX64.EFI")
 }
 

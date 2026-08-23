@@ -1,12 +1,14 @@
 package hostPhase
 
 import (
+	"alpineInstaller/hostPhase/features"
 	"alpineInstaller/hostPhase/internal"
 	"alpineInstaller/utils/config"
 	"fmt"
 )
 
-// Run executes all host-side operations: bind mounts, bootstrap, APK repos, and hooks.
+// Run executes all host-side operations: bind mounts, bootstrap, APK repos,
+// hooks, and firstBoot binary compilation.
 func Run(conf *config.Config) error {
 	fmt.Println("[INFO] Starting HostPhase.Run...")
 
@@ -32,6 +34,19 @@ func Run(conf *config.Config) error {
 	fmt.Println("[INFO] Step 4: Injecting APK commit hooks...")
 	if err := internal.InjectApkHooks(conf.Internal.ChrootDir); err != nil {
 		fmt.Printf("[WARNING] APK hooks injection failed: %v\n", err)
+	}
+
+	// 5. Write install config (disk layout, LUKS UUIDs, user info)
+	if err := features.WriteInstallConfig(conf); err != nil {
+		return fmt.Errorf("install config failed: %w", err)
+	}
+
+	// 6. Compile and install firstBoot binaries (autonomous post-install tools)
+	if err := features.SetupSecureboot(conf); err != nil {
+		fmt.Printf("[WARNING] secureboot setup: %v\n", err)
+	}
+	if err := features.SetupTpm(conf); err != nil {
+		fmt.Printf("[WARNING] tpm setup: %v\n", err)
 	}
 
 	fmt.Println("[INFO] HostPhase.Run completed successfully.")
