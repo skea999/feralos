@@ -544,13 +544,12 @@ func buildTargetArgs(cfg targetArgsInput) []string {
 		}
 	}
 
-	if cfg.EnableTPM {
-		args = append(args,
-			"-chardev", "socket,id=chrtpm,path="+cfg.TPMControlPath,
-			"-tpmdev", "emulator,id=tpm0,chardev=chrtpm",
-			"-device", "tpm-tis,tpmdev=tpm0",
-		)
-	}
+	// Always pass swtpm — binaries need /dev/tpmrm0
+	args = append(args,
+		"-chardev", "socket,id=chrtpm,path="+cfg.TPMControlPath,
+		"-tpmdev", "emulator,id=tpm0,chardev=chrtpm",
+		"-device", "tpm-tis,tpmdev=tpm0",
+	)
 
 	if cfg.EnableKVM {
 		args = append(args, "-enable-kvm")
@@ -727,25 +726,23 @@ func run(args []string) error {
 	tpmLogPath := filepath.Join(cfg.RunDir, "tpm.log")
 
 	stopTPM := false
-	if vars.Variables.EnableTPM {
-		tpmSocketPath := filepath.Join(cfg.RunDir, "tpm.sock")
-		if err := startSwtpm(swtpmConfig{
-			socketPath:   tpmSocketPath,
-			controlPath:  tpmControlPath,
-			stateDir:     tpmStateDir,
-			pidFile:      tpmPIDPath,
-			logPath:      tpmLogPath,
-			startTimeout: 10 * time.Second,
-		}); err != nil {
-			return fmt.Errorf("start swtpm: %w", err)
-		}
-		stopTPM = true
-		defer func() {
-			if stopTPM {
-				_ = stopSwtpm(tpmPIDPath)
-			}
-		}()
+	tpmSocketPath := filepath.Join(cfg.RunDir, "tpm.sock")
+	if err := startSwtpm(swtpmConfig{
+		socketPath:   tpmSocketPath,
+		controlPath:  tpmControlPath,
+		stateDir:     tpmStateDir,
+		pidFile:      tpmPIDPath,
+		logPath:      tpmLogPath,
+		startTimeout: 10 * time.Second,
+	}); err != nil {
+		return fmt.Errorf("start swtpm: %w", err)
 	}
+	stopTPM = true
+	defer func() {
+		if stopTPM {
+			_ = stopSwtpm(tpmPIDPath)
+		}
+	}()
 
 	qemuArgs := buildTargetArgs(targetArgsInput{
 		Name:           "skea-debug-target",

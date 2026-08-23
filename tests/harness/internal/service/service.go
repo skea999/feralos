@@ -527,24 +527,22 @@ func (service *Service) RunInstall(ctx context.Context, cfg *RunConfig) (RunResu
 	}
 
 	stopTPM := false
-	if cfg.EnableTPM {
-		if tpmErr := qemu.StartSoftwareTPM(&qemu.SoftwareTPMConfig{
-			SocketPath:   tpmSocketPath,
-			ControlPath:  tpmControlPath,
-			StateDir:     tpmStateDir,
-			PIDFile:      tpmPIDPath,
-			LogPath:      tpmLogPath,
-			StartTimeout: 10 * time.Second,
-		}); tpmErr != nil {
-			return RunResult{}, tpmErr
-		}
-		stopTPM = true
-		defer func() {
-			if stopTPM {
-				_ = qemu.StopSoftwareTPM(tpmPIDPath)
-			}
-		}()
+	if tpmErr := qemu.StartSoftwareTPM(&qemu.SoftwareTPMConfig{
+		SocketPath:   tpmSocketPath,
+		ControlPath:  tpmControlPath,
+		StateDir:     tpmStateDir,
+		PIDFile:      tpmPIDPath,
+		LogPath:      tpmLogPath,
+		StartTimeout: 10 * time.Second,
+	}); tpmErr != nil {
+		return RunResult{}, tpmErr
 	}
+	stopTPM = true
+	defer func() {
+		if stopTPM {
+			_ = qemu.StopSoftwareTPM(tpmPIDPath)
+		}
+	}()
 
 	stateStore := runstate.New(cfg.ArtifactsRoot)
 	active := runstate.ActiveRun{
@@ -589,12 +587,8 @@ func (service *Service) RunInstall(ctx context.Context, cfg *RunConfig) (RunResu
 	if cfg.EnableKVM {
 		runnerArgs = append(runnerArgs, "-enable-kvm")
 	}
-	if cfg.EnableTPM {
-		// Pass the same swtpm to the runner so that Clevis can bind to the TPM
-		// during chroot install. The runner uses the same tpm-state directory
-		// as the target, so the sealed keys survive into the target's boots.
-		runnerArgs = append(runnerArgs, tpmQEMUArgs(tpmControlPath)...)
-	}
+	// Always pass swtpm to runner — binaries need /dev/tpmrm0 during install
+	runnerArgs = append(runnerArgs, tpmQEMUArgs(tpmControlPath)...)
 
 	runnerInstance, err := qemu.Start(ctx, &qemu.LaunchConfig{
 		Binary:       cfg.QemuBinary,
@@ -930,9 +924,9 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg *RunConfig,
 	active.TargetFirmwareLog = targetFirmwareLog
 	_ = stateStore.Save(active)
 
-	// Boot first target WITHOUT TPM so OVMF stays in Setup Mode,
-	// allowing sbctl to enroll Secure Boot keys via UEFI runtime services.
-	targetArgs := buildTargetArgs(false)
+	// Boot target — always with TPM (even if EnableTPM=false, swtpm is
+	// always present). firstBoot binaries use /dev/tpmrm0 if available.
+	targetArgs := buildTargetArgs(true)
 	targetGuest := guest.Options{User: "root", Port: cfg.TargetSSHPort, PrivateKey: keyPair.PrivateKeyPath, Shell: "sh"}
 	var allowPassphraseFallback bool
 
@@ -985,203 +979,105 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg *RunConfig,
 		_ = targetInstance.Kill()
 	}()
 
-	// Run post-install scripts on the first boot.
-	// First boot has no TPM so OVMF stays in Setup Mode for sbctl enrollment.
-	// TPM binary will exit early (no TPM), then run on the second boot.
+	// Run post-install scripts.
+	// Target has TPM available (always passed) — binaries can bind LUKS to TPM2.
 	active.Phase = "running-post-install"
 	_ = stateStore.Save(active)
 
-	// Run sbctl enrollment first (needs Setup Mode — no TPM)
+	// Run sbctl enrollment (non-fatal in QEMU — no real efivarfs)
 	sbctlLogPath := filepath.Join(runDir, "sbctl.log")
 	sbctlDiag, sbctlErr := runSbctlOnTarget(ctx, targetGuest, cfg.RepoRoot)
 	if sbctlDiag != "" {
 		_ = os.WriteFile(sbctlLogPath, []byte(sbctlDiag), 0o600)
 	}
 	if sbctlErr != nil {
-		// Non-fatal — efivarfs may not be available in QEMU
-		fmt.Fprintf(os.Stderr, "WARNING: sbctl enrollment failed (non-fatal): %v\n", sbctlErr)
+		fmt.Fprintf(os.Stderr, "WARNING: sbctl enrollment failed (non-fatal in QEMU): %v\n", sbctlErr)
 	}
 
-	// Run TPM binary on first boot (will exit early — no TPM yet)
-	tpm1LogPath := filepath.Join(runDir, "tpm-first-boot.log")
-	tpm1Diag, tpm1Err := runTPMOnTarget(ctx, targetGuest, cfg.InstalledPassword)
-	if tpm1Diag != "" {
-		_ = os.WriteFile(tpm1LogPath, []byte(tpm1Diag), 0o600)
+	// Run TPM binary — binds LUKS to TPM2 if TPM is available
+	tpmLogPath := filepath.Join(runDir, "tpm-post-install.log")
+	tpmDiag, tpmErr := runTPMOnTarget(ctx, targetGuest, cfg.InstalledPassword)
+	_ = tpmErr // logged above
+	if tpmDiag != "" {
+		_ = os.WriteFile(tpmLogPath, []byte(tpmDiag), 0o600)
 	}
-	if tpm1Err != nil {
-		// Non-fatal on first boot — TPM not available
-		_ = tpm1Err
+	tpmBindingSuccessful := false
+	if strings.Contains(tpmDiag, "TPM binding complete") && !strings.Contains(tpmDiag, "No LUKS devices were bound") {
+		tpmBindingSuccessful = true
 	}
 
 	// Run diagnostics
-	postInstallDiag, err := runPostInstallDiag(ctx, targetGuest)
-	tpmBindingSuccessful := true
+	postInstallDiag, diagErr := runPostInstallDiag(ctx, targetGuest)
 	if postInstallDiag != "" {
 		_ = os.WriteFile(postInstallLogPath, []byte(postInstallDiag), 0o600)
-		if strings.Contains(postInstallDiag, "WARNING:") {
-			tpmBindingSuccessful = false
-		}
 	}
-	// TPM binding hasn't happened yet (first boot had no TPM).
-	// Set to false so the second boot injects the passphrase.
-	if strings.Contains(tpm1Diag, "Warning: TPM not found") {
-		tpmBindingSuccessful = false
-	}
-	if err != nil {
+	if diagErr != nil {
 		_ = targetInstance.Kill()
 		active.Status = statusFailed
-		active.Error = err.Error()
+		active.Error = diagErr.Error()
 		_ = stateStore.Save(active)
-		return RunResult{}, err
+		return RunResult{}, diagErr
 	}
 
-	if cfg.EnableTPM {
-		active.Phase = "rebooting-target-for-tpm-validation"
+	// Power off and restart swtpm for verification boot
+	if poweroffErr := guest.Run(ctx, targetGuest, "poweroff", io.Discard, io.Discard); poweroffErr != nil {
+		_ = qemu.SystemPowerdown(targetQMPPath)
+	}
+	_ = targetInstance.Wait()
+	targetInstance = nil
+
+	// Restart swtpm (killed by QEMU CMD_SHUTDOWN on poweroff)
+	tpmSocketPath := filepath.Join(runDir, "tpm.sock")
+	tpmControlPath := filepath.Join(runDir, "tpm.sock.ctrl")
+	tpmStateDir := filepath.Join(runDir, "tpm-state")
+	tpmPIDPath := filepath.Join(runDir, "tpm.pid")
+	_ = qemu.StopSoftwareTPM(tpmPIDPath)
+	if tpmRestartErr := qemu.StartSoftwareTPM(&qemu.SoftwareTPMConfig{
+		SocketPath:   tpmSocketPath,
+		ControlPath:  tpmControlPath,
+		StateDir:     tpmStateDir,
+		PIDFile:      tpmPIDPath,
+		LogPath:      tpmLogPath,
+		StartTimeout: 10 * time.Second,
+	}); tpmRestartErr != nil {
+		active.Status = statusFailed
+		active.Error = fmt.Sprintf("restart swtpm for verification: %s", tpmRestartErr.Error())
 		_ = stateStore.Save(active)
-		if offsetErr := writeSerialLogOffset(filepath.Join(runDir, clevisRebootSerialOffsetFile), targetSerialLog); offsetErr != nil {
-			_ = targetInstance.Kill()
-			active.Status = statusFailed
-			active.Error = offsetErr.Error()
-			_ = stateStore.Save(active)
-			return RunResult{}, offsetErr
-		}
-		if poweroffErr := guest.Run(ctx, targetGuest, "poweroff", io.Discard, io.Discard); poweroffErr != nil {
-			_ = qemu.SystemPowerdown(targetQMPPath)
-		}
-		_ = targetInstance.Wait()
-		targetInstance = nil
+		return RunResult{}, fmt.Errorf("restart swtpm for verification: %w", tpmRestartErr)
+	}
 
-		// QEMU sends CMD_SHUTDOWN to swtpm on VM poweroff, causing swtpm to
-		// exit and delete the ctrl socket. Restart swtpm before the second
-		// boot so QEMU can reconnect to the ctrl socket.
-		// First boot didn't use TPM, so swtpm is still alive — stop it first.
-		_ = qemu.StopSoftwareTPM(filepath.Join(runDir, "tpm.pid"))
-		if tpmRestartErr := qemu.StartSoftwareTPM(&qemu.SoftwareTPMConfig{
-			SocketPath:   filepath.Join(runDir, "tpm.sock"),
-			ControlPath:  filepath.Join(runDir, "tpm.sock.ctrl"),
-			StateDir:     filepath.Join(runDir, "tpm-state"),
-			PIDFile:      filepath.Join(runDir, "tpm.pid"),
-			LogPath:      filepath.Join(runDir, "tpm.log"),
-			StartTimeout: 10 * time.Second,
-		}); tpmRestartErr != nil {
-			active.Status = statusFailed
-			active.Error = fmt.Sprintf("restart swtpm for second boot: %s", tpmRestartErr.Error())
-			_ = stateStore.Save(active)
-			return RunResult{}, fmt.Errorf("restart swtpm for second boot: %w", tpmRestartErr)
-		}
-
-		targetArgs = buildTargetArgs(true)
-
-		var startErr error
-		targetInstance, startErr = qemu.Start(ctx, &qemu.LaunchConfig{
-			Binary:       cfg.QemuBinary,
-			Args:         targetArgs,
-			LogPath:      targetQemuLog,
-			QMPPath:      targetQMPPath,
-			SerialLog:    targetSerialLog,
-			StartTimeout: 10 * time.Second,
-			Persistent:   cfg.KeepTargetRunning,
-		})
-		if startErr != nil {
-			active.Status = statusFailed
-			active.Error = startErr.Error()
-			_ = stateStore.Save(active)
-			return RunResult{}, startErr
-		}
-
-		active.Phase = "waiting-for-target-ssh-after-tpm-bind"
+	// Verification boot — boot with TPM, check LUKS auto-unlock
+	targetArgs = buildTargetArgs(true)
+	var startErr error
+	targetInstance, startErr = qemu.Start(ctx, &qemu.LaunchConfig{
+		Binary:       cfg.QemuBinary,
+		Args:         targetArgs,
+		LogPath:      targetQemuLog,
+		QMPPath:      targetQMPPath,
+		SerialLog:    targetSerialLog,
+		StartTimeout: 10 * time.Second,
+		Persistent:   cfg.KeepTargetRunning,
+	})
+	if startErr != nil {
+		active.Status = statusFailed
+		active.Error = startErr.Error()
 		_ = stateStore.Save(active)
-		allowPassphraseFallback = !tpmBindingSuccessful
-		clevisSerialOffset, _ := loadSerialLogOffset(filepath.Join(runDir, clevisRebootSerialOffsetFile))
-		if waitErr := waitForTargetSSH(ctx, targetInstance, targetGuest, cfg.BootTimeout, targetSerialLog, targetSerialSocketPath, targetQMPPath, cfg.InstalledPassword, allowPassphraseFallback, clevisSerialOffset, 2, func() {
-			active.Status = statusRunning
-			active.Phase = "waiting-for-target-ssh-after-tpm-bind"
-			_ = stateStore.Save(active)
-		}); waitErr != nil {
-			_ = targetInstance.Kill()
-			active.Status = statusFailed
-			active.Error = waitErr.Error()
-			_ = stateStore.Save(active)
-			return RunResult{}, waitErr
-		}
+		return RunResult{}, startErr
+	}
 
-		// Run TPM binary on the second boot. Swtpm is already running
-		// from the target phase startup (line 690), the first boot just
-		// didn't use it because it booted without TPM.
-		tpm2LogPath := filepath.Join(runDir, "tpm-second-boot.log")
-		tpmDiag, tpmErr := runTPMOnTarget(ctx, targetGuest, cfg.InstalledPassword)
-		if tpmDiag != "" {
-			_ = os.WriteFile(tpm2LogPath, []byte(tpmDiag), 0o600)
-		}
-		if tpmErr != nil {
-			_ = targetInstance.Kill()
-			active.Status = statusFailed
-			active.Error = tpmErr.Error()
-			_ = stateStore.Save(active)
-			return RunResult{}, tpmErr
-		}
-		// Second boot successfully bound LUKS to TPM — verification boot
-		// must NOT fall back to passphrase injection.
-		if strings.Contains(tpmDiag, "TPM binding complete") {
-			tpmBindingSuccessful = true
-		}
-		if strings.Contains(tpmDiag, "No LUKS devices were bound") {
-			tpmBindingSuccessful = false
-		}
-
-		// Reboot after TPM binding
-		if poweroffErr := guest.Run(ctx, targetGuest, "poweroff", io.Discard, io.Discard); poweroffErr != nil {
-			_ = qemu.SystemPowerdown(targetQMPPath)
-		}
-		_ = targetInstance.Wait()
-		targetInstance = nil
-
-		// Restart swtpm and boot for verification
-		if tpmRestartErr := qemu.StartSoftwareTPM(&qemu.SoftwareTPMConfig{
-			SocketPath:   filepath.Join(runDir, "tpm.sock"),
-			ControlPath:  filepath.Join(runDir, "tpm.sock.ctrl"),
-			StateDir:     filepath.Join(runDir, "tpm-state"),
-			PIDFile:      filepath.Join(runDir, "tpm.pid"),
-			LogPath:      filepath.Join(runDir, "tpm.log"),
-			StartTimeout: 10 * time.Second,
-		}); tpmRestartErr != nil {
-			active.Status = statusFailed
-			active.Error = fmt.Sprintf("restart swtpm for verification: %s", tpmRestartErr.Error())
-			_ = stateStore.Save(active)
-			return RunResult{}, fmt.Errorf("restart swtpm for verification: %w", tpmRestartErr)
-		}
-
-		targetArgs = buildTargetArgs(true)
-		targetInstance, startErr = qemu.Start(ctx, &qemu.LaunchConfig{
-			Binary:       cfg.QemuBinary,
-			Args:         targetArgs,
-			LogPath:      targetQemuLog,
-			QMPPath:      targetQMPPath,
-			SerialLog:    targetSerialLog,
-			StartTimeout: 10 * time.Second,
-			Persistent:   cfg.KeepTargetRunning,
-		})
-		if startErr != nil {
-			active.Status = statusFailed
-			active.Error = startErr.Error()
-			_ = stateStore.Save(active)
-			return RunResult{}, startErr
-		}
-
+	active.Phase = "waiting-for-target-ssh-verification"
+	_ = stateStore.Save(active)
+	allowPassphraseFallback = !tpmBindingSuccessful
+	if waitErr := waitForTargetSSH(ctx, targetInstance, targetGuest, cfg.BootTimeout, targetSerialLog, targetSerialSocketPath, targetQMPPath, cfg.InstalledPassword, allowPassphraseFallback, 0, 2, func() {
+		active.Status = statusRunning
 		active.Phase = "waiting-for-target-ssh-verification"
 		_ = stateStore.Save(active)
-		allowPassphraseFallback = !tpmBindingSuccessful
-		if waitErr := waitForTargetSSH(ctx, targetInstance, targetGuest, cfg.BootTimeout, targetSerialLog, targetSerialSocketPath, targetQMPPath, cfg.InstalledPassword, allowPassphraseFallback, 0, 2, func() {
-			active.Status = statusRunning
-			active.Phase = "waiting-for-target-ssh-verification"
-			_ = stateStore.Save(active)
-		}); waitErr != nil {
-			_ = targetInstance.Kill()
-			active.Status = statusFailed
-			active.Error = waitErr.Error()
-			_ = stateStore.Save(active)
-			return RunResult{}, waitErr
-		}
+	}); waitErr != nil {
+		_ = targetInstance.Kill()
+		active.Status = statusFailed
+		active.Error = waitErr.Error()
+		_ = stateStore.Save(active)
+		return RunResult{}, waitErr
 	}
 
 	active.Phase = "verifying"
@@ -2740,17 +2636,6 @@ func serialLogCount(path string, maxBytes int64, minOffset int64, needle string)
 	}
 
 	return strings.Count(string(data), needle), nil
-}
-
-func writeSerialLogOffset(offsetPath, serialLogPath string) error {
-	info, err := os.Stat(serialLogPath)
-	if err != nil {
-		return fmt.Errorf("stat serial log %s: %w", serialLogPath, err)
-	}
-	if err := os.WriteFile(offsetPath, []byte(strconv.FormatInt(info.Size(), 10)), 0o600); err != nil {
-		return fmt.Errorf("write serial offset %s: %w", offsetPath, err)
-	}
-	return nil
 }
 
 func loadSerialLogOffset(offsetPath string) (int64, error) {

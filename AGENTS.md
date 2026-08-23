@@ -109,17 +109,24 @@ No backward compat. Breaking changes allowed without fallback (e.g., breaking ch
 
 Activatable features (Secure Boot, TPM) use standalone binaries in `src/firstBoot/`:
 - `src/firstBoot/secureboot/main.go` — autonomous: installs packages, generates EFI keys, enrolls sbctl, builds+signs UKI, writes hooks
-- `src/firstBoot/tpm/main.go` — autonomous: checks TPM, installs clevis@edge, binds LUKS to TPM2, rebuilds initramfs+UKI
+- `src/firstBoot/tpm/main.go` — autonomous: checks TPM, installs clevis@edge + tpm2-tools, binds LUKS to TPM2, rebuilds initramfs+UKI
 
-**Installer flow** (chrootPhase):
-1. `features/secureboot.go` / `features/tpm.go` compile binaries → copy to `/home/<user>/feralos_*`
-2. Packages installed by `SecurebootPackages()` / `TpmPackages()` exports (called from `packages.go`)
+**Installer flow** (hostPhase):
+1. `features/secureboot.go` / `features/tpm.go` compile binaries → copy to `/opt/feralos_*`
+2. `features/install_config.go` writes `/opt/feralos/config.yaml` (disk layout, LUKS UUIDs, user info)
+3. Binaries are autonomous — installer does NOT run them
 
-**Post-install flow** (harness or manual):
-1. User boots target, runs `/home/<user>/feralos_secureboot` or `feralos_tpm`
-2. Binary handles everything — no installer intervention needed
+**3-boot harness flow**:
+1. **Runner (Debian)**: installer runs, compiles binaries, writes config. swtpm always present.
+2. **Target (Alpine) — first boot**: harness runs `feralos_secureboot` + `feralos_tpm` via SSH. Binaries install packages, configure features, bind LUKS to TPM2. swtpm always present.
+3. **Target (Alpine) — verification**: harness checks sbctl status, clevis bindings, LUKS auto-unlock. swtpm always present.
 
-**Key rule**: installer does NOT run firstBoot binaries. It only compiles+copies. Binaries are autonomous post-install tools.
+**Key rules**:
+- swtpm is always passed to runner + target VMs (even if EnableTPM=false) — simplifies harness
+- firstBoot binaries read `/opt/feralos/config.yaml` for disk layout + LUKS UUIDs (fallback: kernel cmdline)
+- On real hardware: user runs `/opt/feralos_secureboot` and `/opt/feralos_tpm` manually after first boot
+
+**Known limitation**: Secure Boot enrollment cannot be confirmed in QEMU (no real efivarfs). TPM auto-unlock CAN be confirmed and works reliably.
 
 ## Project Structure
 

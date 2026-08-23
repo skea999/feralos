@@ -70,7 +70,10 @@ func main() {
 	fmt.Println("\nEnrolling keys...")
 	_, _ = shell.ExecuteCmd("", "sbctl enroll-keys -m")
 
-	// --- 6. Verify ---
+	// --- 6. Write secureboot hook config ---
+	writeSecurebootConf()
+
+	// --- 7. Verify ---
 	fmt.Println("\n=== Verification ===")
 	_, _ = shell.ExecuteCmd("", "sbctl status")
 	_, _ = shell.ExecuteCmd("", "sbctl verify")
@@ -152,6 +155,20 @@ func importCerts() {
 		}
 	}
 	fmt.Println("Certs imported to /var/lib/sbctl/keys/")
+}
+
+func writeSecurebootConf() {
+	fmt.Println("\nWriting secureboot hook config...")
+	confContent := `cmdline="$(cat /etc/kernel/cmdline)"
+signing_cert="/etc/uefi-keys/db.crt"
+signing_key="/etc/uefi-keys/db.key"
+output_dir="/boot/efi/Alpine"
+output_name="linux-{flavor}.efi"
+backup=yes
+`
+	escapedConfContent := strings.ReplaceAll(confContent, "'", "'\\''")
+	_, _ = shell.ExecuteCmd("", "mkdir -p /etc/kernel-hooks.d")
+	_, _ = shell.ExecuteCmd("", fmt.Sprintf("echo '%s' > /etc/kernel-hooks.d/secureboot.conf", escapedConfContent))
 }
 
 func cleanup() {
