@@ -1,3 +1,4 @@
+# DEPRECATED: use tests/fixtures/variables/btrfsStandard-niri.yaml
 variables:
   unattended: true
   # Disk Configuration

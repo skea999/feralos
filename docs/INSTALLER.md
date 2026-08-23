@@ -13,50 +13,48 @@ The FeralOS installer is a Go-based system installer that creates a hardened Alp
 
 ## Project Structure
 
+Full tree — `AGENTS.md` keeps only pointer. Details here:
+
 ```
-src/
-├── main.go                          # Installer entry point
-├── hostPhase/                       # Host-side operations (writes files, NO chroot commands)
-│   ├── bootstrap.go                 # Alpine bootstrap (apk.static)
-│   ├── bind_mounts.go               # Virtual filesystem mounts (/dev, /proc, /sys)
-│   ├── booster.go                   # booster.yaml + kernel cmdline + hooks
-│   ├── chroot_preparation.go        # Write config files into chroot
-│   ├── keyfile.go                   # LUKS keyfile generation + embedding
-│   ├── hooks.go                     # APK hooks injection
-│   └── disks/                       # Storage layouts (Go packages)
-│       ├── btrfsStandard/           # Single disk, LUKS, swapfile, 25 subvolumes
-│       │   ├── partitioning.go      # Disk partitioning and Btrfs setup
-│       │   ├── fstab.go             # Filesystem table generation
-│       │   └── luks.go              # LUKS encryption setup
-│       └── btrfsStandardServer/     # 2 disks, RAID1, dual EFI, LUKS swap
-│           ├── partitioning.go      # Disk partitioning and Btrfs RAID1 setup
-│           ├── fstab.go             # Filesystem table generation
-│           └── luks.go              # LUKS encryption setup
-├── chrootPhase/                     # Chroot operations (runs INSIDE chroot)
-│   ├── configurator.go              # Main orchestrator for chroot phase
-│   ├── packages.go                  # Package installation (apk add)
-│   ├── services.go                  # OpenRC services, aliases, symlinks, timezone
-│   ├── users.go                     # User creation, groups, SSH, shell
-│   ├── dmcrypt.go                   # LUKS swap keyfile + luksAddKey
-│   ├── hardening.go                 # AppArmor, sysctl, chmod, sed
-│   ├── uki.go                       # booster build, efi-mkuki, sbsign
-│   ├── zswap.go                     # zswap compressed swap (optional)
-│   ├── nix.go                       # Nix package manager (optional)
-│   └── utils.go                     # getPartitionSpacer, getDiskSuffix
-├── utils/                           # Shared utilities
-│   ├── config/
-│   │   └── config.go                # Config types + LoadConfig
-│   ├── shell/
-│   │   └── execute.go               # ExecuteCmd(chroot, cmd) - unified command execution
-│   ├── logic/
-│   │   └── logic.go                 # Dynamic rule application
-│   └── createConfig/
-│       ├── create_values.go         # Interactive wizard (PromptForConfig)
-│       └── createValues/
-│           └── main.go              # Standalone generator
-└── variables/
-    ├── variables.yaml               # User config template (runtime)
-    └── internalRules.yaml           # Dynamic rules (packages, services, modules)
+feralos_installer/
+├── src/
+│   ├── main.go, go.mod, variables.yaml
+│   ├── variables/ (variables.yaml, internalRules.yaml)
+│   ├── utils/
+│   │   ├── config/config.go
+│   │   ├── shell/execute.go          # ExecuteCmd(chroot, cmd) unified
+│   │   ├── logic/logic.go            # dynamic rule application
+│   │   ├── swap/swap.go              # ResolveSwapSizeMiB (auto=2×RAM)
+│   │   └── createConfig/ (create_values.go, createValues/main.go)
+│   ├── hostPhase/
+│   │   ├── host_phase.go             # orchestrator: MountVirtualFilesystems + BootstrapAlpine + PrepareChrootEnv + InjectApkHooks
+│   │   ├── internal/
+│   │   │   ├── bootstrap.go
+│   │   │   ├── bind_mounts.go
+│   │   │   ├── chroot_env.go
+│   │   │   └── hooks.go
+│   │   └── disks/
+│   │       ├── btrfsStandard/ (partitioning.go, fstab.go, luks.go)       # 1 disk, swapfile via swapSize
+│   │       ├── btrfsRaid0/ (partitioning.go, fstab.go, luks.go)          # 2 disks RAID0, 2 LUKS swap p2 gated enableSwap
+│   │       └── btrfsStandardServer/ (partitioning.go, fstab.go, luks.go) # 2 disks RAID1, always LUKS swap
+│   ├── firstBoot/
+│   │   ├── secureboot/main.go
+│   │   └── tpm/main.go
+│   └── chrootPhase/
+│       ├── chroot_phase.go           # 14-step orchestrator
+│       ├── internal/
+│       │   ├── packages.go, firmware.go, network.go, boot.go, storage.go
+│       │   ├── logging.go, misc.go, services.go, users.go, uki.go
+│       │   └── ...
+│       ├── features/ (hardening.go, zswap.go, zswap_server.go, nix.go)
+│       └── desktops/ (niri.go, kde.go, gnome.go)
+├── tests/
+│   ├── fixtures/variables/ (14 templates + README — all scenarios)
+│   ├── harness/ (cmd/skea-harness, internal/, variables-*.yaml deprecated shims)
+│   └── artifacts/ (gitignored: cache, prepare, runs, state)
+├── docs/ (PROJECT.md, INSTALLER.md, USAGE.md)
+├── state/session-state.json
+└── handoff/latest.md
 ```
 
 ## Installation Flow

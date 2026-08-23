@@ -1,0 +1,56 @@
+# Fixtures — variables.yaml templates
+
+Curated library covering all `variables.yaml` scenarios. Use with harness `-f`:
+
+```bash
+./skea-harness run -f tests/fixtures/variables/btrfsRaid0-minimal.yaml
+./skea-harness run -f tests/fixtures/variables/btrfsRaid0-noswap.yaml
+./skea-harness run -f tests/fixtures/variables/btrfsStandard-swap-explicit-8G.yaml
+ls tests/fixtures/variables/
+```
+
+Harness loads via `internal/service/service.go:LoadVariablesFile` (`gopkg.in/yaml.v3`). Installer loads via `src/utils/config/config.go:LoadConfig`. Both accept absolute path via `-f` / `-config`.
+
+## Matrix (14 templates)
+
+| # | Template | diskLayout | enableSwap | swapSize | desktop | secureboot | TPM | hardening | zswap | nix | Purpose |
+|---|----------|------------|------------|----------|---------|------------|-----|-----------|-------|-----|---------|
+| 1 | `btrfsStandard-minimal.yaml` | btrfsStandard | true | auto (2×RAM) | none | false | false | false | false | false | Baseline (mirrors `src/variables/variables.yaml`) |
+| 2 | `btrfsStandard-noswap.yaml` | btrfsStandard | false | auto | none | false | false | false | false | false | @swap NoCoW without swapfile, `services_status` without swap |
+| 3 | `btrfsStandard-swap-explicit-8G.yaml` | btrfsStandard | true | 8G | none | false | false | false | false | false | Parse `8G→8192`, `mkswapfile --size 8192M` |
+| 4 | `btrfsStandard-swap-explicit-4096M.yaml` | btrfsStandard | true | 4096M | none | false | false | false | false | false | Parse `M` unit |
+| 5 | `btrfsStandardServer-minimal.yaml` | btrfsStandardServer | true | auto | none | false | false | false | false | false | Server always LUKS swap (2 partitions, `minDiskSize/4`) |
+| 6 | `btrfsRaid0-minimal.yaml` | btrfsRaid0 | true | auto | none | false | false | false | false | false | RAID0 p2 swap p3 root, `hasHealthyBtrfsRaid0Layout` |
+| 7 | `btrfsRaid0-noswap.yaml` | btrfsRaid0 | false | auto | none | false | false | false | false | false | **Gap critical**: `rootPart=2` fdisk 2 partitions, no dmcrypt |
+| 8 | `btrfsRaid0-swap-explicit-8G.yaml` | btrfsRaid0 | true | 8G | none | false | false | false | false | false | `swapSizeK=4194304K` per p2 |
+| 9 | `btrfsRaid0-full.yaml` | btrfsRaid0 | true | auto | niri | true | true | true | true | true | Full stack: clevis 2 bindings, virtio-gpu, zswap |
+| 10 | `btrfsStandard-secureboot-only.yaml` | btrfsStandard | true | auto | none | true | false | false | false | false | Isolate SecureBoot |
+| 11 | `btrfsStandard-tpm-only.yaml` | btrfsStandard | true | auto | none | false | true | false | false | false | Isolate TPM |
+| 12 | `btrfsStandard-hardening-only.yaml` | btrfsStandard | true | auto | none | false | false | true | false | false | Isolate hardening |
+| 13 | `btrfsStandard-niri.yaml` | btrfsStandard | true | auto | niri | false | false | false | false | true | Desktop niri (auto-nix) |
+| 14 | `full-stack.yaml` | btrfsStandard | true | auto | none | true | true | true | true | true | All true (replaces `tests/variables-full.yaml`) |
+
+## Tiering (CI cost)
+
+- **Tier1 (CI gate, ~2h):** 1,2,6,7 — minimal + noswap per layout
+- **Tier2 (nightly, ~4h):** 3,8,10,11,12
+- **Tier3 (manual):** 4,5,9,13,14
+
+## Conventions
+
+- Base derived from `src/variables/variables.yaml` (53 lines). Keep `disks`, `userName`, `password`, `hostname`, `mirror`, `extraPackages` identical unless testing them.
+- `swapSize` total split across partitions (raid0 p2 = `swapSize/2`). `auto` = `2× MemTotal` via `utils/swap.ResolveSwapSizeMiB`.
+- `btrfsStandardServer` ignores `swapSize`/`enableSwap` gating (always 2 LUKS swap, user: "mandatory by design").
+- Naming `kebab-case` matching `diskLayout-feature`.
+
+## Legacy
+
+Old `tests/harness/variables-*.yaml` kept as deprecated shims (symlink or header `DEPRECATED: use tests/fixtures/variables/`). `tests/variables-full.yaml` deprecated → `full-stack.yaml`.
+
+## Validation
+
+```bash
+cd src && go vet ./...
+cd src && go test ./utils/swap -v
+for f in tests/fixtures/variables/*.yaml; do echo "== $f"; yq eval '.' "$f" >/dev/null && echo ok; done
+```

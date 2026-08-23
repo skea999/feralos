@@ -79,7 +79,10 @@
     "dmcrypt swap keyfile refactored: /tmp keyfile + copy dropped — step 8a creates keyfile directly in chroot (dd → /mnt/etc/dmcrypt/swap.key + chmod 400), luksAddKey ×2 (mappers still open), then writes /etc/conf.d/dmcrypt. Step 5a removed — commit 7a5b60f, 32/32 PASS, boot uses keyfile (no passphrase fallback), apk preserves our conf.d as .apk-new",
     "btrfsRaid0 layout COMPLETED (was WIP): dual-disk pure RAID0 (data+metadata), EFI on both disks, 2 LUKS swap partitions (partition 2, swapSize/2 each) gated by enableSwap, root on partition 3 (remainder — no size formulas). Swapfile removed (impossible on RAID0: btrfs SWAPFILE_SUPPORT requires single device + single data profile). dmcrypt keyfile+conf.d after subvol mounts (step 6a), fstab /dev/mapper/swap-*, swap service conditional (fixes latent bug: swap never activated on RAID0)",
     "enableSwapfile → enableSwap refactor (generic): btrfsStandard keeps swapfile, btrfsRaid0 uses LUKS swap partitions, btrfsStandardServer unchanged (always LUKS swap). New swapSize variable (default auto = 2x RAM) resolved via utils/swap.ResolveSwapSizeMiB (reads /proc/meminfo MemTotal ×2, or parses 8G/4096M). Harness: EnableSwapfile → EnableSwap + SwapSize (RunConfig/VariablesYAML/VerifyConfig/setup-input), swap_status/services_status use cfg.EnableSwap || layout==Server, 5 fixtures updated — commit 48ad7bc",
-    "Verified after refactor: raid0 32/32 (swap partitions active, 2x RAM), standard 32/32 (swapfile 7.66GiB from swapSize), noswap 32/32 (no swap anywhere, service not in runlevel), server 32/32 (unchanged) — 128/128 total"
+    "Verified after refactor: raid0 32/32 (swap partitions active, 2x RAM), standard 32/32 (swapfile 7.66GiB from swapSize), noswap 32/32 (no swap anywhere, service not in runlevel), server 32/32 (unchanged) — 128/128 total",
+    "AGENTS.md compressed: moved detailed structure to docs/INSTALLER.md#project-structure, pointer only in AGENTS.md (<200 lines), preserved Build & Test examples verbatim, known issues → CHANGELOG, alternatives → CONTEXT",
+    "Githooks pre-commit now runs go vet + golangci-lint on staged Go files (src/harness) + secrets scan, fixed grep -- leading dash bug, set core.hooksPath=.githooks",
+    "Fixtures library validated: 14/14 YAML valid, vet/lint clean both modules, swap 25/25 PASS (K ceil fix), harness critical gap btrfsRaid0-noswap 32/32 (swap_status header-only, RAID0 pure), explicit 8G both layouts 32/32 (8192M file / 4G per partition)"
   ],
   "decisions": [
     {
@@ -296,6 +299,21 @@
       "date": "2026-08-20",
       "decision": "btrfsRaid0: swap on partition 2, root on partition 3 (remainder)",
       "rationale": "User chose: swap partition is number 2, root takes the remainder (no size formulas — respects the original RAID0 requirement). swapSize total split across the 2 swap partitions. Without swap: 1: EFI, 2: root (as before)."
+    },
+    {
+      "date": "2026-08-20",
+      "decision": "AGENTS.md compression: pointer-only structure, history → CHANGELOG",
+      "rationale": "AGENTS.md 596→145 lines (<250 target). Project Structure moved to docs/INSTALLER.md#project-structure, history truncated to last 2 entries with pointer to CHANGELOG + .agent-memory + git log. Preserved Build & Test verbatim for agents."
+    },
+    {
+      "date": "2026-08-20",
+      "decision": "Pre-commit hook vet+lint on staged Go files only",
+      "rationale": "Hook detects staged *.go via git diff --cached, runs go vet ./... per package (src vs harness), then golangci-lint with fallback $HOME/go/bin/golangci-lint, skip if missing. Fixed grep -- leading dash bug for -----BEGIN pattern. Set core.hooksPath=.githooks."
+    },
+    {
+      "date": "2026-08-20",
+      "decision": "Fixtures library Tier1/2/3 split for CI cost",
+      "rationale": "14 templates cover all scenarios without 384-combo explosion. Tier1 CI gate minimal+noswap per layout (2h), Tier2 nightly explicit+isolate (4h), Tier3 manual full. Validated critical gap btrfsRaid0-noswap 32/32 and explicit 8G both layouts 32/32."
     }
   ],
   "risks": [

@@ -1,3 +1,4 @@
+# DEPRECATED: use tests/fixtures/variables/btrfsRaid0-minimal.yaml (kept for backward compat)
 variables:
   unattended: true
   # Disk Configuration

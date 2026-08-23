@@ -9,25 +9,19 @@
 
 ## Current Focus
 
-Phase 1: Go installer complete. Both btrfsStandard and btrfsStandardServer pass verification checks with ALL features enabled (latest run 30/30 + `services_status` = 31 checks). Highlights:
+Phase 1: Go installer complete + fixtures library + AGENTS compress + githooks vet/lint. Highlights (latest runs **32/32**):
 
-- **Swapfile FIXED** — `btrfs filesystem mkswapfile` works: root cause was `btrfs property set compression none` setting the `m` attribute which conflicts with `chattr +C` (NixOS/nixpkgs #384047). `chattr +C` on @swap dir before mount.
-- **NoCoW cleanup** — compression property removed from ALL NoCoW subvolumes (NODATACOW implies no compression), verified by `lsattr_nocow` harness check.
-- **Swap shutdown FIXED** — OpenRC swap service `before localmount` guaranteed start order only, not stop order. Fix: swap moved to boot runlevel + `sed 's/before localmount/need localmount/' /etc/init.d/swap` in SetupServices. apk `.apk-new` verified: the sed survives openrc upgrades.
-- **`log_errors` harness check** — non-regression guard: scans target-serial.log + installer.log for error/failed markers, fails run on any match. Whitelist: counters, `libgpg-error` package name, efibootmgr `error trace:` (QEMU, no EFI vars), smartd `start-stop-daemon: no matching processes found`, fsck `fsck.vfat: No such file or directory` (both QEMU-only).
-- **`services_status` harness check** — verifies configured OpenRC services are actually STARTED via `rc-status --all` (not just `[ ok ]` at boot). Excludes QEMU-only: smartd (no SMART hardware — crashed), fsck (fsck.vfat not installed), udev-settle (one-shot). Parser handles supervise-daemon format `[ started 00:00:36 (0) ]`.
-- **Harness lint clean** — full golangci-lint cleanup (commit `6b42ff3`): errcheck, nilerr, dead code removed, goconst, shadow, gosec, gocritic, hugeParam pointer refactors. Behavior verified: full run 30/30 PASS after refactor.
-- **niri desktop environment** — greetd + regreet + niri + wayvnc + DMS (DankMaterialShell):
-  - `nixPackages` field in internalRules (same behavior as apk — data selects install, auto-enables Nix)
-  - `chrootPhase/desktops/niri.go`: greetd config, greeter.sh (`niri -- regreet`), regreet.toml, niri configs (greeter + user, keymap), wayvnc config (spawn-at-startup), xdg-su wrapper, OpenRC dms service (waits for wayland socket)
-  - DMS + quickshell from **stable nixpkgs channel** (nixos-26.05) — dms-shell is packaged in nixpkgs
-  - Nix: `--option sandbox false` chroot-only (trusted-users), TMPDIR on @nix-var-nix-build subvolume, registry pinned to stable
-  - Alpine: wayland-libs-server, greeter in greetd group, elogind seat provider, no render group, no turnstile (edge only)
-  - Harness: virtio-gpu-pci, checks niri_config_valid/greetd_config/niri_greeter/wayvnc_installed/dms_installed — **37/37 PASS** (run 2026-08-18T20-25-07Z)
-- **sudoers fix** — Alpine default `/etc/sudoers` has `@includedir` commented out → `/etc/sudoers.d/wheel` ineffective (wheel sudo denied). Enabled with sed in misc.go + new `sudoers_includedir` harness check
-- **nix.conf clean** — `allow-unfree`/`allow-insecure` not recognized by Alpine's nix build (warning noise) — removed; NIXPKGS_ALLOW_* env vars in profile.d/fish/bash carry it permanently
-- **Dummy packages working** — APK v3 `apk mkpkg` creates valid packages with symlinks.
-- **Ripgrep NOT a drop-in for grep** — rg doesn't support POSIX BRE (`\+`), breaks `efi-mkuki`. GNU grep removed — BusyBox grep used instead.
+- **btrfsRaid0 layout** (`48ad7bc`): pure RAID0, EFI both disks, 2 LUKS swap p2 (`swapSize/2`) gated `enableSwap`, root p3 remainder, `swap_service` conditional (fixes latent bug: swap never activated on RAID0)
+- **enableSwap + swapSize** (generic): `enableSwapfile`→`enableSwap`, `swapSize` `auto`=2×RAM via `utils/swap.ResolveSwapSizeMiB` or `8G`/`4096M`; `btrfsStandardServer` unchanged
+- **Fixtures library** (`tests/fixtures/variables/` 14 templates): btrfsStandard/Server/Raid0 × swap on/off × swapSize auto/8G × secureboot/tpm/hardening isolate × niri × full-stack. README matrix + Tier1 CI (minimal+noswap). Old harness `variables-*.yaml` kept `DEPRECATED` → new fixtures. Verified: raid0 32/32, standard 32/32 (7.66GiB), noswap 32/32, server 32/32 — 128/128
+- **Fixtures validation 2026-08-23**: `btrfsRaid0-noswap` 32/32 (header-only swap_status, RAID0 pure), `btrfsStandard`/`btrfsRaid0` `8G` explicit 32/32 (8192M file / 4177916 KiB per partition)
+- **AGENTS compress**: 596→145 lines, structure moved to `docs/INSTALLER.md#project-structure` (pointer only), history truncated → `CHANGELOG.md`
+- **Githooks vet/lint**: staged `*.go` → `go vet ./...` (src/harness) + `golangci-lint` (`$HOME/go/bin` fallback), fixed `grep --` leading dash bug, set `core.hooksPath=.githooks`
+- **Swapfile/NoCoW fixes** — `btrfs filesystem mkswapfile` + `chattr +C` on @swap dir before mount, compression property removed from ALL NoCoW (NODATACOW implies no compression), `lsattr_nocow` harness check
+- **Swap shutdown FIXED** — swap moved to boot runlevel + `need localmount` (was `before`), apk `.apk-new` survives upgrades
+- **`log_errors` + `services_status`** — non-regression guards (whitelist smartd/fsck, parse supervise-daemon)
+- **niri DE** — `nixPackages` in internalRules, `chrootPhase/desktops/niri.go`, DMS via stable nixpkgs, **37/37 PASS**; tests/harness checks + virtio-gpu-pci; sudoers `includedir` enabled; nix.conf cleaned; `hwclock`? no
+- **Dummy packages** — APK v3 `apk mkpkg` symlinks; BusyBox grep (not GNU/rg)
 
 ## What's Working
 
@@ -66,17 +60,16 @@ Phase 1: Go installer complete. Both btrfsStandard and btrfsStandardServer pass 
 ## What's Next
 
 ### Phase 1 (Installer)
-1. Run full harness to confirm 31/31 (services_status now in check suite)
+1. btrfsStandardUnencrypted layout (planned)
 2. Test on real hardware with 2x NVMe
 3. Test with partial features (Secure Boot only, TPM only)
 4. Add more unit tests for verify checks
-5. Complete CI/CD pipeline
+5. Plan Dinit integration
 
 ### Phase 2 (Distribution)
 1. Dinit init system (replace OpenRC)
 2. Custom FeralOS repository
-3. Nix integration (glibc + alternatives)
-4. Full distribution release
+3. Full distribution release
 
 ## Architecture Principle
 
@@ -136,6 +129,11 @@ Phase 1: Go installer complete. Both btrfsStandard and btrfsStandardServer pass 
 - **Nix stable**: registry pinned to nixos-26.05 (default maps nixpkgs→unstable); sandbox disabled only for chroot install; TMPDIR on nix build subvolume; NIXPKGS_ALLOW_* env vars (not nix.conf — unknown settings)
 - **Seat provider**: elogind (not seatd); no render group (Alpine uses video); no turnstile (edge only)
 - **sudoers**: `@includedir /etc/sudoers.d` enabled (Alpine default comments it out — wheel sudo was denied)
+- **fstab swap**: `/dev/mapper/swap-*` (not `LABEL=swap-*` — busybox `swapon -a` can't resolve LABEL, literal path only)
+- **dmcrypt keyfile**: written directly into chroot after subvol mounts (no /tmp + copy, mappers still open, `apk` preserves as `.apk-new`)
+- **enableSwap + swapSize**: generic toggle (`auto`=2×RAM via `utils/swap.ResolveSwapSizeMiB`), `swapSize` total split across partitions, `btrfsRaid0` swap on p2 root on p3 remainder, `btrfsStandardServer` unchanged (always swap)
+- **AGENTS compress**: pointer-only structure + history → `CHANGELOG.md` + `git log` + `.agent-memory` (<250 lines)
+- **githooks**: staged Go → `go vet` + `golangci-lint` (`$HOME/go/bin` fallback), `grep --` fix for `-----BEGIN`
 
 ## Memory-Safe Alternatives
 

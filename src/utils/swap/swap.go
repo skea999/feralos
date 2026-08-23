@@ -55,19 +55,26 @@ func parseSwapSizeMiB(size string) (int, error) {
 		return 0, fmt.Errorf("invalid swap size %q: %w", size, err)
 	}
 	unit := strings.ToLower(m[2])
-	mult := 1
 	switch unit {
+	case "", "m":
+		return n, nil
 	case "k":
-		mult = 1
-	case "m":
-		mult = 1024
+		if n == 0 {
+			return 0, nil
+		}
+		// ceil KiB→MiB, min 1
+		mib := (n + 1023) / 1024
+		if mib == 0 {
+			mib = 1
+		}
+		return mib, nil
 	case "g":
-		mult = 1024 * 1024
+		return n * 1024, nil
 	case "t":
-		mult = 1024 * 1024 * 1024
+		return n * 1024 * 1024, nil
 	case "p":
-		mult = 1024 * 1024 * 1024 * 1024
+		return n * 1024 * 1024 * 1024, nil
+	default:
+		return 0, fmt.Errorf("invalid swap size %q", size)
 	}
-	// Convert to MiB (input unit is a power of 1024)
-	return n * mult / 1024, nil
 }
