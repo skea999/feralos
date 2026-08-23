@@ -7,6 +7,20 @@ import (
 	"strings"
 )
 
+// NixPackages returns the APK packages needed for Nix.
+func NixPackages(conf *config.Config) []string {
+	if !conf.User.EnableNix {
+		return nil
+	}
+	return []string{"nix", "nix-openrc", "nix-bash-completion", "nix-zsh-completion"}
+}
+
+// ShouldEnableNix returns true if Nix packages are requested by rules
+// but EnableNix is not yet set.
+func ShouldEnableNix(conf *config.Config) bool {
+	return len(conf.User.NixPackages) > 0 && !conf.User.EnableNix
+}
+
 // SetupNix installs and configures the Nix package manager.
 func SetupNix(conf *config.Config) error {
 	if !conf.User.EnableNix {

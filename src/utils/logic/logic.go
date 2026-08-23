@@ -14,11 +14,6 @@ func ApplyRules(conf *config.Config) {
 	// Always include base modules (fbcon, bridge, bonding, etc.)
 	u.Modules = appendUnique(u.Modules, i.BaseModules...)
 
-	// Add zsmalloc module for zswap
-	if u.EnableZswap {
-		u.Modules = appendUnique(u.Modules, "zsmalloc")
-	}
-
 	if layout, ok := i.DiskLayouts[u.DiskLayout]; ok {
 		fmt.Printf("[DEBUG] Applying Disk Layout: %s\n", u.DiskLayout)
 		applyRule(u, &layout)
@@ -37,12 +32,8 @@ func ApplyRules(conf *config.Config) {
 	u.AllPackages = appendUnique(u.AllPackages, i.StandardPackages...)
 	u.AllPackages = appendUnique(u.AllPackages, u.ExtraPackages...)
 
-	// If any rule requested Nix packages, enable Nix automatically.
-	// Same behavior as apk: data in internal_rules selects the install path.
-	if len(u.NixPackages) > 0 && !u.EnableNix {
-		fmt.Printf("[WARNING] Nix packages requested (%d), enabling Nix automatically\n", len(u.NixPackages))
-		u.EnableNix = true
-	}
+	// Nix auto-enable is now handled in packages.go via features.ShouldEnableNix.
+	// Zswap modules are now handled in packages.go via features.ZswapModules.
 
 	processed := make(map[string]bool)
 	for {

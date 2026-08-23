@@ -109,9 +109,6 @@ root soft nofile 100000
 	if _, err := shell.ExecuteCmd(chroot, "apk del mkinitfs 2>/dev/null || true"); err != nil {
 		fmt.Printf("[WARNING] Failed to remove mkinitfs: %v\n", err)
 	}
-	if _, err := shell.ExecuteCmd(chroot, "rm -f /etc/kernel-hooks.d/50-secureboot.hook"); err != nil {
-		fmt.Printf("[WARNING] Failed to remove old secureboot hook: %v\n", err)
-	}
 
 	// 14. Smartd config
 	fmt.Println("[INFO] Configuring smartd...")

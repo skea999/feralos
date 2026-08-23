@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"alpineInstaller/chrootPhase/features"
 	"alpineInstaller/utils/config"
 	"alpineInstaller/utils/shell"
 	"fmt"
@@ -40,6 +41,26 @@ func InstallDummyPackages(conf *config.Config) error {
 	}
 
 	return nil
+}
+
+// appendUnique adds items to slice if not already present.
+func appendUnique(slice []string, items ...string) []string {
+	for _, item := range items {
+		if item == "" {
+			continue
+		}
+		found := false
+		for _, s := range slice {
+			if s == item {
+				found = true
+				break
+			}
+		}
+		if !found {
+			slice = append(slice, item)
+		}
+	}
+	return slice
 }
 
 func createProvideDummy(chroot, pkgName string) error {
@@ -134,9 +155,8 @@ func SetupPackages(conf *config.Config) error {
 	var allPkgs []string
 	allPkgs = append(allPkgs, u.AllPackages...)
 
-	if u.EnableTPM {
-		allPkgs = append(allPkgs, "tpm2-tools", "tpm2-tss", "tpm2-tss-tcti-device")
-	}
+	// TPM packages (owned by features/tpm.go)
+	allPkgs = append(allPkgs, features.TpmPackages(conf)...)
 
 	cpuInfo, _ := shell.ExecuteCmd(chroot, "cat /proc/cpuinfo")
 	if strings.Contains(cpuInfo, "AMD") {
@@ -148,13 +168,19 @@ func SetupPackages(conf *config.Config) error {
 	firmwarePkgs := DetectFirmwarePackages(chroot)
 	allPkgs = append(allPkgs, firmwarePkgs...)
 
-	if u.EnableNix {
-		allPkgs = append(allPkgs, "nix", "nix-openrc", "nix-bash-completion", "nix-zsh-completion")
+	// Nix packages (owned by features/nix.go)
+	// Auto-enable Nix if rules requested Nix packages.
+	if features.ShouldEnableNix(conf) {
+		fmt.Printf("[WARNING] Nix packages requested (%d), enabling Nix automatically\n", len(u.NixPackages))
+		u.EnableNix = true
 	}
+	allPkgs = append(allPkgs, features.NixPackages(conf)...)
 
-	if u.EnableHardening {
-		allPkgs = append(allPkgs, "bubblewrap", "apparmor", "apparmor-profiles", "libapparmor", "apparmor-utils")
-	}
+	// Hardening packages (owned by features/hardening.go)
+	allPkgs = append(allPkgs, features.HardeningPackages(conf)...)
+
+	// Zswap modules (owned by features/zswap.go)
+	u.Modules = appendUnique(u.Modules, features.ZswapModules(conf)...)
 
 	pkgList := strings.Join(allPkgs, " ")
 	if _, err := shell.ExecuteCmd(chroot, "apk add "+pkgList); err != nil {

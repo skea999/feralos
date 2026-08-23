@@ -7,6 +7,14 @@ import (
 	"strings"
 )
 
+// ZswapModules returns the kernel modules needed for zswap.
+func ZswapModules(conf *config.Config) []string {
+	if !conf.User.EnableZswap {
+		return nil
+	}
+	return []string{"zsmalloc"}
+}
+
 // SetupZswap configures the zswap compressed swap cache for non-server
 // layouts (btrfsStandard, btrfsRaid0). Toggleable via EnableZswap, with
 // conservative tuning. Guards: skips for btrfsStandardServer (handled by

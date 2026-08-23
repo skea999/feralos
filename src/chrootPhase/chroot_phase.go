@@ -60,10 +60,8 @@ func Run(conf *config.Config) error {
 	}
 
 	// 6a. Setup desktop environment (configurations — kde/gnome need none)
-	if conf.User.DesktopEnvironment == "niri" {
-		if err := desktops.SetupNiri(conf); err != nil {
-			return fmt.Errorf("niri desktop setup failed: %w", err)
-		}
+	if err := desktops.Setup(conf); err != nil {
+		return fmt.Errorf("desktop setup failed: %w", err)
 	}
 
 	// 8. Setup zswap (server always enabled; other layouts toggleable)
@@ -82,6 +80,11 @@ func Run(conf *config.Config) error {
 	// 10. Setup hardening
 	if err := features.SetupHardening(conf); err != nil {
 		return fmt.Errorf("hardening failed: %w", err)
+	}
+
+	// 10a. Setup secureboot (cleanup legacy hooks)
+	if err := features.SetupSecureboot(conf); err != nil {
+		fmt.Printf("[WARNING] secureboot setup: %v\n", err)
 	}
 
 	// 11. Setup boot (booster config, cmdline, hooks)

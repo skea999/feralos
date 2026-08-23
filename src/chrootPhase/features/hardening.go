@@ -9,6 +9,22 @@ import (
 	"strings"
 )
 
+// HardeningPackages returns the APK packages needed for security hardening.
+func HardeningPackages(conf *config.Config) []string {
+	if !conf.User.EnableHardening {
+		return nil
+	}
+	return []string{"bubblewrap", "apparmor", "apparmor-profiles", "libapparmor", "apparmor-utils"}
+}
+
+// DebugOverrides returns sysctl/kernel overrides when EnableDebug is true.
+func DebugOverrides(conf *config.Config) (loglevel string, dmesgRestrict string, dmesgRestrictVal string, memfdVal string, iouringVal string) {
+	if !conf.User.EnableDebug {
+		return "loglevel=0", "sysctl.kernel.dmesg_restrict=1", "1", "1", "1"
+	}
+	return "loglevel=7", "sysctl.kernel.dmesg_restrict=0", "0", "0", "0"
+}
+
 // SetupHardening applies kernel hardening configuration to the chroot.
 func SetupHardening(conf *config.Config) error {
 	if !conf.User.EnableHardening {
@@ -25,15 +41,9 @@ func SetupHardening(conf *config.Config) error {
 		fmt.Printf("[WARNING] Failed to add apparmor to boot: %v\n", err)
 	}
 
-	loglevelArg := "loglevel=0"
-	dmesgRestrictArg := "sysctl.kernel.dmesg_restrict=1"
-	dmesgRestrictVal := "1"
+	loglevelArg, dmesgRestrictArg, dmesgRestrictVal, memfdVal, iouringVal := DebugOverrides(conf)
 	printkVal := "3 3 3 3"
-
-	if u.EnableDebug {
-		loglevelArg = "loglevel=7"
-		dmesgRestrictArg = "sysctl.kernel.dmesg_restrict=0"
-		dmesgRestrictVal = "0"
+	if conf.User.EnableDebug {
 		printkVal = "7 4 1 7"
 	}
 
@@ -59,13 +69,6 @@ kernel.sysrq=4`, dmesgRestrictVal)
 	escapedSysctlHardening := strings.ReplaceAll(sysctlHardening, "'", "'\\''")
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/sysctl.d/99-cmdline-hardening.conf", escapedSysctlHardening)); err != nil {
 		return fmt.Errorf("failed to write sysctl hardening: %w", err)
-	}
-
-	memfdVal := "1"
-	iouringVal := "2"
-	if u.EnableDebug {
-		memfdVal = "0"
-		iouringVal = "0"
 	}
 
 	memProtect := fmt.Sprintf(`# Kernel hardening - Memory protection
