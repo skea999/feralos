@@ -375,7 +375,7 @@ These C packages remain because no memory-safe alternative exists or the compone
 ### uutils-coreutils-more Conflict (Resolved)
 - **Issue**: `uutils-coreutils-more` and `util-linux-misc` both provide `/usr/bin/more`
 - **Root cause**: `incus-feature-vm` depends on `util-linux-misc`, which conflicts with uutils more
-- **Resolution**: Created empty dummy `util-linux-misc` (v999) via `providePackages` in internalRules.yaml. Dummy satisfies dependency without file conflicts. `uutils-coreutils-more` provides real `/usr/bin/more`.
+- **Resolution**: Created empty dummy `util-linux-misc` (v999) via `providePackages` in internal_rules.yaml. Dummy satisfies dependency without file conflicts. `uutils-coreutils-more` provides real `/usr/bin/more`.
 
 ### Ripgrep as grep Drop-in (Won't Fix)
 - **Issue**: ripgrep (`rg`) doesn't support POSIX BRE (`\+`)

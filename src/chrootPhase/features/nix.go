@@ -92,7 +92,7 @@ export TMPDIR=/nix/var/nix/build/tmp`
 		fmt.Printf("[WARNING] Failed to symlink nix bash env: %v\n", err)
 	}
 
-	// Install Nix packages requested by rules (internalRules nixPackages).
+	// Install Nix packages requested by rules (internal_rules nixPackages).
 	// Same behavior as apk packages: data selects what gets installed.
 	if len(u.NixPackages) > 0 {
 		fmt.Println("[INFO] Installing Nix packages...")

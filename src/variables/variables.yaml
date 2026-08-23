@@ -21,7 +21,7 @@ variables:
   branch: "latest-stable"
 
   # Layout
-  diskLayout: "btrfsStandard" # Options defined in internalRules
+  diskLayout: "btrfsStandard" # Options defined in internal_rules
   desktopEnvironment: "none"        # Options: none, kde
   videoDriver: "none"               # Options: none, amdgpu, nvidia, intel
 

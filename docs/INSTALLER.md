@@ -19,7 +19,7 @@ Full tree — `AGENTS.md` keeps only pointer. Details here:
 feralos_installer/
 ├── src/
 │   ├── main.go, go.mod, variables.yaml
-│   ├── variables/ (variables.yaml, internalRules.yaml)
+│   ├── variables/ (variables.yaml, internal_rules.yaml)
 │   ├── utils/
 │   │   ├── config/config.go
 │   │   ├── shell/execute.go          # ExecuteCmd(chroot, cmd) unified
@@ -63,7 +63,7 @@ feralos_installer/
 
 1. **Load Configuration** (`main.go`)
    - Parse `variables.yaml` (user config)
-   - Load `internalRules.yaml` (dynamic rules)
+    - Load `internal_rules.yaml` (dynamic rules)
    - Run interactive wizard if not unattended
 
 2. **Apply Dynamic Rules** (`logic.go`)
@@ -123,7 +123,7 @@ feralos_installer/
 1. **Install Packages** (`packages.go`)
    - Install dummy packages (APK v3 `apk mkpkg`) for memory-safe replacements
    - Install provide packages (empty dummies) to satisfy dependencies
-   - Install standard packages from internalRules.yaml
+   - Install standard packages from internal_rules.yaml
    - Install layout-specific packages
    - Install desktop environment packages (if selected)
    - Install video driver packages (if selected)
@@ -238,7 +238,7 @@ feralos_installer/
 - Feature toggles (encryption, secureboot, TPM, hardening, zswap, nix)
 - Extra packages
 
-### internalRules.yaml (Dynamic Rules)
+### internal_rules.yaml (Dynamic Rules)
 - Standard packages (hardcoded)
 - Disk layout definitions (packages, modules)
 - Desktop environment definitions (packages, services, groups)

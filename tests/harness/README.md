@@ -23,20 +23,20 @@ All harness runs use a `variables.yaml` via `-f`. Curated library at `tests/fixt
 
 | Template | Layout | Swap | Purpose |
 |----------|--------|------|---------|
-| `btrfsStandard-minimal.yaml` | btrfsStandard | auto | baseline |
-| `btrfsStandard-noswap.yaml` | btrfsStandard | disabled | noswap branch |
-| `btrfsStandard-swap-explicit-8G.yaml` | btrfsStandard | 8G | explicit size parse |
-| `btrfsRaid0-minimal.yaml` | btrfsRaid0 | auto | raid0 minimal |
-| `btrfsRaid0-noswap.yaml` | btrfsRaid0 | disabled | **critical gap**: rootPart=2 |
-| `btrfsRaid0-full.yaml` | btrfsRaid0 | auto + niri + all features | full stack |
-| `full-stack.yaml` | btrfsStandard | auto + all features | replaces `tests/variables-full.yaml` |
+| `btrfs_standard_minimal.yaml` | btrfsStandard | auto | baseline |
+| `btrfs_standard_noswap.yaml` | btrfsStandard | disabled | noswap branch |
+| `btrfs_standard_swap_explicit_8g.yaml` | btrfsStandard | 8G | explicit size parse |
+| `btrfs_raid0_minimal.yaml` | btrfsRaid0 | auto | raid0 minimal |
+| `btrfs_raid0_noswap.yaml` | btrfsRaid0 | disabled | **critical gap**: rootPart=2 |
+| `btrfs_raid0_full.yaml` | btrfsRaid0 | auto + niri + all features | full stack |
+| `full_stack.yaml` | btrfsStandard | auto + all features | replaces `tests/variables-full.yaml` |
 
 Old `tests/harness/variables-*.yaml` kept as deprecated shims (`DEPRECATED` header) → use `tests/fixtures/variables/`.
 
 Tier1 CI gate: minimal + noswap per layout. Tier2 nightly: explicit + isolate. Tier3 manual: full.
 
 ```bash
-./skea-harness run -f tests/fixtures/variables/btrfsRaid0-noswap.yaml
+./skea-harness run -f tests/fixtures/variables/btrfs_raid0_noswap.yaml
 ```
 
 ## Quick start

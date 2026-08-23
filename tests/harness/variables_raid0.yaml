@@ -1,4 +1,4 @@
-# DEPRECATED: use tests/fixtures/variables/btrfsStandard-niri.yaml
+# DEPRECATED: use tests/fixtures/variables/btrfs_raid0_minimal.yaml
 variables:
   unattended: true
   # Disk Configuration
@@ -22,8 +22,8 @@ variables:
   branch: "latest-stable"
 
   # Layout
-  diskLayout: "btrfsStandard" # Options defined in internalRules
-  desktopEnvironment: "niri"        # Options: none, kde, niri
+  diskLayout: "btrfsRaid0" # Options defined in internal_rules
+  desktopEnvironment: "none"        # Options: none, kde
   videoDriver: "none"               # Options: none, amdgpu, nvidia, intel
 
   # SSH (optional)
@@ -37,7 +37,7 @@ variables:
   enableTPM: false
   enableHardening: false
   enableZswap: false
-  enableNix: true
+  enableNix: false
   enableSwap: true
   swapSize: auto
   enableDebug: false

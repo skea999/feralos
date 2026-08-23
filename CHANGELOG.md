@@ -7,7 +7,7 @@ All notable changes to FeralOS will be documented in this file.
 ### Added
 - Go installer with btrfsStandardServer layout (2-disk RAID1)
 - Go installer with btrfsStandard layout (single disk, swapfile)
-- Dynamic rules engine (internalRules.yaml + logic.go)
+- Dynamic rules engine (internal_rules.yaml + logic.go)
 - APK hooks for kernel fallback and EFI sync
 - Btrfs subvolume creation with mount options
 - Fstab generation per layout
@@ -34,14 +34,14 @@ All notable changes to FeralOS will be documented in this file.
 - EFI keys generated AFTER package install (matches reference flow)
 - `WriteSecurebootConf` skips when `/etc/uefi-keys/db.key` missing
 - APK v3 dummy packages via `apk mkpkg` (replaces binary manipulation)
-- `providePackages` in internalRules.yaml for empty dependency-satisfying dummies
+- `providePackages` in internal_rules.yaml for empty dependency-satisfying dummies
 - `util-linux-misc` dummy to resolve `uutils-coreutils-more` conflict with `incus-feature-vm`
 - `less_dummy` harness check (verifies symlink chain to bat)
 - `log_errors` harness check — non-regression guard scanning target-serial.log + installer.log for error/failed markers, fails the run on any match (whitelist for known innocuous lines)
 - `services_status` harness check — verifies configured OpenRC services are actually STARTED via `rc-status --all` (not just `[ ok ]` at boot); excludes QEMU-only services (smartd, fsck, udev-settle); parses supervise-daemon format `[ started 00:00:36 (0) ]`
 - `lsattr_nocow` harness check — verifies C flag on all 7 NoCoW subvolumes, no `m` flag, compressed subvolumes stay CoW
 - **niri desktop environment** — greetd + regreet + niri + wayvnc + DMS:
-  - `nixPackages` field in internalRules (same behavior as apk — data selects install, auto-enables Nix)
+  - `nixPackages` field in internal_rules (same behavior as apk — data selects install, auto-enables Nix)
   - `chrootPhase/desktops/niri.go`: greetd config, greeter.sh, regreet.toml, niri configs (greeter + user), wayvnc config, xdg-su wrapper, OpenRC dms service
   - DMS (DankMaterialShell) + quickshell from stable nixpkgs channel (nixos-26.05)
   - Harness checks: niri_config_valid, greetd_config, niri_greeter, wayvnc_installed, dms_installed
@@ -82,7 +82,7 @@ All notable changes to FeralOS will be documented in this file.
 - Console output via console=ttyS0,115200 in kernel cmdline
 - Keyfile generation added as Step 6 in main.go (between bootstrap and chroot prep)
 - All packages installed in single `apk add` (base + TPM + microcode + Nix + hardening)
-- `internalRules.yaml` cleaned: only base OS in defaultRunlevels, services in packageLogic
+- `internal_rules.yaml` cleaned: only base OS in defaultRunlevels, services in packageLogic
 - udev services moved to packageLogic under eudev (Alpine uses mdev by default)
 - `modules` service removed (booster loads `/etc/modules` automatically)
 - earlyoom moved to standardPackages

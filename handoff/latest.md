@@ -20,7 +20,7 @@ Phase 1: Go installer complete + fixtures library + AGENTS compress + githooks v
 - **Swapfile/NoCoW fixes** — `btrfs filesystem mkswapfile` + `chattr +C` on @swap dir before mount, compression property removed from ALL NoCoW (NODATACOW implies no compression), `lsattr_nocow` harness check
 - **Swap shutdown FIXED** — swap moved to boot runlevel + `need localmount` (was `before`), apk `.apk-new` survives upgrades
 - **`log_errors` + `services_status`** — non-regression guards (whitelist smartd/fsck, parse supervise-daemon)
-- **niri DE** — `nixPackages` in internalRules, `chrootPhase/desktops/niri.go`, DMS via stable nixpkgs, **37/37 PASS**; tests/harness checks + virtio-gpu-pci; sudoers `includedir` enabled; nix.conf cleaned; `hwclock`? no
+- **niri DE** — `nixPackages` in internal_rules, `chrootPhase/desktops/niri.go`, DMS via stable nixpkgs, **37/37 PASS**; tests/harness checks + virtio-gpu-pci; sudoers `includedir` enabled; nix.conf cleaned; `hwclock`? no
 - **Dummy packages** — APK v3 `apk mkpkg` symlinks; BusyBox grep (not GNU/rg)
 
 ## What's Working
@@ -47,7 +47,7 @@ Phase 1: Go installer complete + fixtures library + AGENTS compress + githooks v
   - Check: `apk info | grep -q '^vector$'` (init-system agnostic)
 - **btrbk** — btrfs backup/snapshot tool with subvolume `@btrbk`
 - **turnstile** — session tracker for desktop environments
-- **internalRules.yaml cleaned** — only base OS in defaultRunlevels, services in packageLogic
+- **internal_rules.yaml cleaned** — only base OS in defaultRunlevels, services in packageLogic
 - **APK v3 dummy packages** — `apk mkpkg` creates valid packages, installed before main `apk add`
 - **providePackages** — empty dummies for dependency satisfaction (e.g., `util-linux-misc`)
 - **uutils-coreutils-more** — provides `/usr/bin/more`, dummy `util-linux-misc` satisfies `incus-feature-vm`
@@ -89,7 +89,7 @@ Phase 1: Go installer complete + fixtures library + AGENTS compress + githooks v
 | `src/utils/config/config.go` | Config types + LoadConfig |
 | `src/utils/shell/execute.go` | Unified ExecuteCmd (retry, logging) |
 | `src/variables/variables.yaml` | Template with defaults |
-| `src/variables/internalRules.yaml` | Dynamic rules (packages, services) |
+| `src/variables/internal_rules.yaml` | Dynamic rules (packages, services) |
 | `src/hostPhase/` | Host-side operations (orchestrator + internal/) |
 | `src/hostPhase/disks/` | Storage layouts (Go packages) |
 | `src/chrootPhase/` | Chroot operations (orchestrator + internal/ + features/) |
@@ -125,7 +125,7 @@ Phase 1: Go installer complete + fixtures library + AGENTS compress + githooks v
 - **Swap service**: boot runlevel + `need localmount` (sed replaces `before localmount` — start order only, not stop order). apk preserves modified /etc files as `.apk-new` — the sed survives upgrades
 - **Log errors check**: harness `log_errors` scans target-serial.log + installer.log for error/failed markers, fails run on any match (non-regression guard, whitelist for known innocuous lines incl. QEMU-only smartd/fsck)
 - **Services active check**: harness `services_status` verifies configured services are actually started via `rc-status --all`; excludes QEMU-only services (smartd, fsck, udev-settle); parses supervise-daemon format
-- **niri DE**: data in internalRules (`nixPackages` field, auto-enables Nix) + config logic in `chrootPhase/desktops/niri.go` (kde/gnome stay data-only)
+- **niri DE**: data in internal_rules (`nixPackages` field, auto-enables Nix) + config logic in `chrootPhase/desktops/niri.go` (kde/gnome stay data-only)
 - **Nix stable**: registry pinned to nixos-26.05 (default maps nixpkgs→unstable); sandbox disabled only for chroot install; TMPDIR on nix build subvolume; NIXPKGS_ALLOW_* env vars (not nix.conf — unknown settings)
 - **Seat provider**: elogind (not seatd); no render group (Alpine uses video); no turnstile (edge only)
 - **sudoers**: `@includedir /etc/sudoers.d` enabled (Alpine default comments it out — wheel sudo was denied)

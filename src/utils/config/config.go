@@ -93,12 +93,12 @@ func LoadConfig(userPath string) (*Config, error) {
 		return nil, err
 	}
 
-	// Look for internalRules.yaml in src/variables/ directory
+	// Look for internal_rules.yaml in src/variables/ directory
 	// This file contains the dynamic rules and is not user-editable
 	iPaths := []string{
-		"src/variables/internalRules.yaml", // From project root
-		"variables/internalRules.yaml",     // From src/
-		"../variables/internalRules.yaml",  // From src/utils/
+		"src/variables/internal_rules.yaml",
+		"variables/internal_rules.yaml",
+		"../variables/internal_rules.yaml",
 	}
 
 	var iData []byte
@@ -110,7 +110,7 @@ func LoadConfig(userPath string) (*Config, error) {
 	}
 
 	if iData == nil {
-		return nil, fmt.Errorf("cannot find internalRules.yaml in any expected location")
+		return nil, fmt.Errorf("cannot find internal_rules.yaml in any expected location")
 	}
 
 	if err := yaml.Unmarshal(iData, &conf.Internal); err != nil {
@@ -126,7 +126,7 @@ func LoadConfig(userPath string) (*Config, error) {
 }
 
 // LoadTemplate loads only the user variables from a template file.
-// Used by the generator to populate defaults without needing internalRules.yaml.
+// Used by the generator to populate defaults without needing internal_rules.yaml.
 func LoadTemplate(templatePath string) (*Config, error) {
 	conf := &Config{}
 	uData, err := os.ReadFile(templatePath)

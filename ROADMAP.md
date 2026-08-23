@@ -57,7 +57,7 @@ Transform the installer output into a complete FeralOS distribution with Dinit, 
 | Go installer — btrfsRaid0 | P0 | Planned | 2-disk RAID0 layout (like btrfsStandardServer but RAID0) |
 | Go installer — btrfsStandardUnencrypted | P0 | Planned | Single disk, no LUKS (for VMs) |
 | Essential packages (hardcoded) | P0 | Done | micro, doas, mdadm, grub, etc. |
-| Dynamic rules engine | P0 | Done | internalRules.yaml + logic.go |
+| Dynamic rules engine | P0 | Done | internal_rules.yaml + logic.go |
 | Generator (interactive) | P1 | Done | Interactive questions, guided defaults |
 | Generator (standalone) | P1 | Done | Pre-configured variables.yaml |
 | APK hooks (kernel + EFI) | P1 | Done | hooks.go |

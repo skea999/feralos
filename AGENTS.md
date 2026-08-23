@@ -56,10 +56,10 @@ cd tests/harness
 ./skea-harness cleanup
 
 # Run harness with fixture templates (covers all scenarios)
-./skea-harness run -f tests/fixtures/variables/btrfsRaid0-minimal.yaml
-./skea-harness run -f tests/fixtures/variables/btrfsRaid0-noswap.yaml
-./skea-harness run -f tests/fixtures/variables/btrfsStandard-swap-explicit-8G.yaml
-ls tests/fixtures/variables/  # 14 templates: minimal, noswap, explicit, full, isolate
+./skea-harness run -f tests/fixtures/variables/btrfs_raid0_minimal.yaml
+./skea-harness run -f tests/fixtures/variables/btrfs_raid0_noswap.yaml
+./skea-harness run -f tests/fixtures/variables/btrfs_standard_swap_explicit_8g.yaml
+ls tests/fixtures/variables/  # 14 templates: minimal, noswap, explicit, full, isolate (scenarios)
 
 # Run tests (when available)
 cd src && go test ./...
@@ -99,7 +99,11 @@ cd src && golangci-lint run ./...
 
 ## Architecture Principle
 
-Standard core, pluggable data — installer logic never changes, storage layouts are Go packages, essential packages hardcoded, optional+rules in YAML, parser same code only data changes, booster replaces mkinitfs, UKI replaces GRUB, LUKS2 on RAID/Swap, Btrfs RAID1 on LUKS.
+Standard core, pluggable data — installer logic never changes, storage layouts are Go packages, essential packages hardcoded, optional+rules in YAML, parser same code only data changes, booster replaces mkinitfs, UKI replaces GRUB, LUKS2 on RAID/Swap, Btrfs RAID1 on LUKS. **No backward compatibility — installer runs once, always fresh.**
+
+## Compatibility
+
+No backward compat. Breaking changes allowed without fallback (e.g., `internalRules.yaml` → `internal_rules.yaml` without deprecated path). Installer is single-run.
 
 ## Project Structure
 
@@ -133,7 +137,7 @@ All prior swap/vector/dummy issues resolved. See `CHANGELOG.md` Fixed section. C
 
 ### 2026-08-20 11:00 - Fixtures library: 14 curated variables.yaml templates
 **Agent:** codebase — **14 templates + swap unit tests + docs (128/128 PASS on refactors)**
-- `tests/fixtures/variables/`: btrfsStandard/Server/Raid0 × swap on/off × swapSize auto/8G × secureboot/tpm/hardening isolate × niri × full-stack. README matrix + Tier1 CI (minimal+noswap)
+- `tests/fixtures/variables/`: btrfsStandard/Server/Raid0 × swap on/off × swapSize auto/8G × secureboot/tpm/hardening isolate × niri × full_stack. README matrix + Tier1 CI (minimal+noswap)
 - `src/utils/swap/swap_test.go`: auto/G/M/K/T/P, whitespace, invalid; fixed `K` truncation bug `n*1/1024→0`
 - Compat: old harness `variables-*.yaml` kept `DEPRECATED` → new fixtures
 

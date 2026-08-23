@@ -1,4 +1,4 @@
-# DEPRECATED: use tests/fixtures/variables/btrfsStandardServer-minimal.yaml
+# DEPRECATED: use tests/fixtures/variables/btrfs_standard_server_minimal.yaml
 variables:
   unattended: true
   # Disk Configuration
@@ -22,7 +22,7 @@ variables:
   branch: "latest-stable"
 
   # Layout
-  diskLayout: "btrfsStandardServer" # Options defined in internalRules
+  diskLayout: "btrfsStandardServer" # Options defined in internal_rules
   desktopEnvironment: "none"        # Options: none, kde
   videoDriver: "none"               # Options: none, amdgpu, nvidia, intel
 

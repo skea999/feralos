@@ -22,15 +22,15 @@ _Examples_: micro, doas, mdadm, grub-efi, btrfs-progs, linux-lts
 _Avoid_: base packages, core packages
 
 **Optional Packages**
-User-selectable packages defined in `variables.yaml`. Injected via APK. Their rules (groups, services, modules) are defined in `internalRules.yaml`.
+User-selectable packages defined in `variables.yaml`. Injected via APK. Their rules (groups, services, modules) are defined in `internal_rules.yaml`.
 _Avoid_: extra packages, addons
 
 **Dynamic Rules**
-Declarative logic in `internalRules.yaml` that maps optional packages to groups, services, modules, GRUB options, and mkinitfs features.
+Declarative logic in `internal_rules.yaml` that maps optional packages to groups, services, modules, GRUB options, and mkinitfs features.
 _Avoid_: auto-config, implicit logic
 
 **Parser**
-Standard code in `logic.go` that processes dynamic rules. Always the same code — only the data in `internalRules.yaml` changes. If a package has no rules, nothing happens.
+Standard code in `logic.go` that processes dynamic rules. Always the same code — only the data in `internal_rules.yaml` changes. If a package has no rules, nothing happens.
 _Avoid_: rule engine, logic processor
 
 ## Distribution Architecture
@@ -156,7 +156,7 @@ _Note: Some C components remain when no memory-safe alternative exists or when t
 | `src/generator/main.go` | Value generator |
 | `src/variables.yaml` | User config (generated) |
 | `src/variables/variables.yaml` | Template with defaults |
-| `src/variables/internalRules.yaml` | Dynamic rules |
+| `src/variables/internal_rules.yaml` | Dynamic rules |
 | `src/utils/` | Config, exec, files, logic |
 | `src/installer/hostPhase/` | Host operations |
 | `src/installer/hostPhase/disks/` | Storage layouts (Go packages) |

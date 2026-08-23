@@ -1,4 +1,4 @@
-# DEPRECATED: use tests/fixtures/variables/btrfsRaid0-minimal.yaml (kept for backward compat)
+# DEPRECATED: use tests/fixtures/variables/btrfs_standard_minimal.yaml + enableZswap:true (see btrfs_standard_swap_* or full_stack.yaml)
 variables:
   unattended: true
   # Disk Configuration
@@ -22,7 +22,7 @@ variables:
   branch: "latest-stable"
 
   # Layout
-  diskLayout: "btrfsRaid0" # Options defined in internalRules
+  diskLayout: "btrfsStandard" # Options defined in internal_rules
   desktopEnvironment: "none"        # Options: none, kde
   videoDriver: "none"               # Options: none, amdgpu, nvidia, intel
 
@@ -36,7 +36,7 @@ variables:
   enableSecureboot: false
   enableTPM: false
   enableHardening: false
-  enableZswap: false
+  enableZswap: true
   enableNix: false
   enableSwap: true
   swapSize: auto

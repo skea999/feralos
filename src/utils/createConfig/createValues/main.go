@@ -40,7 +40,7 @@ func main() {
 
 	fmt.Printf("[INFO] Loading defaults from template: %s\n", templatePath)
 
-	// 2. Load data (template only, no internalRules needed)
+	// 2. Load data (template only, no internal_rules needed)
 	conf, err := config.LoadTemplate(templatePath)
 	if err != nil {
 		log.Fatalf("[ERROR] Error loading template: %v", err)

@@ -38,7 +38,7 @@ func ApplyRules(conf *config.Config) {
 	u.AllPackages = appendUnique(u.AllPackages, u.ExtraPackages...)
 
 	// If any rule requested Nix packages, enable Nix automatically.
-	// Same behavior as apk: data in internalRules selects the install path.
+	// Same behavior as apk: data in internal_rules selects the install path.
 	if len(u.NixPackages) > 0 && !u.EnableNix {
 		fmt.Printf("[WARNING] Nix packages requested (%d), enabling Nix automatically\n", len(u.NixPackages))
 		u.EnableNix = true
