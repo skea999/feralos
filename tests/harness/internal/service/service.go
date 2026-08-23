@@ -1917,7 +1917,7 @@ func ensurePrepareDefaults(cfg *PrepareRunnerConfig) error {
 		cfg.WaitTimeout = 15 * time.Minute
 	}
 	if cfg.BootTimeout == 0 {
-		cfg.BootTimeout = 5 * time.Minute
+		cfg.BootTimeout = 10 * time.Minute
 	}
 	if len(cfg.Packages) == 0 {
 		cfg.Packages = []string{"bash", "curl", "tar", "fdisk", "dosfstools", "cryptsetup", "mdadm", "btrfs-progs", "sudo", "ca-certificates", "tpm2-tools", "golang-go"}
@@ -2001,7 +2001,7 @@ func ensureRunDefaults(cfg *RunConfig) error {
 		cfg.InstalledPassword = "Alpine.1"
 	}
 	if cfg.BootTimeout == 0 {
-		cfg.BootTimeout = 5 * time.Minute
+		cfg.BootTimeout = 10 * time.Minute
 	}
 	if cfg.VerificationTimeout == 0 {
 		cfg.VerificationTimeout = 2 * time.Minute
