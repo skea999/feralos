@@ -15,7 +15,7 @@
 - [x] **i18n `scenarios` → `scenarios`** — 4 docs files: `docs/INSTALLER.md:52`, `AGENTS.md:58-62`, `tests/fixtures/variables/README.md:3:43`, `tests/harness/README.md:22` (English-only rule). Fixed via `s/scenarios/scenarios/g`.
 - [x] **Italian quote** `tests/fixtures/variables/README.md:43` `user: "mandatory by design"` → `mandatory by design` (English). Fixed.
 - [x] **Naming `internalRules.yaml` → `internal_rules.yaml`** — `src/variables/` camelCase → snake_case. `git mv src/variables/internalRules.yaml src/variables/internal_rules.yaml` + `src/utils/config/config.go:98-102` updated to 6-path fallback (new first, old deprecated). Old docs refs left as deprecated comment — update gradually.
-- [ ] **Docs refs to old name** — `docs/INSTALLER.md:22`, `CONTEXT.md:25,29,33,159`, `CHANGELOG.md:10`, etc still say `internalRules.yaml`. TODO: `grep -r internalRules docs/ state/ CONTEXT.md` → replace with `internal_rules.yaml` (keep parenthetical fallback note for one release).
+- [x] **Docs refs to old name** — all live refs updated: `docs/INSTALLER.md`, `CONTEXT.md`, `CHANGELOG.md`, `handoff/latest.md`, `ROADMAP.md`, `config.go`, `variables.yaml`, `logic.go`, `nix.go`, `createValues/main.go`, harness shims, `state/session_state.json`, `.agent-memory/`, `AGENTS.md`. Config fallback paths removed (no backward compat). Only `review.md` self-references remain (historical).
 
 ---
 
@@ -40,13 +40,15 @@
 - `src/chrootPhase/chroot_phase.go:63` hard-coded niri check.
 
 **Checklist:**
-- [ ] Create `features/secureboot.go` + guard `misc.go:112`
-- [ ] Create `features/tpm.go` + move `packages.go:137` block
-- [ ] Centralize `hardening` packages (remove from `packages.go:155`)
-- [ ] Centralize `nix` packages + auto-enable (remove from `packages.go:151` + `logic.go:42`)
-- [ ] Merge or document `zswap` 2-file split + move `logic.go:18` `zsmalloc` into helper
-- [ ] Extract `debug` overrides from `hardening.go:33,66`
-- [ ] Genericize `desktops.Setup` + move `logic.go:27` desktop handling
+- [x] Create `features/secureboot.go` + guard `misc.go:112`
+- [x] Create `features/tpm.go` + move `packages.go:137` block
+- [x] Centralize `hardening` packages (remove from `packages.go:155`)
+- [x] Centralize `nix` packages + auto-enable (remove from `packages.go:151` + `logic.go:42`)
+- [x] Merge or document `zswap` 2-file split + move `logic.go:18` `zsmalloc` into helper
+- [x] Extract `debug` overrides from `hardening.go:33,66`
+- [x] Genericize `desktops.Setup` + move `logic.go:27` desktop handling
+- [x] FirstBoot binaries: installer compiles + copies to `/home/user/`, harness runs from target (no build in post-install)
+- [x] Removed dead `copyGuidesToTarget` function from harness
 - [ ] (Optional) `hostPhase/disks/common/swap.go` DRY helper
 
 ---

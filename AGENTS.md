@@ -105,6 +105,22 @@ Standard core, pluggable data — installer logic never changes, storage layouts
 
 No backward compat. Breaking changes allowed without fallback (e.g., breaking changes to `internal_rules.yaml` without deprecated path). Installer is single-run.
 
+## FirstBoot Architecture
+
+Activatable features (Secure Boot, TPM) use standalone binaries in `src/firstBoot/`:
+- `src/firstBoot/secureboot/main.go` — autonomous: installs packages, generates EFI keys, enrolls sbctl, builds+signs UKI, writes hooks
+- `src/firstBoot/tpm/main.go` — autonomous: checks TPM, installs clevis@edge, binds LUKS to TPM2, rebuilds initramfs+UKI
+
+**Installer flow** (chrootPhase):
+1. `features/secureboot.go` / `features/tpm.go` compile binaries → copy to `/home/<user>/feralos_*`
+2. Packages installed by `SecurebootPackages()` / `TpmPackages()` exports (called from `packages.go`)
+
+**Post-install flow** (harness or manual):
+1. User boots target, runs `/home/<user>/feralos_secureboot` or `feralos_tpm`
+2. Binary handles everything — no installer intervention needed
+
+**Key rule**: installer does NOT run firstBoot binaries. It only compiles+copies. Binaries are autonomous post-install tools.
+
 ## Project Structure
 
 Full tree → `docs/INSTALLER.md#project-structure`. Pointer only here to keep file <200 lines.

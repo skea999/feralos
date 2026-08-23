@@ -82,9 +82,12 @@ func Run(conf *config.Config) error {
 		return fmt.Errorf("hardening failed: %w", err)
 	}
 
-	// 10a. Setup secureboot (cleanup legacy hooks)
+	// 10a. Build and install firstBoot binaries for activatable features
 	if err := features.SetupSecureboot(conf); err != nil {
 		fmt.Printf("[WARNING] secureboot setup: %v\n", err)
+	}
+	if err := features.SetupTpm(conf); err != nil {
+		fmt.Printf("[WARNING] tpm setup: %v\n", err)
 	}
 
 	// 11. Setup boot (booster config, cmdline, hooks)

@@ -158,6 +158,9 @@ func SetupPackages(conf *config.Config) error {
 	// TPM packages (owned by features/tpm.go)
 	allPkgs = append(allPkgs, features.TpmPackages(conf)...)
 
+	// Secureboot packages (owned by features/secureboot.go)
+	allPkgs = append(allPkgs, features.SecurebootPackages(conf)...)
+
 	cpuInfo, _ := shell.ExecuteCmd(chroot, "cat /proc/cpuinfo")
 	if strings.Contains(cpuInfo, "AMD") {
 		allPkgs = append(allPkgs, "amd-ucode")

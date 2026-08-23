@@ -1004,7 +1004,7 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg *RunConfig,
 
 	// Run TPM binary on first boot (will exit early — no TPM yet)
 	tpm1LogPath := filepath.Join(runDir, "tpm-first-boot.log")
-	tpm1Diag, tpm1Err := runTPMOnTarget(ctx, targetGuest, cfg.InstalledPassword, cfg.RepoRoot)
+	tpm1Diag, tpm1Err := runTPMOnTarget(ctx, targetGuest, cfg.InstalledPassword)
 	if tpm1Diag != "" {
 		_ = os.WriteFile(tpm1LogPath, []byte(tpm1Diag), 0o600)
 	}
@@ -1109,7 +1109,7 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg *RunConfig,
 		// from the target phase startup (line 690), the first boot just
 		// didn't use it because it booted without TPM.
 		tpm2LogPath := filepath.Join(runDir, "tpm-second-boot.log")
-		tpmDiag, tpmErr := runTPMOnTarget(ctx, targetGuest, cfg.InstalledPassword, cfg.RepoRoot)
+		tpmDiag, tpmErr := runTPMOnTarget(ctx, targetGuest, cfg.InstalledPassword)
 		if tpmDiag != "" {
 			_ = os.WriteFile(tpm2LogPath, []byte(tpmDiag), 0o600)
 		}
@@ -2619,43 +2619,8 @@ func sendBootPassphrase(serialSocketPath, qmpPath, passphrase string) error {
 	return qemu.PressEnter(qmpPath)
 }
 
-func copyGuidesToTarget(ctx context.Context, targetGuest guest.Options, repoRoot string) {
-	guideDir := filepath.Join(repoRoot, "src", "firstBoot")
-	guideEntries, err := os.ReadDir(guideDir)
-	if err != nil {
-		return
-	}
-	_ = guest.Run(ctx, targetGuest, "mkdir -p /root/guides", io.Discard, io.Discard)
-	for _, entry := range guideEntries {
-		if entry.IsDir() {
-			// Build Go binary from subdirectory
-			binName := entry.Name()
-			srcDir := filepath.Join(guideDir, binName)
-			mainGo := filepath.Join(srcDir, "main.go")
-			if _, err := os.Stat(mainGo); os.IsNotExist(err) {
-				continue
-			}
-
-			// Build binary
-			binPath := filepath.Join(os.TempDir(), "feralos_"+binName)
-			buildCmd := exec.Command("go", "build", "-o", binPath, "./firstBoot/"+binName+"/")
-			buildCmd.Dir = filepath.Join(repoRoot, "src")
-			if out, err := buildCmd.CombinedOutput(); err != nil {
-				fmt.Printf("[harness] WARNING: failed to build %s: %v\n%s\n", binName, err, out)
-				continue
-			}
-
-			// Copy binary to target
-			remotePath := "/root/guides/" + binName
-			_ = guest.CopyToGuest(ctx, targetGuest, binPath, remotePath, false)
-			_ = guest.Run(ctx, targetGuest, "chmod +x "+remotePath, io.Discard, io.Discard)
-			os.Remove(binPath)
-		}
-	}
-}
-
 func runSbctlOnTarget(ctx context.Context, targetGuest guest.Options, repoRoot string) (string, error) {
-	// Copy debug.sh to target for cache connectivity diagnostics
+	// Copy debug script to target
 	debugSrc := filepath.Join(repoRoot, "tests", "harness", "debug.sh")
 	if err := guest.CopyToGuest(ctx, targetGuest, debugSrc, "/root/debug.sh", false); err != nil {
 		_ = err // non-fatal
@@ -2663,14 +2628,13 @@ func runSbctlOnTarget(ctx context.Context, targetGuest guest.Options, repoRoot s
 		_ = guest.Run(ctx, targetGuest, "chmod +x /root/debug.sh", io.Discard, io.Discard)
 	}
 
-	// Copy guide binaries to target (installation may not persist)
-	copyGuidesToTarget(ctx, targetGuest, repoRoot)
-
+	// Secureboot binary is pre-installed by the installer at
+	// /home/user/feralos_secureboot — no build/copy needed.
 	script := `set -eu
 export SKEA_NONINTERACTIVE=1
 export SKEA_NONINTERACTIVE_DECISION=ignore
 [ -x /root/debug.sh ] && sh /root/debug.sh || true
-[ -x /root/guides/secureboot ] && /root/guides/secureboot || true
+[ -x /home/user/feralos_secureboot ] && /home/user/feralos_secureboot || true
 `
 	var outBuf, errBuf strings.Builder
 	if err := guest.Run(ctx, targetGuest, "sh -s -- <<'SCRIPT'\n"+script+"\nSCRIPT", &outBuf, &errBuf); err != nil {
@@ -2686,17 +2650,17 @@ export SKEA_NONINTERACTIVE_DECISION=ignore
 	return outBuf.String(), nil
 }
 
-func runTPMOnTarget(ctx context.Context, targetGuest guest.Options, password string, repoRoot string) (string, error) {
+func runTPMOnTarget(ctx context.Context, targetGuest guest.Options, password string) (string, error) {
 	if password == "" {
 		password = "Alpine.1"
 	}
-	// Ensure guide binaries are on target
-	copyGuidesToTarget(ctx, targetGuest, repoRoot)
+	// TPM binary is pre-installed by the installer at
+	// /home/user/feralos_tpm — no build/copy needed.
 	script := `set -eu
 export SKEA_NONINTERACTIVE=1
 export SKEA_NONINTERACTIVE_DECISION=ignore
 export SKEA_LUKS_PASSWORD=` + shellQuote(password) + `
-/root/guides/tpm
+/home/user/feralos_tpm
 `
 
 	var outBuf, errBuf strings.Builder
