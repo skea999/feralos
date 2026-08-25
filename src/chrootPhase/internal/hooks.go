@@ -1,16 +1,24 @@
-package common
+package internal
 
 import (
-	"alpineInstaller/utils/config"
 	"alpineInstaller/utils/shell"
 	"fmt"
 	"strings"
 )
 
-// WriteEfiSyncHook writes an APK commit hook that syncs /boot/efi to /boot/efi2
-// after kernel upgrades. Only for dual-disk layouts. Writes via host path.
-func WriteEfiSyncHook(conf *config.Config) error {
-	chroot := conf.Internal.ChrootDir
+// InjectEfiSyncHook writes an APK commit hook that syncs /boot/efi to /boot/efi2
+// after kernel upgrades. Only for dual-disk layouts (checks /boot/efi2 exists).
+// Uses chrootPhase contract: shell.ExecuteCmd(chroot, ...) for all operations.
+func InjectEfiSyncHook(chroot string) error {
+	// Check if dual-disk (EFI2 exists)
+	checkCmd := fmt.Sprintf("test -d %s/boot/efi2 && echo yes || echo no", chroot)
+	out, _ := shell.ExecuteCmd("", checkCmd)
+	if strings.TrimSpace(out) != "yes" {
+		return nil // single-disk, no hook needed
+	}
+
+	fmt.Println("[INFO] Injecting EFI sync APK hook (dual-disk)...")
+
 	efiHook := `#!/bin/sh
 
 STAGE="${1}"
@@ -35,11 +43,12 @@ if [ "${STAGE}" = "post-commit" ] && [ "${APK_COMMAND}" = "${targetCmd}" ]; then
 fi
 
 exit 0`
-	escapedEfiHook := strings.ReplaceAll(efiHook, "'", "'\\''")
-	hookCmd := fmt.Sprintf("mkdir -p %s/etc/apk/commit_hooks.d && echo '%s' > %s/etc/apk/commit_hooks.d/copy-efi.sh && chmod 755 %s/etc/apk/commit_hooks.d/copy-efi.sh", chroot, escapedEfiHook, chroot, chroot)
-	if _, err := shell.ExecuteCmd("", hookCmd); err != nil {
+	escapedHook := strings.ReplaceAll(efiHook, "'", "'\\''")
+	hookCmd := fmt.Sprintf("mkdir -p /etc/apk/commit_hooks.d && echo '%s' > /etc/apk/commit_hooks.d/copy-efi.sh && chmod 755 /etc/apk/commit_hooks.d/copy-efi.sh", escapedHook)
+	if _, err := shell.ExecuteCmd(chroot, hookCmd); err != nil {
 		return fmt.Errorf("failed to write EFI sync hook: %w", err)
 	}
+
 	fmt.Println("[INFO] EFI sync hook written (dual-disk post-upgrade sync)")
 	return nil
 }

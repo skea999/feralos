@@ -1,7 +1,6 @@
 package btrfsRaid0
 
 import (
-	"alpineInstaller/hostPhase/disks/common"
 	"alpineInstaller/utils/config"
 	"alpineInstaller/utils/shell"
 	"alpineInstaller/utils/swap"
@@ -154,11 +153,6 @@ func RunBtrfsSetup(conf *config.Config) error {
 	// 6. Setup subvolumes and mounts
 	if err := setupSubvolumesAndMounts(i.ChrootDir, luksRoot1, d1, d2); err != nil {
 		return err
-	}
-
-	// 6b. Write EFI sync APK hook (dual-disk post-upgrade sync)
-	if err := common.WriteEfiSyncHook(conf); err != nil {
-		fmt.Printf("[WARNING] EFI sync hook failed: %v\n", err)
 	}
 
 	// 6a. Configure dmcrypt LUKS swap (keyfile + luksAddKey + conf.d) — only

@@ -1,7 +1,6 @@
 package btrfsStandardServer
 
 import (
-	"alpineInstaller/hostPhase/disks/common"
 	"alpineInstaller/utils/config"
 	"alpineInstaller/utils/shell"
 	"fmt"
@@ -155,11 +154,6 @@ func RunBtrfsSetup(conf *config.Config) error {
 	// 8. Setup subvolumes and mounts
 	if err := setupSubvolumesAndMounts(i.ChrootDir, luksRAID1, d1, d2); err != nil {
 		return err
-	}
-
-	// 8b. Write EFI sync APK hook (dual-disk post-upgrade sync)
-	if err := common.WriteEfiSyncHook(conf); err != nil {
-		fmt.Printf("[WARNING] EFI sync hook failed: %v\n", err)
 	}
 
 	// 9. Configure dmcrypt LUKS swap (keyfile + luksAddKey + conf.d).

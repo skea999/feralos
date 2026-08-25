@@ -21,6 +21,11 @@ func Run(conf *config.Config) error {
 		return fmt.Errorf("package installation failed: %w", err)
 	}
 
+	// 1b. Inject EFI sync hook (dual-disk only, runs after packages installed)
+	if err := internal.InjectEfiSyncHook(chroot); err != nil {
+		fmt.Printf("[WARNING] EFI sync hook: %v\n", err)
+	}
+
 	// 1a. List installed packages
 	fmt.Println("[INFO] Installed packages:")
 	pkgList, err := shell.ExecuteCmd(chroot, "apk info")
