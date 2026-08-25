@@ -165,12 +165,7 @@ func SetupPackages(conf *config.Config) error {
 	firmwarePkgs := DetectFirmwarePackages(chroot)
 	allPkgs = append(allPkgs, firmwarePkgs...)
 
-	// Nix packages (owned by features/nix.go)
-	// Auto-enable Nix if rules requested Nix packages.
-	if features.ShouldEnableNix(conf) {
-		fmt.Printf("[WARNING] Nix packages requested (%d), enabling Nix automatically\n", len(u.NixPackages))
-		u.EnableNix = true
-	}
+	// Nix packages (owned by features/nix.go — auto-enables if rules request nixPackages)
 	allPkgs = append(allPkgs, features.NixPackages(conf)...)
 
 	// Hardening packages (owned by features/hardening.go)

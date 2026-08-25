@@ -32,9 +32,6 @@ func ApplyRules(conf *config.Config) {
 	u.AllPackages = appendUnique(u.AllPackages, i.StandardPackages...)
 	u.AllPackages = appendUnique(u.AllPackages, u.ExtraPackages...)
 
-	// Nix auto-enable is now handled in packages.go via features.ShouldEnableNix.
-	// Zswap modules are now handled in packages.go via features.ZswapModules.
-
 	processed := make(map[string]bool)
 	for {
 		added := false
