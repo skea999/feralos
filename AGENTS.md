@@ -101,6 +101,40 @@ cd src && golangci-lint run ./...
 
 Standard core, pluggable data — installer logic never changes, storage layouts are Go packages, essential packages hardcoded, optional+rules in YAML, parser same code only data changes, booster replaces mkinitfs, UKI replaces GRUB, LUKS2 on RAID/Swap, Btrfs RAID1 on LUKS. **No backward compatibility — installer runs once, always fresh.**
 
+## Activatable Feature Confinement
+
+**Rule: Every activatable feature MUST be confined to a single owner file.**
+
+Each `Enable*` flag (and `DesktopEnvironment`) is owned by exactly ONE file under `src/chrootPhase/features/` or `src/hostPhase/features/` or `src/chrootPhase/desktops/`. All logic — packages, configuration, guards — lives in that file.
+
+**Callers must NOT contain feature logic:**
+- `packages.go` → calls `features.XxxPackages(conf)`, never contains inline feature packages
+- `logic.go` → zero feature-specific logic, only generic rule application
+- `chroot_phase.go` → calls `features.SetupXxx(conf)`, never contains feature configuration
+- `host_phase.go` → calls `features.SetupXxx(conf)`, never contains feature compilation
+
+**Pattern for new features:**
+
+1. Create `src/chrootPhase/features/<name>.go` (or `hostPhase/features/` for compile+copy)
+2. Export `XxxPackages(conf) []string` — returns APK packages needed
+3. Export `SetupXxx(conf) error` — configures the feature inside chroot
+4. Guard: `if !conf.User.EnableXxx { return nil }`
+5. Call from `packages.go` (packages) and `chroot_phase.go` or `host_phase.go` (setup)
+6. NEVER mutate flags from outside the feature file (exception: `NixPackages()` auto-enables internally)
+
+**Current confinement map:**
+
+| Feature | Owner file | Called from |
+|---------|-----------|-------------|
+| `EnableSecureboot` | `hostPhase/features/secureboot.go` | `host_phase.go` |
+| `EnableTPM` | `hostPhase/features/tpm.go` | `host_phase.go` |
+| `EnableHardening` | `chrootPhase/features/hardening.go` | `packages.go` + `chroot_phase.go` |
+| `EnableNix` | `chrootPhase/features/nix.go` | `packages.go` + `chroot_phase.go` |
+| `EnableZswap` | `chrootPhase/features/zswap.go` + `zswap_server.go` | `packages.go` + `chroot_phase.go` |
+| `EnableDebug` | `chrootPhase/features/hardening.go` | via `HardeningPackages()` |
+| `EnableSwap` | `hostPhase/disks/*` | `host_phase.go` (disk layout layer) |
+| `DesktopEnvironment` | `chrootPhase/desktops/desktops.go` | `chroot_phase.go` |
+
 ## Compatibility
 
 No backward compat. Breaking changes allowed without fallback (e.g., breaking changes to `internal_rules.yaml` without deprecated path). Installer is single-run.
