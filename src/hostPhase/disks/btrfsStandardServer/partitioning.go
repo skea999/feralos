@@ -1,6 +1,7 @@
 package btrfsStandardServer
 
 import (
+	"alpineInstaller/hostPhase/disks/common"
 	"alpineInstaller/utils/config"
 	"alpineInstaller/utils/shell"
 	"fmt"
@@ -157,7 +158,7 @@ func RunBtrfsSetup(conf *config.Config) error {
 	}
 
 	// 8b. Write EFI sync APK hook (dual-disk post-upgrade sync)
-	if err := WriteEfiSyncHook(conf); err != nil {
+	if err := common.WriteEfiSyncHook(conf); err != nil {
 		fmt.Printf("[WARNING] EFI sync hook failed: %v\n", err)
 	}
 
