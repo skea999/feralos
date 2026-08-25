@@ -22,37 +22,30 @@
 
 ## 1. Feature Confinement — Activatable Features Not Single-File
 
-**Rule:** Each `Enable*` flag should be owned by one file (`src/chrootPhase/features/<feature>.go` or `desktops/<de>.go`). Reality: 0/8 confined.
+**Rule:** Each `Enable*` flag should be owned by one file (`src/chrootPhase/features/<feature>.go` or `desktops/<de>.go`).
 
-| Feature | Confined? | Files touching flag | Hotspot | Severity | Fix |
-|---------|-----------|---------------------|---------|----------|-----|
-| `EnableSecureboot` | ✅ done | `config.go:34` DEF only; `firstBoot/secureboot/main.go` (no flag); `chrootPhase/internal/misc.go:112` unconditional `rm /etc/kernel-hooks.d/50-secureboot.hook` | `misc.go:112` | **CRITICAL** | Create `features/secureboot.go:SetupSecureboot` with guard `if !EnableSecureboot {return}`; move `misc.go:112` there or guard it. Or remove flag if truly firstBoot-only and document. |
-| `EnableTPM` | ✅ done | `config.go:35` + `chrootPhase/internal/packages.go:137` `allPkgs append tpm2-*` + `firstBoot/tpm/main.go` | `packages.go:137` | **HIGH** | Create `features/tpm.go` owning `ShouldInstallTPM` + `TpmPackages` slice; `packages.go` should call `features.TpmPackages(conf)` not inline. |
-| `EnableHardening` | ✅ done | `features/hardening.go:14` guard + `packages.go:155` `bubblewrap,apparmor` | `packages.go:155` | **MEDIUM** | Centralize in `hardening.go`: export `HardeningPackages []string` and have `packages.go` import it, or make `packages.go` generic and call `hardening.AddPackages`. |
-| `EnableZswap` | ✅ done | `features/zswap.go:11,22` toggleable + `features/zswap_server.go:12` always-on + `utils/logic/logic.go:18` `zsmalloc` module | `logic.go:18` | **MEDIUM** | Merge or document exception: either `zswap.go` single file with `if DiskLayout==server {aggressive} else {conservative+guard}` and `logic.go:18` → `zswap.Modules()` helper, or keep 2-file split with comment `layout specialization exempt`. |
-| `EnableNix` | ✅ done | `features/nix.go:12` + `packages.go:151` `nix,nix-openrc` + `logic.go:42` auto-enable `if len(NixPackages)>0` | `packages.go:151` + `logic.go:42` | **MEDIUM** | Export `NixPackages` from `nix.go`, have `packages.go` import; move auto-enable helper to `nix.ShouldEnable(conf)` called from `logic.go`. |
-| `EnableSwap` | ⚠️ acceptable exception | `btrfsStandard/partitioning.go:81,127` + `btrfsRaid0/partitioning.go:53,61,69,106,163,131` + `btrfsStandardServer/*` ignores flag (always) per user decision | `hostPhase/disks/` layer | **LOW** | Keep in `hostPhase/disks/` (correct layer, not `features/`). DRY: extract `hostPhase/disks/common/swap.go` helper `ResolveSwapSize`, `WriteDmcryptConf`, `AddSwapRunlevel` to reduce 4-file duplication. Server hard-code intentional — log warning if `EnableSwap:false` on server. |
-| `EnableDebug` | ✅ done | `config.go:41` + `features/hardening.go:33,66` two branches | `hardening.go:33` | **LOW** | Extract `func debugOverrides()` or `features/debug.go` returning overrides, `hardening.go` applies. |
-| `DesktopEnvironment` | ✅ done | `config.go:29,60` + `logic.go:27` `applyRule(DesktopEnvironments[de])` + `chroot_phase.go:63` `if == "niri"` + `desktops/niri.go:15` | `chroot_phase.go:63` | **MEDIUM** | Generic dispatcher: `desktops.Setup(conf)` registry map, move `logic.go:27` package injection into `desktops` package. Add `kde.go` stub for consistency (currently only niri has impl). |
-
-**Hotspots to refactor:**
-- ~~`src/chrootPhase/internal/packages.go:137,151,155` — 3 features in one non-feature file (main violation). Delegate to feature files.~~ ✅ Done
-- ~~`src/utils/logic/logic.go:18,27,42` — 3 flags outside features.~~ ✅ Done
-- ~~`src/chrootPhase/chroot_phase.go:63` hard-coded niri check.~~ ✅ Done
+| Feature | Confined? | Primary file | Other refs | Severity | Fix |
+|---------|-----------|-------------|------------|----------|-----|
+| `EnableSecureboot` | ✅ | `hostPhase/features/secureboot.go` | config.go, harness | N/A | Binary compiles + copies to `/opt/` |
+| `EnableTPM` | ✅ | `hostPhase/features/tpm.go` | config.go, harness | N/A | Binary compiles + copies to `/opt/` |
+| `EnableHardening` | ✅ | `chrootPhase/features/hardening.go` | config.go, harness | N/A | Packages + config confined |
+| `EnableZswap` | ✅ | `chrootPhase/features/zswap.go` + `zswap_server.go` | config.go, harness | N/A | Modules confined |
+| `EnableNix` | ✅ | `chrootPhase/features/nix.go` | config.go, harness | N/A | Packages + auto-enable confined |
+| `EnableDebug` | ✅ | `chrootPhase/features/hardening.go` | config.go, harness (YAML only) | N/A | Kernel cmdline only |
+| `EnableSwap` | ✅ | `hostPhase/disks/*` | config.go, harness | N/A | Disk layout layer (correct) |
+| `DesktopEnvironment` | ✅ | `chrootPhase/desktops/desktops.go` | config.go, logic.go, harness | N/A | Generic dispatcher with registry map |
 
 **Checklist:**
-- [x] Create `features/secureboot.go` + guard `misc.go:112`
-- [x] Create `features/tpm.go` + move `packages.go:137` block
-- [x] Centralize `hardening` packages (remove from `packages.go:155`)
-- [x] Centralize `nix` packages + auto-enable (remove from `packages.go:151` + `logic.go:42`)
-- [x] Merge or document `zswap` 2-file split + move `logic.go:18` `zsmalloc` into helper
-- [x] Extract `debug` overrides from `hardening.go:33,66`
-- [x] Genericize `desktops.Setup` + move `logic.go:27` desktop handling
-- [x] FirstBoot binaries: installer compiles + copies to `/opt/`, harness runs from target
-- [x] Removed dead `copyGuidesToTarget` function from harness
-- [x] Config YAML written to `/opt/feralos/config.yaml` (disk layout, LUKS UUIDs, user info)
-- [x] TPM binary reads config YAML + fallback kernel cmdline; includes tpm2-tools
-- [ ] (Optional) `hostPhase/disks/common/swap.go` DRY helper
+- [x] Secureboot: `hostPhase/features/secureboot.go` compiles + copies binary
+- [x] TPM: `hostPhase/features/tpm.go` compiles + copies binary
+- [x] Hardening: `HardeningPackages()` + `DebugOverrides()` in `features/hardening.go`
+- [x] Nix: `NixPackages()` + auto-enable in `features/nix.go` (no mutation in packages.go)
+- [x] Zswap: `ZswapModules()` in `features/zswap.go`
+- [x] Debug: `DebugOverrides()` in `features/hardening.go`
+- [x] Desktops: `desktops.Setup(conf)` generic dispatcher
+- [x] `packages.go`: delegates to feature exports only — zero inline feature logic
+- [x] `logic.go`: zero feature-specific logic (clean)
+- [x] `chroot_phase.go`: only calls `features.Setup*`
 
 ---
 
@@ -73,10 +66,12 @@
 - [ ] **MINOR** `src/hostPhase/disks/*/partitioning.go` `os.MkdirAll(chroot+"/boot/efi")` etc — correct host pattern (allowed). Inverse not allowed.
 
 **Checklist:**
-- [ ] Fix 2 blocker hostPhase chroot calls
-- [ ] Fix 3 chrootPhase `os.*` host calls
-- [ ] Audit remaining `src/chrootPhase/**/*.go` for `filepath.Join(chroot,` → replace with `shell.ExecuteCmd(chroot, ...)`
-- [ ] Audit `src/hostPhase/**/*.go` for `shell.ExecuteCmd(chroot,` → replace with host path
+- [x] Fix 2 blocker hostPhase chroot calls (chroot_env.go + hooks.go)
+- [x] Fix 3 chrootPhase `os.*` host calls (boot.go + hardening.go + misc.go)
+- [x] Audit remaining `src/chrootPhase/**/*.go` for `filepath.Join(chroot,` → replace with `shell.ExecuteCmd(chroot, ...)`
+- [x] Audit `src/hostPhase/**/*.go` for `shell.ExecuteCmd(chroot,` → replace with host path
+- [x] hooks.go: moved EFI sync hook to `btrfsStandardServer/fstab.go:WriteEfiSyncHook` (dual-disk only)
+- [x] Removed unused imports (os, filepath) from boot.go, hardening.go, misc.go
 
 ---
 

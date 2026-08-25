@@ -4,8 +4,6 @@ import (
 	"alpineInstaller/utils/config"
 	"alpineInstaller/utils/shell"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 )
 
@@ -86,7 +84,7 @@ root soft nofile 100000
 
 	// 11. Sudoers
 	fmt.Println("[INFO] Configuring sudo-rs permissions...")
-	if err := os.MkdirAll(filepath.Join(chroot, "etc", "sudoers.d"), 0755); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /etc/sudoers.d"); err != nil {
 		return fmt.Errorf("failed to create /etc/sudoers.d directory: %w", err)
 	}
 	if _, err := shell.ExecuteCmd(chroot, "echo '%wheel ALL=(ALL) ALL' > /etc/sudoers.d/wheel"); err != nil {

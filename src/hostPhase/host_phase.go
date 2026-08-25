@@ -30,13 +30,7 @@ func Run(conf *config.Config) error {
 		return fmt.Errorf("chroot prep failed: %w", err)
 	}
 
-	// 4. Inject APK hooks (EFI sync for dual-disk)
-	fmt.Println("[INFO] Step 4: Injecting APK commit hooks...")
-	if err := internal.InjectApkHooks(conf.Internal.ChrootDir); err != nil {
-		fmt.Printf("[WARNING] APK hooks injection failed: %v\n", err)
-	}
-
-	// 5. Write install config (disk layout, LUKS UUIDs, user info)
+	// 4. Write install config (disk layout, LUKS UUIDs, user info)
 	if err := features.WriteInstallConfig(conf); err != nil {
 		return fmt.Errorf("install config failed: %w", err)
 	}

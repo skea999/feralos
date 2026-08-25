@@ -156,7 +156,12 @@ func RunBtrfsSetup(conf *config.Config) error {
 		return err
 	}
 
-	// 8a. Configure dmcrypt LUKS swap (keyfile + luksAddKey + conf.d).
+	// 8b. Write EFI sync APK hook (dual-disk post-upgrade sync)
+	if err := WriteEfiSyncHook(conf); err != nil {
+		fmt.Printf("[WARNING] EFI sync hook failed: %v\n", err)
+	}
+
+	// 9. Configure dmcrypt LUKS swap (keyfile + luksAddKey + conf.d).
 	// Root fs is now mounted at ChrootDir — write the keyfile directly into
 	// the chroot (no temp copy). The swap LUKS partitions are still open
 	// (mappers active), so luksAddKey works here. apk never overwrites these

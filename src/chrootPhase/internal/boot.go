@@ -4,8 +4,6 @@ import (
 	"alpineInstaller/utils/config"
 	"alpineInstaller/utils/shell"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 )
 
@@ -52,8 +50,7 @@ append_all_modaliases: true`, forceLoadModules)
 func writeBoosterHook(chroot string) error {
 	fmt.Println("[INFO] Writing booster kernel hook...")
 
-	hookDir := filepath.Join(chroot, "etc", "kernel-hooks.d")
-	if err := os.MkdirAll(hookDir, 0755); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /etc/kernel-hooks.d"); err != nil {
 		return fmt.Errorf("failed to create kernel-hooks.d: %w", err)
 	}
 
@@ -106,12 +103,11 @@ if [ -d /boot/efi2 ]; then
     cp -af "${output_dir}/${output_name}" /boot/efi2/EFI/BOOT/BOOTX64.EFI
 fi
 `
-	hookPath := filepath.Join(hookDir, "50-booster.hook")
 	escapedHookContent := strings.ReplaceAll(hookContent, "'", "'\\''")
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/kernel-hooks.d/50-booster.hook", escapedHookContent)); err != nil {
 		return fmt.Errorf("failed to write booster hook: %w", err)
 	}
-	if err := os.Chmod(hookPath, 0755); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, "chmod 755 /etc/kernel-hooks.d/50-booster.hook"); err != nil {
 		return fmt.Errorf("failed to chmod booster hook: %w", err)
 	}
 

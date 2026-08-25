@@ -4,8 +4,6 @@ import (
 	"alpineInstaller/utils/config"
 	"alpineInstaller/utils/shell"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 )
 
@@ -217,8 +215,7 @@ start() {
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/init.d/set-permissions", escapedPermissionsService)); err != nil {
 		return fmt.Errorf("failed to write set-permissions service: %w", err)
 	}
-	permPath := filepath.Join(chroot, "etc", "init.d", "set-permissions")
-	if err := os.Chmod(permPath, 0755); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("chmod 755 %s", "/etc/init.d/set-permissions")); err != nil {
 		return fmt.Errorf("failed to chmod set-permissions: %w", err)
 	}
 
