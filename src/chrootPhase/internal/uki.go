@@ -46,7 +46,8 @@ func BuildUKI(conf *config.Config) error {
 		return fmt.Errorf("failed to create fallback BOOTX64.EFI: %w", err)
 	}
 
-	if _, err := shell.ExecuteCmd(chroot, "cp -af /boot/efi/. /boot/efi2/ && mkdir -p /boot/efi2/EFI/BOOT && cp -af /boot/efi2/Alpine/linux-lts.efi /boot/efi2/EFI/BOOT/BOOTX64.EFI"); err != nil {
+	// Mirror to secondary ESP (only if /boot/efi2 exists — dual-disk layouts)
+	if _, err := shell.ExecuteCmd(chroot, "if [ -d /boot/efi2 ]; then cp -af /boot/efi/. /boot/efi2/ && mkdir -p /boot/efi2/EFI/BOOT && cp -af /boot/efi2/Alpine/linux-lts.efi /boot/efi2/EFI/BOOT/BOOTX64.EFI; fi"); err != nil {
 		return fmt.Errorf("failed to mirror to efi2: %w", err)
 	}
 

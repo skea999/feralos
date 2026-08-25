@@ -325,6 +325,11 @@ func rebuildSignedUKI() {
 		return
 	}
 	_ = copyFile(ukiPath, "/boot/efi/EFI/BOOT/BOOTX64.EFI")
+
+	// Mirror to secondary ESP (only if /boot/efi2 exists — dual-disk layouts)
+	if _, err := os.Stat("/boot/efi2"); err == nil {
+		_ = copyFile(ukiPath, "/boot/efi2/EFI/BOOT/BOOTX64.EFI")
+	}
 }
 
 func copyFile(src, dst string) error {

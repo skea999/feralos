@@ -55,15 +55,15 @@
 
 ### 2.1 Blocker — hostPhase using chroot
 
-- [ ] **BLOCKER** `src/hostPhase/internal/chroot_env.go:17` `shell.ExecuteCmd(chroot, repoContent)` — hostPhase doing chroot tag. Fix: `shell.ExecuteCmd("", fmt.Sprintf("echo '%s' > %s/etc/apk/repositories", escaped, chroot))` or `os.WriteFile(filepath.Join(chroot,"etc/apk/repositories"), []byte(repoContent), 0644)`.
-- [ ] **BLOCKER** `src/hostPhase/internal/hooks.go:48` `shell.ExecuteCmd(chrootDir, "echo '%s' > /etc/apk/commit_hooks.d/copy-efi.sh")` — same. File already uses correct `os.MkdirAll(filepath.Join(chrootDir,...)):16` + `os.Chmod:51`. Fix: `shell.ExecuteCmd("", fmt.Sprintf("echo '%s' > %s/etc/apk/commit_hooks.d/copy-efi.sh", escaped, chrootDir))`.
+- [x] **BLOCKER** `src/hostPhase/internal/chroot_env.go:17` `shell.ExecuteCmd(chroot, repoContent)` → `shell.ExecuteCmd("", fmt.Sprintf("echo '%s' > %s/etc/apk/repositories", escaped, chroot))` ✅
+- [x] **BLOCKER** `src/hostPhase/internal/hooks.go:48` — removed hooks.go, EFI sync hook moved to `btrfsStandardServer/fstab.go:WriteEfiSyncHook` (dual-disk only, host path) ✅
 
 ### 2.2 Critical — chrootPhase using host pattern
 
-- [ ] **CRITICAL** `src/chrootPhase/internal/boot.go:56` `os.MkdirAll(filepath.Join(chroot,"etc","kernel-hooks.d"))` + `59-114` `os.Chmod` — should be `shell.ExecuteCmd(chroot,"mkdir -p /etc/kernel-hooks.d")` / `chmod +x`. Inconsistent with same file's correct `shell.ExecuteCmd(chroot,...):20,23,40,111`.
-- [ ] **CRITICAL** `src/chrootPhase/features/hardening.go:217-218` `os.Chmod(filepath.Join(chroot,"etc/init.d/set-permissions"),0755)` → `shell.ExecuteCmd(chroot,"chmod +x /etc/init.d/set-permissions")`.
-- [ ] **CRITICAL** `src/chrootPhase/internal/misc.go:89` `os.MkdirAll(filepath.Join(chroot,"etc/sudoers.d"))` → `shell.ExecuteCmd(chroot,"mkdir -p /etc/sudoers.d")`.
-- [ ] **MINOR** `src/hostPhase/disks/*/partitioning.go` `os.MkdirAll(chroot+"/boot/efi")` etc — correct host pattern (allowed). Inverse not allowed.
+- [x] **CRITICAL** `src/chrootPhase/internal/boot.go:56` `os.MkdirAll` + `os.Chmod` → `shell.ExecuteCmd(chroot, "mkdir -p ...")` / `shell.ExecuteCmd(chroot, "chmod 755 ...")` ✅
+- [x] **CRITICAL** `src/chrootPhase/features/hardening.go:221` `os.Chmod` → `shell.ExecuteCmd(chroot, "chmod 755 /etc/init.d/set-permissions")` ✅
+- [x] **CRITICAL** `src/chrootPhase/internal/misc.go:89` `os.MkdirAll` → `shell.ExecuteCmd(chroot, "mkdir -p /etc/sudoers.d")` ✅
+- [x] **MINOR** `src/hostPhase/disks/*/partitioning.go` `os.MkdirAll(chroot+"/boot/efi")` — correct host pattern (allowed, no change needed) ✅
 
 **Checklist:**
 - [x] Fix 2 blocker hostPhase chroot calls (chroot_env.go + hooks.go)
