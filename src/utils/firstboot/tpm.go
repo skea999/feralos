@@ -1,4 +1,4 @@
-package features
+package firstboot
 
 import (
 	"alpineInstaller/utils/config"
@@ -6,11 +6,9 @@ import (
 	"fmt"
 )
 
-// SetupTpm compiles the firstBoot tpm binary and copies it to the target's
-// home directory. Runs during hostPhase (go build on host, output written
-// to mounted chroot). The binary is autonomous — it checks TPM, installs
-// clevis, binds LUKS to TPM2, rebuilds initramfs + UKI. The user runs
-// it after first boot to activate TPM auto-unlock.
+// SetupTpm compiles the firstBoot tpm binary and copies it to
+// /mnt/opt/feralos_tpm. Called after chrootPhase so /mnt is still
+// mounted and firstBoot binaries can be placed into the target.
 func SetupTpm(conf *config.Config) error {
 	if !conf.User.EnableTPM {
 		return nil
@@ -25,6 +23,11 @@ func SetupTpm(conf *config.Config) error {
 		return fmt.Errorf("failed to build tpm binary: %w", err)
 	}
 
-	fmt.Printf("[INFO] TPM binary: %s/opt/feralos_tpm\n", chroot)
+	// Set executable permissions
+	if _, err := shell.ExecuteCmd("", fmt.Sprintf("chmod 755 %s", binPath)); err != nil {
+		return fmt.Errorf("failed to chmod tpm binary: %w", err)
+	}
+
+	fmt.Printf("[INFO] TPM binary: %s\n", binPath)
 	return nil
 }

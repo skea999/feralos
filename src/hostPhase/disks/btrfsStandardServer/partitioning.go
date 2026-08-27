@@ -4,8 +4,6 @@ import (
 	"alpineInstaller/utils/config"
 	"alpineInstaller/utils/shell"
 	"fmt"
-	"os"
-	"os/exec"
 	"strconv"
 	"strings"
 )
@@ -34,15 +32,7 @@ func RunBtrfsSetup(conf *config.Config) error {
 		return fmt.Errorf("error: disk1 and disk2 are the same (%s)", d1)
 	}
 
-	// 1. Cleanup environment
-	fmt.Println("[INFO] Stopping existing RAIDs and swaps...")
-	_, _ = shell.ExecuteCmd("", "swapoff -a")
-	// Unmount if something is mounted at ChrootDir (ignore errors)
-	_, _ = shell.ExecuteCmd("", fmt.Sprintf("mountpoint -q %s && umount -fR %s || true", i.ChrootDir, i.ChrootDir))
-	_, _ = shell.ExecuteCmd("", "mdadm --stop /dev/md?")
-	_, _ = shell.ExecuteCmd("", "dmsetup ls --target crypt --exec cryptsetup close")
-
-	// 2. Dynamic size calculation
+	// 1. Dynamic size calculation
 	minSizeBytes, err := getMinDiskSize(d1, d2)
 	if err != nil {
 		return err
@@ -66,9 +56,8 @@ func RunBtrfsSetup(conf *config.Config) error {
 		// 4: Data (remainder)
 		fdiskCommands := fmt.Sprintf("g\nn\n1\n\n+512M\nt\n1\n1\nn\n2\n\n+%dK\nt\n2\n20\nn\n3\n\n+%dK\nt\n3\n19\nn\n4\n\n\nt\n4\n20\nw\n", firstPartK, secondPartK)
 
-		cmd := exec.Command("fdisk", "-W", "always", disk)
-		cmd.Stdin = strings.NewReader(fdiskCommands)
-		if fdiskErr := cmd.Run(); fdiskErr != nil {
+		fdiskCmd := fmt.Sprintf("fdisk -W always %s <<'FDISK_EOF'\n%s\nFDISK_EOF", disk, fdiskCommands)
+		if _, fdiskErr := shell.ExecuteCmd("", fdiskCmd); fdiskErr != nil {
 			return fmt.Errorf("fdisk failed on %s: %w", disk, fdiskErr)
 		}
 
@@ -322,7 +311,7 @@ func setupSubvolumesAndMounts(chroot string, luksDevice string, d1 string, d2 st
 	for _, s := range subvols {
 		target := chroot + s.Path
 		if s.Path != "" {
-			if err := os.MkdirAll(target, 0755); err != nil {
+			if _, err := shell.ExecuteCmd("", fmt.Sprintf("mkdir -p %s && chmod 0755 %s", target, target)); err != nil {
 				return fmt.Errorf("failed to create directory %s: %w", target, err)
 			}
 		}
@@ -340,13 +329,13 @@ func setupSubvolumesAndMounts(chroot string, luksDevice string, d1 string, d2 st
 	partitionSpacer1 := getPartitionSpacer(d1)
 	partitionSpacer2 := getPartitionSpacer(d2)
 
-	if err := os.MkdirAll(chroot+"/boot/efi", 0755); err != nil {
+	if _, err := shell.ExecuteCmd("", fmt.Sprintf("mkdir -p %s && chmod 0755 %s", chroot+"/boot/efi", chroot+"/boot/efi")); err != nil {
 		return fmt.Errorf("failed to create /boot/efi: %w", err)
 	}
 	if _, err := shell.ExecuteCmd("", fmt.Sprintf("mount %s %s", d1+partitionSpacer1+"1", chroot+"/boot/efi")); err != nil {
 		return fmt.Errorf("failed to mount EFI1: %w", err)
 	}
-	if err := os.MkdirAll(chroot+"/boot/efi2", 0755); err != nil {
+	if _, err := shell.ExecuteCmd("", fmt.Sprintf("mkdir -p %s && chmod 0755 %s", chroot+"/boot/efi2", chroot+"/boot/efi2")); err != nil {
 		return fmt.Errorf("failed to create /boot/efi2: %w", err)
 	}
 	if _, err := shell.ExecuteCmd("", fmt.Sprintf("mount %s %s", d2+partitionSpacer2+"1", chroot+"/boot/efi2")); err != nil {
@@ -356,13 +345,13 @@ func setupSubvolumesAndMounts(chroot string, luksDevice string, d1 string, d2 st
 	// Data Mounts
 	s1 := strings.ToLower(getDiskSuffix(d1))
 	s2 := strings.ToLower(getDiskSuffix(d2))
-	if err := os.MkdirAll(chroot+"/data/data-"+s1+partitionSpacer1+"4", 0755); err != nil {
+	if _, err := shell.ExecuteCmd("", fmt.Sprintf("mkdir -p %s && chmod 0755 %s", chroot+"/data/data-"+s1+partitionSpacer1+"4", chroot+"/data/data-"+s1+partitionSpacer1+"4")); err != nil {
 		return fmt.Errorf("failed to create data dir: %w", err)
 	}
 	if _, err := shell.ExecuteCmd("", fmt.Sprintf("mount -t btrfs -o compress=zstd:3,autodefrag,ssd %s %s", d1+partitionSpacer1+"4", chroot+"/data/data-"+s1+partitionSpacer1+"4")); err != nil {
 		return fmt.Errorf("failed to mount data1: %w", err)
 	}
-	if err := os.MkdirAll(chroot+"/data/data-"+s2+partitionSpacer2+"4", 0755); err != nil {
+	if _, err := shell.ExecuteCmd("", fmt.Sprintf("mkdir -p %s && chmod 0755 %s", chroot+"/data/data-"+s2+partitionSpacer2+"4", chroot+"/data/data-"+s2+partitionSpacer2+"4")); err != nil {
 		return fmt.Errorf("failed to create data dir: %w", err)
 	}
 	if _, err := shell.ExecuteCmd("", fmt.Sprintf("mount -t btrfs -o compress=zstd:3,autodefrag,ssd %s %s", d2+partitionSpacer2+"4", chroot+"/data/data-"+s2+partitionSpacer2+"4")); err != nil {

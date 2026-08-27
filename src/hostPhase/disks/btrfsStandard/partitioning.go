@@ -5,8 +5,6 @@ import (
 	"alpineInstaller/utils/shell"
 	"alpineInstaller/utils/swap"
 	"fmt"
-	"os"
-	"os/exec"
 	"strings"
 )
 
@@ -29,23 +27,16 @@ func RunBtrfsSetup(conf *config.Config) error {
 
 	fmt.Printf("[INFO] Starting single disk partitioning (Standard): %s\n", targetDisk)
 
-	// 1. Cleanup environment
-	fmt.Println("[INFO] Stopping existing swaps and mounts...")
-	_, _ = shell.ExecuteCmd("", "swapoff -a")
-	// Unmount if something is mounted at ChrootDir (ignore errors)
-	_, _ = shell.ExecuteCmd("", fmt.Sprintf("mountpoint -q %s && umount -fR %s || true", i.ChrootDir, i.ChrootDir))
-
-	// 2. GPT Partitioning
+	// 1. GPT Partitioning
 	// n1: EFI (512M), n2: LUKS ROOT (remainder)
 	// No swap partition — uses swapfile in @swap subvolume
 	partitionSpacer := getPartitionSpacer(targetDisk)
 
 	fdiskCommands := "g\nn\n1\n\n+512M\nt\n1\n1\nn\n2\n\n\nt\n2\n20\nw\n"
 
-	cmd := exec.Command("fdisk", "-W", "always", targetDisk)
-	cmd.Stdin = strings.NewReader(fdiskCommands)
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("fdisk failed on %s: %w", targetDisk, err)
+	fdiskCmd := fmt.Sprintf("fdisk -W always %s <<'FDISK_EOF'\n%s\nFDISK_EOF", targetDisk, fdiskCommands)
+	if _, fdiskErr := shell.ExecuteCmd("", fdiskCmd); fdiskErr != nil {
+		return fmt.Errorf("fdisk failed on %s: %w", targetDisk, fdiskErr)
 	}
 
 	// 3. Format EFI partition
@@ -121,7 +112,7 @@ func createSwapfile(chroot string, sizeMiB int) error {
 	swapFile := swapDir + "/swapfile"
 
 	// Ensure swap directory exists
-	if err := os.MkdirAll(swapDir, 0755); err != nil {
+	if _, err := shell.ExecuteCmd("", fmt.Sprintf("mkdir -p %s && chmod 0755 %s", swapDir, swapDir)); err != nil {
 		return fmt.Errorf("failed to create swap directory: %w", err)
 	}
 
@@ -233,7 +224,7 @@ func setupSubvolumesAndMounts(chroot string, luksDevice string, disk string) err
 	for _, s := range subvols {
 		target := chroot + s.Path
 		if s.Path != "" {
-			if err := os.MkdirAll(target, 0755); err != nil {
+			if _, err := shell.ExecuteCmd("", fmt.Sprintf("mkdir -p %s && chmod 0755 %s", target, target)); err != nil {
 				return fmt.Errorf("failed to create directory %s: %w", target, err)
 			}
 		}
@@ -249,7 +240,7 @@ func setupSubvolumesAndMounts(chroot string, luksDevice string, disk string) err
 
 	// EFI Mount
 	partitionSpacer := getPartitionSpacer(disk)
-	if err := os.MkdirAll(chroot+"/boot/efi", 0755); err != nil {
+	if _, err := shell.ExecuteCmd("", fmt.Sprintf("mkdir -p %s && chmod 0755 %s", chroot+"/boot/efi", chroot+"/boot/efi")); err != nil {
 		return fmt.Errorf("failed to create /boot/efi: %w", err)
 	}
 	if _, err := shell.ExecuteCmd("", fmt.Sprintf("mount %s %s", disk+partitionSpacer+"1", chroot+"/boot/efi")); err != nil {

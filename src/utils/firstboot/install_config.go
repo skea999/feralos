@@ -1,9 +1,9 @@
-package features
+package firstboot
 
 import (
 	"alpineInstaller/utils/config"
+	"alpineInstaller/utils/shell"
 	"fmt"
-	"os"
 	"regexp"
 
 	"gopkg.in/yaml.v3"
@@ -23,7 +23,7 @@ type InstallConfig struct {
 }
 
 // WriteInstallConfig writes /opt/feralos/config.yaml into the mounted chroot.
-// Called during hostPhase so firstBoot binaries can read it post-install.
+// Called after chrootPhase so /etc/kernel/cmdline is already written by SetupBoot.
 func WriteInstallConfig(conf *config.Config) error {
 	chroot := conf.Internal.ChrootDir
 	u := &conf.User
@@ -37,11 +37,10 @@ func WriteInstallConfig(conf *config.Config) error {
 		Branch:     u.Branch,
 	}
 
-	// Extract LUKS UUIDs from kernel cmdline (already written by disk layout)
-	cmdline, err := os.ReadFile(chroot + "/etc/kernel/cmdline")
-	if err == nil {
+	// Extract LUKS UUIDs from kernel cmdline (written by chrootPhase/internal/boot.go)
+	if cmdlineStr, err := shell.ExecuteCmd("", fmt.Sprintf("cat %s 2>/dev/null || true", chroot+"/etc/kernel/cmdline")); err == nil {
 		re := regexp.MustCompile(`rd\.luks\.name=([0-9a-f-]+)=`)
-		matches := re.FindAllStringSubmatch(string(cmdline), -1)
+		matches := re.FindAllStringSubmatch(cmdlineStr, -1)
 		for _, m := range matches {
 			if len(m) >= 2 {
 				cfg.LuksUUIDs = append(cfg.LuksUUIDs, m[1])
@@ -50,8 +49,8 @@ func WriteInstallConfig(conf *config.Config) error {
 	}
 
 	// Ensure /opt/feralos/ exists
-	if mkdirErr := os.MkdirAll(chroot+"/opt/feralos", 0755); mkdirErr != nil {
-		return fmt.Errorf("failed to create /opt/feralos: %w", mkdirErr)
+	if _, err := shell.ExecuteCmd("", fmt.Sprintf("mkdir -p %s && chmod 0755 %s", chroot+"/opt/feralos", chroot+"/opt/feralos")); err != nil {
+		return fmt.Errorf("failed to create /opt/feralos: %w", err)
 	}
 
 	data, err := yaml.Marshal(&cfg)
@@ -59,8 +58,14 @@ func WriteInstallConfig(conf *config.Config) error {
 		return fmt.Errorf("failed to marshal install config: %w", err)
 	}
 
-	if err := os.WriteFile(chroot+"/opt/feralos/config.yaml", data, 0600); err != nil {
+	// Write config via heredoc + chmod 0600
+	cfgPath := chroot + "/opt/feralos/config.yaml"
+	writeCmd := fmt.Sprintf("cat > %s <<'FERA_EOF'\n%s\nFERA_EOF", cfgPath, string(data))
+	if _, err := shell.ExecuteCmd("", writeCmd); err != nil {
 		return fmt.Errorf("failed to write install config: %w", err)
+	}
+	if _, err := shell.ExecuteCmd("", fmt.Sprintf("chmod 0600 %s", cfgPath)); err != nil {
+		return fmt.Errorf("failed to chmod install config: %w", err)
 	}
 
 	fmt.Printf("[INFO] Install config written: %s/opt/feralos/config.yaml\n", chroot)

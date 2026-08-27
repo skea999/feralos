@@ -1,4 +1,4 @@
-# Tasks — FeralOS Store
+# Tasks — FeralOS
 
 **Milestone**: *Select and insert*
 **Updated**: {{YYYY-MM-DD}}

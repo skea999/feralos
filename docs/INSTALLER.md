@@ -25,9 +25,14 @@ feralos_installer/
 │   │   ├── shell/execute.go          # ExecuteCmd(chroot, cmd) unified
 │   │   ├── logic/logic.go            # dynamic rule application
 │   │   ├── swap/swap.go              # ResolveSwapSizeMiB (auto=2×RAM)
+│   │   ├── cleanup/cleanup.go        # Cleanup — pre/post host cleanup (swapoff, unmount, LUKS close)
+│   │   ├── firstboot/
+│   │   │   ├── install_config.go     # WriteInstallConfig → /opt/feralos/config.yaml
+│   │   │   ├── secureboot.go         # SetupSecureboot — compile → copy → chmod 755
+│   │   │   └── tpm.go                # SetupTpm — compile → copy → chmod 755
 │   │   └── createConfig/ (create_values.go, createValues/main.go)
 │   ├── hostPhase/
-│   │   ├── host_phase.go             # orchestrator: MountVirtualFilesystems + BootstrapAlpine + PrepareChrootEnv + InjectApkHooks
+│   │   ├── host_phase.go             # orchestrator: disks→mount→bootstrap→chroot prep
 │   │   ├── internal/
 │   │   │   ├── bootstrap.go
 │   │   │   ├── bind_mounts.go
@@ -52,53 +57,67 @@ feralos_installer/
 │   ├── fixtures/variables/ (14 templates + README — all scenarios)
 │   ├── harness/ (cmd/skea_harness, internal/, variables-*.yaml deprecated shims)
 │   └── artifacts/ (gitignored: cache, prepare, runs, state)
-├── docs/ (PROJECT.md, INSTALLER.md, USAGE.md)
+├── docs/ (PROJECT.md, INSTALLER.md, guides/, architecture/, adr/, harness/)
 ├── state/session_state.json
 └── handoff/latest.md
 ```
 
 ## Installation Flow
 
-### Phase 1: Host Operations (hostPhase)
+### Entry Point & Phase Isolation
 
-1. **Load Configuration** (`main.go`)
-   - Parse `variables.yaml` (user config)
-    - Load `internal_rules.yaml` (dynamic rules)
-   - Run interactive wizard if not unattended
+`main.go` is the **entry point only**. It performs configuration collection
+and generation, then **delegates** all installation work to the phase
+packages. It must NOT interact with disks, cleanup, or the chroot directly.
 
-2. **Apply Dynamic Rules** (`logic.go`)
-   - Merge standard packages with layout-specific packages
-   - Add desktop environment packages if selected
-   - Add video driver packages if selected
-   - Apply package-specific rules (groups, services, modules)
+```
+setup.sh (real hardware + harness runner)
+  ├─ apt update + apt install golang-go + btrfs-progs/cryptsetup/... (host deps, before build)
+  └─ go mod tidy + go build feralos_installer
 
-3. **Check Host Dependencies** (`main.go`)
-   - Verify required tools: btrfs-progs, cryptsetup, curl, tar, dosfstools, rsync, efitools, sbsigntool
-   - Install missing dependencies via apt
+main.go (installer entry, no host deps)
+  ├─ Load variables.yaml + internal_rules.yaml
+  ├─ Run wizard (unattended-aware)
+  ├─ Apply dynamic rules (logic.ApplyRules)
+  └─ Delegate:
+       cleanup.Cleanup(conf)         // pre-host cleanup (swapoff, unmount, LUKS close)
+       hostPhase.Run(conf)           // host-side: disks→mount→bootstrap→chroot prep
+       chrootPhase.Run(conf)         // chroot-side: packages, services, boot, UKI
+       firstboot.WriteInstallConfig  // reads cmdline → /opt/feralos/config.yaml
+       firstboot.SetupSecureboot     // compile + copy feralos_secureboot
+       firstboot.SetupTpm            // compile + copy feralos_tpm
+       cleanup.Cleanup(conf)         // final unmount before reboot
+```
 
-4. **Disk Partitioning & LUKS Setup** (`disks/`)
-   - **btrfsStandardServer**: 2 disks, RAID1, dual EFI, LUKS swap
-   - **btrfsStandard**: 1 disk, LUKS root, swapfile, 25 subvolumes
+**Isolation contract:**
+- `main` collects/generates config then delegates to five entry points.
+- `hostPhase.Run()` owns: disk layout → mount → Alpine bootstrap → chroot prep (steps 1–4 only).
+- `chrootPhase.Run()` owns everything executed inside the target chroot (packages, services, boot, UKI).
+- `firstboot.*` owns: install config write, secureboot/tpm binary compilation and copy. Runs AFTER chroot (needs cmdline from chrootPhase).
+- `cleanup.Cleanup()` runs twice: once before `hostPhase` (clean state) and once at the end (final unmount).
+- `hostPhase/internal/*` holds host-side helpers (bind mounts, bootstrap, chroot env). Because it is an `internal` package, only `hostPhase` (and its subpackages) may import it — `main` reaches it exclusively through `hostPhase.Run()`. This is the structural guarantee of host/chroot isolation.
+
+### Phase 1: Host Operations (`hostPhase.Run`)
+
+Invoked by `main` after config generation. Order is fixed:
+
+1. **Disk Partitioning & LUKS Setup** (`hostPhase/disks/`)
+   - Selected by `conf.User.DiskLayout` inside `hostPhase.Run()`:
+     - **btrfsStandardServer**: 2 disks, RAID1, dual EFI, LUKS swap
+     - **btrfsStandard**: 1 disk, LUKS root, swapfile, 25 subvolumes
+     - **btrfsRaid0**: 2 disks, RAID0, dual EFI, LUKS swap
    - Create partition tables, format filesystems, setup LUKS encryption
 
-5. **Mount Virtual Filesystems** (`bind_mounts.go`)
+2. **Mount Virtual Filesystems** (`hostPhase/internal/bind_mounts.go`)
    - Mount /dev, /proc, /sys to chroot directory
    - Make mounts slave to prevent propagation
 
-6. **Alpine Bootstrap** (`bootstrap.go`)
+3. **Alpine Bootstrap** (`hostPhase/internal/bootstrap.go`)
    - Download apk-tools-static
    - Initialize Alpine base system into target
    - Configure APK repositories
 
-7. **Generate LUKS Keyfile** (`keyfile.go`)
-   - Generate random 2KB keyfile via `dd if=/dev/urandom`
-   - Add keyfile to all LUKS root partitions via `cryptsetup luksAddKey`
-   - Copy keyfile to `/keyfile` (initramfs) and `/etc/luks-keyfile` (persistence)
-   - Generate per-device kernel cmdline args: `rd.luks.key=/keyfile:luks-<uuid>`
-   - **Why**: Booster requires interactive passphrase in QEMU headless; keyfile in initramfs enables automatic unlock
-   - **Multi-LUKS**: With 2+ LUKS devices, booster requires per-device keyfile spec
-
-8. **Prepare Chroot Environment** (`chroot_preparation.go`)
+4. **Prepare Chroot Environment** (`hostPhase/internal/chroot_env.go`)
    - Write networking config (resolv.conf, hostname, hosts)
    - Write localization config (locale, keymap)
    - Write system limits and subuid/subgid
@@ -109,14 +128,22 @@ feralos_installer/
    - Write ZRAM and LXC service configs
    - Write bridging sysctl
 
-8. **Write Booster Config** (`booster.go`)
-   - Generate booster.yaml for initramfs
-   - Write kernel command line parameters
-   - Create booster hook for kernel upgrades
-   - Create secureboot hook config
+### Phase 1.5: FirstBoot Setup (`firstboot.*`)
 
-9. **Inject APK Hooks** (`hooks.go`)
-   - Add commit hooks for automatic UKI rebuild on kernel updates
+Runs AFTER chrootPhase completes (needs kernel cmdline from chroot).
+
+1. **Write Install Config** (`utils/firstboot/install_config.go`)
+   - Reads `/etc/kernel/cmdline` from chroot
+   - Persists disk layout, LUKS UUIDs, user info to `/opt/feralos/config.yaml`
+   - For autonomous firstBoot binaries.
+
+2. **Setup Secureboot** (`utils/firstboot/secureboot.go`)
+   - Compile `feralos_secureboot` binary
+   - Copy to `/opt/feralos_secureboot`, chmod 755
+
+3. **Setup TPM** (`utils/firstboot/tpm.go`)
+   - Compile `feralos_tpm` binary
+   - Copy to `/opt/feralos_tpm`, chmod 755
 
 ### Phase 2: Chroot Operations (chrootPhase)
 

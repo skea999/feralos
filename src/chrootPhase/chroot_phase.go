@@ -53,11 +53,6 @@ func Run(conf *config.Config) error {
 		return fmt.Errorf("user setup failed: %w", err)
 	}
 
-	// 5a. Fix firstBoot binary permissions (compiled in hostPhase into /opt/)
-	for _, bin := range []string{"feralos_secureboot", "feralos_tpm"} {
-		_, _ = shell.ExecuteCmd(chroot, "chmod 755 /opt/"+bin)
-	}
-
 	// 6. Setup services (OpenRC runlevels)
 	if err := internal.SetupServices(conf); err != nil {
 		return fmt.Errorf("service setup failed: %w", err)

@@ -56,6 +56,7 @@ type PrepareRunnerConfig struct {
 	Force           bool
 	AptProxy        string
 	Packages        []string
+	RunnerImageSize string
 	WaitTimeout     time.Duration
 	BootTimeout     time.Duration
 	RepoRoot        string
@@ -349,6 +350,11 @@ func (service *Service) PrepareRunner(ctx context.Context, cfg *PrepareRunnerCon
 		if overlayErr := qemu.CreateOverlay(cfg.QemuImgBinary, baseImagePath, cfg.RunnerImage); overlayErr != nil {
 			return PrepareRunnerResult{}, overlayErr
 		}
+		// Base image is 327MB; resize overlay so cloud-init growpart/resizefs
+		// can expand the filesystem to fit (cloud-init + apt need headroom).
+		if resizeErr := qemu.ResizeDisk(cfg.QemuImgBinary, cfg.RunnerImage, cfg.RunnerImageSize); resizeErr != nil {
+			return PrepareRunnerResult{}, resizeErr
+		}
 	}
 
 	if writeErr := writeCloudInitFiles(userData, metaData, cfg, keyPair); writeErr != nil {
@@ -473,6 +479,14 @@ func (service *Service) RunInstall(ctx context.Context, cfg *RunConfig) (RunResu
 	runDir := filepath.Join(cfg.ArtifactsRoot, "runs", runID)
 	if mkdirErr := os.MkdirAll(runDir, 0o755); mkdirErr != nil {
 		return RunResult{}, fmt.Errorf("create run directory: %w", mkdirErr)
+	}
+
+	// Capture harness stdout+stderr to harness.log in the run directory.
+	harnessLog, logErr := os.Create(filepath.Join(runDir, "harness.log"))
+	if logErr == nil {
+		os.Stdout = harnessLog
+		os.Stderr = harnessLog
+		defer harnessLog.Close()
 	}
 
 	// Clean up old runs, keep only the last 2
@@ -767,7 +781,7 @@ fi
 	// CMD_SHUTDOWN to swtpm, causing swtpm to exit and remove the ctrl
 	// socket. Restart swtpm (preserving tpm-state/) before booting the
 	// target so it can reconnect to the ctrl socket.
-	if cfg.EnableTPM && cfg.shouldBootInstalledTarget() {
+	if cfg.shouldBootInstalledTarget() {
 		if err := qemu.StartSoftwareTPM(&qemu.SoftwareTPMConfig{
 			SocketPath:   tpmSocketPath,
 			ControlPath:  tpmControlPath,
@@ -939,7 +953,7 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg *RunConfig,
 
 		active.Phase = "waiting-for-target-ssh"
 		_ = stateStore.Save(active)
-		sshErr := waitForTargetSSH(ctx, targetInstance, targetGuest, cfg.BootTimeout, targetSerialLog, targetSerialSocketPath, targetQMPPath, cfg.InstalledPassword, true, 0, 2, func() {
+		sshErr := waitForTargetSSH(ctx, targetInstance, targetGuest, cfg.BootTimeout, targetSerialLog, targetSerialSocketPath, targetQMPPath, cfg.InstalledPassword, true, 2, func() {
 			active.Status = statusRunning
 			active.Phase = "waiting-for-target-ssh"
 			_ = stateStore.Save(active)
@@ -1050,7 +1064,7 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg *RunConfig,
 	active.Phase = "waiting-for-target-ssh-verification"
 	_ = stateStore.Save(active)
 	allowPassphraseFallback = !tpmBindingSuccessful
-	if waitErr := waitForTargetSSH(ctx, targetInstance, targetGuest, cfg.BootTimeout, targetSerialLog, targetSerialSocketPath, targetQMPPath, cfg.InstalledPassword, allowPassphraseFallback, 0, 2, func() {
+	if waitErr := waitForTargetSSH(ctx, targetInstance, targetGuest, cfg.BootTimeout, targetSerialLog, targetSerialSocketPath, targetQMPPath, cfg.InstalledPassword, allowPassphraseFallback, 2, func() {
 		active.Status = statusRunning
 		active.Phase = "waiting-for-target-ssh-verification"
 		_ = stateStore.Save(active)
@@ -1091,6 +1105,9 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg *RunConfig,
 		_ = encoder.Encode(verifyResult)
 		verifyFile.Close()
 	}
+
+	// Write individual test results + summary table to tests/ subdirectory
+	writeTestResults(runDir, verifyResult)
 
 	result := RunResult{
 		RunID:             runID,
@@ -1505,7 +1522,7 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		// warning (informational — retries exhausted, continues). Also
 		// mdadm "error opening /dev/md?" (no pre-existing RAID) and mkfs.btrfs
 		// usage-help example lines (contain "error" in the example text).
-		allowRe := regexp.MustCompile(`(?i)(0 errors|no errors|errors: 0|0 failed|no failed|failed: 0|zero errors|libgpg-error|error trace:|start-stop-daemon: no matching processes found|fsck\.vfat: No such file or directory|dpkg was interrupted|dpkg --configure -a|failed, retrying in|ignoring error and continuing|error opening /dev/md|E\.g\.: dev1)`)
+		allowRe := regexp.MustCompile(`(?i)(0 errors|no errors|errors: 0|0 failed|no failed|failed: 0|zero errors|libgpg-error|error trace:|start-stop-daemon: no matching processes found|fsck\.vfat: No such file or directory|dpkg was interrupted|dpkg --configure -a|failed, retrying in|apt does not have a stable CLI|error opening /dev/md|E\.g\.: dev1)`)
 		var problems []string
 		for _, logName := range []string{"target-serial.log", "installer.log"} {
 			path := filepath.Join(cfg.RunDir, logName)
@@ -1898,11 +1915,18 @@ func ensurePrepareDefaults(cfg *PrepareRunnerConfig) error {
 	if cfg.WaitTimeout == 0 {
 		cfg.WaitTimeout = 15 * time.Minute
 	}
+	if cfg.RunnerImageSize == "" {
+		// Overlay starts at base image size (327MB) which is too small for
+		// cloud-init + apt. Resize so growpart/resizefs can expand the FS.
+		cfg.RunnerImageSize = "8G"
+	}
 	if cfg.BootTimeout == 0 {
 		cfg.BootTimeout = 10 * time.Minute
 	}
 	if len(cfg.Packages) == 0 {
-		cfg.Packages = []string{"bash", "curl", "tar", "fdisk", "dosfstools", "cryptsetup", "mdadm", "btrfs-progs", "sudo", "ca-certificates", "tpm2-tools", "golang-go"}
+		// Runner minimal: tar (unpack repo), curl (installer downloads), parted (growpart).
+		// Base Debian13 has bash, ssh, sudo. Installer installs its own deps.
+		cfg.Packages = []string{"tar", "curl", "parted"}
 	}
 	if _, err := exec.LookPath(cfg.QemuBinary); err != nil {
 		return fmt.Errorf("find %s: %w", cfg.QemuBinary, err)
@@ -2018,6 +2042,10 @@ func writeCloudInitFiles(userDataPath, metaDataPath string, cfg *PrepareRunnerCo
 
 	userData := fmt.Sprintf(`#cloud-config
 package_update: true
+growpart:
+  mode: auto
+  devices: ['/']
+resizefs: true
 ssh_pwauth: false
 users:
   - default
@@ -2355,6 +2383,8 @@ func resolveLogPath(runDir, logName string) string {
 		return filepath.Join(runDir, "post-install.log")
 	case "verify":
 		return filepath.Join(runDir, "verify.log")
+	case "harness":
+		return filepath.Join(runDir, "harness.log")
 	default:
 		return ""
 	}
@@ -2395,7 +2425,7 @@ func waitForGuestCommand(ctx context.Context, opts guest.Options, command string
 	return fmt.Errorf("guest condition %q not satisfied within %s", command, timeout)
 }
 
-func waitForTargetSSH(ctx context.Context, instance *qemu.Instance, opts guest.Options, timeout time.Duration, serialLogPath, serialSocketPath, qmpPath, unlockPassword string, allowPassphraseFallback bool, serialScanOffset int64, concurrentPassphrases int, heartbeat func()) error {
+func waitForTargetSSH(ctx context.Context, instance *qemu.Instance, opts guest.Options, timeout time.Duration, serialLogPath, serialSocketPath, qmpPath, unlockPassword string, allowPassphraseFallback bool, concurrentPassphrases int, heartbeat func()) error {
 	deadline := time.Now().Add(timeout)
 	var lastErr error
 	unlockAttempts := 0
@@ -2424,15 +2454,17 @@ func waitForTargetSSH(ctx context.Context, instance *qemu.Instance, opts guest.O
 		}
 		lastErr = err
 
-		promptCount, readErr := serialLogCount(serialLogPath, 64*1024, serialScanOffset, "Enter passphrase for ")
-		if readErr == nil && !allowPassphraseFallback && promptCount > 0 {
+		// Detect CURRENT LUKS prompt — only inject when the last line of the
+		// serial log contains "Enter passphrase for luks-". Previous prompts
+		// from earlier boots are ignored (not just count > 0).
+		luksPrompt := serialLogLastLineHas(serialLogPath, "Enter passphrase for luks-")
+		if !allowPassphraseFallback && luksPrompt {
 			sawPromptWithoutFallback = true
 		}
-		if readErr == nil && allowPassphraseFallback && strings.TrimSpace(unlockPassword) != "" {
-			promptVisible := promptCount > 0
-			promptRetryDue := promptVisible && unlockAttempts < 4 && (lastPromptUnlock.IsZero() || time.Since(lastPromptUnlock) >= 5*time.Second)
+		if allowPassphraseFallback && strings.TrimSpace(unlockPassword) != "" {
+			promptRetryDue := luksPrompt && unlockAttempts < 4 && (lastPromptUnlock.IsZero() || time.Since(lastPromptUnlock) >= 5*time.Second)
 			if promptRetryDue {
-				fmt.Fprintf(os.Stderr, "harness: LUKS prompt detected (count=%d, attempt=%d), injecting passphrase\n", promptCount, unlockAttempts+1)
+				fmt.Fprintf(os.Stderr, "harness: LUKS prompt detected (attempt=%d), injecting passphrase\n", unlockAttempts+1)
 				// Send one passphrase per LUKS device so all KDF operations start
 				// concurrently. Sequential injection creates a seconds-long gap
 				// between dm-devices appearing, which causes btrfs RAID1
@@ -2589,35 +2621,42 @@ done
 	return outBuf.String(), nil
 }
 
-func serialLogCount(path string, maxBytes int64, minOffset int64, needle string) (int, error) {
+// serialLogLastLineHas checks if the last non-empty line in the serial log
+// contains needle. Used to detect the CURRENT LUKS prompt (not previous ones).
+func serialLogLastLineHas(path, needle string) bool {
 	file, err := os.Open(path)
 	if err != nil {
-		return 0, fmt.Errorf("open serial log %s: %w", path, err)
+		return false
 	}
 	defer file.Close()
 
-	info, err := file.Stat()
-	if err != nil {
-		return 0, fmt.Errorf("stat serial log %s: %w", path, err)
+	var info os.FileInfo
+	if info, err = file.Stat(); err != nil {
+		return false
 	}
-
-	startOffset := int64(0)
-	if info.Size() > maxBytes {
-		startOffset = info.Size() - maxBytes
+	readSize := int64(4096)
+	if info.Size() < readSize {
+		readSize = info.Size()
 	}
-	if startOffset < minOffset {
-		startOffset = minOffset
+	if readSize == 0 {
+		return false
 	}
-	if _, seekErr := file.Seek(startOffset, io.SeekStart); seekErr != nil {
-		return 0, fmt.Errorf("seek serial log %s: %w", path, seekErr)
+	if _, err = file.Seek(-readSize, io.SeekEnd); err != nil {
+		return false
 	}
-
 	data, err := io.ReadAll(file)
 	if err != nil {
-		return 0, fmt.Errorf("read serial log %s: %w", path, err)
+		return false
 	}
 
-	return strings.Count(string(data), needle), nil
+	lines := strings.Split(string(data), "\n")
+	for i := len(lines) - 1; i >= 0; i-- {
+		line := strings.TrimSpace(lines[i])
+		if line != "" {
+			return strings.Contains(line, needle)
+		}
+	}
+	return false
 }
 
 func loadSerialLogOffset(offsetPath string) (int64, error) {
@@ -2853,4 +2892,82 @@ func appendUniqueInts(existing []int, values ...int) []int {
 
 func (cfg *RunConfig) shouldBootInstalledTarget() bool {
 	return true
+}
+
+// writeTestResults writes individual check results to tests/<name>.txt
+// and a summary table to tests/summary.md inside the run directory.
+func writeTestResults(runDir string, result VerifyResult) {
+	testDir := filepath.Join(runDir, "tests")
+	if err := os.MkdirAll(testDir, 0o755); err != nil {
+		return
+	}
+
+	// Individual check files
+	for name, check := range result.Checks {
+		status := "PASS"
+		if !check.Pass {
+			status = "FAIL"
+		}
+		content := fmt.Sprintf("%s\n\n%s\n", status, check.Detail)
+		_ = os.WriteFile(filepath.Join(testDir, name+".txt"), []byte(content), 0o600)
+	}
+
+	// Summary table
+	var sb strings.Builder
+	sb.WriteString("# Verification Summary\n\n")
+	sb.WriteString(fmt.Sprintf("**Result:** %s\n\n", boolStr(result.Success, "PASS", "FAIL")))
+	sb.WriteString("| Check | Status | Detail |\n")
+	sb.WriteString("|-------|--------|--------|\n")
+	for _, name := range sortedKeys(result.Checks) {
+		check := result.Checks[name]
+		status := "✅ PASS"
+		if !check.Pass {
+			status = "❌ FAIL"
+		}
+		detail := strings.ReplaceAll(check.Detail, "\n", " ")
+		if len(detail) > 120 {
+			detail = detail[:117] + "..."
+		}
+		sb.WriteString(fmt.Sprintf("| %s | %s | %s |\n", name, status, detail))
+	}
+	sb.WriteString(fmt.Sprintf("\n**Total:** %d checks, %d passed, %d failed\n",
+		len(result.Checks), countPassed(result.Checks), countFailed(result.Checks)))
+
+	_ = os.WriteFile(filepath.Join(testDir, "summary.md"), []byte(sb.String()), 0o600)
+}
+
+func boolStr(b bool, trueStr, falseStr string) string {
+	if b {
+		return trueStr
+	}
+	return falseStr
+}
+
+func countPassed(checks map[string]CheckResult) int {
+	n := 0
+	for _, c := range checks {
+		if c.Pass {
+			n++
+		}
+	}
+	return n
+}
+
+func countFailed(checks map[string]CheckResult) int {
+	n := 0
+	for _, c := range checks {
+		if !c.Pass {
+			n++
+		}
+	}
+	return n
+}
+
+func sortedKeys(m map[string]CheckResult) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }

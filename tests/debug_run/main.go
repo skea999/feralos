@@ -406,12 +406,21 @@ func writeSerial(socketPath, text string) error {
 	return nil
 }
 
-func serialLogCount(path, needle string) int {
+// serialLogLastLineHas checks if the last non-empty line in the serial log
+// contains needle. Used to detect the CURRENT LUKS prompt (not previous ones).
+func serialLogLastLineHas(path, needle string) bool {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return 0
+		return false
 	}
-	return strings.Count(string(data), needle)
+	lines := strings.Split(string(data), "\n")
+	for i := len(lines) - 1; i >= 0; i-- {
+		line := strings.TrimSpace(lines[i])
+		if line != "" {
+			return strings.Contains(line, needle)
+		}
+	}
+	return false
 }
 
 func waitForSSH(ctx context.Context, opts sshOptions, timeout time.Duration, serialLogPath, serialSocketPath, password string) error {
@@ -429,9 +438,9 @@ func waitForSSH(ctx context.Context, opts sshOptions, timeout time.Duration, ser
 		lastErr = err
 
 		if password != "" {
-			promptCount := serialLogCount(serialLogPath, "Enter passphrase for ")
-			if promptCount > 0 && unlockAttempts < 5 && (lastPromptUnlock.IsZero() || time.Since(lastPromptUnlock) >= 5*time.Second) {
-				fmt.Fprintf(os.Stderr, "debug-run: LUKS prompt detected (count=%d, attempt=%d), injecting passphrase\n", promptCount, unlockAttempts+1)
+			luksPrompt := serialLogLastLineHas(serialLogPath, "Enter passphrase for luks-")
+			if luksPrompt && unlockAttempts < 5 && (lastPromptUnlock.IsZero() || time.Since(lastPromptUnlock) >= 5*time.Second) {
+				fmt.Fprintf(os.Stderr, "debug-run: LUKS prompt detected (attempt=%d), injecting passphrase\n", unlockAttempts+1)
 				if err := writeSerial(serialSocketPath, password); err != nil {
 					fmt.Fprintf(os.Stderr, "debug-run: serial write failed: %v\n", err)
 				}

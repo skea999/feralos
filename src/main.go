@@ -5,17 +5,14 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strings"
 
 	"alpineInstaller/chrootPhase"
 	"alpineInstaller/hostPhase"
-	"alpineInstaller/hostPhase/disks/btrfsRaid0"
-	"alpineInstaller/hostPhase/disks/btrfsStandard"
-	"alpineInstaller/hostPhase/disks/btrfsStandardServer"
+	"alpineInstaller/utils/cleanup"
 	"alpineInstaller/utils/config"
 	"alpineInstaller/utils/createConfig"
+	"alpineInstaller/utils/firstboot"
 	"alpineInstaller/utils/logic"
-	"alpineInstaller/utils/shell"
 )
 
 func main() {
@@ -52,64 +49,44 @@ func main() {
 	fmt.Println("[INFO] Step 2: Applying dynamic package logic...")
 	logic.ApplyRules(conf)
 
-	// 5. Check Host Tools
-	fmt.Println("[INFO] Step 3: Checking host dependencies...")
-	if err := checkHostDependencies(); err != nil {
-		log.Fatalf("[ERROR] Missing host tools: %v", err)
+	// 5. Cleanup before host phase (stop swaps, RAIDs, LUKS, unmount)
+	fmt.Println("[INFO] Step 3: Cleanup before host phase...")
+	if err := cleanup.Cleanup(conf); err != nil {
+		fmt.Printf("[WARNING] Pre-host cleanup: %v\n", err)
 	}
 
-	// 6. Disk Partitioning & LUKS Setup
-	fmt.Printf("[INFO] Selected Disk Layout: %s\n", conf.User.DiskLayout)
-
-	if len(conf.User.Disks) == 0 {
-		log.Fatal("[ERROR] No target disks selected. Cannot proceed with partitioning.")
-	}
-
-	switch conf.User.DiskLayout {
-	case "btrfsStandardServer":
-		if err := btrfsStandardServer.RunBtrfsSetup(conf); err != nil {
-			log.Fatalf("[ERROR] btrfsStandardServer setup failed: %v", err)
-		}
-	case "btrfsStandard":
-		if err := btrfsStandard.RunBtrfsSetup(conf); err != nil {
-			log.Fatalf("[ERROR] btrfsStandard setup failed: %v", err)
-		}
-	case "btrfsRaid0":
-		if err := btrfsRaid0.RunBtrfsSetup(conf); err != nil {
-			log.Fatalf("[ERROR] btrfsRaid0 setup failed: %v", err)
-		}
-	default:
-		log.Fatalf("[ERROR] Unknown disk layout: %s", conf.User.DiskLayout)
-	}
-
-	// 7. Host Phase (mounts, bootstrap, APK repos, hooks)
+	// 6. Host Phase (disk layout, mount, bootstrap, chroot prep)
 	fmt.Println("[INFO] Step 4: Running host phase...")
 	if err := hostPhase.Run(conf); err != nil {
 		log.Fatalf("[ERROR] Host phase failed: %v", err)
 	}
 
-	// 8. Chroot Phase (packages, config, UKI)
+	// 7. Chroot Phase (packages, services, boot, UKI)
 	fmt.Println("[INFO] Step 5: Running chroot phase...")
 	if err := chrootPhase.Run(conf); err != nil {
 		log.Fatalf("[ERROR] Chroot phase failed: %v", err)
 	}
 
+	// 8. FirstBoot setup (install config, compile secureboot/tpm, chmod)
+	// Runs AFTER chrootPhase so /etc/kernel/cmdline exists and /mnt is still mounted.
+	fmt.Println("[INFO] Step 6: FirstBoot setup...")
+	if err := firstboot.WriteInstallConfig(conf); err != nil {
+		log.Fatalf("[ERROR] Install config failed: %v", err)
+	}
+	if err := firstboot.SetupSecureboot(conf); err != nil {
+		fmt.Printf("[WARNING] Secureboot setup: %v\n", err)
+	}
+	if err := firstboot.SetupTpm(conf); err != nil {
+		fmt.Printf("[WARNING] TPM setup: %v\n", err)
+	}
+
+	// 9. Final cleanup (unmount everything cleanly before reboot)
+	fmt.Println("[INFO] Step 7: Final cleanup...")
+	if err := cleanup.Cleanup(conf); err != nil {
+		fmt.Printf("[WARNING] Final cleanup: %v\n", err)
+	}
+
 	fmt.Println("--------------------------------------------------")
 	fmt.Println("   INSTALLATION COMPLETED SUCCESSFULLY!          ")
 	fmt.Println("--------------------------------------------------")
-}
-
-// checkHostDependencies ensures the Live environment has the necessary tools.
-func checkHostDependencies() error {
-	shell.SetCaller("deps")
-	deps := []string{"btrfs-progs", "cryptsetup", "curl", "tar", "dosfstools", "rsync", "efitools", "sbsigntool"}
-
-	fmt.Println("[DEBUG] Updating apt and installing required host tools")
-	if _, err := shell.ExecuteCmd("", "apt update"); err != nil {
-		return fmt.Errorf("apt update failed: %w", err)
-	}
-
-	args := append([]string{"install -y"}, deps...)
-	_, err := shell.ExecuteCmd("", "apt "+strings.Join(args, " "))
-	return err
 }

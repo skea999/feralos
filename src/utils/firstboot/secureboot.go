@@ -1,4 +1,4 @@
-package features
+package firstboot
 
 import (
 	"alpineInstaller/utils/config"
@@ -7,10 +7,8 @@ import (
 )
 
 // SetupSecureboot compiles the firstBoot secureboot binary and copies it to
-// the target's home directory. Runs during hostPhase (go build on host,
-// output written to mounted chroot). The binary is autonomous — it handles
-// package installation, key generation, sbctl enrollment, UKI build/sign,
-// and hook config. The user runs it after first boot.
+// /mnt/opt/feralos_secureboot. Called after chrootPhase so /mnt is still
+// mounted and firstBoot binaries can be placed into the target.
 func SetupSecureboot(conf *config.Config) error {
 	if !conf.User.EnableSecureboot {
 		return nil
@@ -25,6 +23,11 @@ func SetupSecureboot(conf *config.Config) error {
 		return fmt.Errorf("failed to build secureboot binary: %w", err)
 	}
 
-	fmt.Printf("[INFO] Secureboot binary: %s/opt/feralos_secureboot\n", chroot)
+	// Set executable permissions
+	if _, err := shell.ExecuteCmd("", fmt.Sprintf("chmod 755 %s", binPath)); err != nil {
+		return fmt.Errorf("failed to chmod secureboot binary: %w", err)
+	}
+
+	fmt.Printf("[INFO] Secureboot binary: %s\n", binPath)
 	return nil
 }

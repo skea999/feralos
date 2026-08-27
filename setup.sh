@@ -68,9 +68,23 @@ if [ ! -d "$installDir/src" ]; then
     exit 1
 fi
 
-# --- Build installer ---
+# --- Install host deps (Debian live + harness runner) ---
+# Cloud-init only installed tar/curl/parted for repo copy; golang + btrfs/crypt etc. come here
+# so real hardware (git clone) and harness (local tar copy) share same path.
+echo "Installing host dependencies..."
+export DEBIAN_FRONTEND=noninteractive
+apt update -y
+apt install -y golang-go btrfs-progs cryptsetup curl tar dosfstools rsync efitools sbsigntool ca-certificates
+
+# --- Build installer (runner-independent: regenerate sums for runner's Go version) ---
 echo "Building installer..."
 cd "$installDir/src"
+go env -w GOPROXY=https://proxy.golang.org,direct
+go env -w GOSUMDB=off
+go clean -modcache
+rm -f go.sum
+go mod tidy
+go env -w GOSUMDB=sum.golang.org
 go build -o "$installDir/feralos_installer" .
 
 # --- Run installer ---

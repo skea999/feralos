@@ -3,7 +3,6 @@ package internal
 import (
 	"alpineInstaller/utils/shell"
 	"fmt"
-	"os"
 )
 
 // MountVirtualFilesystems performs rbind and make-rslave for dev, proc and sys
@@ -15,7 +14,7 @@ func MountVirtualFilesystems(chroot string) error {
 
 	for _, dir := range dirs {
 		target := chroot + dir
-		if err := os.MkdirAll(target, 0755); err != nil {
+		if _, err := shell.ExecuteCmd("", fmt.Sprintf("mkdir -p %s && chmod 0755 %s", target, target)); err != nil {
 			return fmt.Errorf("failed to create directory %s: %w", target, err)
 		}
 

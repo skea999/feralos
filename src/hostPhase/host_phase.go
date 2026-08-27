@@ -1,46 +1,58 @@
 package hostPhase
 
 import (
-	"alpineInstaller/hostPhase/features"
+	"alpineInstaller/hostPhase/disks/btrfsRaid0"
+	"alpineInstaller/hostPhase/disks/btrfsStandard"
+	"alpineInstaller/hostPhase/disks/btrfsStandardServer"
 	"alpineInstaller/hostPhase/internal"
 	"alpineInstaller/utils/config"
 	"fmt"
 )
 
-// Run executes all host-side operations: bind mounts, bootstrap, APK repos,
-// hooks, and firstBoot binary compilation.
+// Run executes all host-side operations: disk layout, mount, bootstrap,
+// chroot preparation. Called by main after cleanup.Cleanup() and before
+// chrootPhase.Run(). No cleanup (done in main), no firstBoot (done in main).
 func Run(conf *config.Config) error {
 	fmt.Println("[INFO] Starting HostPhase.Run...")
 
-	// 1. Mount virtual filesystems (proc, sys, dev, etc.)
-	fmt.Println("[INFO] Step 1: Mounting virtual filesystems...")
+	// 1. Disk Partitioning & LUKS Setup
+	fmt.Printf("[INFO] Step 1: Disk layout %s\n", conf.User.DiskLayout)
+	if len(conf.User.Disks) == 0 {
+		return fmt.Errorf("no target disks selected; cannot partition")
+	}
+	switch conf.User.DiskLayout {
+	case "btrfsStandardServer":
+		if err := btrfsStandardServer.RunBtrfsSetup(conf); err != nil {
+			return fmt.Errorf("btrfsStandardServer setup failed: %w", err)
+		}
+	case "btrfsStandard":
+		if err := btrfsStandard.RunBtrfsSetup(conf); err != nil {
+			return fmt.Errorf("btrfsStandard setup failed: %w", err)
+		}
+	case "btrfsRaid0":
+		if err := btrfsRaid0.RunBtrfsSetup(conf); err != nil {
+			return fmt.Errorf("btrfsRaid0 setup failed: %w", err)
+		}
+	default:
+		return fmt.Errorf("unknown disk layout: %s", conf.User.DiskLayout)
+	}
+
+	// 2. Mount virtual filesystems (proc, sys, dev, etc.)
+	fmt.Println("[INFO] Step 2: Mounting virtual filesystems...")
 	if err := internal.MountVirtualFilesystems(conf.Internal.ChrootDir); err != nil {
 		return fmt.Errorf("bind mounts failed: %w", err)
 	}
 
-	// 2. Bootstrap Alpine base system
-	fmt.Println("[INFO] Step 2: Bootstrapping Alpine base system...")
+	// 3. Bootstrap Alpine base system
+	fmt.Println("[INFO] Step 3: Bootstrapping Alpine base system...")
 	if err := internal.BootstrapAlpine(conf); err != nil {
 		return fmt.Errorf("bootstrap failed: %w", err)
 	}
 
-	// 3. Prepare chroot environment (APK repos)
-	fmt.Println("[INFO] Step 3: Preparing chroot environment...")
+	// 4. Prepare chroot environment (APK repos)
+	fmt.Println("[INFO] Step 4: Preparing chroot environment...")
 	if err := internal.PrepareChrootEnv(conf); err != nil {
 		return fmt.Errorf("chroot prep failed: %w", err)
-	}
-
-	// 4. Write install config (disk layout, LUKS UUIDs, user info)
-	if err := features.WriteInstallConfig(conf); err != nil {
-		return fmt.Errorf("install config failed: %w", err)
-	}
-
-	// 6. Compile and install firstBoot binaries (autonomous post-install tools)
-	if err := features.SetupSecureboot(conf); err != nil {
-		fmt.Printf("[WARNING] secureboot setup: %v\n", err)
-	}
-	if err := features.SetupTpm(conf); err != nil {
-		fmt.Printf("[WARNING] tpm setup: %v\n", err)
 	}
 
 	fmt.Println("[INFO] HostPhase.Run completed successfully.")

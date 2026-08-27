@@ -26,8 +26,8 @@
 
 | Feature | Confined? | Primary file | Other refs | Severity | Fix |
 |---------|-----------|-------------|------------|----------|-----|
-| `EnableSecureboot` | ✅ | `hostPhase/features/secureboot.go` | config.go, harness | N/A | Binary compiles + copies to `/opt/` |
-| `EnableTPM` | ✅ | `hostPhase/features/tpm.go` | config.go, harness | N/A | Binary compiles + copies to `/opt/` |
+| `EnableSecureboot` | ✅ | `utils/firstboot/secureboot.go` | config.go, harness | N/A | Binary compiles + copies to `/opt/` |
+| `EnableTPM` | ✅ | `utils/firstboot/tpm.go` | config.go, harness | N/A | Binary compiles + copies to `/opt/` |
 | `EnableHardening` | ✅ | `chrootPhase/features/hardening.go` | config.go, harness | N/A | Packages + config confined |
 | `EnableZswap` | ✅ | `chrootPhase/features/zswap.go` + `zswap_server.go` | config.go, harness | N/A | Modules confined |
 | `EnableNix` | ✅ | `chrootPhase/features/nix.go` | config.go, harness | N/A | Packages + auto-enable confined |
@@ -36,8 +36,8 @@
 | `DesktopEnvironment` | ✅ | `chrootPhase/desktops/desktops.go` | config.go, logic.go, harness | N/A | Generic dispatcher with registry map |
 
 **Checklist:**
-- [x] Secureboot: `hostPhase/features/secureboot.go` compiles + copies binary
-- [x] TPM: `hostPhase/features/tpm.go` compiles + copies binary
+- [x] Secureboot: `utils/firstboot/secureboot.go` compiles + copies binary
+- [x] TPM: `utils/firstboot/tpm.go` compiles + copies binary
 - [x] Hardening: `HardeningPackages()` + `DebugOverrides()` in `features/hardening.go`
 - [x] Nix: `NixPackages()` + auto-enable in `features/nix.go` (no mutation in packages.go)
 - [x] Zswap: `ZswapModules()` in `features/zswap.go`

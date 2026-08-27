@@ -294,7 +294,7 @@ func parseLogsArgs(args []string, artifactsRoot string) (service.LogsConfig, err
 	fs.SetOutput(os.Stderr)
 	fs.StringVar(&defaults.ArtifactsRoot, "artifacts-root", defaults.ArtifactsRoot, "root directory for harness artifacts")
 	fs.StringVar(&defaults.RunDir, "run-dir", defaults.RunDir, "specific run directory to read logs from")
-	fs.StringVar(&defaults.LogName, "log", defaults.LogName, "log name: installer, post-install, runner-serial, runner-qemu, target-serial, target-qemu, verify")
+	fs.StringVar(&defaults.LogName, "log", defaults.LogName, "log name: installer, post-install, runner-serial, runner-qemu, target-serial, target-qemu, verify, harness")
 	fs.IntVar(&defaults.Lines, "lines", defaults.Lines, "number of trailing lines to return")
 	if err := fs.Parse(args); err != nil {
 		return service.LogsConfig{}, err
