@@ -4,6 +4,7 @@ import (
 	"alpineInstaller/hostPhase/disks/btrfsRaid0"
 	"alpineInstaller/hostPhase/disks/btrfsStandard"
 	"alpineInstaller/hostPhase/disks/btrfsStandardServer"
+	"alpineInstaller/hostPhase/disks/btrfsUnencrypted"
 	"alpineInstaller/hostPhase/internal"
 	"alpineInstaller/utils/config"
 	"fmt"
@@ -32,6 +33,10 @@ func Run(conf *config.Config) error {
 	case "btrfsRaid0":
 		if err := btrfsRaid0.RunBtrfsSetup(conf); err != nil {
 			return fmt.Errorf("btrfsRaid0 setup failed: %w", err)
+		}
+	case "btrfsUnencrypted":
+		if err := btrfsUnencrypted.RunBtrfsSetup(conf); err != nil {
+			return fmt.Errorf("btrfsUnencrypted setup failed: %w", err)
 		}
 	default:
 		return fmt.Errorf("unknown disk layout: %s", conf.User.DiskLayout)

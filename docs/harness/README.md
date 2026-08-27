@@ -9,9 +9,9 @@
 | [overview.md](overview.md) | What the harness does — scope, KVM, simulation model, fixtures |
 | [workflow.md](workflow.md) | Detailed 3-phase flow: prepare-runner → run → verify, with diagram |
 | [artifacts.md](artifacts.md) | Where artifacts land under `tests/artifacts/harness/`, how to inspect/clean |
-| [building.md](building.md) | Where to put the compiled `skea-harness` binary so it stays gitignored |
+| [building.md](building.md) | Where to put the compiled `skea_harness` binary so it stays gitignored |
 | [development.md](development.md) | How to code the harness — module structure, key patterns, adding checks |
-| [commands.md](commands.md) | CLI reference for all `skea-harness` commands and MCP tools |
+| [commands.md](commands.md) | CLI reference for all `skea_harness` commands and MCP tools |
 | [debug_run.md](debug_run.md) | `tests/debug_run/` — boot existing run without reinstall, auto-detect latest, LUKS inject |
 
 ## Quick links

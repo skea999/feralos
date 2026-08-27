@@ -4,7 +4,7 @@
 
 ## CLI
 
-Binary: `tests/harness/skea-harness` (build: `cd tests/harness && go build -o skea-harness ./cmd/skea_harness/`) or `go run ./cmd/skea_harness -- <cmd>`. All commands emit pretty JSON to stdout; errors to stderr.
+Binary: `tests/harness/skea_harness` (build: `cd tests/harness && go build -o skea_harness ./cmd/skea_harness/`) or `go run ./cmd/skea_harness -- <cmd>`. All commands emit pretty JSON to stdout; errors to stderr.
 
 ### `prepare-runner`
 
@@ -72,7 +72,7 @@ go run ./cmd/skea_harness -- logs [--run-dir <runDir>] [--log <name>] [--lines <
 
 ```bash
 go run ./cmd/skea_harness -- mcp [--repo-root <path>] [--artifacts-root <path>]
-# stdio MCP server (internal/mcp). Wrapper: ./tests/harness/run_mcp.sh auto-rebuilds artifacts/harness/bin/skea-harness
+# stdio MCP server (internal/mcp). Wrapper: ./tests/harness/run_mcp.sh auto-rebuilds artifacts/harness/bin/skea_harness
 # generate config: ./tests/harness/generate_mcp_config.sh
 ```
 

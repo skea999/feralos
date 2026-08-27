@@ -11,7 +11,7 @@ ls tests/fixtures/variables/
 
 Harness loads via `internal/service/service.go:LoadVariablesFile` (`gopkg.in/yaml.v3`). Installer loads via `src/utils/config/config.go:LoadConfig`. Both accept absolute path via `-f` / `-config`.
 
-## Matrix (14 templates)
+## Matrix (15 templates)
 
 | # | Template | diskLayout | enableSwap | swapSize | desktop | secureboot | TPM | hardening | zswap | nix | Purpose |
 |---|----------|------------|------------|----------|---------|------------|-----|-----------|-------|-----|---------|
@@ -29,10 +29,11 @@ Harness loads via `internal/service/service.go:LoadVariablesFile` (`gopkg.in/yam
 | 12 | `btrfs_standard_hardening_only.yaml` | btrfsStandard | true | auto | none | false | false | true | false | false | Isolate hardening |
 | 13 | `btrfs_standard_niri.yaml` | btrfsStandard | true | auto | niri | false | false | false | false | true | Desktop niri (auto-nix) |
 | 14 | `full_stack.yaml` | btrfsStandard | true | auto | none | true | true | true | true | true | All true (replaces `tests/variables-full.yaml`) |
+| 15 | `btrfs_unencrypted_minimal.yaml` | btrfsUnencrypted | true | auto | none | false | false | false | false | false | No LUKS, VMs/testing, direct btrfs on partition 2 |
 
 ## Tiering (CI cost)
 
-- **Tier1 (CI gate, ~2h):** 1,2,6,7 — minimal + noswap per layout
+- **Tier1 (CI gate, ~2h):** 1,2,6,7,15 — minimal + noswap per layout
 - **Tier2 (nightly, ~4h):** 3,8,10,11,12
 - **Tier3 (manual):** 4,5,9,13,14
 

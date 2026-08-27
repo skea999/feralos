@@ -19,7 +19,7 @@ tests/harness/
 │   └── config/                   # harness config helpers
 ├── go.mod, go.sum
 ├── run_mcp.sh, generate_mcp_config.sh, mcp_server.example.json
-└── skea-harness                  # compiled binary (gitignored, see building.md)
+└── skea_harness                  # compiled binary (gitignored, see building.md)
 ```
 
 No `internal` package rule like `src/hostPhase/internal` — harness is a standalone module; all `internal/*` is harness-private by Go semantics.
@@ -41,7 +41,7 @@ No `internal` package rule like `src/hostPhase/internal` — harness is a standa
 
 - `LoadVariablesFile` → `cache.StartHTTPMirrorServer` (sets `AlpineMirror` guest URL) → `qemu.CreateDisk` (16G) 1 or 2 disks by `DiskLayout`.
 - `qemu.StartSoftwareTPM` **always** (`tpm.sock.ctrl` — QEMU 10 `CMD_SET_DATAFD` protocol, not `--server`).
-- `qemu.Start` runner (virtio + hostfwd 2222 + swtpm) → `guest.WaitForSSH` → `createRepositoryArchive` (excludes `tests/artifacts/`, `.git/`, `*.qcow2`) → `guest.CopyToGuest` → `tar -xzf` → inject `variables.yaml` + `git`/`bash`/`fdisk` shims into `.skea-harness-bin` on `PATH` → `guest.Run` of `setup.sh --test -config` with `SKEA_HARNESS_LOCAL_REPO` + `SKEA_NONINTERACTIVE=1` → `installer.log`.
+- `qemu.Start` runner (virtio + hostfwd 2222 + swtpm) → `guest.WaitForSSH` → `createRepositoryArchive` (excludes `tests/artifacts/`, `.git/`, `*.qcow2`) → `guest.CopyToGuest` → `tar -xzf` → inject `variables.yaml` + `git`/`bash`/`fdisk` shims into `.skea_harness-bin` on `PATH` → `guest.Run` of `setup.sh --test -config` with `SKEA_HARNESS_LOCAL_REPO` + `SKEA_NONINTERACTIVE=1` → `installer.log`.
 - Poweroff runner, **always** restart swtpm (killed by QEMU `CMD_SHUTDOWN` on poweroff — unconditional, not gated on `EnableTPM`), then `bootAndVerifyTarget`: OVMF `CODE`+`VARS` (`FindOVMF`+`CopyFile`), `virtio-gpu-pci` if `desktopNiri`, socket chardev for `target-serial.log`, hostfwd 2223, retry 3×, then 3-boot: firstBoot `sbctl`/`tpm` via SSH → `poweroff` → restart swtpm → verification boot → `Verify`.
 
 ### Logging & execution

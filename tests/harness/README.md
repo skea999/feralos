@@ -12,6 +12,6 @@ go run ./cmd/skea_harness status
 go run ./cmd/skea_harness cleanup
 ```
 
-Artifacts: `tests/artifacts/harness/` (see `docs/harness/artifacts.md`). Compiled binary `tests/harness/skea-harness` is gitignored (see `docs/harness/building.md`).
+Artifacts: `tests/artifacts/harness/` (see `docs/harness/artifacts.md`). Compiled binary `tests/harness/skea_harness` is gitignored (see `docs/harness/building.md`).
 
 *Updated: 2026-08-26 — docs moved to `docs/harness/`*

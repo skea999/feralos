@@ -19,7 +19,7 @@ variables:
   mirror: "https://dl-cdn.alpinelinux.org/alpine"
   arch: "x86_64"
   branch: "latest-stable"
-  diskLayout: "btrfsStandard" # btrfsStandard | btrfsRaid0 | btrfsStandardServer
+  diskLayout: "btrfsStandard" # btrfsStandard | btrfsRaid0 | btrfsStandardServer | btrfsUnencrypted
   desktopEnvironment: "none"        # none | kde | niri | gnome
   videoDriver: "none"               # none | amdgpu | nvidia | intel
   sshAuthorizedKey: ""
@@ -47,7 +47,7 @@ variables:
 | Key | Type | Description |
 |-----|------|-------------|
 | `disks` | `[]string` | Target disks (`/dev/sda`, `/dev/nvme0n1`). `btrfsStandard`: 1 disk, `btrfsStandardServer`/`btrfsRaid0`: 2 disks. All data erased. |
-| `diskLayout` | `string` | `btrfsStandard` (1 disk, LUKS root + swapfile), `btrfsStandardServer` (2 disks, RAID1, LUKS swap), `btrfsRaid0` (2 disks, RAID0, LUKS swap). See `docs/architecture/storage.md`. |
+| `diskLayout` | `string` | `btrfsStandard` (1 disk, LUKS root + swapfile), `btrfsStandardServer` (2 disks, RAID1, LUKS swap), `btrfsRaid0` (2 disks, RAID0, LUKS swap), `btrfsUnencrypted` (1 disk, no encryption, btrfs root, swapfile — VMs/testing). See `docs/architecture/storage.md`. |
 
 ### User and Security
 
@@ -92,7 +92,7 @@ variables:
 | `enableHardening` | `bool` | AppArmor, sysctl, permissions. Includes `enableDebug` false path. |
 | `enableZswap` | `bool` | Zswap compressed swap, `vm.min_free_kbytes` 1% RAM. Server always, others toggle. |
 | `enableNix` | `bool` | Nix package manager, `/nix` subvolumes, daemon. |
-| `enableSwap` | `bool` | `btrfsStandard`/`btrfsRaid0`: enable swap (file or LUKS partitions). `btrfsStandardServer`: always true (LUKS swap). `swapSize` only matters when true. |
+| `enableSwap` | `bool` | `btrfsStandard`/`btrfsUnencrypted`/`btrfsRaid0`: enable swap (file or LUKS partitions). `btrfsStandardServer`: always true (LUKS swap). `swapSize` only matters when true. |
 | `swapSize` | `string` | `auto` (2×RAM) or explicit `8G`/`4096M`/`4096K`. Split `/2` per disk on `btrfsRaid0`. |
 | `enableDebug` | `bool` | Debug logging via `HardeningPackages()`. |
 
@@ -106,6 +106,6 @@ variables:
 
 1. **Generator** (`src/utils/createConfig/create_values.go`) starts from `src/variables/variables.yaml` template, prompts for `disks` → `diskLayout` → `hostname` → `userName`/`password` → `desktopEnvironment` → flags, writes `variables.yaml`.
 2. **Installer** (`src/main.go`) loads `variables.yaml` + `internal_rules.yaml`, `logic.ApplyRules(conf)` injects groups/services/modules per package, validates `len(disks)`.
-3. **Harness fixtures** (`tests/fixtures/variables/*.yaml`) are curated 14 templates covering minimal/noswap/explicit/full/isolate per layout.
+3. **Harness fixtures** (`tests/fixtures/variables/*.yaml`) are curated 15 templates covering minimal/noswap/explicit/full/isolate per layout.
 
 See `docs/architecture/feature_confinement.md` for where each `Enable*` is owned.

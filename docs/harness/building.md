@@ -7,7 +7,7 @@
 From repo root:
 
 ```bash
-cd tests/harness && go build -o skea-harness ./cmd/skea_harness/
+cd tests/harness && go build -o skea_harness ./cmd/skea_harness/
 # or run without building
 go run ./cmd/skea_harness -- prepare-runner
 go run ./cmd/skea_harness -- run -f tests/fixtures/variables/btrfs_standard_minimal.yaml
@@ -17,19 +17,19 @@ The module is `skeaAlpineInstaller/tests/harness` (`tests/harness/go.mod`, Go 1.
 
 ## Where the binary lives (gitignored)
 
-Preferred location — `tests/harness/skea-harness` (next to `go.mod`):
+Preferred location — `tests/harness/skea_harness` (next to `go.mod`):
 
 ```bash
-cd tests/harness && go build -o skea-harness ./cmd/skea_harness/
-./skea-harness status
-./skea-harness logs --log installer
+cd tests/harness && go build -o skea_harness ./cmd/skea_harness/
+./skea_harness status
+./skea_harness logs --log installer
 ```
 
 This path is explicitly gitignored:
 
 ```gitignore
 # .gitignore (root, excerpt)
-tests/harness/skea-harness
+tests/harness/skea_harness
 tests/harness/work/
 tests/harness/iso/
 tests/harness/coverage.out
@@ -48,14 +48,14 @@ Do **not** commit the binary. `go vet ./...` in `tests/harness` still passes wit
 
 ## Alternative — `artifacts/harness/bin/`
 
-`tests/harness/run_mcp.sh` (MCP wrapper) auto-builds to `artifacts/harness/bin/skea-harness` when missing or stale (checks `*.go` newer than binary via `find -newer`):
+`tests/harness/run_mcp.sh` (MCP wrapper) auto-builds to `artifacts/harness/bin/skea_harness` when missing or stale (checks `*.go` newer than binary via `find -newer`):
 
 ```bash
-./tests/harness/run_mcp.sh        # builds artifacts/harness/bin/skea-harness if needed, then execs mcp
+./tests/harness/run_mcp.sh        # builds artifacts/harness/bin/skea_harness if needed, then execs mcp
 ./generate_mcp_config.sh          # writes absolute-path MCP config for the editor
 ```
 
-`artifacts/harness/bin/` is under `tests/artifacts/**/*` so it is gitignored by the same pattern — but it is **ephemeral** (prunable with other artifacts). Prefer `tests/harness/skea-harness` for a stable local binary.
+`artifacts/harness/bin/` is under `tests/artifacts/**/*` so it is gitignored by the same pattern — but it is **ephemeral** (prunable with other artifacts). Prefer `tests/harness/skea_harness` for a stable local binary.
 
 ## Keys, images, caches — also gitignored
 
@@ -76,8 +76,8 @@ git add -f tests/artifacts/harness/cache/.gitkeep  # tracked via !**/.gitkeep ex
 ## Verify
 
 ```bash
-git check-ignore -v tests/harness/skea-harness
-# .gitignore:43:tests/harness/skea-harness  tests/harness/skea-harness
+git check-ignore -v tests/harness/skea_harness
+# .gitignore:43:tests/harness/skea_harness  tests/harness/skea_harness
 
 git check-ignore -v tests/artifacts/harness/cache/base-images/debian-13-genericcloud-amd64.qcow2
 # .gitignore:47:tests/artifacts/**/*  ...

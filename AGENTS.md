@@ -53,7 +53,7 @@ cd src && go build -o ../feralos_secureboot ./firstBoot/secureboot/
 cd src && go build -o ../feralos_tpm ./firstBoot/tpm/
 
 # Build harness
-cd tests/harness && go build -o skea-harness ./cmd/skea_harness/
+cd tests/harness && go build -o skea_harness ./cmd/skea_harness/
 
 # Run installer (requires root + live)
 sudo ./feralos_installer -config variables.yaml
@@ -63,15 +63,15 @@ sudo ./feralos_installer -config variables.yaml
 
 # Run harness tests
 cd tests/harness
-./skea-harness prepare-runner
-./skea-harness run -f ~/Progetti/skeaAlpineInstaller/src/variables/variables.yaml
-./skea-harness status
-./skea-harness cleanup
+./skea_harness prepare-runner
+./skea_harness run -f ~/Progetti/skeaAlpineInstaller/src/variables/variables.yaml
+./skea_harness status
+./skea_harness cleanup
 
 # Run harness with fixture templates (covers all scenarios)
-./skea-harness run -f tests/fixtures/variables/btrfs_raid0_minimal.yaml
-./skea-harness run -f tests/fixtures/variables/btrfs_raid0_noswap.yaml
-./skea-harness run -f tests/fixtures/variables/btrfs_standard_swap_explicit_8g.yaml
+./skea_harness run -f tests/fixtures/variables/btrfs_raid0_minimal.yaml
+./skea_harness run -f tests/fixtures/variables/btrfs_raid0_noswap.yaml
+./skea_harness run -f tests/fixtures/variables/btrfs_standard_swap_explicit_8g.yaml
 ls tests/fixtures/variables/  # 14 templates: minimal, noswap, explicit, full, isolate (scenarios)
 
 # Run tests (when available)

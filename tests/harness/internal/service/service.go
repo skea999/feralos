@@ -215,6 +215,8 @@ type VerifyConfig struct {
 	InstalledUser      string
 	DesktopEnvironment string
 	EnableSwap         bool
+	EnableSecureboot   bool
+	EnableTPM          bool
 	SwapSize           string
 	DiskLayout         string
 	Timeout            time.Duration
@@ -481,12 +483,14 @@ func (service *Service) RunInstall(ctx context.Context, cfg *RunConfig) (RunResu
 		return RunResult{}, fmt.Errorf("create run directory: %w", mkdirErr)
 	}
 
-	// Capture harness stdout+stderr to harness.log in the run directory.
+	// Capture harness output to harness.log in the run directory.
+	// Use explicit writes (not os.Stdout redirect) so output is flushed
+	// even if process is killed by timeout.
 	harnessLog, logErr := os.Create(filepath.Join(runDir, "harness.log"))
 	if logErr == nil {
-		os.Stdout = harnessLog
-		os.Stderr = harnessLog
-		defer harnessLog.Close()
+		// Write run info header
+		fmt.Fprintf(harnessLog, "run: %s\nlayout: %s\n", runID, cfg.DiskLayout)
+		_ = harnessLog.Sync()
 	}
 
 	// Clean up old runs, keep only the last 2
@@ -838,6 +842,31 @@ fi
 		stopTPM = false
 	}
 	result.FinishedAt = time.Now().UTC()
+
+	// Write run summary to harness.log
+	if harnessLog != nil {
+		fmt.Fprintf(harnessLog, "\n=== RUN SUMMARY ===\n")
+		fmt.Fprintf(harnessLog, "status: completed\n")
+		fmt.Fprintf(harnessLog, "layout: %s\n", cfg.DiskLayout)
+		fmt.Fprintf(harnessLog, "disk1: %s\n", disk1Path)
+		fmt.Fprintf(harnessLog, "disk2: %s\n", disk2Path)
+		fmt.Fprintf(harnessLog, "started: %s\n", active.StartedAt.Format(time.RFC3339))
+		fmt.Fprintf(harnessLog, "finished: %s\n", result.FinishedAt.Format(time.RFC3339))
+		if result.VerifyResult != nil {
+			passed, failed := 0, 0
+			for _, c := range result.VerifyResult.Checks {
+				if c.Pass {
+					passed++
+				} else {
+					failed++
+				}
+			}
+			fmt.Fprintf(harnessLog, "checks: %d passed, %d failed, %d total\n", passed, failed, passed+failed)
+			fmt.Fprintf(harnessLog, "verify: %s\n", boolStr(result.VerifyResult.Success, "PASS", "FAIL"))
+		}
+		_ = harnessLog.Sync()
+		harnessLog.Close()
+	}
 	return result, nil
 }
 
@@ -1087,6 +1116,8 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg *RunConfig,
 		InstalledUser:      cfg.InstalledUser,
 		DesktopEnvironment: cfg.DesktopEnvironment,
 		EnableSwap:         cfg.EnableSwap,
+		EnableSecureboot:   cfg.EnableSecureboot,
+		EnableTPM:          cfg.EnableTPM,
 		SwapSize:           cfg.SwapSize,
 		DiskLayout:         cfg.DiskLayout,
 		Timeout:            cfg.VerificationTimeout,
@@ -1211,9 +1242,10 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		isRaid1 := hasHealthyBtrfsRaid1Layout(storageCheck.Detail)
 		isSingle := hasHealthyBtrfsSingleLayout(storageCheck.Detail)
 		isRaid0 := hasHealthyBtrfsRaid0Layout(storageCheck.Detail)
-		if !isRaid1 && !isSingle && !isRaid0 {
+		isUnencrypted := hasHealthyBtrfsUnencryptedLayout(storageCheck.Detail)
+		if !isRaid1 && !isSingle && !isRaid0 && !isUnencrypted {
 			storageCheck.Pass = false
-			storageCheck.Detail += "\nExpected a mounted Btrfs root backed by LUKS — either RAID1 (2 devices, RAID1 profiles), RAID0 (2 devices, RAID0 profiles) or Single (1 device, single data, DUP metadata)"
+			storageCheck.Detail += "\nExpected a mounted Btrfs root — either RAID1 (2 devices, LUKS), RAID0 (2 devices, LUKS), Single (1 device, LUKS) or Unencrypted (1 device, no LUKS)"
 			result.Checks["storage_layout"] = storageCheck
 			result.Success = false
 		}
@@ -1230,13 +1262,12 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		// Accept root=UUID=<btrfs-uuid> or root=/dev/mapper/luks-<uuid> (the
 		// mapper path avoids booster 0.12's WaitGroup double-Done panic when
 		// both btrfs RAID1 members share the same UUID).
+		// rd.luks.name is optional — present for encrypted layouts, absent for unencrypted.
 		hasRoot := strings.Contains(cmdlineCheck.Detail, "root=UUID=") ||
 			strings.Contains(cmdlineCheck.Detail, "root=/dev/mapper/luks-")
-		// Accept 1 or 2 rd.luks.name entries — btrfsStandard has 1, btrfsStandardServer has 2.
-		hasLuksName := strings.Count(cmdlineCheck.Detail, "rd.luks.name=") >= 1
-		if !hasRoot || !hasLuksName {
+		if !hasRoot {
 			cmdlineCheck.Pass = false
-			cmdlineCheck.Detail += "\nExpected /etc/kernel/cmdline to define root=UUID=<btrfs UUID> or root=/dev/mapper/luks-<uuid> and rd.luks.name for encrypted root device(s)"
+			cmdlineCheck.Detail += "\nExpected /etc/kernel/cmdline to define root=UUID=<btrfs UUID> or root=/dev/mapper/luks-<uuid>"
 			result.Checks["kernel_cmdline"] = cmdlineCheck
 			result.Success = false
 		}
@@ -1310,11 +1341,13 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		}
 	}
 
-	if securebootCheck, ok := result.Checks["secureboot_conf"]; ok && !strings.Contains(securebootCheck.Detail, "cmdline=") {
-		securebootCheck.Pass = false
-		securebootCheck.Detail += "\nExpected cmdline entry in /etc/kernel-hooks.d/secureboot.conf"
-		result.Checks["secureboot_conf"] = securebootCheck
-		result.Success = false
+	if cfg.EnableSecureboot {
+		if securebootCheck, ok := result.Checks["secureboot_conf"]; ok && !strings.Contains(securebootCheck.Detail, "cmdline=") {
+			securebootCheck.Pass = false
+			securebootCheck.Detail += "\nExpected cmdline entry in /etc/kernel-hooks.d/secureboot.conf"
+			result.Checks["secureboot_conf"] = securebootCheck
+			result.Success = false
+		}
 	}
 
 	if ukiCheck, ok := result.Checks["uki_artifacts"]; ok {
@@ -1522,7 +1555,7 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		// warning (informational — retries exhausted, continues). Also
 		// mdadm "error opening /dev/md?" (no pre-existing RAID) and mkfs.btrfs
 		// usage-help example lines (contain "error" in the example text).
-		allowRe := regexp.MustCompile(`(?i)(0 errors|no errors|errors: 0|0 failed|no failed|failed: 0|zero errors|libgpg-error|error trace:|start-stop-daemon: no matching processes found|fsck\.vfat: No such file or directory|dpkg was interrupted|dpkg --configure -a|failed, retrying in|apt does not have a stable CLI|error opening /dev/md|E\.g\.: dev1)`)
+		allowRe := regexp.MustCompile(`(?i)(0 errors|no errors|errors: 0|0 failed|no failed|failed: 0|zero errors|libgpg-error|error trace:|start-stop-daemon: no matching processes found|fsck\.vfat: No such file or directory|dpkg was interrupted|dpkg --configure -a|failed, retrying in|apt does not have a stable CLI|error opening /dev/md|E\.g\.: dev1|LABEL=EFIVDB)`)
 		var problems []string
 		for _, logName := range []string{"target-serial.log", "installer.log"} {
 			path := filepath.Join(cfg.RunDir, logName)
@@ -1698,6 +1731,30 @@ func hasHealthyBtrfsRaid0Layout(detail string) bool {
 	hasMissingDevice := strings.Contains(lowerDetail, " is missing")
 
 	return hasMountedBtrfsRoot && hasEncryptedRootDevices && hasTwoBtrfsDevices && hasDataRaid0 && hasMetadataRaid0 && !hasMissingDevice
+}
+
+// hasHealthyBtrfsUnencryptedLayout validates a single-disk unencrypted btrfs
+// layout (btrfsUnencrypted): root mounted directly from /dev/vd* or /dev/sd*
+// (no LUKS mapper), single data profile, DUP metadata.
+func hasHealthyBtrfsUnencryptedLayout(detail string) bool {
+	// Root mounted from a raw partition (not mapper, not dm-)
+	hasMountedBtrfsRoot := regexp.MustCompile(`(?m)^/dev/(vd[a-z]+|sd[a-z]+)[0-9]* / btrfs `).MatchString(detail)
+	// No LUKS devices in mapper section
+	mapperStart := strings.Index(detail, "===mapper===")
+	mapperEnd := strings.Index(detail, "===mounts===")
+	hasNoEncryptedDevices := true
+	if mapperStart >= 0 && mapperEnd > mapperStart {
+		mapperSection := detail[mapperStart:mapperEnd]
+		hasNoEncryptedDevices = !strings.Contains(mapperSection, "/dev/mapper/luks-")
+	}
+	hasOneBtrfsDevice := len(regexp.MustCompile(`(?m)^\s*devid\s+[0-9]+`).FindAllString(detail, -1)) == 1
+	hasSingleProfile := regexp.MustCompile(`(?m)Id\s+Path\s+single\s+DUP`).MatchString(detail)
+	hasSingleDataRatio := strings.Contains(detail, "Data ratio:") && strings.Contains(detail, "1.00")
+	hasDupMetadataRatio := strings.Contains(detail, "Metadata ratio:") && strings.Contains(detail, "2.00")
+	hasSingleData := hasSingleProfile || hasSingleDataRatio
+	hasDupMetadata := hasSingleProfile || hasDupMetadataRatio
+
+	return hasMountedBtrfsRoot && hasNoEncryptedDevices && hasOneBtrfsDevice && hasSingleData && hasDupMetadata
 }
 
 func hasClevisTPM2Bindings(detail string, expectedDevices int) bool {

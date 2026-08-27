@@ -124,7 +124,7 @@ cd src && go build -o ../feralos_installer .
 cd src/utils/createConfig/createValues && go build -o ../../../../feralos_create_config .
 cd src && go build -o ../feralos_secureboot ./firstBoot/secureboot/
 cd src && go build -o ../feralos_tpm ./firstBoot/tpm/
-cd tests/harness && go build -o skea-harness ./cmd/skea_harness/
+cd tests/harness && go build -o skea_harness ./cmd/skea_harness/
 
 # test
 cd src && go test ./...
@@ -132,10 +132,10 @@ cd tests/harness && go test ./...
 
 # harness (QEMU) — see docs/harness/README.md
 cd tests/harness
-./skea-harness prepare-runner
-./skea-harness run -f ~/Progetti/skeaAlpineInstaller/src/variables/variables.yaml
-./skea-harness run -f tests/fixtures/variables/btrfs_raid0_minimal.yaml  # 14 templates
-./skea-harness status && ./skea-harness cleanup
+./skea_harness prepare-runner
+./skea_harness run -f ~/Progetti/skeaAlpineInstaller/src/variables/variables.yaml
+./skea_harness run -f tests/fixtures/variables/btrfs_raid0_minimal.yaml  # 14 templates
+./skea_harness status && ./skea_harness cleanup
 
 # artifacts (gitignored): tests/artifacts/{feralos_create_config,harness}/{cache,prepare,runs,state}
 ```
