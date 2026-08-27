@@ -311,7 +311,7 @@ func setupSubvolumesAndMounts(chroot string, luksDevice string, d1 string, d2 st
 	for _, s := range subvols {
 		target := chroot + s.Path
 		if s.Path != "" {
-			if _, err := shell.ExecuteCmd("", fmt.Sprintf("mkdir -p %s && chmod 0755 %s", target, target)); err != nil {
+			if _, err := shell.ExecuteCmd("", fmt.Sprintf("mkdir -p %s", target)); err != nil {
 				return fmt.Errorf("failed to create directory %s: %w", target, err)
 			}
 		}
@@ -329,13 +329,13 @@ func setupSubvolumesAndMounts(chroot string, luksDevice string, d1 string, d2 st
 	partitionSpacer1 := getPartitionSpacer(d1)
 	partitionSpacer2 := getPartitionSpacer(d2)
 
-	if _, err := shell.ExecuteCmd("", fmt.Sprintf("mkdir -p %s && chmod 0755 %s", chroot+"/boot/efi", chroot+"/boot/efi")); err != nil {
+	if _, err := shell.ExecuteCmd("", fmt.Sprintf("mkdir -p %s", chroot+"/boot/efi")); err != nil {
 		return fmt.Errorf("failed to create /boot/efi: %w", err)
 	}
 	if _, err := shell.ExecuteCmd("", fmt.Sprintf("mount %s %s", d1+partitionSpacer1+"1", chroot+"/boot/efi")); err != nil {
 		return fmt.Errorf("failed to mount EFI1: %w", err)
 	}
-	if _, err := shell.ExecuteCmd("", fmt.Sprintf("mkdir -p %s && chmod 0755 %s", chroot+"/boot/efi2", chroot+"/boot/efi2")); err != nil {
+	if _, err := shell.ExecuteCmd("", fmt.Sprintf("mkdir -p %s", chroot+"/boot/efi2")); err != nil {
 		return fmt.Errorf("failed to create /boot/efi2: %w", err)
 	}
 	if _, err := shell.ExecuteCmd("", fmt.Sprintf("mount %s %s", d2+partitionSpacer2+"1", chroot+"/boot/efi2")); err != nil {
@@ -345,13 +345,13 @@ func setupSubvolumesAndMounts(chroot string, luksDevice string, d1 string, d2 st
 	// Data Mounts
 	s1 := strings.ToLower(getDiskSuffix(d1))
 	s2 := strings.ToLower(getDiskSuffix(d2))
-	if _, err := shell.ExecuteCmd("", fmt.Sprintf("mkdir -p %s && chmod 0755 %s", chroot+"/data/data-"+s1+partitionSpacer1+"4", chroot+"/data/data-"+s1+partitionSpacer1+"4")); err != nil {
+	if _, err := shell.ExecuteCmd("", fmt.Sprintf("mkdir -p %s", chroot+"/data/data-"+s1+partitionSpacer1+"4")); err != nil {
 		return fmt.Errorf("failed to create data dir: %w", err)
 	}
 	if _, err := shell.ExecuteCmd("", fmt.Sprintf("mount -t btrfs -o compress=zstd:3,autodefrag,ssd %s %s", d1+partitionSpacer1+"4", chroot+"/data/data-"+s1+partitionSpacer1+"4")); err != nil {
 		return fmt.Errorf("failed to mount data1: %w", err)
 	}
-	if _, err := shell.ExecuteCmd("", fmt.Sprintf("mkdir -p %s && chmod 0755 %s", chroot+"/data/data-"+s2+partitionSpacer2+"4", chroot+"/data/data-"+s2+partitionSpacer2+"4")); err != nil {
+	if _, err := shell.ExecuteCmd("", fmt.Sprintf("mkdir -p %s", chroot+"/data/data-"+s2+partitionSpacer2+"4")); err != nil {
 		return fmt.Errorf("failed to create data dir: %w", err)
 	}
 	if _, err := shell.ExecuteCmd("", fmt.Sprintf("mount -t btrfs -o compress=zstd:3,autodefrag,ssd %s %s", d2+partitionSpacer2+"4", chroot+"/data/data-"+s2+partitionSpacer2+"4")); err != nil {

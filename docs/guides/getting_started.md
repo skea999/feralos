@@ -6,7 +6,7 @@ FeralOS installer — Go 1.22 + YAML, Alpine-based, LUKS2 + Btrfs + booster + UK
 
 ## Prerequisites
 
-- **Disks**: `btrfsStandardServer` → 2× ≥8 GB disks (RAID1, dual EFI, LUKS swap); `btrfsStandard` / `btrfsRaid0` → 1× or 2× disks respectively. All data on target disks erased.
+- **Disks**: `btrfsStandardServer` → 2× ≥8 GB disks (RAID1, dual EFI, LUKS swap); `btrfsStandard` / `btrfsRaid0` / `btrfsUnencrypted` → 1× or 2× disks respectively. All data on target disks erased.
 - **USB stick**: ≥2 GB for live ISO.
 - **Live env**: Alpine (recommended) or Void. Must boot UEFI, not Legacy BIOS. Network required (APK + apk-tools-static download).
 - **CPU**: x86_64 (AMD/Intel). RAM ≥2 GB.
@@ -53,7 +53,7 @@ sudo bash <(curl -fsSL https://raw.githubusercontent.com/skem/skeaAlpineInstalle
    # also: src/variables/variables.yaml, tests/fixtures/variables/*.yaml (14 templates)
    ```
 
-   Wizard asks: target `disks` → `diskLayout` (`btrfsStandard`/`btrfsRaid0`/`btrfsStandardServer`) → `hostname` → `userName`/`password` (also LUKS passphrase) → `desktopEnvironment` (`none`/`niri`/`kde`/`gnome`) → optional `Enable*` flags. Full list + `swapSize`/`extraPackages` → `docs/guides/variables.md`; rules → `internal_rules.yaml`.
+   Wizard asks: target `disks` → `diskLayout` (`btrfsStandard`/`btrfsRaid0`/`btrfsStandardServer`/`btrfsUnencrypted`) → `hostname` → `userName`/`password` (also LUKS passphrase) → `desktopEnvironment` (`none`/`niri`/`kde`/`gnome`) → optional `Enable*` flags. Full list + `swapSize`/`extraPackages` → `docs/guides/variables.md`; rules → `internal_rules.yaml`.
 
 5. **Wait** — partitioning → LUKS → Btrfs → bootstrap → chroot → UKI. ~5-10 min. Reboot, remove USB.
 

@@ -35,7 +35,7 @@ feralos_installer/
 │   │   ├── host_phase.go
 │   │   ├── internal/ (bootstrap.go, bind_mounts.go, chroot_env.go, cleanup.go, hooks.go)
 │   │   ├── features/ (install_config.go, secureboot.go, tpm.go)
-│   │   └── disks/ (btrfsStandard/, btrfsRaid0/, btrfsStandardServer/)
+│   │   └── disks/ (btrfsStandard/, btrfsRaid0/, btrfsStandardServer/, btrfsUnencrypted/)
 │   ├── firstBoot/ (secureboot/main.go, tpm/main.go)
 │   └── chrootPhase/
 │       ├── chroot_phase.go

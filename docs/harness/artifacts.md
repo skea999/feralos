@@ -20,9 +20,9 @@ tests/artifacts/harness/
 ├── runs/<timestamp>/       # one per run (keep last 2, cleanOldRuns)
 │   ├── install-disk-1.qcow2 [, install-disk-2.qcow2]  # 16G default (qemu.CreateDisk)
 │   ├── runner-serial.log, runner-qemu.log, runner-qmp.sock
-│   ├── installer.log, post-install.log, harness.log, sbctl.log, tpm-post-install.log
+│   ├── installer.log, post-install.log, harness.log (run summary at end), sbctl.log, tpm-post-install.log
 │   ├── target-serial.log, target-qemu.log, target-firmware.log, tser.sock, target-qmp.sock
-│   ├── verify.log (JSON VerifyResult), OVMF_VARS.fd
+│   ├── verify.log (markdown summary table), OVMF_VARS.fd
 │   ├── tpm.sock, tpm.sock.ctrl, tpm-state/, tpm.pid, tpm.log
 │   ├── repo.tgz, variables.yaml, git/bash/fdisk shims
 │   ├── target-serial-clevis-reboot.offset

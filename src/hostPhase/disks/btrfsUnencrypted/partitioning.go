@@ -97,7 +97,7 @@ func createSwapfile(chroot string, sizeMiB int) error {
 	swapDir := chroot + "/swap"
 	swapFile := swapDir + "/swapfile"
 
-	if _, err := shell.ExecuteCmd("", fmt.Sprintf("mkdir -p %s && chmod 0755 %s", swapDir, swapDir)); err != nil {
+	if _, err := shell.ExecuteCmd("", fmt.Sprintf("mkdir -p %s", swapDir)); err != nil {
 		return fmt.Errorf("failed to create swap directory: %w", err)
 	}
 
@@ -200,7 +200,7 @@ func setupSubvolumesAndMounts(chroot string, rootDevice string, disk string) err
 	for _, s := range subvols {
 		target := chroot + s.Path
 		if s.Path != "" {
-			if _, err := shell.ExecuteCmd("", fmt.Sprintf("mkdir -p %s && chmod 0755 %s", target, target)); err != nil {
+			if _, err := shell.ExecuteCmd("", fmt.Sprintf("mkdir -p %s", target)); err != nil {
 				return fmt.Errorf("failed to create directory %s: %w", target, err)
 			}
 		}
@@ -215,7 +215,7 @@ func setupSubvolumesAndMounts(chroot string, rootDevice string, disk string) err
 
 	// EFI Mount
 	partitionSpacer := getPartitionSpacer(disk)
-	if _, err := shell.ExecuteCmd("", fmt.Sprintf("mkdir -p %s && chmod 0755 %s", chroot+"/boot/efi", chroot+"/boot/efi")); err != nil {
+	if _, err := shell.ExecuteCmd("", fmt.Sprintf("mkdir -p %s", chroot+"/boot/efi")); err != nil {
 		return fmt.Errorf("failed to create /boot/efi: %w", err)
 	}
 	if _, err := shell.ExecuteCmd("", fmt.Sprintf("mount %s %s", disk+partitionSpacer+"1", chroot+"/boot/efi")); err != nil {

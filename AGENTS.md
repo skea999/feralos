@@ -238,7 +238,7 @@ Full tree → `docs/INSTALLER.md#project-structure` and `docs/architecture/overv
 
 ## Docs Index (double documentation — AGENTS.md keeps full info, copies live in `docs/`)
 
-- **Architecture**: `docs/architecture/overview.md` (principle + tree), `isolation.md` (entry-point + internal rule + hostPhase order), `logging.md` (ExecuteCmd rule), `feature_confinement.md` (single-owner), `storage.md` (layouts), `firstboot.md` (secureboot/tpm 3-boot) — all double of AGENTS.md above
+- **Architecture**: `docs/architecture/overview.md` (principle + tree), `isolation.md` (entry-point + internal rule + hostPhase order), `logging.md` (ExecuteCmd rule), `feature_confinement.md` (single-owner), `storage.md` (layouts: btrfsStandardServer, btrfsStandard, btrfsRaid0, btrfsUnencrypted), `firstboot.md` (secureboot/tpm 3-boot) — all double of AGENTS.md above
 - **ADRs**: `docs/adr/README.md` → ADR-001 Go installer, 002 isolation, 003 internal rule, 004 ExecuteCmd, 005 LUKS+Btrfs+booster+UKI, 006 no compat (decisions from AGENTS.md)
 - **Guides** (user guides only): `docs/guides/README.md` (index) → `getting_started.md` (real hardware), `first_boot.md` (secureboot/tpm post-install), `variables.md` (variables.yaml compilation), `development.md` (how to code / separation)
 - **Harness**: `docs/harness/README.md` (index) → `overview.md` (what it does), `workflow.md` (3-phase + 3-boot), `artifacts.md` (where generated, gitignored), `building.md` (where compiled binary goes), `development.md` (how to code), `commands.md` (CLI+MCP), `debug_run.md` (`tests/debug_run/` boot existing run, LUKS inject). `tests/harness/README.md` is pointer only.
@@ -252,7 +252,8 @@ Full tree → `docs/INSTALLER.md#project-structure` and `docs/architecture/overv
 |-------|-----------|--------|
 | Phase 1 | btrfsStandardServer, btrfsStandard, btrfsRaid0 | Completed |
 | Phase 1 | Generator, Test harness, Nix | Completed |
-| Phase 1 | btrfsStandardUnencrypted, Refining | Planned |
+| Phase 1 | btrfsUnencrypted | Completed |
+| Phase 1 | Refining | Planned |
 | Phase 2 | niri + wayvnc | Planned |
 | Phase 3 | Dinit, Custom repo, Full release | Planned |
 

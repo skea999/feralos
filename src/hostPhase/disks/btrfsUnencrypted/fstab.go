@@ -22,7 +22,7 @@ func GenerateFstab(conf *config.Config) error {
 	fmt.Println("[INFO] Writing /etc/fstab for Btrfs Unencrypted Layout...")
 
 	fstabPath := i.ChrootDir + "/etc/fstab"
-	if _, err := shell.ExecuteCmd("", fmt.Sprintf("mkdir -p %s && chmod 0755 %s", i.ChrootDir+"/etc", i.ChrootDir+"/etc")); err != nil {
+	if _, err := shell.ExecuteCmd("", fmt.Sprintf("mkdir -p %s", i.ChrootDir+"/etc")); err != nil {
 		return fmt.Errorf("failed to create /etc directory: %w", err)
 	}
 	var fstabContent strings.Builder

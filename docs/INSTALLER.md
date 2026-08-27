@@ -103,9 +103,10 @@ Invoked by `main` after config generation. Order is fixed:
 
 1. **Disk Partitioning & LUKS Setup** (`hostPhase/disks/`)
    - Selected by `conf.User.DiskLayout` inside `hostPhase.Run()`:
-     - **btrfsStandardServer**: 2 disks, RAID1, dual EFI, LUKS swap
-     - **btrfsStandard**: 1 disk, LUKS root, swapfile, 25 subvolumes
-     - **btrfsRaid0**: 2 disks, RAID0, dual EFI, LUKS swap
+      - **btrfsStandardServer**: 2 disks, RAID1, dual EFI, LUKS swap
+      - **btrfsStandard**: 1 disk, LUKS root, swapfile, 25 subvolumes
+      - **btrfsRaid0**: 2 disks, RAID0, dual EFI, LUKS swap
+      - **btrfsUnencrypted**: 1 disk, no LUKS, direct btrfs, same subvolumes as btrfsStandard
    - Create partition tables, format filesystems, setup LUKS encryption
 
 2. **Mount Virtual Filesystems** (`hostPhase/internal/bind_mounts.go`)
