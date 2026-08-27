@@ -38,6 +38,19 @@ const (
 
 type Service struct{}
 
+// harnessLog is the run-level log file. Set at start of RunInstall, nil elsewhere.
+var harnessLog *os.File
+
+// logHarness writes to harness.log + stderr. Non-nil only during a run.
+func logHarness(format string, args ...any) {
+	msg := fmt.Sprintf(format, args...)
+	if harnessLog != nil {
+		fmt.Fprint(harnessLog, msg)
+		_ = harnessLog.Sync()
+	}
+	fmt.Fprint(os.Stderr, msg)
+}
+
 type PrepareRunnerConfig struct {
 	ArtifactsRoot   string
 	RunnerImage     string
@@ -483,11 +496,8 @@ func (service *Service) RunInstall(ctx context.Context, cfg *RunConfig) (RunResu
 	}
 
 	// Capture harness output to harness.log in the run directory.
-	// Use explicit writes (not os.Stdout redirect) so output is flushed
-	// even if process is killed by timeout.
 	harnessLog, logErr := os.Create(filepath.Join(runDir, "harness.log"))
 	if logErr == nil {
-		// Write run info header
 		fmt.Fprintf(harnessLog, "run: %s\nlayout: %s\n", runID, cfg.DiskLayout)
 		_ = harnessLog.Sync()
 	}
@@ -865,6 +875,7 @@ fi
 		}
 		_ = harnessLog.Sync()
 		harnessLog.Close()
+		harnessLog = nil
 	}
 	return result, nil
 }
@@ -960,7 +971,7 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg *RunConfig,
 	const maxBootRetries = 3
 	for attempt := 1; attempt <= maxBootRetries; attempt++ {
 		if attempt > 1 {
-			fmt.Fprintf(os.Stderr, "target boot attempt %d/%d\n", attempt, maxBootRetries)
+			logHarness("target boot attempt %d/%d\n", attempt, maxBootRetries)
 		}
 		var startErr error
 		targetInstance, startErr = qemu.Start(ctx, &qemu.LaunchConfig{
@@ -1015,7 +1026,7 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg *RunConfig,
 		_ = os.WriteFile(sbctlLogPath, []byte(sbctlDiag), 0o600)
 	}
 	if sbctlErr != nil {
-		fmt.Fprintf(os.Stderr, "WARNING: sbctl enrollment failed (non-fatal in QEMU): %v\n", sbctlErr)
+		logHarness("WARNING: sbctl enrollment failed (non-fatal in QEMU): %v\n", sbctlErr)
 	}
 
 	// Run TPM binary — binds LUKS to TPM2 if TPM is available
@@ -2540,7 +2551,7 @@ func waitForTargetSSH(ctx context.Context, instance *qemu.Instance, opts guest.O
 		if allowPassphraseFallback && strings.TrimSpace(unlockPassword) != "" {
 			promptRetryDue := luksPrompt && unlockAttempts < 4 && (lastPromptUnlock.IsZero() || time.Since(lastPromptUnlock) >= 5*time.Second)
 			if promptRetryDue {
-				fmt.Fprintf(os.Stderr, "harness: LUKS prompt detected (attempt=%d), injecting passphrase\n", unlockAttempts+1)
+				logHarness("harness: LUKS prompt detected (attempt=%d), injecting passphrase\n", unlockAttempts+1)
 				// Send one passphrase per LUKS device so all KDF operations start
 				// concurrently. Sequential injection creates a seconds-long gap
 				// between dm-devices appearing, which causes btrfs RAID1
@@ -2594,10 +2605,10 @@ func tpmQEMUArgs(socketPath string) []string {
 func sendBootPassphrase(serialSocketPath, qmpPath, passphrase string) error {
 	if strings.TrimSpace(serialSocketPath) != "" {
 		if err := qemu.WriteSerialChunks(serialSocketPath, 200*time.Millisecond, passphrase, "\r"); err == nil {
-			fmt.Fprintf(os.Stderr, "harness: passphrase sent via serial socket\n")
+			logHarness("harness: passphrase sent via serial socket\n")
 			return nil
 		} else {
-			fmt.Fprintf(os.Stderr, "harness: serial socket passphrase failed: %v, falling back to QMP\n", err)
+			logHarness("harness: serial socket passphrase failed: %v, falling back to QMP\n", err)
 		}
 	}
 
