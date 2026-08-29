@@ -228,7 +228,7 @@ No Italian-named variables/functions found.
 - [x] **2. ChrootPhase isolation** — Fix `boot.go:56,59-114` + `hardening.go:217` + `misc.go:89` `os.*` → `shell.ExecuteCmd(chroot, ...)` (3 files) ✅
 - [x] **3. Secrets leakage + injection** — Replace `luks.go:16,27,52` ×3 + `users.go:17,26` with `exec.Command` + `Stdin` + redacted logs ✅
 - [x] **4. dmsetup close** — Moved to `src/utils/cleanup/cleanup.go` with correct loop version. ✅
-- [ ] **5. Mirror/ExtraPackages allowlist + https enforcement** — `bootstrap.go:22,37,49` + `packages.go:160` (C2 row)
+
 
 ### P1 — Next Sprint (correctness + DRY)
 
