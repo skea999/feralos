@@ -6,7 +6,7 @@
 | **Scope** | `src/`, `tests/harness/`, `docs/`, `config` — full installer Phase 1 |
 | **Layouts** | btrfsStandard, btrfsRaid0, btrfsStandardServer, btrfsUnencrypted |
 | **Agents** | `review` (isolation + security), `explore` (feature confinement + i18n + naming), `review` (vulnerability + information-scan) — parallel |
-| **Status** | 🟡 Partially Resolved |
+| **Status** | 🟢 Mostly Resolved — §3 9/10 (C3 remaining), §4-7 open |
 | **Templates** | 15 fixtures + swap 25/25 + 4 harness 36/36 |
 
 ### Progress
@@ -16,9 +16,9 @@
 | §0 | Immediate fixes (i18n, naming, docs) | ✅ DONE |
 | §1 | Feature Confinement (8/8) | ✅ DONE |
 | §2 | HostPhase ↔ ChrootPhase Isolation | ✅ DONE |
-| §3.1 | Secrets leakage + injection + chmod_77 + config markers | ✅ DONE |
-| §3.2 | High (Nix perms, swapSize, TOCTOU, ignore) | ⏳ OPEN |
-| §3.3 | Medium (hostname escaping, Nix sandbox, permissions) | ⏳ OPEN |
+| §3.1 | Secrets leakage + injection + chmod_77 + config markers + C2 input validation + H6 critical flag | ✅ DONE (C3 weak credentials remaining) |
+| §3.2 | High (Nix perms, swapSize, TOCTOU, ignore) | ✅ DONE |
+| §3.3 | Medium (hostname escaping, Nix sandbox, permissions) | ✅ DONE |
 | §4 | Code Quality / DRY / Dead Code | ⏳ OPEN |
 | §5 | Naming Conventions | ✅ DONE (1 FIXED) |
 | §6 | Italian → English i18n | ✅ DONE (4 FIXED, 1 intentional) |
