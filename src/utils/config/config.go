@@ -3,6 +3,8 @@ package config
 import (
 	"fmt"
 	"os"
+	"regexp"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -122,7 +124,73 @@ func LoadConfig(userPath string) (*Config, error) {
 		conf.User.Runlevels[k] = v
 	}
 
+	// Input validation — reject shell metacharacters in fields that touch the shell
+	if err := validateConfig(conf); err != nil {
+		return nil, fmt.Errorf("input validation: %w", err)
+	}
+
 	return conf, nil
+}
+
+// validateConfig rejects shell metacharacters in user-provided fields.
+func validateConfig(conf *Config) error {
+	u := &conf.User
+
+	diskRe := regexp.MustCompile(`^/dev/(sd[a-z]+|vd[a-z]+|nvme\d+n\d+|mmcblk\d+)$`)
+	for _, disk := range u.Disks {
+		if !diskRe.MatchString(disk) {
+			return fmt.Errorf("invalid disk path %q: must match /dev/sdX, /dev/vdX, /dev/nvmeXnX, or /dev/mmcblkX", disk)
+		}
+	}
+
+	userRe := regexp.MustCompile(`^[a-z_][a-z0-9_-]{0,31}$`)
+	if u.UserName != "" && !userRe.MatchString(u.UserName) {
+		return fmt.Errorf("invalid username %q: must be [a-z_][a-z0-9_-]{0,31}", u.UserName)
+	}
+
+	hostRe := regexp.MustCompile(`^[a-zA-Z0-9-]{1,63}$`)
+	if u.Hostname != "" && !hostRe.MatchString(u.Hostname) {
+		return fmt.Errorf("invalid hostname %q: must be [a-zA-Z0-9-]{1,63}", u.Hostname)
+	}
+
+	tzRe := regexp.MustCompile(`^[A-Za-z0-9/_+-]+$`)
+	if u.Timezone != "" && !tzRe.MatchString(u.Timezone) {
+		return fmt.Errorf("invalid timezone %q: must be [A-Za-z0-9/_+-]+", u.Timezone)
+	}
+
+	// Reject shell metacharacters in all shell-touching fields
+	shellMeta := regexp.MustCompile(`[;&|$\` + "`" + `\n'"]`)
+	for _, field := range []struct {
+		name, value string
+	}{
+		{"userName", u.UserName},
+		{"hostname", u.Hostname},
+		{"timezone", u.Timezone},
+		{"locale", u.Locale},
+		{"keymap", u.Keymap},
+		{"password", u.Password},
+	} {
+		if shellMeta.MatchString(field.value) {
+			return fmt.Errorf("invalid %s %q: contains shell metacharacters", field.name, field.value)
+		}
+	}
+
+	// Validate ExtraPackages
+	pkgRe := regexp.MustCompile(`^[a-zA-Z0-9._+-]+$`)
+	for _, pkg := range u.ExtraPackages {
+		if !pkgRe.MatchString(pkg) {
+			return fmt.Errorf("invalid extra package %q: must match [a-zA-Z0-9._+-]+", pkg)
+		}
+	}
+
+	// Validate Mirror
+	if u.Mirror != "" {
+		if !strings.HasPrefix(u.Mirror, "http://") && !strings.HasPrefix(u.Mirror, "https://") {
+			return fmt.Errorf("invalid mirror %q: must start with http:// or https://", u.Mirror)
+		}
+	}
+
+	return nil
 }
 
 // LoadTemplate loads only the user variables from a template file.

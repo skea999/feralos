@@ -43,7 +43,7 @@ func SetupNix(conf *config.Config) error {
 	// /etc/profile.d/nix-daemon.sh (and fish/bash) carry that permanently.
 	nixConf := `build-dir = /nix/var/nix/build
 extra-experimental-features = nix-command flakes
-trusted-users = root @wheel`
+trusted-users = root`
 	escapedNixConf := strings.ReplaceAll(nixConf, "'", "'\\''")
 	// Append (not overwrite): preserve Alpine's allowed-users=@nix,
 	// build-users-group=nixbld and max-jobs from /etc/nix/nix.conf.
@@ -55,7 +55,7 @@ trusted-users = root @wheel`
 		fmt.Printf("[WARNING] Failed to add user to nix group: %v\n", err)
 	}
 
-	if _, err := shell.ExecuteCmd(chroot, "chown root:nixbld /nix/var/nix/build && chmod 775 /nix/var/nix/build"); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, "chown root:nixbld /nix/var/nix/build && chmod 750 /nix/var/nix/build"); err != nil {
 		fmt.Printf("[WARNING] Failed to set build dir permissions: %v\n", err)
 	}
 
@@ -71,9 +71,7 @@ trusted-users = root @wheel`
 	// TMPDIR points at the nix build subvolume: /tmp is mounted noexec + 0755
 	// (security), so nix temp files must live on @nix-var-nix-build. This is
 	// permanent — future builds by the user also use the subvolume.
-	nixEnv := `export NIXPKGS_ALLOW_INSECURE=1
-export NIXPKGS_ALLOW_UNFREE=1
-export XKB_CONFIG_ROOT=/usr/share/X11/xkb
+	nixEnv := `export XKB_CONFIG_ROOT=/usr/share/X11/xkb
 export TMPDIR=/nix/var/nix/build/tmp`
 	escapedNixEnv := strings.ReplaceAll(nixEnv, "'", "'\\''")
 	// Append (not overwrite): preserve the PATH/daemon setup the Alpine nix
@@ -82,18 +80,14 @@ export TMPDIR=/nix/var/nix/build/tmp`
 		return fmt.Errorf("failed to write nix env: %w", err)
 	}
 
-	nixFishEnv := `set -gx NIXPKGS_ALLOW_INSECURE 1
-set -gx NIXPKGS_ALLOW_UNFREE 1
-set -gx XKB_CONFIG_ROOT /usr/share/X11/xkb
+	nixFishEnv := `set -gx XKB_CONFIG_ROOT /usr/share/X11/xkb
 set -gx TMPDIR /nix/var/nix/build/tmp`
 	escapedNixFishEnv := strings.ReplaceAll(nixFishEnv, "'", "'\\''")
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' >> /etc/fish/conf.d/nix.fish", escapedNixFishEnv)); err != nil {
 		return fmt.Errorf("failed to write nix fish env: %w", err)
 	}
 
-	nixBashEnv := `export NIXPKGS_ALLOW_INSECURE=1
-export NIXPKGS_ALLOW_UNFREE=1
-export XKB_CONFIG_ROOT=/usr/share/X11/xkb
+	nixBashEnv := `export XKB_CONFIG_ROOT=/usr/share/X11/xkb
 export TMPDIR=/nix/var/nix/build/tmp`
 	escapedNixBashEnv := strings.ReplaceAll(nixBashEnv, "'", "'\\''")
 	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /etc/bash"); err != nil {

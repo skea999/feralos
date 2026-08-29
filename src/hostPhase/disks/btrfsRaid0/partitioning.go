@@ -151,7 +151,7 @@ func RunBtrfsSetup(conf *config.Config) error {
 	if u.EnableSwap {
 		swapKey := "/etc/dmcrypt/swap.key"
 		hostSwapKey := i.ChrootDir + swapKey
-		if _, err := shell.ExecuteCmd("", fmt.Sprintf("mkdir -p %s/etc/dmcrypt %s/etc/conf.d && dd if=/dev/urandom of=%s bs=512 count=4 && chmod 400 %s", i.ChrootDir, i.ChrootDir, hostSwapKey, hostSwapKey)); err != nil {
+		if _, err := shell.ExecuteCmd("", fmt.Sprintf("mkdir -p %s/etc/dmcrypt %s/etc/conf.d && install -m 400 /dev/null %s && dd if=/dev/urandom of=%s bs=512 count=4 conv=notrunc", i.ChrootDir, i.ChrootDir, hostSwapKey, hostSwapKey)); err != nil {
 			return fmt.Errorf("failed to create swap keyfile: %w", err)
 		}
 		if err := LuksAddKey(swapPart1, hostSwapKey, u.Password); err != nil {

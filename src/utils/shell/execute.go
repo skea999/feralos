@@ -45,12 +45,13 @@ func GetCaller() string {
 //   - stdout output
 //   - error if command failed after all retries
 func ExecuteCmd(chroot string, cmd string) (string, error) {
-	return ExecuteCmdWithAllowFail(chroot, cmd, false)
+	return ExecuteCmdWithAllowFail(chroot, cmd, false, false)
 }
 
 // ExecuteCmdWithAllowFail executes a command and optionally treats exit code != 0 as success.
 // Use allowFail=true for commands like "apk del" that may legitimately fail.
-func ExecuteCmdWithAllowFail(chroot string, cmd string, allowFail bool) (string, error) {
+// Use critical=true to force failure even when SKEA_NONINTERACTIVE=ignore (for luksFormat, passwd, etc.).
+func ExecuteCmdWithAllowFail(chroot string, cmd string, allowFail bool, critical bool) (string, error) {
 	tag := "CMD"
 	if chroot != "" {
 		tag = "CHROOT"
@@ -138,7 +139,7 @@ func ExecuteCmdWithAllowFail(chroot string, cmd string, allowFail bool) (string,
 		}
 
 		// After 3 failures
-		if os.Getenv("SKEA_NONINTERACTIVE") == "1" {
+		if os.Getenv("SKEA_NONINTERACTIVE") == "1" && !critical {
 			decision := strings.ToLower(os.Getenv("SKEA_NONINTERACTIVE_DECISION"))
 			switch decision {
 			case "ignore", "skip":

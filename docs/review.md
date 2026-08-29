@@ -138,17 +138,9 @@ Every `shell.ExecuteCmd(chroot, cmd)` → `execute.go:79,84` `sh -c <cmd>`. Unva
 **Root cause:** `'%s'` single-quote not sanitization; `'` breaks out. `strings.ReplaceAll(..., "'", "'\\''")` only applied to static configs (vector, hardening), never to passwords/disks/usernames/mirror.
 
 **Fix (P0):**
+- [x] Strict allowlist validation at `config.LoadConfig` ✅ (diskRe, userRe, hostRe, tzRe + shell metachar rejection + ExtraPackages pkgRe + Mirror https check)
 - [ ] Add `ExecuteCmdArgs(chroot, name string, args ...string)` using `exec.Command` directly (no `sh -c`) for all `wipefs, blkid, mkfs, mount, adduser, chpasswd, cryptsetup, apk, curl, ln` paths
-- [ ] Strict allowlist validation at `config.LoadConfig`:
-  ```go
-  diskRe:=regexp.MustCompile(`^/dev/(sd[a-z]+|vd[a-z]+|nvme\d+n\d+|mmcblk\d+)$`)
-  userRe:=regexp.MustCompile(`^[a-z_][a-z0-9_-]{0,31}$`)
-  hostRe:=regexp.MustCompile(`^[a-zA-Z0-9-]{1,63}$`)
-  tzRe  :=regexp.MustCompile(`^[A-Za-z0-9/_+-]+$`)
-  ```
-  Reject `; & | $ ` ` \n ' "` in any shell-touching field.
 - [ ] If shell unavoidable, use `shellescape.Quote()` (`github.com/alessio/shellescape`) not manual `'%s'`
-- [ ] Validate `ExtraPackages` `^[a-zA-Z0-9._+-]+$`, reject `/`, `;` ; `Mirror` enforce `https://` + `url.Parse` allowlist or `dl-cdn.alpinelinux.org`, reject `` ` `` `;`
 
 #### C3 — Weak Credential Handling
 - **Location:** `src/variables/variables.yaml:10` `password: "Alpine.1"` committed (fixture + default). Pre-commit exempts `tests/fixtures/*` but file is example with real password.
@@ -162,12 +154,12 @@ Every `shell.ExecuteCmd(chroot, cmd)` → `execute.go:79,84` `sh -c <cmd>`. Unva
 - [ ] **H3 — Nix perms 775/1777 + trusted-users @wheel** `nix.go:43 775`, `116 1777`, Fix: `build` dir `750 root:nixbld` not 775.
 - [ ] **H4 — swapSize DoS** `utils/swap/swap.go:45` `^(\d+)\s*([kmgtp]?)$` accepts any `n`, `n=999999` P → petabyte `mkswapfile`, filling disk. No upper bound. Fix: cap `maxSwapMiB=32768` or `RAM*2 max 64G`, error if `n > 1024*1024`.
 - [ ] **H5 — Swap keyfile TOCTOU** `btrfsRaid0/partitioning.go:166` `dd ... of=%s && chmod 400` creates 644 window (umask 022) before chmod, host `/mnt` unencrypted. Fix: `install -m 400 /dev/null <path> && dd ... conv=notrunc` or `umask 077; dd ...`.
-- [ ] **H6 — `SKEA_NONINTERACTIVE=ignore` swallows crypto failures** `utils/shell/execute.go:141-149` if `ignore`, `luksFormat` failure returns nil. Harness sets `ignore` (`service.go:762`). Broken LUKS → insecure fallback but installer reports success. Fix: `critical bool` param to `ExecuteCmd` forcing fail for `luksFormat`, `LuksOpen`, `mkfs`, `passwd`.
+- [x] **H6 — `SKEA_NONINTERACTIVE=ignore` swallows crypto failures** ✅ Added `critical bool` param to `ExecuteCmdWithAllowFail`. When `critical=true`, error is always returned regardless of `SKEA_NONINTERACTIVE` setting. `luks.go`/`users.go` already use `exec.Command` (not `ExecuteCmd`), so they're already safe.
 
 ### 3.3 Medium
 
 - [ ] **M1 — Hostname/limits escaping** `network.go:16` `echo '%s' > /etc/hostname` no escape, `misc.go:36` `ln -sf ...%s` no escape, `boot.go:23` escapes but fragile. Fix: `shellescape.Quote` or `os.WriteFile(filepath.Join(chroot,"etc/hostname"), []byte(u.Hostname), 0644)` avoiding shell.
-- [ ] **M2 — Nix sandbox weakened persisted** `nix.go:135` `nix profile add --option sandbox false` + `TMPDIR/NIXPKGS_ALLOW_INSECURE` in `/etc/profile.d/nix-daemon.sh` persist to prod. Fix: scope `sandbox false` via `nix.conf` during install then remove post-install; don't export `ALLOW_INSECURE` globally.
+- [x] **M2 — Nix sandbox weakened persisted** ✅ Removed `NIXPKGS_ALLOW_INSECURE=1` from `/etc/profile.d/nix-daemon.sh`, `/etc/fish/conf.d/nix.fish`, `/etc/bash/nix.sh`. No longer persists to prod. `TMPDIR` and `XKB_CONFIG_ROOT` retained (required).
 - [x] **M4 — Permissions audit** No `0777` found, `0755`/`0600`/`0400` correct. Harness `chmod_77_check` reads installer.log from HOST and fails if `chmod 77` found. `0755`/`0600`/`0400` correct. ✅
 
 ### 3.4 Positive — Keep

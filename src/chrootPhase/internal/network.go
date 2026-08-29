@@ -13,11 +13,12 @@ func SetupNetwork(conf *config.Config) error {
 	u := conf.User
 
 	fmt.Printf("[INFO] Setting hostname to %s\n", u.Hostname)
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/hostname", u.Hostname)); err != nil {
+	escapedHostname := strings.ReplaceAll(u.Hostname, "'", "'\\''")
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/hostname", escapedHostname)); err != nil {
 		return fmt.Errorf("failed to write hostname: %w", err)
 	}
 
-	hostsContent := fmt.Sprintf("echo '127.0.0.1 %s %s.localdomain\n::1 %s %s.localdomain' > /etc/hosts", u.Hostname, u.Hostname, u.Hostname, u.Hostname)
+	hostsContent := fmt.Sprintf("echo '127.0.0.1 %s %s.localdomain\n::1 %s %s.localdomain' > /etc/hosts", escapedHostname, escapedHostname, escapedHostname, escapedHostname)
 	if _, err := shell.ExecuteCmd(chroot, hostsContent); err != nil {
 		return fmt.Errorf("failed to write hosts: %w", err)
 	}

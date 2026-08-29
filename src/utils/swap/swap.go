@@ -44,6 +44,9 @@ func autoSwapSizeMiB() (int, error) {
 
 var sizeRe = regexp.MustCompile(`(?i)^(\d+)\s*([kmgtp]?)$`)
 
+// maxSwapMiB caps explicit swap sizes to prevent DoS (e.g. 999999P = petabyte).
+const maxSwapMiB = 32768 // 32 GiB
+
 // parseSwapSizeMiB parses an explicit size like "8G" / "4096M" into MiB.
 func parseSwapSizeMiB(size string) (int, error) {
 	m := sizeRe.FindStringSubmatch(size)
@@ -55,26 +58,29 @@ func parseSwapSizeMiB(size string) (int, error) {
 		return 0, fmt.Errorf("invalid swap size %q: %w", size, err)
 	}
 	unit := strings.ToLower(m[2])
+	var mib int
 	switch unit {
 	case "", "m":
-		return n, nil
+		mib = n
 	case "k":
 		if n == 0 {
 			return 0, nil
 		}
-		// ceil KiB→MiB, min 1
-		mib := (n + 1023) / 1024
+		mib = (n + 1023) / 1024
 		if mib == 0 {
 			mib = 1
 		}
-		return mib, nil
 	case "g":
-		return n * 1024, nil
+		mib = n * 1024
 	case "t":
-		return n * 1024 * 1024, nil
+		mib = n * 1024 * 1024
 	case "p":
-		return n * 1024 * 1024 * 1024, nil
+		mib = n * 1024 * 1024 * 1024
 	default:
 		return 0, fmt.Errorf("invalid swap size %q", size)
 	}
+	if mib > maxSwapMiB {
+		return 0, fmt.Errorf("swap size %d MiB exceeds maximum %d MiB (32 GiB)", mib, maxSwapMiB)
+	}
+	return mib, nil
 }
