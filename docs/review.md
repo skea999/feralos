@@ -1,13 +1,33 @@
-# Code Review — To Review
+# Code Review
 
-**Date:** 2026-08-23
-**Scope:** `src/`, `tests/harness/`, `docs/`, `config` — full installer Phase 1 (btrfsStandard/btrfsRaid0/btrfsStandardServer, Nix, niri, swap, hardening, TPM/SecureBoot stubs)
-**Agents:** `review` (isolation + security) + `explore` (feature confinement) + `explore` (i18n + naming) + `review` (vulnerability + information-scan) — parallel
-**Status:** 🟡 Partially Resolved — §1 §2 §3.1 DONE, §3.2-3.3 open, §4-7 open
-**Stats:** 14+1 templates + swap 25/25 + 4 harness 36/36 (btrfsStandard/Raid0/Server/Unencrypted)
-**Progress:** §1 Feature Confinement ✅ DONE, §2 Isolation ✅ DONE, §3.1 Secrets ✅ DONE, §3.1 chmod_77 ✅ DONE, §3.1 config markers ✅ DONE
+| | |
+|---|---|
+| **Date** | 2026-08-23 |
+| **Scope** | `src/`, `tests/harness/`, `docs/`, `config` — full installer Phase 1 |
+| **Layouts** | btrfsStandard, btrfsRaid0, btrfsStandardServer, btrfsUnencrypted |
+| **Agents** | `review` (isolation + security), `explore` (feature confinement + i18n + naming), `review` (vulnerability + information-scan) — parallel |
+| **Status** | 🟡 Partially Resolved |
+| **Templates** | 15 fixtures + swap 25/25 + 4 harness 36/36 |
 
-> **How to use:** Go checkbox by checkbox `[ ] → [x]`. Each item has `file:line` + severity + fix snippet. Commit per section with `fix(review): <area>`. Italian→English and naming fixes already applied (see §6, §7 — verify).
+### Progress
+
+| Section | Topic | Status |
+|---------|-------|--------|
+| §0 | Immediate fixes (i18n, naming, docs) | ✅ DONE |
+| §1 | Feature Confinement (8/8) | ✅ DONE |
+| §2 | HostPhase ↔ ChrootPhase Isolation | ✅ DONE |
+| §3.1 | Secrets leakage + injection + chmod_77 + config markers | ✅ DONE |
+| §3.2 | High (Nix perms, swapSize, TOCTOU, ignore) | ⏳ OPEN |
+| §3.3 | Medium (hostname escaping, Nix sandbox, permissions) | ⏳ OPEN |
+| §4 | Code Quality / DRY / Dead Code | ⏳ OPEN |
+| §5 | Naming Conventions | ✅ DONE (1 FIXED) |
+| §6 | Italian → English i18n | ✅ DONE (4 FIXED, 1 intentional) |
+| §7 | Legal-Advisor References | ✅ PASS |
+| §8 | Prioritized Remediation | 4/5 P0 DONE |
+
+### How to use
+
+Go checkbox by checkbox `[ ] → [x]`. Each item has `file:line` + severity + fix snippet. Commit per section with `fix(review): <area>`.
 
 ---
 
