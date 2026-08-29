@@ -10,7 +10,7 @@ prepare-runner                    run                                          v
 cloud.debian.org ─▶ base qcow2 ─▶ boot runner (Debian) ─▶ copy repo tar.gz ─▶ boot target (Alpine, OVMF+swtpm)
 cache/base-images   overlay+8G    hostfwd 2222, cloud-init    tar -xzf,        disks qcow2 16G default
                     growpart/     tar/curl/parted,            setup.sh --test  3 boots: install→firstBoot→verify
-                    resizefs      boot-finished, poweroff      QMP/poweroff    SSH checks → verify.log
+                    resizefs      boot-finished, poweroff      QMP/poweroff    SSH checks → verify.md
                                  runner-qemu/serial.log       installer.log
                                                               swtpm always (tpm.sock.ctrl)
 ```
@@ -53,7 +53,7 @@ cache/base-images   overlay+8G    hostfwd 2222, cloud-init    tar -xzf,        d
 
 - SSH as `root` (or `InstalledUser`) via `guest.Options`; context timeout `VerificationTimeout` (default 2 min).
 - Checks map (~30 entries): `storage_layout` (`blkid`, `/dev/mapper/luks-*`, `btrfs filesystem show/usage`), `fstab`, `fstab_vs_mount`, `kernel_cmdline` (`root=UUID` or `/dev/mapper/luks-` + `rd.luks.name`), `booster_conf`, `secureboot_conf`, `uki_artifacts` (`linux-lts.efi` + `BOOTX64.EFI`), `subvolumes`, `installed_user`, `tpm_devices`/`clevis_*`/`tpm_auto_unlock` (when TPM expected), `less_dummy` (→ `bat`), `lsattr_nocow`, `services_status`, `zswap_status`/`swap_status`, `vector_*`, `niri_*`/`greetd_*`/`wayvnc_*`/`dms_*` when niri, etc.
-- Result: `VerifyResult{Success, Checks map[string]CheckResult{Pass, Detail}}` written to `verify.log` (markdown summary table) inside the run dir; failures flip `Success=false` with annotated `Detail`.
+- Result: `VerifyResult{Success, Checks map[string]CheckResult{Pass, Detail}}` written to `verify.md` (markdown summary table) inside the run dir; failures flip `Success=false` with annotated `Detail`.
 - Checks are layout-aware: `storage_layout`, `kernel_cmdline`, `secureboot_conf` gated on `EnableSecureboot`.
 - `harness.log` writes a run summary at end of each run.
 

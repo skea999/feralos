@@ -406,28 +406,37 @@ func writeSerial(socketPath, text string) error {
 	return nil
 }
 
-// serialLogLastLineHas checks if the last non-empty line in the serial log
-// contains needle. Used to detect the CURRENT LUKS prompt (not previous ones).
-func serialLogLastLineHas(path, needle string) bool {
+func getSerialLogSize(path string) int64 {
+	info, err := os.Stat(path)
+	if err != nil {
+		return 0
+	}
+	return info.Size()
+}
+
+// serialLogHasPrompt checks if the serial log contains a CURRENT LUKS prompt
+// after minOffset. Old prompts from previous boots are ignored.
+func serialLogHasPrompt(path, needle string, minOffset int64) bool {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return false
 	}
-	lines := strings.Split(string(data), "\n")
-	for i := len(lines) - 1; i >= 0; i-- {
-		line := strings.TrimSpace(lines[i])
-		if line != "" {
-			return strings.Contains(line, needle)
-		}
+	if int64(len(data)) <= minOffset {
+		return false
 	}
-	return false
+	// Only check new data after minOffset, capped to last 4KB
+	start := int(minOffset)
+	if len(data)-start > 4096 {
+		start = len(data) - 4096
+	}
+	return strings.Contains(string(data[start:]), needle)
 }
 
 func waitForSSH(ctx context.Context, opts sshOptions, timeout time.Duration, serialLogPath, serialSocketPath, password string) error {
 	deadline := time.Now().Add(timeout)
 	var lastErr error
 	var unlockAttempts int
-	var lastPromptUnlock time.Time
+	serialStartOffset := getSerialLogSize(serialLogPath)
 	for time.Now().Before(deadline) {
 		attemptCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 		err := sshRun(attemptCtx, opts, "true")
@@ -438,14 +447,14 @@ func waitForSSH(ctx context.Context, opts sshOptions, timeout time.Duration, ser
 		lastErr = err
 
 		if password != "" {
-			luksPrompt := serialLogLastLineHas(serialLogPath, "Enter passphrase for luks-")
-			if luksPrompt && unlockAttempts < 5 && (lastPromptUnlock.IsZero() || time.Since(lastPromptUnlock) >= 5*time.Second) {
+			luksPrompt := serialLogHasPrompt(serialLogPath, "Enter passphrase for luks-", serialStartOffset)
+			// Inject only once per boot — if cat succeeds here, LUKS will unlock.
+			if luksPrompt && unlockAttempts < 1 {
 				fmt.Fprintf(os.Stderr, "debug-run: LUKS prompt detected (attempt=%d), injecting passphrase\n", unlockAttempts+1)
 				if err := writeSerial(serialSocketPath, password); err != nil {
 					fmt.Fprintf(os.Stderr, "debug-run: serial write failed: %v\n", err)
 				}
 				unlockAttempts++
-				lastPromptUnlock = time.Now()
 			}
 		}
 

@@ -3,7 +3,6 @@ variables:
   # Disk Configuration
   disks:
     - "/dev/sda"
-    - "/dev/sdb"
 
   # User and Security
   userName: "skea999"
@@ -27,8 +26,6 @@ variables:
 
   # SSH (optional)
   sshAuthorizedKey: ""
-
-  # Network
   defaultNetworkInterface: "eth0"
 
   # Feature Toggles

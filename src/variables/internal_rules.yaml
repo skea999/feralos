@@ -209,6 +209,10 @@ providePackages:
 
 # Base modules always loaded via modules_force_load in booster
 # These are kernel modules without specific packages (hardware drivers, kernel features)
+# virtio* needed for QEMU target (virtio-net-pci, virtio-blk-pci)
 baseModules:
   - r8169
   - binfmt_misc
+  - virtio
+  - virtio_pci
+  - virtio_net

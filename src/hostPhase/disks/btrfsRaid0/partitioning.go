@@ -20,9 +20,9 @@ func RunBtrfsSetup(conf *config.Config) error {
 	u := &conf.User
 	i := &conf.Internal
 
-	// Verify at least 2 disks for RAID0
-	if len(u.Disks) < 2 {
-		return fmt.Errorf("error: RAID0 layout requires at least 2 disks, configured: %d", len(u.Disks))
+	// Verify exactly 2 disks for RAID0
+	if len(u.Disks) != 2 {
+		return fmt.Errorf("btrfsRaid0 requires exactly 2 disks, got %d: %v", len(u.Disks), u.Disks)
 	}
 
 	d1 := u.Disks[0]

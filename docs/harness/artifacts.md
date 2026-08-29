@@ -22,7 +22,7 @@ tests/artifacts/harness/
 │   ├── runner-serial.log, runner-qemu.log, runner-qmp.sock
 │   ├── installer.log, post-install.log, harness.log (run summary at end), sbctl.log, tpm-post-install.log
 │   ├── target-serial.log, target-qemu.log, target-firmware.log, tser.sock, target-qmp.sock
-│   ├── verify.log (markdown summary table), OVMF_VARS.fd
+│   ├── verify.md (markdown summary table — converted from verify.log; SSH warnings stripped, detail truncated), OVMF_VARS.fd
 │   ├── tpm.sock, tpm.sock.ctrl, tpm-state/, tpm.pid, tpm.log
 │   ├── repo.tgz, variables.yaml, git/bash/fdisk shims
 │   ├── target-serial-clevis-reboot.offset
@@ -70,7 +70,7 @@ go run ./cmd/skea_harness -- logs --log installer --run-dir tests/artifacts/harn
 
 Log names: `installer`, `post-install`, `runner-serial`, `runner-qemu`, `target-serial`, `target-qemu`, `verify`, `harness` (`parseLogsArgs` in `cmd/skea_harness/main.go`). Without `--run-dir`, resolves latest run via `runstate`.
 
-Raw inspect: `cat tests/artifacts/harness/runs/<ts>/installer.log`, `tail -f target-serial.log`, `jq . verify.log`.
+Raw inspect: `cat tests/artifacts/harness/runs/<ts>/installer.log`, `tail -f target-serial.log`, `cat verify.md`.
 
 ## Cache reuse
 

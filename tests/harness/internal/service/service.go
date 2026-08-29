@@ -137,7 +137,6 @@ type VariablesYAML struct {
 		VideoDriver             string   `yaml:"videoDriver"`
 		SSHAuthorizedKey        string   `yaml:"sshAuthorizedKey"`
 		DefaultNetworkInterface string   `yaml:"defaultNetworkInterface"`
-		EnableEncryption        bool     `yaml:"enableEncryption"`
 		EnableSecureboot        bool     `yaml:"enableSecureboot"`
 		EnableTPM               bool     `yaml:"enableTPM"`
 		EnableHardening         bool     `yaml:"enableHardening"`
@@ -496,7 +495,8 @@ func (service *Service) RunInstall(ctx context.Context, cfg *RunConfig) (RunResu
 	}
 
 	// Capture harness output to harness.log in the run directory.
-	harnessLog, logErr := os.Create(filepath.Join(runDir, "harness.log"))
+	var logErr error
+	harnessLog, logErr = os.Create(filepath.Join(runDir, "harness.log"))
 	if logErr == nil {
 		fmt.Fprintf(harnessLog, "run: %s\nlayout: %s\n", runID, cfg.DiskLayout)
 		_ = harnessLog.Sync()
@@ -511,7 +511,7 @@ func (service *Service) RunInstall(ctx context.Context, cfg *RunConfig) (RunResu
 	runnerQemuLog := filepath.Join(runDir, "runner-qemu.log")
 	runnerQMPPath := filepath.Join(runDir, "runner-qmp.sock")
 	installerLogPath := filepath.Join(runDir, "installer.log")
-	verifyLogPath := filepath.Join(runDir, "verify.log")
+	verifyLogPath := filepath.Join(runDir, "verify.md")
 	tpmSocketPath := filepath.Join(runDir, "tpm.sock")
 	tpmControlPath := filepath.Join(runDir, "tpm.sock.ctrl")
 	tpmStateDir := filepath.Join(runDir, "tpm-state")
@@ -1143,7 +1143,7 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg *RunConfig,
 	if err == nil {
 		var sb strings.Builder
 		sb.WriteString(fmt.Sprintf("# Verification: %s\n\n", boolStr(verifyResult.Success, "PASS", "FAIL")))
-		sb.WriteString(fmt.Sprintf("**Layout:** %s\n\n", cfg.DiskLayout))
+		sb.WriteString(fmt.Sprintf("**Layout:** %s  \n**Result:** %d/%d checks passed  \n\n", cfg.DiskLayout, countPassed(verifyResult.Checks), len(verifyResult.Checks)))
 		sb.WriteString("| Check | Status | Detail |\n")
 		sb.WriteString("|-------|--------|--------|\n")
 		for _, name := range sortedKeys(verifyResult.Checks) {
@@ -1152,14 +1152,24 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg *RunConfig,
 			if !check.Pass {
 				status = "❌ FAIL"
 			}
-			detail := strings.ReplaceAll(check.Detail, "\n", " ")
-			if len(detail) > 120 {
-				detail = detail[:117] + "..."
+			// Clean detail: remove SSH host key warning, collapse whitespace, take first meaningful line
+			detail := strings.ReplaceAll(check.Detail, "Warning: Permanently added '[127.0.0.1]:2223' (ED25519) to the list of known hosts.", "")
+			detail = strings.ReplaceAll(detail, "\n", " ")
+			detail = strings.Join(strings.Fields(detail), " ")
+			detail = strings.TrimSpace(detail)
+			if detail == "" {
+				detail = "—"
 			}
+			if len(detail) > 100 {
+				detail = detail[:97] + "..."
+			}
+			// Escape pipes for markdown table
+			detail = strings.ReplaceAll(detail, "|", "\\|")
 			sb.WriteString(fmt.Sprintf("| %s | %s | %s |\n", name, status, detail))
 		}
-		sb.WriteString(fmt.Sprintf("\n**Total:** %d checks, %d passed, %d failed\n",
-			len(verifyResult.Checks), countPassed(verifyResult.Checks), countFailed(verifyResult.Checks)))
+		sb.WriteString(fmt.Sprintf("\n**Total:** %d checks, %d passed, %d failed — %s\n",
+			len(verifyResult.Checks), countPassed(verifyResult.Checks), countFailed(verifyResult.Checks),
+			boolStr(verifyResult.Success, "✅ ALL PASS", "❌ FAIL")))
 		_, _ = verifyFile.WriteString(sb.String())
 		verifyFile.Close()
 	}
@@ -1585,7 +1595,7 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		// warning (informational — retries exhausted, continues). Also
 		// mdadm "error opening /dev/md?" (no pre-existing RAID) and mkfs.btrfs
 		// usage-help example lines (contain "error" in the example text).
-		allowRe := regexp.MustCompile(`(?i)(0 errors|no errors|errors: 0|0 failed|no failed|failed: 0|zero errors|libgpg-error|error trace:|start-stop-daemon: no matching processes found|fsck\.vfat: No such file or directory|dpkg was interrupted|dpkg --configure -a|failed, retrying in|apt does not have a stable CLI|error opening /dev/md|E\.g\.: dev1|LABEL=EFIVDB)`)
+		allowRe := regexp.MustCompile(`(?i)(0 errors|no errors|errors: 0|0 failed|no failed|failed: 0|zero errors|libgpg-error|error trace:|start-stop-daemon: no matching processes found|fsck\.vfat: No such file or directory|dpkg was interrupted|dpkg --configure -a|failed, retrying in|apt does not have a stable CLI|error opening /dev/md|E\.g\.: dev1|LABEL=EFIVDB|errors=remount-ro|BTRFS error.*is missing|BTRFS error.*failed to read system array|BTRFS error.*open_ctree failed)`)
 		var problems []string
 		for _, logName := range []string{"target-serial.log", "installer.log"} {
 			path := filepath.Join(cfg.RunDir, logName)
@@ -2176,18 +2186,20 @@ func writeHarnessVariables(cfg *RunConfig, keyPair guest.KeyPair, outputPath, al
 	}
 
 	disk1 := "/dev/vdb"
-	disk2 := "/dev/vdb"
+	disk2 := ""
 	if cfg.DiskLayout == layoutBtrfsStandardServer || cfg.DiskLayout == layoutBtrfsRaid0 {
 		disk2 = "/dev/vdc"
+	}
+	disksYaml := fmt.Sprintf("  disks:\n    - %q", disk1)
+	if disk2 != "" {
+		disksYaml += fmt.Sprintf("\n    - %q", disk2)
 	}
 
 	sshKey := escapeDoubleQuotes(keyPair.PublicKey)
 	content := fmt.Sprintf(`variables:
   unattended: true
 
-  disks:
-    - "%s"
-    - "%s"
+%s
 
   userName: "%s"
   password: '%s'
@@ -2207,7 +2219,6 @@ func writeHarnessVariables(cfg *RunConfig, keyPair guest.KeyPair, outputPath, al
   sshAuthorizedKey: "%s"
   defaultNetworkInterface: "eth0"
 
-  enableEncryption: true
   enableSecureboot: %s
   enableTPM: %s
   enableHardening: %s
@@ -2226,7 +2237,7 @@ func writeHarnessVariables(cfg *RunConfig, keyPair guest.KeyPair, outputPath, al
     - qemu-img
     - qemu-modules
 `,
-		disk1, disk2,
+		disksYaml,
 		cfg.InstalledUser,
 		escapeDoubleQuotes(cfg.InstalledPassword),
 		alpineMirror,
@@ -2469,7 +2480,7 @@ func resolveLogPath(runDir, logName string) string {
 	case "post-install":
 		return filepath.Join(runDir, "post-install.log")
 	case "verify":
-		return filepath.Join(runDir, "verify.log")
+		return filepath.Join(runDir, "verify.md")
 	case "harness":
 		return filepath.Join(runDir, "harness.log")
 	default:
@@ -2518,7 +2529,9 @@ func waitForTargetSSH(ctx context.Context, instance *qemu.Instance, opts guest.O
 	unlockAttempts := 0
 	sawPromptWithoutFallback := false
 	lastHeartbeat := time.Time{}
-	lastPromptUnlock := time.Time{}
+	// Capture serial log size at start of this boot attempt — only check new output
+	// so old prompts from previous boots (still in last 4KB) don't trigger false inject.
+	serialStartOffset := getSerialLogSize(serialLogPath)
 
 	for time.Now().Before(deadline) {
 		if heartbeat != nil && (lastHeartbeat.IsZero() || time.Since(lastHeartbeat) >= 15*time.Second) {
@@ -2541,15 +2554,16 @@ func waitForTargetSSH(ctx context.Context, instance *qemu.Instance, opts guest.O
 		}
 		lastErr = err
 
-		// Detect CURRENT LUKS prompt — only inject when the last line of the
-		// serial log contains "Enter passphrase for luks-". Previous prompts
-		// from earlier boots are ignored (not just count > 0).
-		luksPrompt := serialLogLastLineHas(serialLogPath, "Enter passphrase for luks-")
+		// Detect CURRENT LUKS prompt after this boot's start offset.
+		// Old prompts from previous boots are ignored via minOffset.
+		luksPrompt := serialLogHasPrompt(serialLogPath, "Enter passphrase for luks-", serialStartOffset)
 		if !allowPassphraseFallback && luksPrompt {
 			sawPromptWithoutFallback = true
 		}
 		if allowPassphraseFallback && strings.TrimSpace(unlockPassword) != "" {
-			promptRetryDue := luksPrompt && unlockAttempts < 4 && (lastPromptUnlock.IsZero() || time.Since(lastPromptUnlock) >= 5*time.Second)
+			// Inject only once per boot — if cat succeeds here, LUKS will unlock and prompt disappears.
+			// Previous code retried 4× every 5s → "mille volte" spam.
+			promptRetryDue := luksPrompt && unlockAttempts < 1
 			if promptRetryDue {
 				logHarness("harness: LUKS prompt detected (attempt=%d), injecting passphrase\n", unlockAttempts+1)
 				// Send one passphrase per LUKS device so all KDF operations start
@@ -2571,7 +2585,6 @@ func waitForTargetSSH(ctx context.Context, instance *qemu.Instance, opts guest.O
 				}
 				if injected {
 					unlockAttempts++
-					lastPromptUnlock = time.Now()
 				}
 			}
 		}
@@ -2708,42 +2721,47 @@ done
 	return outBuf.String(), nil
 }
 
-// serialLogLastLineHas checks if the last non-empty line in the serial log
-// contains needle. Used to detect the CURRENT LUKS prompt (not previous ones).
-func serialLogLastLineHas(path, needle string) bool {
+func getSerialLogSize(path string) int64 {
+	info, err := os.Stat(path)
+	if err != nil {
+		return 0
+	}
+	return info.Size()
+}
+
+// serialLogHasPrompt checks if the serial log contains a CURRENT LUKS prompt
+// after minOffset. minOffset is the file size at start of this boot attempt,
+// so old prompts from previous boots (still in last 4KB) don't trigger.
+func serialLogHasPrompt(path, needle string, minOffset int64) bool {
 	file, err := os.Open(path)
 	if err != nil {
 		return false
 	}
 	defer file.Close()
 
-	var info os.FileInfo
-	if info, err = file.Stat(); err != nil {
+	info, err := file.Stat()
+	if err != nil {
 		return false
 	}
-	readSize := int64(4096)
-	if info.Size() < readSize {
-		readSize = info.Size()
+	// Only check new data after minOffset, capped to last 4KB
+	startOffset := minOffset
+	if info.Size()-startOffset > 4096 {
+		startOffset = info.Size() - 4096
 	}
-	if readSize == 0 {
+	if startOffset < 0 {
+		startOffset = 0
+	}
+	if startOffset >= info.Size() {
 		return false
 	}
-	if _, err = file.Seek(-readSize, io.SeekEnd); err != nil {
+	if _, err = file.Seek(startOffset, io.SeekStart); err != nil {
 		return false
 	}
 	data, err := io.ReadAll(file)
 	if err != nil {
 		return false
 	}
-
-	lines := strings.Split(string(data), "\n")
-	for i := len(lines) - 1; i >= 0; i-- {
-		line := strings.TrimSpace(lines[i])
-		if line != "" {
-			return strings.Contains(line, needle)
-		}
-	}
-	return false
+	return strings.Contains(string(data), needle)
 }
 
 func loadSerialLogOffset(offsetPath string) (int64, error) {
@@ -3002,7 +3020,10 @@ func writeTestResults(runDir string, result VerifyResult) {
 	// Summary table
 	var sb strings.Builder
 	sb.WriteString("# Verification Summary\n\n")
-	sb.WriteString(fmt.Sprintf("**Result:** %s\n\n", boolStr(result.Success, "PASS", "FAIL")))
+	sb.WriteString(fmt.Sprintf("**Result:** %s  \n**Total:** %d checks, %d passed, %d failed — %s\n\n",
+		boolStr(result.Success, "PASS", "FAIL"),
+		len(result.Checks), countPassed(result.Checks), countFailed(result.Checks),
+		boolStr(result.Success, "✅ ALL PASS", "❌ FAIL")))
 	sb.WriteString("| Check | Status | Detail |\n")
 	sb.WriteString("|-------|--------|--------|\n")
 	for _, name := range sortedKeys(result.Checks) {
@@ -3011,14 +3032,19 @@ func writeTestResults(runDir string, result VerifyResult) {
 		if !check.Pass {
 			status = "❌ FAIL"
 		}
-		detail := strings.ReplaceAll(check.Detail, "\n", " ")
-		if len(detail) > 120 {
-			detail = detail[:117] + "..."
+		detail := strings.ReplaceAll(check.Detail, "Warning: Permanently added '[127.0.0.1]:2223' (ED25519) to the list of known hosts.", "")
+		detail = strings.ReplaceAll(detail, "\n", " ")
+		detail = strings.Join(strings.Fields(detail), " ")
+		detail = strings.TrimSpace(detail)
+		if detail == "" {
+			detail = "—"
 		}
+		if len(detail) > 100 {
+			detail = detail[:97] + "..."
+		}
+		detail = strings.ReplaceAll(detail, "|", "\\|")
 		sb.WriteString(fmt.Sprintf("| %s | %s | %s |\n", name, status, detail))
 	}
-	sb.WriteString(fmt.Sprintf("\n**Total:** %d checks, %d passed, %d failed\n",
-		len(result.Checks), countPassed(result.Checks), countFailed(result.Checks)))
 
 	_ = os.WriteFile(filepath.Join(testDir, "summary.md"), []byte(sb.String()), 0o600)
 }

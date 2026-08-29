@@ -23,7 +23,6 @@ variables:
   desktopEnvironment: "none"        # none | kde | niri | gnome
   videoDriver: "none"               # none | amdgpu | nvidia | intel
   sshAuthorizedKey: ""
-  defaultNetworkInterface: "eth0"
   enableSecureboot: false
   enableTPM: false
   enableHardening: false
@@ -65,7 +64,6 @@ variables:
 | `timezone` | `string` | `Europe/Rome`, `America/New_York`, etc. |
 | `locale` | `string` | `it`, `en`, `de`, etc. |
 | `keymap` | `string` | Console keymap `it`, `us`, etc. |
-| `defaultNetworkInterface` | `string` | `eth0`, used for DHCP config in harness. |
 
 ### Repository and Architecture
 

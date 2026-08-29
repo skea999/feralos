@@ -20,8 +20,8 @@ func RunBtrfsSetup(conf *config.Config) error {
 	u := &conf.User
 	i := &conf.Internal
 
-	if len(u.Disks) < 1 {
-		return fmt.Errorf("no disk specified in 'disks' configuration")
+	if len(u.Disks) != 1 {
+		return fmt.Errorf("btrfsUnencrypted requires exactly 1 disk, got %d: %v", len(u.Disks), u.Disks)
 	}
 	targetDisk := u.Disks[0]
 

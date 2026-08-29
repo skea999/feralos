@@ -2,7 +2,6 @@ variables:
   unattended: true
   disks:
     - "/dev/sda"
-    - "/dev/sdb"
   userName: "skea999"
   password: "Alpine.1"
   hostname: "skea-server"

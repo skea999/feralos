@@ -265,7 +265,17 @@ All prior swap/vector/dummy issues resolved. See `CHANGELOG.md` Fixed section. C
 
 ---
 
-*Updated: 2026-08-26*
+*Updated: 2026-08-29*
+
+### 2026-08-29 — Network fix + verify.md + log_errors + unmount investigation
+- network: `defaultNetworkInterface: eth0` restored in fixtures + harness writeHarnessVariables; `virtio_net,virtio_pci,virtio` added to `baseModules` in `internal_rules.yaml`. `btrfsStandard` 33/33 PASS.
+- verify.log → verify.md (markdown table, SSH warnings stripped, detail truncated)
+- log_errors allowlist: added `errors=remount-ro` (fstab), `BTRFS error.*is missing/failed/open_ctree` (transient booster)
+- harnessLog shadow fix (`:=` → `=`), serialLogHasPrompt offset-based
+- LUKS injection: single per boot (`<1`), not 4x
+- enableEncryption removed (leftover)
+- Final cleanup disabled (BTRFS Transaction aborted -5) — sleep 20s before shutdown
+- **TODO**: investigate why final `cleanup.Cleanup(conf)` causes `BTRFS Transaction aborted -5, forced readonly` during runner shutdown
 
 ### 2026-08-26 — Entry-point delegation + isolation doc + harness prepare-runner fix
 **Agent:** codebase
