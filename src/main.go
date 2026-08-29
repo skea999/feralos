@@ -88,10 +88,10 @@ func main() {
 	// 10. Final cleanup — DISABLED: causes BTRFS Transaction aborted -5, forced readonly
 	// during runner shutdown (see runner-serial.log BTRFS error). Disks stay mounted
 	// until poweroff; kernel will sync on shutdown. Was: cleanup.Cleanup(conf)
-	// fmt.Println("[INFO] Step 7: Final cleanup...")
-	// if err := cleanup.Cleanup(conf); err != nil {
-	// 	fmt.Printf("[WARNING] Final cleanup: %v\n", err)
-	// }
+	fmt.Println("[INFO] Step 7: Final cleanup...")
+	if err := cleanup.Cleanup(conf); err != nil {
+		fmt.Printf("[WARNING] Final cleanup: %v\n", err)
+	}
 
 	fmt.Println("--------------------------------------------------")
 	fmt.Println("   INSTALLATION COMPLETED SUCCESSFULLY!          ")

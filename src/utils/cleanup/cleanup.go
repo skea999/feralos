@@ -14,19 +14,22 @@ func Cleanup(conf *config.Config) error {
 	chroot := conf.Internal.ChrootDir
 	fmt.Println("[INFO] Stopping existing RAIDs and swaps...")
 	_, _ = shell.ExecuteCmd("", "swapoff -a")
-	_, _ = shell.ExecuteCmd("", fmt.Sprintf("mountpoint -q %s && umount -fR %s || true", chroot, chroot))
+
+	// Recursive unmount of chroot root to ensure all submounts are released
+	_, _ = shell.ExecuteCmd("", fmt.Sprintf("umount -R %s 2>/dev/null || true", chroot))
 
 	// Unmount virtual FS (dev, proc, sys) — no-op if not mounted
 	for _, dir := range []string{"/dev", "/proc", "/sys"} {
 		_, _ = shell.ExecuteCmd("", fmt.Sprintf("umount -R %s 2>/dev/null || true", chroot+dir))
 	}
 
-	_, _ = shell.ExecuteCmd("", "mdadm --stop /dev/md* 2>/dev/null || true")
+	_, _ = shell.ExecuteCmd("", "mdadm --stop /dev/md? 2>/dev/null || true")
 	_, _ = shell.ExecuteCmd("", "for m in $(dmsetup ls --target crypt 2>/dev/null | awk '{print $1}'); do cryptsetup close \"$m\" 2>/dev/null; done; true")
-	_, _ = shell.ExecuteCmd("", "dmsetup remove_all --force 2>/dev/null || true")
+	_, _ = shell.ExecuteCmd("", "dmsetup remove_all 2>/dev/null || true")
 
-	// Final unmount of chroot root
-	_, _ = shell.ExecuteCmd("", fmt.Sprintf("umount %s 2>/dev/null || true", chroot))
+	fmt.Println("Verify disks: ")
+	_, _ = shell.ExecuteCmd("", "ls -lah /dev/mapper/ || true")
+	_, _ = shell.ExecuteCmd("", "mount || true")
 
 	fmt.Println("[INFO] Disk cleanup complete.")
 	return nil
