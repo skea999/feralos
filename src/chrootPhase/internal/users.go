@@ -4,6 +4,7 @@ import (
 	"alpineInstaller/utils/config"
 	"alpineInstaller/utils/shell"
 	"fmt"
+	"os/exec"
 	"strings"
 )
 
@@ -12,10 +13,12 @@ func SetupUsers(conf *config.Config) error {
 	chroot := conf.Internal.ChrootDir
 	u := conf.User
 
-	// 1. Root password
+	// 1. Root password — uses exec.Command with stdin (no shell, no logging)
 	fmt.Println("[INFO] Setting root password...")
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo -e '%s\n%s' | passwd root", u.Password, u.Password)); err != nil {
-		return fmt.Errorf("failed to set root password: %w", err)
+	passwdCmd := exec.Command("chroot", chroot, "passwd", "root")
+	passwdCmd.Stdin = strings.NewReader(u.Password + "\n" + u.Password + "\n")
+	if output, err := passwdCmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("failed to set root password: %w\n%s", err, string(output))
 	}
 
 	// 2. Create user
@@ -23,8 +26,10 @@ func SetupUsers(conf *config.Config) error {
 	if _, err := shell.ExecuteCmd(chroot, "adduser -D "+u.UserName); err != nil {
 		return fmt.Errorf("failed to create user %s: %w", u.UserName, err)
 	}
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo -e '%s\n%s' | passwd %s", u.Password, u.Password, u.UserName)); err != nil {
-		return fmt.Errorf("failed to set password for %s: %w", u.UserName, err)
+	passwdCmd = exec.Command("chroot", chroot, "passwd", u.UserName)
+	passwdCmd.Stdin = strings.NewReader(u.Password + "\n" + u.Password + "\n")
+	if output, err := passwdCmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("failed to set password for %s: %w\n%s", u.UserName, err, string(output))
 	}
 
 	// 3. Create incus-admin group if incus or incus-feature is installed

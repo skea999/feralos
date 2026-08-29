@@ -3,30 +3,36 @@ package btrfsStandard
 import (
 	"alpineInstaller/utils/shell"
 	"fmt"
+	"os/exec"
 	"strings"
 )
 
 // LuksFormat encrypts a partition with LUKS2.
-// Uses stdin pipe to pass password securely (matches reference shell behavior).
+// Uses exec.Command with stdin pipe to pass password securely (no shell, no logging).
 func LuksFormat(device, password string) error {
 	shell.SetCaller("luks")
 	fmt.Printf("[INFO] LUKS2 format: %s\n", device)
 
 	// cryptsetup luksFormat --type luks2 -v -c aes-xts-plain64 -s 512 --hash sha512 --iter-time 5000 --use-urandom -q --key-file -
-	cmd := fmt.Sprintf("printf '%%s' '%s' | cryptsetup luksFormat %s --type luks2 -v -c aes-xts-plain64 -s 512 --hash sha512 --iter-time 5000 --use-urandom -q --key-file -", password, device)
-	if _, err := shell.ExecuteCmd("", cmd); err != nil {
-		return fmt.Errorf("luksFormat failed on %s: %w", device, err)
+	cmd := exec.Command("cryptsetup", "luksFormat", device,
+		"--type", "luks2", "-v", "-c", "aes-xts-plain64", "-s", "512",
+		"--hash", "sha512", "--iter-time", "5000", "--use-urandom", "-q", "--key-file", "-")
+	cmd.Stdin = strings.NewReader(password)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("luksFormat failed on %s: %w\n%s", device, err, string(output))
 	}
 	return nil
 }
 
 // LuksOpen opens a LUKS-encrypted partition and maps it to /dev/mapper/<name>.
+// Uses exec.Command with stdin pipe (no shell, no logging).
 func LuksOpen(device, name, password string) error {
 	fmt.Printf("[INFO] LUKS open: %s -> %s\n", device, name)
 
-	cmd := fmt.Sprintf("printf '%%s' '%s' | cryptsetup luksOpen %s %s --key-file -", password, device, name)
-	if _, err := shell.ExecuteCmd("", cmd); err != nil {
-		return fmt.Errorf("luksOpen failed on %s: %w", device, err)
+	cmd := exec.Command("cryptsetup", "luksOpen", device, name, "--key-file", "-")
+	cmd.Stdin = strings.NewReader(password)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("luksOpen failed on %s: %w\n%s", device, err, string(output))
 	}
 	return nil
 }
@@ -46,12 +52,14 @@ func LuksMapperPath(uuid string) string {
 }
 
 // LuksAddKey adds a keyfile to a LUKS partition (for swap auto-unlock).
+// Uses exec.Command with stdin pipe (no shell, no logging).
 func LuksAddKey(device, keyfile, password string) error {
 	fmt.Printf("[INFO] LUKS add key: %s -> %s\n", device, keyfile)
 
-	cmd := fmt.Sprintf("printf '%%s' '%s' | cryptsetup luksAddKey %s %s", password, device, keyfile)
-	if _, err := shell.ExecuteCmd("", cmd); err != nil {
-		return fmt.Errorf("luksAddKey failed on %s: %w", device, err)
+	cmd := exec.Command("cryptsetup", "luksAddKey", device, keyfile)
+	cmd.Stdin = strings.NewReader(password)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("luksAddKey failed on %s: %w\n%s", device, err, string(output))
 	}
 	return nil
 }

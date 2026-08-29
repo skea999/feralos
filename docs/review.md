@@ -134,9 +134,7 @@ Every `shell.ExecuteCmd(chroot, cmd)` → `execute.go:79,84` `sh -c <cmd>`. Unva
 
 ### 3.2 High
 
-- [ ] **H1 — `--allow-untrusted` bypasses apk sig** `bootstrap.go:49` `apk.static -X ... --allow-untrusted`, `packages.go:59,103` dummy `apk add --allow-untrusted`. Needed for bootstrap/self-built, but window for MITM if Mirror compromised. Fix: pin `apk-tools-static` hash, verify `/etc/apk/keys` after bootstrap, checksum dummy before install, restrict Mirror https fail-closed.
-- [ ] **H2 — Insecure Mirror SSRF** `bootstrap.go:22-37` trusts arbitrary `u.Mirror` → fetches + `tar -xzf` + `apk add` as root. Fix: enforce `https://`, `curl --fail --proto =https --tlsv1.2 --retry 3`, allowlist.
-- [ ] **H3 — Nix perms 775/1777 + trusted-users @wheel** `nix.go:43 775`, `116 1777`, `31 trusted-users = root @wheel` lets any wheel user run nix `sandbox false` + `NIXPKGS_ALLOW_INSECURE=1` → arbitrary code. Fix: restrict `trusted-users = root` in final system, `build` dir `750 root:nixbld` not 775.
+- [ ] **H3 — Nix perms 775/1777 + trusted-users @wheel** `nix.go:43 775`, `116 1777`, Fix: `build` dir `750 root:nixbld` not 775.
 - [ ] **H4 — swapSize DoS** `utils/swap/swap.go:45` `^(\d+)\s*([kmgtp]?)$` accepts any `n`, `n=999999` P → petabyte `mkswapfile`, filling disk. No upper bound. Fix: cap `maxSwapMiB=32768` or `RAM*2 max 64G`, error if `n > 1024*1024`.
 - [ ] **H5 — Swap keyfile TOCTOU** `btrfsRaid0/partitioning.go:166` `dd ... of=%s && chmod 400` creates 644 window (umask 022) before chmod, host `/mnt` unencrypted. Fix: `install -m 400 /dev/null <path> && dd ... conv=notrunc` or `umask 077; dd ...`.
 - [ ] **H6 — `SKEA_NONINTERACTIVE=ignore` swallows crypto failures** `utils/shell/execute.go:141-149` if `ignore`, `luksFormat` failure returns nil. Harness sets `ignore` (`service.go:762`). Broken LUKS → insecure fallback but installer reports success. Fix: `critical bool` param to `ExecuteCmd` forcing fail for `luksFormat`, `LuksOpen`, `mkfs`, `passwd`.
@@ -145,9 +143,7 @@ Every `shell.ExecuteCmd(chroot, cmd)` → `execute.go:79,84` `sh -c <cmd>`. Unva
 
 - [ ] **M1 — Hostname/limits escaping** `network.go:16` `echo '%s' > /etc/hostname` no escape, `misc.go:36` `ln -sf ...%s` no escape, `boot.go:23` escapes but fragile. Fix: `shellescape.Quote` or `os.WriteFile(filepath.Join(chroot,"etc/hostname"), []byte(u.Hostname), 0644)` avoiding shell.
 - [ ] **M2 — Nix sandbox weakened persisted** `nix.go:135` `nix profile add --option sandbox false` + `TMPDIR/NIXPKGS_ALLOW_INSECURE` in `/etc/profile.d/nix-daemon.sh` persist to prod. Fix: scope `sandbox false` via `nix.conf` during install then remove post-install; don't export `ALLOW_INSECURE` globally.
-- [ ] **M3 — Supply chain Go version** `go.mod:3` `go 1.22.2` has CVE-2024-24788 (1.22.3 fix). Upgrade to `1.22.5+` or `1.23`, `go get -u gopkg.in/yaml.v3`, `govulncheck ./...`, pin `standardPackages` versions not `latest-stable` float.
 - [ ] **M4 — Permissions audit** No `0777` found, `0755`/`0600`/`0400` correct, but `harness/internal/service/service.go:2293` `0o755` for setup scripts expected. Swap key `400` correct but see H5.
-- [ ] **M5 — Verbose logging** `execute.go:94-108` logs every `blkid, lsattr` stdout, `dmesg` unrestricted if `enableDebug` → log flooding, kernel pointer leak.
 
 ### 3.4 Positive — Keep
 
