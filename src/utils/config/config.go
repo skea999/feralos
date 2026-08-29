@@ -19,6 +19,7 @@ type UserVariables struct {
 	Disks              []string `yaml:"disks"`
 	UserName           string   `yaml:"userName"`
 	Password           string   `yaml:"password"`
+	LuksPassword       string   `yaml:"luksPassword"`
 	Hostname           string   `yaml:"hostname"`
 	Timezone           string   `yaml:"timezone"`
 	Locale             string   `yaml:"locale"`
@@ -129,6 +130,11 @@ func LoadConfig(userPath string) (*Config, error) {
 		return nil, fmt.Errorf("input validation: %w", err)
 	}
 
+	// LuksPassword fallback: use Login password if LUKS passphrase not set
+	if conf.User.LuksPassword == "" {
+		conf.User.LuksPassword = conf.User.Password
+	}
+
 	return conf, nil
 }
 
@@ -169,6 +175,7 @@ func validateConfig(conf *Config) error {
 		{"locale", u.Locale},
 		{"keymap", u.Keymap},
 		{"password", u.Password},
+		{"luksPassword", u.LuksPassword},
 	} {
 		if shellMeta.MatchString(field.value) {
 			return fmt.Errorf("invalid %s %q: contains shell metacharacters", field.name, field.value)

@@ -16,7 +16,8 @@
 | §0 | Immediate fixes (i18n, naming, docs) | ✅ DONE |
 | §1 | Feature Confinement (8/8) | ✅ DONE |
 | §2 | HostPhase ↔ ChrootPhase Isolation | ✅ DONE |
-| §3.1 | Secrets leakage + injection + chmod_77 + config markers + C2 input validation + H6 critical flag | ✅ DONE (C3 weak credentials remaining) |
+| §3.1 | Secrets leakage + injection + chmod_77 + config markers + C2 input validation + H6 critical flag | ✅ DONE |
+| §3.1 | C3 Weak credentials: separate LUKS password, min 12 chars, masked input, placeholder | ✅ DONE |
 | §3.2 | High (Nix perms, swapSize, TOCTOU, ignore) | ✅ DONE |
 | §3.3 | Medium (hostname escaping, Nix sandbox, permissions) | ✅ DONE |
 | §4 | Code Quality / DRY / Dead Code | ⏳ OPEN |

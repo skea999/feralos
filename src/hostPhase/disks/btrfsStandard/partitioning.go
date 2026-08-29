@@ -51,7 +51,7 @@ func RunBtrfsSetup(conf *config.Config) error {
 
 	// 4. LUKS Encryption on ROOT partition (partition 2)
 	fmt.Println("[INFO] Configuring LUKS encryption on ROOT partition...")
-	luksRoot, err := SetupLuksPartition(targetDisk+partitionSpacer+"2", u.Password)
+	luksRoot, err := SetupLuksPartition(targetDisk+partitionSpacer+"2", u.LuksPassword)
 	if err != nil {
 		return fmt.Errorf("LUKS setup failed on ROOT: %w", err)
 	}

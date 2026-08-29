@@ -7,7 +7,8 @@ variables:
 
   # User and Security
   userName: "skea999"
-  password: "Alpine.1"
+  password: "CHANGEME"
+  luksPassword: "CHANGEME"
 
   # System Identity
   hostname: "skea-server"

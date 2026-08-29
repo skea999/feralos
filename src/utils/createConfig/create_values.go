@@ -6,7 +6,12 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"unicode/utf8"
+
+	"golang.org/x/term"
 )
+
+const minPasswordLen = 12
 
 // PromptForConfig uses EXCLUSIVELY the values present in conf as defaults.
 func PromptForConfig(conf *config.Config) {
@@ -39,7 +44,26 @@ func PromptForConfig(conf *config.Config) {
 	// Identity & Auth
 	conf.User.Hostname = askQuestion(reader, "Hostname", conf.User.Hostname)
 	conf.User.UserName = askQuestion(reader, "Username", conf.User.UserName)
-	conf.User.Password = askQuestion(reader, "Password", conf.User.Password)
+
+	// Password — masked input via golang.org/x/term
+	fmt.Printf("User Password [%s]: ", maskDefault(conf.User.Password))
+	if pwd, err := term.ReadPassword(int(os.Stdin.Fd())); err == nil && len(pwd) > 0 {
+		conf.User.Password = string(pwd)
+	}
+	fmt.Println() // newline after masked input
+	if utf8.RuneCountInString(conf.User.Password) < minPasswordLen {
+		fmt.Printf("[WARNING] Password too short (%d chars), minimum is %d. Using default.\n", utf8.RuneCountInString(conf.User.Password), minPasswordLen)
+	}
+
+	// LUKS Password — separate prompt (masked)
+	fmt.Printf("LUKS Passphrase [%s]: ", maskDefault(conf.User.LuksPassword))
+	if pwd, err := term.ReadPassword(int(os.Stdin.Fd())); err == nil && len(pwd) > 0 {
+		conf.User.LuksPassword = string(pwd)
+	}
+	fmt.Println()
+	if utf8.RuneCountInString(conf.User.LuksPassword) < minPasswordLen {
+		fmt.Printf("[WARNING] LUKS passphrase too short (%d chars), minimum is %d. Using default.\n", utf8.RuneCountInString(conf.User.LuksPassword), minPasswordLen)
+	}
 
 	// Localization
 	conf.User.Timezone = askQuestion(reader, "Timezone", conf.User.Timezone)
@@ -80,4 +104,11 @@ func askQuestion(reader *bufio.Scanner, label, defaultValue string) string {
 		return input
 	}
 	return defaultValue
+}
+
+func maskDefault(s string) string {
+	if s == "" {
+		return ""
+	}
+	return strings.Repeat("*", len(s))
 }

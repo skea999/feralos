@@ -80,11 +80,11 @@ func RunBtrfsSetup(conf *config.Config) error {
 
 	// 3. LUKS Encryption on ROOT partitions (partition 2, or 3 with swap)
 	fmt.Println("[INFO] Configuring LUKS encryption on ROOT partitions...")
-	luksRoot1, err := SetupLuksPartition(d1+getPartitionSpacer(d1)+rootPart, u.Password)
+	luksRoot1, err := SetupLuksPartition(d1+getPartitionSpacer(d1)+rootPart, u.LuksPassword)
 	if err != nil {
 		return fmt.Errorf("LUKS setup failed on %s: %w", d1, err)
 	}
-	luksRoot2, err := SetupLuksPartition(d2+getPartitionSpacer(d2)+rootPart, u.Password)
+	luksRoot2, err := SetupLuksPartition(d2+getPartitionSpacer(d2)+rootPart, u.LuksPassword)
 	if err != nil {
 		return fmt.Errorf("LUKS setup failed on %s: %w", d2, err)
 	}
@@ -96,10 +96,10 @@ func RunBtrfsSetup(conf *config.Config) error {
 		swapPart1 = d1 + getPartitionSpacer(d1) + "2"
 		swapPart2 = d2 + getPartitionSpacer(d2) + "2"
 
-		if luksErr := LuksFormat(swapPart1, u.Password); luksErr != nil {
+		if luksErr := LuksFormat(swapPart1, u.LuksPassword); luksErr != nil {
 			return fmt.Errorf("LUKS format swap failed on %s: %w", d1, luksErr)
 		}
-		if luksErr := LuksFormat(swapPart2, u.Password); luksErr != nil {
+		if luksErr := LuksFormat(swapPart2, u.LuksPassword); luksErr != nil {
 			return fmt.Errorf("LUKS format swap failed on %s: %w", d2, luksErr)
 		}
 
@@ -112,10 +112,10 @@ func RunBtrfsSetup(conf *config.Config) error {
 		if err != nil {
 			return fmt.Errorf("failed to get swap2 UUID: %w", err)
 		}
-		if err := LuksOpen(swapPart1, "luks-"+swapUUID1, u.Password); err != nil {
+		if err := LuksOpen(swapPart1, "luks-"+swapUUID1, u.LuksPassword); err != nil {
 			return fmt.Errorf("LUKS open swap failed on %s: %w", d1, err)
 		}
-		if err := LuksOpen(swapPart2, "luks-"+swapUUID2, u.Password); err != nil {
+		if err := LuksOpen(swapPart2, "luks-"+swapUUID2, u.LuksPassword); err != nil {
 			return fmt.Errorf("LUKS open swap failed on %s: %w", d2, err)
 		}
 
@@ -154,10 +154,10 @@ func RunBtrfsSetup(conf *config.Config) error {
 		if _, err := shell.ExecuteCmd("", fmt.Sprintf("mkdir -p %s/etc/dmcrypt %s/etc/conf.d && install -m 400 /dev/null %s && dd if=/dev/urandom of=%s bs=512 count=4 conv=notrunc", i.ChrootDir, i.ChrootDir, hostSwapKey, hostSwapKey)); err != nil {
 			return fmt.Errorf("failed to create swap keyfile: %w", err)
 		}
-		if err := LuksAddKey(swapPart1, hostSwapKey, u.Password); err != nil {
+		if err := LuksAddKey(swapPart1, hostSwapKey, u.LuksPassword); err != nil {
 			return fmt.Errorf("failed to add key to swap1: %w", err)
 		}
-		if err := LuksAddKey(swapPart2, hostSwapKey, u.Password); err != nil {
+		if err := LuksAddKey(swapPart2, hostSwapKey, u.LuksPassword); err != nil {
 			return fmt.Errorf("failed to add key to swap2: %w", err)
 		}
 		dmcryptConf := fmt.Sprintf(`
