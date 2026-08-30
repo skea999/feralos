@@ -53,6 +53,32 @@ if [ -n "$GO_FILES" ]; then
     fi
     echo "✓ golangci-lint passed"
   fi
+
+  echo "=== govulncheck (dependency vulnerabilities) ==="
+  if command -v govulncheck &>/dev/null; then
+    VULN_BIN="govulncheck"
+  elif [ -x "$HOME/go/bin/govulncheck" ]; then
+    VULN_BIN="$HOME/go/bin/govulncheck"
+  else
+    echo "⚠ govulncheck not found — skipping (install: go install golang.org/x/vuln/cmd/govulncheck@latest)"
+    VULN_BIN=""
+  fi
+  if [ -n "$VULN_BIN" ]; then
+    if [ "$HAS_SRC" = "yes" ]; then
+      if ! (cd src && "$VULN_BIN" ./...); then
+        echo "✗ govulncheck failed in src/ — commit rejected"
+        echo "To bypass: git commit --no-verify"
+        exit 1
+      fi
+    fi
+    if [ "$HAS_HARNESS" = "yes" ]; then
+      if ! (cd tests/harness && "$VULN_BIN" ./...); then
+        echo "✗ govulncheck failed in tests/harness/ — commit rejected"
+        exit 1
+      fi
+    fi
+    echo "✓ govulncheck passed"
+  fi
 fi
 echo "=== Pre-commit: Information Scan ==="
 
