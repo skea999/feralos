@@ -6,6 +6,12 @@
 
 Podman is a daemonless container engine for developing, managing, and running OCI containers. It runs containers rootless by default, improving security.
 
+Includes:
+- `podman` — container runtime
+- `podman-compose` — Docker Compose compatibility
+- `podman-docker` — Docker CLI compatibility
+- `docker` → `podman` symlink (dummy package)
+
 ## Installation
 
 Podman is installed automatically when `enablePodman: true` in `variables.yaml`.
@@ -14,13 +20,16 @@ Podman is installed automatically when `enablePodman: true` in `variables.yaml`.
 
 ```bash
 # Install podman and dependencies
-apk add podman podman-openrc catatonit slirp4netns fuse-overlayfs uidmap shadow-uidmap
+apk add podman podman-openrc catatonit slirp4netns fuse-overlayfs uidmap shadow-uidmap podman-compose podman-docker
 
 # Enable service
 rc-update add podman default
 
 # Add user to podman group
 adduser <username> podman
+
+# Create docker → podman symlink (handled by dummy package)
+ln -sf /usr/bin/podman /usr/local/bin/docker
 ```
 
 ### Rootless Configuration

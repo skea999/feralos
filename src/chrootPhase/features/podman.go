@@ -11,8 +11,8 @@ func PodmanPackages(conf *config.Config) []string {
 	if !conf.User.EnablePodman {
 		return nil
 	}
-	// docker is a dummy package that creates a symlink /usr/bin/docker → /usr/bin/podman
-	return []string{"podman", "podman-openrc", "catatonit", "slirp4netns", "fuse-overlayfs", "uidmap", "shadow-uidmap", "docker"}
+	// docker is created as dummy package via internal_rules.yaml (podman: replace: docker)
+	return []string{"podman", "podman-openrc", "catatonit", "slirp4netns", "fuse-overlayfs", "uidmap", "shadow-uidmap"}
 }
 
 // SetupPodman configures Podman rootless containers.

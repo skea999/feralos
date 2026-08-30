@@ -1259,8 +1259,8 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 	// Podman checks — container runtime
 	if cfg.EnablePodman {
 		checks["podman_installed"] = "podman --version"
-		checks["podman_running"] = "rc-status 2>/dev/null | grep podman || echo 'podman service not in runlevel'"
-		checks["docker_symlink"] = "ls -la /usr/local/bin/docker 2>/dev/null || echo 'no docker symlink'"
+		checks["podman_running"] = "podman ps"
+		checks["docker_symlink"] = "docker ps"
 	}
 
 	// Webmin checks — web admin panel
