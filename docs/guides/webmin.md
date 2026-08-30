@@ -1,122 +1,216 @@
 # Webmin — Web Administration Panel (Podman Compose)
 
-> Web-based system administration for FeralOS, running in a Podman container managed via compose, with persistent configuration in `/opt/webmin/`.
+> Web-based system administration for FeralOS. Complete guide: install, configure, enable all plugins, custom commands.
 
-## Overview
+## Quick Start (copy & paste)
 
-Webmin provides a web interface for managing:
-- Firewall (FirewallD)
-- Packages (apk)
-- Disk/Filesystems (btrfs)
-- SMART disk health
-- Processes
-- Cron jobs
-- Logs
-- Custom commands (btrbk, nix)
+```bash
+# 1. Create directory structure
+mkdir -p /opt/webmin/{config,commands}
 
-Webmin runs in a Podman container with minimal capabilities, managed via `docker-compose.yml` in `/opt/webmin/`.
+# 2. Create docker-compose.yml
+cat > /opt/webmin/docker-compose.yml << 'EOF'
+services:
+  webmin:
+    image: docker.io/webmin/webmin:latest
+    container_name: webmin
+    hostname: feralos-webmin
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    cap_add:
+      - SYS_CHROOT
+      - NET_BIND_SERVICE
+      - AUDIT_WRITE
+      - SETUID
+      - SETGID
+      - FOWNER
+      - DAC_OVERRIDE
+      - SYS_ADMIN
+    ports:
+      - "127.0.0.1:10000:10000"
+    volumes:
+      - /opt/webmin/config:/etc/webmin
+      - /opt/webmin/commands:/etc/webmin/custom/commands
+      - /etc:/host/etc:ro
+      - /var:/host/var:ro
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /run:/host/run:ro
+      - /boot:/host/boot:ro
+      - /home:/host/home:rw
+      - /root:/host/root:rw
+    environment:
+      - WEBMIN_CONFIG=/etc/webmin
+      - MINISERV_CONFIG=/etc/webmin/miniserv.conf
+EOF
 
-## Installation
+# 3. Create module configs
+mkdir -p /opt/webmin/config/{firewalld,software,custom,smart-status,proc,cron,logviewer}
 
-Webmin is installed automatically when `enableWebmin: true` in `variables.yaml`. This also enables `enablePodman: true`.
+cat > /opt/webmin/config/firewalld/config << 'EOF'
+firewall_cmd=/usr/sbin/firewall-cmd
+firewall_type=firewalld
+EOF
 
-### What gets created
+cat > /opt/webmin/config/software/config << 'EOF'
+package_type=apk
+update_command=apk update
+install_command=apk add
+remove_command=apk del
+search_command=apk search
+EOF
+
+cat > /opt/webmin/config/custom/config << 'EOF'
+commands_dir=/etc/webmin/custom/commands
+EOF
+
+cat > /opt/webmin/config/smart-status/config << 'EOF'
+smartctl_command=/usr/sbin/smartctl
+smartd_conf=/etc/smartd.conf
+EOF
+
+cat > /opt/webmin/config/proc/config << 'EOF'
+ps_command=/bin/ps
+kill_command=/bin/kill
+renice_command=/usr/bin/renice
+EOF
+
+cat > /opt/webmin/config/cron/config << 'EOF'
+cron_dir=/etc/crontabs
+cron_command=/usr/bin/crontab
+EOF
+
+cat > /opt/webmin/config/logviewer/config << 'EOF'
+log_files=/var/log/messages
+log_files=/var/log/syslog
+log_files=/var/log/auth.log
+log_command=/usr/bin/tail
+EOF
+
+# 4. Install Custom Commands module
+curl -sSL https://download.webmin.com/download/modules/custom.wbm.gz -o /tmp/custom.wbm.gz
+cd /tmp && gunzip custom.wbm.gz
+
+# 5. Start Webmin
+cd /opt/webmin && podman compose up -d
+
+# 6. Install module inside container
+podman cp /tmp/custom.wbm webmin:/tmp/custom.wbm
+podman exec webmin /usr/share/webmin/install-module.pl /tmp/custom.wbm
+rm -f /tmp/custom.wbm*
+
+# 7. Set root password
+podman exec webmin sh -c 'echo "root:YOUR_PASSWORD" | chpasswd'
+
+# 8. Access
+echo "Webmin: https://localhost:10000"
+echo "User: root"
+echo "Password: YOUR_PASSWORD"
+```
+
+## Directory Structure
 
 ```
 /opt/webmin/
 ├── docker-compose.yml      # Container definition
-├── config/                 # Persistent module configs (mounted into container)
-│   ├── firewalld/config
-│   ├── software/config
-│   ├── custom/config
-│   ├── smart-status/config
-│   ├── proc/config
-│   ├── cron/config
-│   └── logviewer/config
+├── config/                 # Persistent module configs
+│   ├── firewalld/config    # FirewallD settings
+│   ├── software/config     # apk package manager
+│   ├── custom/config       # Custom commands
+│   ├── smart-status/config # Disk health
+│   ├── proc/config         # Process monitoring
+│   ├── cron/config         # Cron jobs
+│   └── logviewer/config    # System logs
 ├── modules/                # Installed Webmin modules
 └── commands/               # Custom scripts (btrbk, nix)
 ```
 
-### Manual Installation
+## Module Configs (copy & paste)
+
+### FirewallD
 
 ```bash
-# Ensure podman is installed
-rc-service podman start
-
-# Create directory structure
-mkdir -p /opt/webmin/{config,modules,commands}
-
-# Start with podman compose
-cd /opt/webmin && podman compose up -d
-
-# Or with podman-compose
-cd /opt/webmin && podman-compose up -d
+mkdir -p /opt/webmin/config/firewalld
+cat > /opt/webmin/config/firewalld/config << 'EOF'
+firewall_cmd=/usr/sbin/firewall-cmd
+firewall_type=firewalld
+EOF
 ```
 
-## Persistent Configuration
-
-All configuration lives in `/opt/webmin/config/` and is mounted into the container at `/etc/webmin/`.
-
-| Config file | Module | Purpose |
-|-------------|--------|---------|
-| `/opt/webmin/config/firewalld/config` | FirewallD | firewall-cmd path, firewall_type |
-| `/opt/webmin/config/software/config` | Software Packages | apk commands |
-| `/opt/webmin/config/custom/config` | Custom Commands | scripts directory |
-| `/opt/webmin/config/smart-status/config` | SMART Status | smartctl path |
-| `/opt/webmin/config/proc/config` | Process Monitoring | ps/kill/renice paths |
-| `/opt/webmin/config/cron/config` | Cron Jobs | crontab path |
-| `/opt/webmin/config/logviewer/config` | Log Viewer | log files |
-
-Config persists across container restarts and updates.
-
-## Security Model
-
-| Permission | Rationale |
-|------------|-----------|
-| `--read-only` | Immutable root filesystem |
-| `--cap-drop ALL` | Remove all capabilities |
-| `--cap-add SYS_CHROOT` | System management |
-| `--cap-add NET_BIND_SERVICE` | Port 10000 |
-| `--cap-add SETUID/SETGID` | User switching |
-| `-v /opt/webmin/config:/etc/webmin` | Persistent config |
-| `-v /opt/webmin/commands:/etc/webmin/custom/commands` | Custom scripts |
-| `-v /etc:/host/etc:ro` | Read-only system config |
-
-## Access
-
-- **URL:** `https://localhost:10000`
-- **User:** `root`
-- **Password:** root password from installation
-
-### Firefox PWA
-
-A `.desktop` file is created at `~/.local/share/applications/webmin.desktop`.
-
-## Modules
-
-### Built-in (bundled in Docker image)
-
-| Module | Description | Config |
-|--------|-------------|--------|
-| FirewallD | Firewall management | `/opt/webmin/config/firewalld/config` |
-| Software Packages | apk management | `/opt/webmin/config/software/config` |
-| Disk/Filesystems | btrfs/mount management | Built-in |
-| Process Monitoring | Process view/kill | `/opt/webmin/config/proc/config` |
-| Cron Jobs | Scheduled tasks | `/opt/webmin/config/cron/config` |
-| Log Viewer | System logs | `/opt/webmin/config/logviewer/config` |
-
-### Installed by installer
-
-| Module | Description | Source |
-|--------|-------------|--------|
-| Custom Commands | btrbk/nix scripts | `download.webmin.com` |
-
-## Custom Commands
-
-Place scripts in `/opt/webmin/commands/` — they're mounted into the container:
+### Software Packages (apk)
 
 ```bash
-# Create btrbk commands
+mkdir -p /opt/webmin/config/software
+cat > /opt/webmin/config/software/config << 'EOF'
+package_type=apk
+update_command=apk update
+install_command=apk add
+remove_command=apk del
+search_command=apk search
+EOF
+```
+
+### Custom Commands
+
+```bash
+mkdir -p /opt/webmin/config/custom
+cat > /opt/webmin/config/custom/config << 'EOF'
+commands_dir=/etc/webmin/custom/commands
+EOF
+```
+
+### SMART Status
+
+```bash
+mkdir -p /opt/webmin/config/smart-status
+cat > /opt/webmin/config/smart-status/config << 'EOF'
+smartctl_command=/usr/sbin/smartctl
+smartd_conf=/etc/smartd.conf
+EOF
+```
+
+### Process Monitoring
+
+```bash
+mkdir -p /opt/webmin/config/proc
+cat > /opt/webmin/config/proc/config << 'EOF'
+ps_command=/bin/ps
+kill_command=/bin/kill
+renice_command=/usr/bin/renice
+EOF
+```
+
+### Cron Jobs
+
+```bash
+mkdir -p /opt/webmin/config/cron
+cat > /opt/webmin/config/cron/config << 'EOF'
+cron_dir=/etc/crontabs
+cron_command=/usr/bin/crontab
+EOF
+```
+
+### Log Viewer
+
+```bash
+mkdir -p /opt/webmin/config/logviewer
+cat > /opt/webmin/config/logviewer/config << 'EOF'
+log_files=/var/log/messages
+log_files=/var/log/syslog
+log_files=/var/log/auth.log
+log_command=/usr/bin/tail
+EOF
+```
+
+## Custom Commands (copy & paste)
+
+### btrbk commands
+
+```bash
+mkdir -p /opt/webmin/commands
+
 cat > /opt/webmin/commands/btrbk-snapshot << 'EOF'
 #!/bin/sh
 btrbk run --config /etc/btrbk/btrbk.conf
@@ -127,7 +221,59 @@ cat > /opt/webmin/commands/btrbk-list << 'EOF'
 btrbk list snapshots --config /etc/btrbk/btrbk.conf
 EOF
 
+cat > /opt/webmin/commands/btrbk-delete << 'EOF'
+#!/bin/sh
+btrbk delete --config /etc/btrbk/btrbk.conf
+EOF
+
+cat > /opt/webmin/commands/btrbk-restore << 'EOF'
+#!/bin/sh
+btrbk restore --config /etc/btrbk/btrbk.conf
+EOF
+
 chmod +x /opt/webmin/commands/btrbk-*
+```
+
+### nix commands
+
+```bash
+cat > /opt/webmin/commands/nix-update << 'EOF'
+#!/bin/sh
+nix profile upgrade --all
+EOF
+
+cat > /opt/webmin/commands/nix-search << 'EOF'
+#!/bin/sh
+nix search nixpkgs "$1"
+EOF
+
+cat > /opt/webmin/commands/nix-install << 'EOF'
+#!/bin/sh
+nix profile add "nixpkgs#$1"
+EOF
+
+cat > /opt/webmin/commands/nix-remove << 'EOF'
+#!/bin/sh
+nix profile remove "$1"
+EOF
+
+chmod +x /opt/webmin/commands/nix-*
+```
+
+### podman commands
+
+```bash
+cat > /opt/webmin/commands/podman-ps << 'EOF'
+#!/bin/sh
+podman ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+EOF
+
+cat > /opt/webmin/commands/podman-images << 'EOF'
+#!/bin/sh
+podman images --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}"
+EOF
+
+chmod +x /opt/webmin/commands/podman-*
 ```
 
 ## Container Management
@@ -148,18 +294,28 @@ cd /opt/webmin && podman compose stop
 # Start
 cd /opt/webmin && podman compose start
 
-# Update image
+# Update
 cd /opt/webmin && podman compose pull && podman compose up -d
 
 # Full cleanup (keeps config)
 cd /opt/webmin && podman compose down
 ```
 
+## Access
+
+- **URL:** `https://localhost:10000`
+- **User:** `root`
+- **Password:** root password from installation
+
+### Firefox PWA
+
+`.desktop` file at `~/.local/share/applications/webmin.desktop`.
+
 ## Security
 
-- **Container isolation** — Webmin runs in Podman, not directly on host
+- **Container isolation** — Podman, not host
 - **Minimal capabilities** — Only necessary Linux capabilities
-- **Read-only root** — Container filesystem immutable
+- **Read-only root** — Immutable container filesystem
 - **Persistent config** — `/opt/webmin/config/` survives restarts
 - **HTTPS only** — SSL by default
 - **Firewall** — If `webminListenAll: true`, allow port 10000
@@ -167,7 +323,7 @@ cd /opt/webmin && podman compose down
 ## Troubleshooting
 
 ```bash
-# Container status
+# Status
 cd /opt/webmin && podman compose ps
 
 # Logs
