@@ -147,6 +147,8 @@ type VariablesYAML struct {
 		EnableSwap              bool     `yaml:"enableSwap"`
 		SwapSize                string   `yaml:"swapSize"`
 		EnableDebug             bool     `yaml:"enableDebug"`
+		EnablePodman           bool     `yaml:"enablePodman"`
+		EnableWebmin           bool     `yaml:"enableWebmin"`
 		ExtraPackages           []string `yaml:"extraPackages"`
 	} `yaml:"variables"`
 }
@@ -192,6 +194,8 @@ func LoadVariablesFile(cfg *RunConfig, filePath string) error {
 	cfg.EnableNix = v.EnableNix
 	cfg.EnableSwap = v.EnableSwap
 	cfg.SwapSize = v.SwapSize
+	cfg.EnablePodman = v.EnablePodman
+	cfg.EnableWebmin = v.EnableWebmin
 
 	return nil
 }
