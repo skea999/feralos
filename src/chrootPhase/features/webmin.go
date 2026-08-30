@@ -4,7 +4,6 @@ import (
 	"alpineInstaller/utils/config"
 	"alpineInstaller/utils/shell"
 	"fmt"
-	"os"
 	"strings"
 )
 
@@ -197,20 +196,10 @@ func generateComposeFile(conf *config.Config, listenAddr string) error {
 	chroot := conf.Internal.ChrootDir
 	composeFile := "/opt/webmin/docker-compose.yml"
 
-	tmp, err := os.CreateTemp("", "webmin-compose-")
-	if err != nil {
-		return fmt.Errorf("failed to create temp file: %w", err)
-	}
-	defer os.Remove(tmp.Name())
-
-	if _, err := tmp.WriteString(composeContent); err != nil {
-		tmp.Close()
+	// Write directly using cat heredoc
+	escaped := strings.ReplaceAll(composeContent, "'", "'\\''")
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("cat > %s << 'COMPOSE'\n%s\nCOMPOSE", composeFile, escaped)); err != nil {
 		return fmt.Errorf("failed to write compose file: %w", err)
-	}
-	tmp.Close()
-
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("cp %s %s", tmp.Name(), composeFile)); err != nil {
-		return fmt.Errorf("failed to copy compose file: %w", err)
 	}
 
 	// Set ownership
@@ -245,26 +234,15 @@ func generateModuleConfigs(conf *config.Config) {
 	fmt.Println("[INFO] Generated module configs in /opt/webmin/config/")
 }
 
-// writeHostFile writes content to a file on the host filesystem.
+// writeHostFile writes content to a file on the host filesystem using shell.ExecuteCmd.
 func writeHostFile(chroot, path, content string) error {
-	tmp, err := os.CreateTemp("", "webmin-config-")
-	if err != nil {
-		return fmt.Errorf("failed to create temp file: %w", err)
-	}
-	defer os.Remove(tmp.Name())
-
-	if _, err := tmp.WriteString(content); err != nil {
-		tmp.Close()
-		return fmt.Errorf("failed to write temp file: %w", err)
-	}
-	tmp.Close()
-
 	dir := path[:strings.LastIndex(path, "/")]
 	if _, err := shell.ExecuteCmdArgs(chroot, "mkdir", "-p", dir); err != nil {
 		return fmt.Errorf("failed to create dir %s: %w", dir, err)
 	}
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("cp %s %s", tmp.Name(), path)); err != nil {
-		return fmt.Errorf("failed to copy to %s: %w", path, err)
+	escaped := strings.ReplaceAll(content, "'", "'\\''")
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > %s", escaped, path)); err != nil {
+		return fmt.Errorf("failed to write to %s: %w", path, err)
 	}
 	return nil
 }

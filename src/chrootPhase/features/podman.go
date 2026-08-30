@@ -11,7 +11,8 @@ func PodmanPackages(conf *config.Config) []string {
 	if !conf.User.EnablePodman {
 		return nil
 	}
-	return []string{"podman", "podman-openrc", "podman-compose", "podman-docker", "fuse-overlayfs"}
+	// docker is created as dummy package via internal_rules.yaml (podman: replace: docker)
+	return []string{"podman", "podman-openrc", "iptables", "podman-compose", "podman-docker", "fuse-overlayfs"}
 }
 
 // SetupPodman configures Podman rootless containers.
@@ -34,6 +35,11 @@ func SetupPodman(conf *config.Config) error {
 	// Enable podman service
 	if _, err := shell.ExecuteCmdArgs(chroot, "rc-update", "add", "podman", "default"); err != nil {
 		fmt.Printf("[WARNING] Failed to add podman to default runlevel: %v\n", err)
+	}
+
+	// Enable cgroups (required by podman)
+	if _, err := shell.ExecuteCmdArgs(chroot, "rc-update", "add", "cgroups", "default"); err != nil {
+		fmt.Printf("[WARNING] Failed to add cgroups to default runlevel: %v\n", err)
 	}
 
 	// Configure subuid/subgid for rootless containers
