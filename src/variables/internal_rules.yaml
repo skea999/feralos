@@ -87,6 +87,8 @@ standardPackages:
   - fd
   - dust
   - bat
+  # Firewall
+  - firewalld
 
 # 1. Disk Layouts Definitions
 diskLayouts:
@@ -107,14 +109,14 @@ desktopEnvironments:
     services: {"sddm": "default", "dbus": "default"}
     groups: ["video", "input"]
   niri:
-    packages: ["niri", "niri-portalsconf", "greetd", "greetd-regreet", "greetd-openrc", "elogind", "elogind-openrc", "dbus", "alacritty", "wayvnc", "xdg-desktop-portal-wlr", "xdg-desktop-portal-gtk", "pipewire", "polkit-elogind", "polkit-gnome", "xwayland-satellite", "wl-clipboard", "mesa-dri-gallium", "wayland-libs-server"]
+    packages: ["niri", "niri-portalsconf", "greetd", "greetd-regreet", "greetd-openrc", "elogind", "elogind-openrc", "dbus", "alacritty", "wayvnc", "xdg-desktop-portal-wlr", "xdg-desktop-portal-gtk", "pipewire", "polkit-elogind", "polkit-gnome", "xwayland-satellite", "mesa-dri-gallium", "wayland-libs-server", "cosmic-files", "cosmic-edit", "cosmic-screenshot", "okular", "eog", "cups", "cups-filters", "cups-browsed", "avahi", "system-config-printer", "cosmic-player", "libreoffice", "galculator", "firefox", "firewalld-gui", "gnome-firmware", "thunderbird"]
     # turnstile: edge only (not in Alpine 3.24) — include when stable
-    services: {"greetd": "default", "elogind": "default"}
+    services: {"greetd": "default", "elogind": "default", "firewalld": "default"}
     # render group does not exist on Alpine (video covers DRM access)
     groups: ["video", "input"]
     # Both from the stable nixpkgs channel (nixos-26.05) — dms-shell is
     # packaged in nixpkgs (no external flake needed)
-    nixPackages: ["nixpkgs#quickshell", "nixpkgs#dms-shell"]
+    nixPackages: ["nixpkgs#quickshell", "nixpkgs#dms-shell", "nixpkgs#rclone", "nixpkgs#rclone-ui"]
 
 # 3. Video Drivers Definitions
 videoDrivers:
@@ -153,6 +155,10 @@ packageLogic:
   qemu-system-x86_64:
     groups: ["kvm", "qemu"]
     modules: ["kvm"]
+  podman:
+    packages: ["podman", "podman-openrc", "catatonit", "slirp4netns", "fuse-overlayfs", "uidmap", "shadow-uidmap"]
+    groups: ["podman"]
+    services: {"podman": "default"}
   zram-init:
     services: {"zram-init": "default"}
     modules: ["zram"]

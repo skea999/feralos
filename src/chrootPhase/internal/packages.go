@@ -165,6 +165,12 @@ func SetupPackages(conf *config.Config) error {
 	// Zswap modules (owned by features/zswap.go)
 	u.Modules = appendUnique(u.Modules, features.ZswapModules(conf)...)
 
+	// Podman packages (owned by features/podman.go)
+	allPkgs = append(allPkgs, features.PodmanPackages(conf)...)
+
+	// Webmin packages (owned by features/webmin.go)
+	allPkgs = append(allPkgs, features.WebminPackages(conf)...)
+
 	if len(allPkgs) > 0 {
 		args := append([]string{"add"}, allPkgs...)
 		if _, err := shell.ExecuteCmdArgs(chroot, "apk", args...); err != nil {
