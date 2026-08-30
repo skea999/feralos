@@ -11,25 +11,29 @@ ls tests/fixtures/variables/
 
 Harness loads via `internal/service/service.go:LoadVariablesFile` (`gopkg.in/yaml.v3`). Installer loads via `src/utils/config/config.go:LoadConfig`. Both accept absolute path via `-f` / `-config`.
 
-## Matrix (15 templates)
+## Matrix (19 templates)
 
-| # | Template | diskLayout | enableSwap | swapSize | desktop | secureboot | TPM | hardening | zswap | nix | Purpose |
-|---|----------|------------|------------|----------|---------|------------|-----|-----------|-------|-----|---------|
-| 1 | `btrfs_standard_minimal.yaml` | btrfsStandard | true | auto (2×RAM) | none | false | false | false | false | false | Baseline (mirrors `src/variables/variables.yaml`) |
-| 2 | `btrfs_standard_noswap.yaml` | btrfsStandard | false | auto | none | false | false | false | false | false | @swap NoCoW without swapfile, `services_status` without swap |
-| 3 | `btrfs_standard_swap_explicit_8g.yaml` | btrfsStandard | true | 8g | none | false | false | false | false | false | Parse `8g→8192`, `mkswapfile --size 8192M` |
-| 4 | `btrfs_standard_swap_explicit_4096m.yaml` | btrfsStandard | true | 4096m | none | false | false | false | false | false | Parse `m` unit |
-| 5 | `btrfs_standard_server_minimal.yaml` | btrfsStandardServer | true | auto | none | false | false | false | false | false | Server always LUKS swap (2 partitions, `minDiskSize/4`) |
-| 6 | `btrfs_raid0_minimal.yaml` | btrfsRaid0 | true | auto | none | false | false | false | false | false | RAID0 p2 swap p3 root, `hasHealthyBtrfsRaid0Layout` |
-| 7 | `btrfs_raid0_noswap.yaml` | btrfsRaid0 | false | auto | none | false | false | false | false | false | **Gap critical**: `rootPart=2` fdisk 2 partitions, no dmcrypt |
-| 8 | `btrfs_raid0_swap_explicit_8g.yaml` | btrfsRaid0 | true | 8g | none | false | false | false | false | false | `swapSizeK=4194304K` per p2 |
-| 9 | `btrfs_raid0_full.yaml` | btrfsRaid0 | true | auto | niri | true | true | true | true | true | Full stack: clevis 2 bindings, virtio-gpu, zswap |
-| 10 | `btrfs_standard_secureboot_only.yaml` | btrfsStandard | true | auto | none | true | false | false | false | false | Isolate SecureBoot |
-| 11 | `btrfs_standard_tpm_only.yaml` | btrfsStandard | true | auto | none | false | true | false | false | false | Isolate TPM |
-| 12 | `btrfs_standard_hardening_only.yaml` | btrfsStandard | true | auto | none | false | false | true | false | false | Isolate hardening |
-| 13 | `btrfs_standard_niri.yaml` | btrfsStandard | true | auto | niri | false | false | false | false | true | Desktop niri (auto-nix) |
-| 14 | `full_stack.yaml` | btrfsStandard | true | auto | none | true | true | true | true | true | All true (replaces `tests/variables-full.yaml`) |
-| 15 | `btrfs_unencrypted_minimal.yaml` | btrfsUnencrypted | true | auto | none | false | false | false | false | false | No LUKS, VMs/testing, direct btrfs on partition 2 |
+| # | Template | diskLayout | enableSwap | swapSize | desktop | secureboot | TPM | hardening | zswap | nix | podman | webmin | Purpose |
+|---|----------|------------|------------|----------|---------|------------|-----|-----------|-------|-----|--------|--------|---------|
+| 1 | `btrfs_standard_minimal.yaml` | btrfsStandard | true | auto (2×RAM) | none | false | false | false | false | false | false | false | Baseline (mirrors `src/variables/variables.yaml`) |
+| 2 | `btrfs_standard_noswap.yaml` | btrfsStandard | false | auto | none | false | false | false | false | false | false | false | @swap NoCoW without swapfile, `services_status` without swap |
+| 3 | `btrfs_standard_swap_explicit_8g.yaml` | btrfsStandard | true | 8g | none | false | false | false | false | false | false | false | Parse `8g→8192`, `mkswapfile --size 8192M` |
+| 4 | `btrfs_standard_swap_explicit_4096m.yaml` | btrfsStandard | true | 4096m | none | false | false | false | false | false | false | false | Parse `m` unit |
+| 5 | `btrfs_standard_server_minimal.yaml` | btrfsStandardServer | true | auto | none | false | false | false | false | false | false | false | Server always LUKS swap (2 partitions, `minDiskSize/4`) |
+| 6 | `btrfs_raid0_minimal.yaml` | btrfsRaid0 | true | auto | none | false | false | false | false | false | false | false | RAID0 p2 swap p3 root, `hasHealthyBtrfsRaid0Layout` |
+| 7 | `btrfs_raid0_noswap.yaml` | btrfsRaid0 | false | auto | none | false | false | false | false | false | false | false | **Gap critical**: `rootPart=2` fdisk 2 partitions, no dmcrypt |
+| 8 | `btrfs_raid0_swap_explicit_8g.yaml` | btrfsRaid0 | true | 8g | none | false | false | false | false | false | false | false | `swapSizeK=4194304K` per p2 |
+| 9 | `btrfs_raid0_full.yaml` | btrfsRaid0 | true | auto | niri | true | true | true | true | true | false | false | Full stack: clevis 2 bindings, virtio-gpu, zswap |
+| 10 | `btrfs_standard_secureboot_only.yaml` | btrfsStandard | true | auto | none | true | false | false | false | false | false | false | Isolate SecureBoot |
+| 11 | `btrfs_standard_tpm_only.yaml` | btrfsStandard | true | auto | none | false | true | false | false | false | false | false | Isolate TPM |
+| 12 | `btrfs_standard_hardening_only.yaml` | btrfsStandard | true | auto | none | false | false | true | false | false | false | false | Isolate hardening |
+| 13 | `btrfs_standard_niri.yaml` | btrfsStandard | true | auto | niri | false | false | false | false | true | false | false | Desktop niri (auto-nix) |
+| 14 | `full_stack.yaml` | btrfsStandard | true | auto | none | true | true | true | true | true | true | true | All true (replaces `tests/variables-full.yaml`) |
+| 15 | `btrfs_unencrypted_minimal.yaml` | btrfsUnencrypted | true | auto | none | false | false | false | false | false | false | false | No LUKS, VMs/testing, direct btrfs on partition 2 |
+| 16 | `btrfs_raid0_full_stack.yaml` | btrfsRaid0 | true | auto | none | true | true | true | true | true | true | true | RAID0 full stack with podman + webmin |
+| 17 | `btrfs_standard_server_full_stack.yaml` | btrfsStandardServer | true | auto | none | true | true | true | true | true | true | true | Server full stack with podman + webmin |
+| 18 | `btrfs_unencrypted_full_stack.yaml` | btrfsUnencrypted | true | auto | none | false | false | true | true | true | true | true | Unencrypted full stack (no secureboot/tpm) |
+| 19 | `btrfs_standard_secureboot_tpm.yaml` | btrfsStandard | true | auto | none | true | true | false | false | false | false | false | SecureBoot + TPM combined |
 
 ## Tiering (CI cost)
 

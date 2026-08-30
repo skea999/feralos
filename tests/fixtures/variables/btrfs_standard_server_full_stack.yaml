@@ -25,6 +25,9 @@ variables:
   enableSwap: true
   swapSize: auto
   enableDebug: false
+  enablePodman: true
+  enableWebmin: true
+  webminListenAll: false
   extraPackages:
     - incus-feature
     - incus-feature-vm

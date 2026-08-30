@@ -161,6 +161,7 @@ packageLogic:
     packages: ["podman", "podman-openrc", "catatonit", "slirp4netns", "fuse-overlayfs", "uidmap", "shadow-uidmap"]
     groups: ["podman"]
     services: {"podman": "default"}
+    modules: ["overlay"]
   zram-init:
     services: {"zram-init": "default"}
     modules: ["zram"]
@@ -201,10 +202,6 @@ packageLogic:
     modules: ["bridge", "br_netfilter"]
   zstd:
     modules: ["zstd_compress"]
-  podman:
-    groups: ["podman"]
-    services: {"podman": "default"}
-    modules: ["overlay"]
   docker:
     groups: ["docker"]
     services: {"docker": "default"}
