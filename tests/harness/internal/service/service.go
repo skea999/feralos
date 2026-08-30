@@ -100,6 +100,8 @@ type RunConfig struct {
 	EnableTPM           bool
 	EnableSecureboot    bool
 	EnableHardening     bool
+	EnablePodman        bool `yaml:"enablePodman"`
+	EnableWebmin        bool `yaml:"enableWebmin"`
 	EnableZswap         bool
 	EnableNix           bool
 	EnableSwap          bool
@@ -228,6 +230,8 @@ type VerifyConfig struct {
 	EnableSwap         bool
 	EnableSecureboot   bool
 	EnableTPM          bool
+	EnablePodman       bool
+	EnableWebmin       bool
 	SwapSize           string
 	DiskLayout         string
 	Timeout            time.Duration
@@ -1128,6 +1132,8 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg *RunConfig,
 		EnableSwap:         cfg.EnableSwap,
 		EnableSecureboot:   cfg.EnableSecureboot,
 		EnableTPM:          cfg.EnableTPM,
+		EnablePodman:       cfg.EnablePodman,
+		EnableWebmin:       cfg.EnableWebmin,
 		SwapSize:           cfg.SwapSize,
 		DiskLayout:         cfg.DiskLayout,
 		Timeout:            cfg.VerificationTimeout,
@@ -1244,6 +1250,21 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		checks["niri_greeter"] = "pgrep -x niri"
 		checks["wayvnc_installed"] = fmt.Sprintf("apk info | grep -q '^wayvnc$' && ls /home/%s/.config/wayvnc/config", cfg.InstalledUser)
 		checks["dms_installed"] = fmt.Sprintf("su - %s -c 'nix profile list 2>/dev/null | grep -E \"dms-shell|quickshell\"' && test -x /home/%s/.local/state/nix/profiles/profile/bin/dms", cfg.InstalledUser, cfg.InstalledUser)
+	}
+
+	// Podman checks — container runtime
+	if cfg.EnablePodman {
+		checks["podman_installed"] = "podman --version"
+		checks["podman_running"] = "rc-status 2>/dev/null | grep podman || echo 'podman service not in runlevel'"
+		checks["docker_symlink"] = "ls -la /usr/local/bin/docker 2>/dev/null || echo 'no docker symlink'"
+	}
+
+	// Webmin checks — web admin panel
+	if cfg.EnableWebmin {
+		checks["webmin_container"] = "podman ps --format '{{.Names}}' | grep -q '^webmin$' && echo 'webmin running' || echo 'webmin not running'"
+		checks["webmin_compose"] = "test -f /opt/webmin/docker-compose.yml && echo 'compose file exists' || echo 'compose file missing'"
+		checks["webmin_config"] = "ls /opt/webmin/config/ 2>/dev/null || echo 'no config dir'"
+		checks["webmin_service"] = "ls /etc/init.d/webmin-ensure 2>/dev/null && echo 'service exists' || echo 'no service'"
 	}
 
 	if cfg.EnableSecureboot {
