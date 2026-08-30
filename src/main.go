@@ -80,6 +80,9 @@ func main() {
 	if err := firstboot.SetupTpm(conf); err != nil {
 		fmt.Printf("[WARNING] TPM setup: %v\n", err)
 	}
+	if err := firstboot.SetupWebmin(conf); err != nil {
+		fmt.Printf("[WARNING] Webmin setup: %v\n", err)
+	}
 
 	// 9. Wait for filesystems to sync before shutdown
 	fmt.Println("[INFO] Waiting 20s for filesystem sync...")

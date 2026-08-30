@@ -157,7 +157,6 @@ packageLogic:
     modules: ["kvm"]
   podman:
     packages: ["podman", "podman-openrc", "iptables", "podman-compose", "podman-docker", "fuse-overlayfs"]
-    groups: ["podman"]
     services: {"podman": "default", "cgroups": "default"}
     modules: ["overlay"]
   zram-init:

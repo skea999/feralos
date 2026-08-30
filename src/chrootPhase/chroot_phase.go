@@ -92,11 +92,6 @@ func Run(conf *config.Config) error {
 		return fmt.Errorf("podman setup failed: %w", err)
 	}
 
-	// 10b. Setup webmin (web admin panel, requires podman)
-	if err := features.SetupWebmin(conf); err != nil {
-		return fmt.Errorf("webmin setup failed: %w", err)
-	}
-
 	// 11. Setup boot (booster config, cmdline, hooks)
 	if err := internal.SetupBoot(conf); err != nil {
 		return fmt.Errorf("boot setup failed: %w", err)

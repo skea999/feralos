@@ -13,13 +13,17 @@ import (
 // during installation. FirstBoot binaries read this to understand the
 // disk layout and LUKS configuration without parsing kernel cmdline.
 type InstallConfig struct {
-	DiskLayout string   `yaml:"disk_layout"`
-	Disks      []string `yaml:"disks"`
-	LuksUUIDs  []string `yaml:"luks_uuids"`
-	UserName   string   `yaml:"user_name"`
-	Hostname   string   `yaml:"hostname"`
-	Mirror     string   `yaml:"mirror"`
-	Branch     string   `yaml:"branch"`
+	DiskLayout      string   `yaml:"disk_layout"`
+	Disks           []string `yaml:"disks"`
+	LuksUUIDs       []string `yaml:"luks_uuids"`
+	UserName        string   `yaml:"user_name"`
+	Password        string   `yaml:"password"`
+	Hostname        string   `yaml:"hostname"`
+	Mirror          string   `yaml:"mirror"`
+	Branch          string   `yaml:"branch"`
+	EnablePodman    bool     `yaml:"enable_podman"`
+	EnableWebmin    bool     `yaml:"enable_webmin"`
+	WebminListenAll bool     `yaml:"webmin_listen_all"`
 }
 
 // WriteInstallConfig writes /opt/feralos/config.yaml into the mounted chroot.
@@ -29,12 +33,16 @@ func WriteInstallConfig(conf *config.Config) error {
 	u := &conf.User
 
 	cfg := InstallConfig{
-		DiskLayout: u.DiskLayout,
-		Disks:      u.Disks,
-		UserName:   u.UserName,
-		Hostname:   u.Hostname,
-		Mirror:     u.Mirror,
-		Branch:     u.Branch,
+		DiskLayout:      u.DiskLayout,
+		Disks:           u.Disks,
+		UserName:        u.UserName,
+		Password:        u.Password,
+		Hostname:        u.Hostname,
+		Mirror:          u.Mirror,
+		Branch:          u.Branch,
+		EnablePodman:    u.EnablePodman,
+		EnableWebmin:    u.EnableWebmin,
+		WebminListenAll: u.WebminListenAll,
 	}
 
 	// Extract LUKS UUIDs from kernel cmdline (written by chrootPhase/internal/boot.go)
