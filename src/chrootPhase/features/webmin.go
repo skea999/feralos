@@ -42,6 +42,12 @@ func SetupWebmin(conf *config.Config) error {
 		return fmt.Errorf("failed to pull webmin image: %w", err)
 	}
 
+	// Create persistent volume for Webmin config and modules
+	fmt.Println("[INFO] Creating Webmin persistent volume...")
+	if _, err := shell.ExecuteCmd(chroot, "podman volume create webmin-data 2>/dev/null || true"); err != nil {
+		fmt.Printf("[WARNING] Failed to create webmin-data volume: %v\n", err)
+	}
+
 	// Determine listen address
 	listenAddr := "127.0.0.1"
 	if conf.User.WebminListenAll {
@@ -52,7 +58,7 @@ func SetupWebmin(conf *config.Config) error {
 	// Stop and remove existing webmin container if any
 	_, _ = shell.ExecuteCmd(chroot, "podman rm -f webmin 2>/dev/null")
 
-	// Run Webmin container with minimal permissions
+	// Run Webmin container with minimal permissions and persistent volume
 	fmt.Println("[INFO] Starting Webmin container...")
 	runCmd := fmt.Sprintf(`podman run -d \
 		--name webmin \
@@ -68,6 +74,7 @@ func SetupWebmin(conf *config.Config) error {
 		--cap-add DAC_OVERRIDE \
 		--cap-add SYS_ADMIN \
 		-p %s:10000 \
+		-v webmin-data:/etc/webmin \
 		-v /etc:/host/etc:ro \
 		-v /var:/host/var:ro \
 		-v /proc:/host/proc:ro \
@@ -76,12 +83,17 @@ func SetupWebmin(conf *config.Config) error {
 		-v /boot:/host/boot:ro \
 		-v /home:/host/home:rw \
 		-v /root:/host/root:rw \
-		-e WEBMIN_CONFIG=/host/etc/webmin \
-		-e MINISERV_CONFIG=/host/etc/webmin/miniserv.conf \
+		-e WEBMIN_CONFIG=/etc/webmin \
+		-e MINISERV_CONFIG=/etc/webmin/miniserv.conf \
 		--restart unless-stopped \
 		docker.io/webmin/webmin:latest`, listenAddr)
 	if _, err := shell.ExecuteCmd(chroot, runCmd); err != nil {
 		return fmt.Errorf("failed to start webmin container: %w", err)
+	}
+
+	// Install Webmin modules inside container
+	if err := installWebminModules(conf); err != nil {
+		fmt.Printf("[WARNING] Failed to install some Webmin modules: %v\n", err)
 	}
 
 	// Configure Webmin modules (inside container)
@@ -105,6 +117,36 @@ func SetupWebmin(conf *config.Config) error {
 	if err := createWebminDesktopFile(conf); err != nil {
 		fmt.Printf("[WARNING] Failed to create Webmin .desktop file: %v\n", err)
 	}
+
+	return nil
+}
+
+// installWebminModules installs additional modules not bundled in Docker image.
+func installWebminModules(conf *config.Config) error {
+	chroot := conf.Internal.ChrootDir
+
+	fmt.Println("[INFO] Installing Webmin modules...")
+
+	// Custom Commands module — needed for btrbk/nix scripts
+	fmt.Println("[INFO] Installing Custom Commands module...")
+	downloadCmd := "curl -sSL https://download.webmin.com/download/modules/custom.wbm.gz -o /tmp/custom.wbm.gz"
+	if _, err := shell.ExecuteCmd(chroot, downloadCmd); err != nil {
+		return fmt.Errorf("failed to download custom module: %w", err)
+	}
+
+	// Extract and install module
+	extractCmd := "cd /tmp && gunzip custom.wbm.gz 2>/dev/null; podman cp /tmp/custom.wbm webmin:/tmp/custom.wbm"
+	if _, err := shell.ExecuteCmd(chroot, extractCmd); err != nil {
+		return fmt.Errorf("failed to extract custom module: %w", err)
+	}
+
+	installCmd := "podman exec webmin /usr/share/webmin/install-module.pl /tmp/custom.wbm"
+	if _, err := shell.ExecuteCmd(chroot, installCmd); err != nil {
+		fmt.Printf("[WARNING] Failed to install custom module: %v\n", err)
+	}
+
+	// Clean up
+	_, _ = shell.ExecuteCmdArgs(chroot, "rm", "-f", "/tmp/custom.wbm.gz", "/tmp/custom.wbm")
 
 	return nil
 }
@@ -146,9 +188,8 @@ StartupNotify=true
 	return nil
 }
 
-// configureWebminModules enables and configures the built-in Webmin modules inside the container.
 // writeContainerConfig writes content to a file inside the webmin Podman container.
-// Uses temp file + podman cp to avoid shell quoting issues with echo.
+// Uses temp file + podman cp to avoid shell quoting issues.
 func writeContainerConfig(chroot, path, content string) error {
 	const container = "webmin"
 

@@ -1,6 +1,6 @@
 # Webmin — Web Administration Panel (Podman Container)
 
-> Web-based system administration for FeralOS, running in a Podman container with minimal permissions.
+> Web-based system administration for FeralOS, running in a Podman container with minimal permissions and persistent configuration.
 
 ## Overview
 
@@ -14,7 +14,7 @@ Webmin provides a web interface for managing:
 - Logs
 - Custom commands (btrbk, nix)
 
-Webmin runs in a Podman container with minimal capabilities for security.
+Webmin runs in a Podman container with minimal capabilities. Configuration persists via a named volume.
 
 ## Installation
 
@@ -29,10 +29,13 @@ rc-service podman start
 # Pull Webmin image
 podman pull docker.io/webmin/webmin:latest
 
+# Create persistent volume
+podman volume create webmin-data
+
 # Stop existing container if any
 podman rm -f webmin 2>/dev/null
 
-# Run Webmin with minimal permissions
+# Run Webmin with minimal permissions and persistent volume
 podman run -d \
   --name webmin \
   --hostname feralos-webmin \
@@ -47,6 +50,7 @@ podman run -d \
   --cap-add DAC_OVERRIDE \
   --cap-add SYS_ADMIN \
   -p 127.0.0.1:10000:10000 \
+  -v webmin-data:/etc/webmin \
   -v /etc:/host/etc:ro \
   -v /var:/host/var:ro \
   -v /proc:/host/proc:ro \
@@ -55,11 +59,25 @@ podman run -d \
   -v /boot:/host/boot:ro \
   -v /home:/host/home:rw \
   -v /root:/host/root:rw \
-  -e WEBMIN_CONFIG=/host/etc/webmin \
-  -e MINISERV_CONFIG=/host/etc/webmin/miniserv.conf \
+  -e WEBMIN_CONFIG=/etc/webmin \
+  -e MINISERV_CONFIG=/etc/webmin/miniserv.conf \
   --restart unless-stopped \
   docker.io/webmin/webmin:latest
 ```
+
+## Persistent Volume
+
+Webmin uses a named Podman volume `webmin-data` mounted at `/etc/webmin` inside the container.
+
+| What persists | Path |
+|---------------|------|
+| Webmin config | `/etc/webmin/miniserv.conf` |
+| Installed modules | `/etc/webmin/*/` |
+| Module configs | `/etc/webmin/*/config` |
+| Custom commands | `/etc/webmin/custom/commands/` |
+| User settings | `/etc/webmin/webmin.acl` |
+
+The volume persists across container restarts and updates.
 
 ## Security Model
 
@@ -70,6 +88,7 @@ podman run -d \
 | `--cap-add SYS_CHROOT` | Webmin needs chroot for system management |
 | `--cap-add NET_BIND_SERVICE` | Bind to port 10000 |
 | `--cap-add SETUID/SETGID` | Switch users for admin tasks |
+| `-v webmin-data:/etc/webmin` | Persistent config/modules |
 | `-v /etc:/host/etc:ro` | Read-only access to system config |
 | `-v /home:/host/home:rw` | Read-write for user home management |
 
@@ -85,39 +104,37 @@ A `.desktop` file is created at `~/.local/share/applications/webmin.desktop`. La
 
 ## Modules
 
+### Built-in (bundled in Docker image)
+
 | Module | Description | Configuration |
 |--------|-------------|---------------|
-| FirewallD | Manage firewalld rules, zones, services | Inside container: `/etc/webmin/firewalld/config` |
-| Software Packages | Install/remove/update apk packages | Inside container: `/etc/webmin/software/config` |
-| Disk/Filesystems | Mount/unmount, fstab management | Inside container: `/etc/webmin/mount/config` |
-| Custom Commands | Run btrbk, nix, custom scripts | Inside container: `/etc/webmin/custom/commands/` |
-| SMART Status | Monitor disk health | Inside container: `/etc/webmin/smart-status/config` |
-| Process Monitoring | View/kill processes | Inside container: `/etc/webmin/proc/config` |
-| Cron Jobs | Manage scheduled tasks | Inside container: `/etc/webmin/cron/config` |
-| Log Viewer | View system logs | Inside container: `/etc/webmin/logviewer/config` |
+| FirewallD | Manage firewalld rules, zones, services | `/etc/webmin/firewalld/config` |
+| Software Packages | Install/remove/update apk packages | `/etc/webmin/software/config` |
+| Disk/Filesystems | Mount/unmount, fstab management | `/etc/webmin/mount/config` |
+| Process Monitoring | View/kill processes | `/etc/webmin/proc/config` |
+| Cron Jobs | Manage scheduled tasks | `/etc/webmin/cron/config` |
+| Log Viewer | View system logs | `/etc/webmin/logviewer/config` |
 
-## Container Management
+### Installed by installer
+
+| Module | Description | Installation |
+|--------|-------------|-------------|
+| Custom Commands | Run btrbk, nix, custom scripts | Downloaded from `download.webmin.com` |
+
+### Manual installation
+
+Additional modules can be installed inside the container:
 
 ```bash
-# View Webmin container status
-podman ps | grep webmin
+# Download module
+curl -sSL https://download.webmin.com/download/modules/<module>.wbm.gz -o /tmp/<module>.wbm.gz
 
-# View Webmin logs
-podman logs webmin
+# Extract and copy to container
+cd /tmp && gunzip <module>.wbm.gz
+podman cp /tmp/<module>.wbm webmin:/tmp/<module>.wbm
 
-# Restart Webmin
-podman restart webmin
-
-# Stop Webmin
-podman stop webmin
-
-# Remove Webmin
-podman rm -f webmin
-
-# Update Webmin
-podman pull docker.io/webmin/webmin:latest
-podman rm -f webmin
-# Re-run with same parameters
+# Install inside container
+podman exec webmin /usr/share/webmin/install-module.pl /tmp/<module>.wbm
 ```
 
 ## Custom Commands for btrbk
@@ -139,9 +156,33 @@ btrbk list snapshots --config /etc/btrbk/btrbk.conf
 chmod +x /etc/webmin/custom/commands/btrbk-*
 ```
 
-Add volume mount to container run command:
+The custom commands directory is mounted into the container via `/etc/webmin/custom/commands/`.
+
+## Container Management
+
 ```bash
--v /etc/webmin/custom/commands:/etc/webmin/custom/commands:ro
+# View Webmin container status
+podman ps | grep webmin
+
+# View Webmin logs
+podman logs webmin
+
+# Restart Webmin
+podman restart webmin
+
+# Stop Webmin
+podman stop webmin
+
+# Remove Webmin (keeps volume)
+podman rm -f webmin
+
+# Remove Webmin + volume (full cleanup)
+podman rm -f webmin && podman volume rm webmin-data
+
+# Update Webmin
+podman pull docker.io/webmin/webmin:latest
+podman rm -f webmin
+# Re-run with same parameters (volume persists)
 ```
 
 ## Security
@@ -149,6 +190,7 @@ Add volume mount to container run command:
 - **Container isolation** — Webmin runs in a Podman container, not directly on host
 - **Minimal capabilities** — Only necessary Linux capabilities granted
 - **Read-only root** — Container filesystem is immutable
+- **Persistent volume** — Config survives container restarts
 - **HTTPS only** — Webmin uses SSL by default
 - **Firewall** — If `webminListenAll: true`, ensure firewall allows port 10000
 
@@ -166,4 +208,7 @@ podman restart webmin
 
 # Check container resource usage
 podman stats webmin
+
+# Inspect persistent volume
+podman volume inspect webmin-data
 ```
