@@ -138,20 +138,13 @@ start() {
 `
 
 	serviceFile := "/etc/init.d/webmin-ensure"
-	tmp, err := os.CreateTemp("", "webmin-service-")
-	if err != nil {
-		return fmt.Errorf("failed to create temp file: %w", err)
-	}
-	defer os.Remove(tmp.Name())
 
-	if _, err := tmp.WriteString(serviceScript); err != nil {
-		tmp.Close()
-		return fmt.Errorf("failed to write service script: %w", err)
-	}
-	tmp.Close()
-
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("cp %s %s && chmod 755 %s", tmp.Name(), serviceFile, serviceFile)); err != nil {
+	// Write service script directly using shell.ExecuteCmd
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("cat > %s << 'SERVICE'\n%s\nSERVICE", serviceFile, serviceScript)); err != nil {
 		return fmt.Errorf("failed to install webmin service: %w", err)
+	}
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("chmod 755 %s", serviceFile)); err != nil {
+		return fmt.Errorf("failed to chmod webmin service: %w", err)
 	}
 
 	// Enable the service
@@ -418,27 +411,20 @@ func configureWebminModules(conf *config.Config) error {
 }
 
 // writeContainerConfig writes content to a file inside the webmin Podman container.
+// Uses podman exec + echo to write directly inside the container.
 func writeContainerConfig(chroot, path, content string) error {
 	const container = "webmin"
 
-	tmp, err := os.CreateTemp("", "webmin-config-")
-	if err != nil {
-		return fmt.Errorf("failed to create temp file: %w", err)
-	}
-	defer os.Remove(tmp.Name())
-
-	if _, err := tmp.WriteString(content); err != nil {
-		tmp.Close()
-		return fmt.Errorf("failed to write temp file: %w", err)
-	}
-	tmp.Close()
-
+	// Create parent directory in container
 	dir := path[:strings.LastIndex(path, "/")]
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("podman exec %s mkdir -p %s", container, dir)); err != nil {
 		return fmt.Errorf("failed to create dir %s: %w", dir, err)
 	}
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("podman cp %s %s:%s", tmp.Name(), container, path)); err != nil {
-		return fmt.Errorf("failed to copy config to %s:%s: %w", container, path, err)
+
+	// Write content directly inside container using echo
+	escaped := strings.ReplaceAll(content, "'", "'\\''")
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("podman exec %s sh -c 'echo \"%s\" > %s'", container, escaped, path)); err != nil {
+		return fmt.Errorf("failed to write %s: %w", path, err)
 	}
 	return nil
 }

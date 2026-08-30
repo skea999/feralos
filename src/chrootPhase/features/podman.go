@@ -11,8 +11,7 @@ func PodmanPackages(conf *config.Config) []string {
 	if !conf.User.EnablePodman {
 		return nil
 	}
-	// docker is created as dummy package via internal_rules.yaml (podman: replace: docker)
-	return []string{"podman", "podman-openrc", "catatonit", "slirp4netns", "fuse-overlayfs", "uidmap", "shadow-uidmap"}
+	return []string{"podman", "podman-openrc", "podman-compose", "podman-docker", "fuse-overlayfs"}
 }
 
 // SetupPodman configures Podman rootless containers.

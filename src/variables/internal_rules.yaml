@@ -136,8 +136,6 @@ videoDrivers:
 dummyPackages:
   bat:
     replace: less
-  podman:
-    replace: docker
 
 # Dynamic logic: if a package is in the install list, apply these changes
 packageLogic:
@@ -158,7 +156,7 @@ packageLogic:
     groups: ["kvm", "qemu"]
     modules: ["kvm"]
   podman:
-    packages: ["podman", "podman-openrc", "catatonit", "slirp4netns", "fuse-overlayfs", "uidmap", "shadow-uidmap", "podman-compose", "podman-docker"]
+    packages: ["podman", "podman-openrc", "podman-compose", "podman-docker", "fuse-overlayfs"]
     groups: ["podman"]
     services: {"podman": "default"}
     modules: ["overlay"]

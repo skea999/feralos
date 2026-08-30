@@ -2268,6 +2268,10 @@ func writeHarnessVariables(cfg *RunConfig, keyPair guest.KeyPair, outputPath, al
   swapSize: "%s"
   enableDebug: false
 
+  enablePodman: %s
+  enableWebmin: %s
+  webminListenAll: false
+
   extraPackages:
     - incus-feature
     - incus-feature-vm
@@ -2291,6 +2295,8 @@ func writeHarnessVariables(cfg *RunConfig, keyPair guest.KeyPair, outputPath, al
 		yn(cfg.EnableNix),
 		yn(cfg.EnableSwap),
 		cfg.SwapSize,
+		yn(cfg.EnablePodman),
+		yn(cfg.EnableWebmin),
 	)
 
 	if err := os.WriteFile(outputPath, []byte(content), 0o600); err != nil {
