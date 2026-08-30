@@ -1147,7 +1147,7 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg *RunConfig,
 		sb.WriteString(formatCheckTable(verifyResult.Checks))
 		sb.WriteString(fmt.Sprintf("\n**Total:** %d checks, %d passed, %d failed — %s\n",
 			len(verifyResult.Checks), countPassed(verifyResult.Checks), countFailed(verifyResult.Checks),
-			boolStr(verifyResult.Success, "✅ ALL PASS", "❌ FAIL")))
+			boolStr(verifyResult.Success, "🟢 ALL PASS", "🔴 FAIL")))
 		_, _ = verifyFile.WriteString(sb.String())
 		verifyFile.Close()
 	}
@@ -3047,7 +3047,7 @@ func writeTestResults(runDir string, result VerifyResult) {
 	sb.WriteString(fmt.Sprintf("**Result:** %s  \n**Total:** %d checks, %d passed, %d failed — %s\n\n",
 		boolStr(result.Success, "PASS", "FAIL"),
 		len(result.Checks), countPassed(result.Checks), countFailed(result.Checks),
-		boolStr(result.Success, "✅ ALL PASS", "❌ FAIL")))
+		boolStr(result.Success, "🟢 ALL PASS", "🔴 FAIL")))
 	sb.WriteString(formatCheckTable(result.Checks))
 
 	_ = os.WriteFile(filepath.Join(testDir, "summary.md"), []byte(sb.String()), 0o600)
@@ -3060,9 +3060,9 @@ func formatCheckTable(checks map[string]CheckResult) string {
 	sb.WriteString("|-------|--------|--------|\n")
 	for _, name := range sortedKeys(checks) {
 		check := checks[name]
-		status := "✅ PASS"
+		status := "🟢 PASS"
 		if !check.Pass {
-			status = "❌ FAIL"
+			status = "🔴 FAIL"
 		}
 		detail := strings.ReplaceAll(check.Detail, "Warning: Permanently added '[127.0.0.1]:2223' (ED25519) to the list of known hosts.", "")
 		detail = strings.ReplaceAll(detail, "\n", " ")
