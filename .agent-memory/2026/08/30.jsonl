@@ -1,0 +1,4 @@
+{"ts":1788053427306,"topic":"decision","content":"Added dupl linter to golangci-lint (threshold 100) with exclusions for src/hostPhase/disks/ and src/utils/firstboot/ (intentional standalone/layout duplication)","tags":["dedup","golangci-lint"],"importance":"normal"}
+{"ts":1788053428064,"topic":"implementation","content":"Harness dedup: parametrized hasHealthyBtrfsRaidLayout(detail, level), extracted formatCheckTable(), extracted buildBinary() in firstboot.go. Zero dupl findings.","tags":["dedup","harness","firstboot"],"importance":"normal"}
+{"ts":1788053428765,"topic":"fix","content":"swap_test.go: TestParseSwapSizeMiB 1T/1P now expect error (32 GiB maxSwapMiB cap). 26/26 pass.","tags":["swap","test"],"importance":"normal"}
+{"ts":1788053429499,"topic":"summary","content":"Dedup session: dupl linter enabled, harness DRY fixes, firstboot DRY, lint PASS both src/ and harness/. review.md + AGENTS.md updated.","tags":["dedup","lint"],"importance":"normal"}

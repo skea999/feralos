@@ -25,6 +25,7 @@ linters:
     - unconvert
     - unparam
     - whitespace
+    - dupl
 
 linters-settings:
   govet:
@@ -39,6 +40,8 @@ linters-settings:
       - performance
   gofmt:
     simplify: true
+  dupl:
+    threshold: 100
 
 issues:
   max-issues-per-linter: 50
@@ -48,3 +51,9 @@ issues:
       linters:
         - gosec
         - unparam
+    - path: src/hostPhase/disks/
+      linters:
+        - dupl
+    - path: src/utils/firstboot/
+      linters:
+        - dupl

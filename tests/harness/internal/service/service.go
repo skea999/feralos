@@ -1144,29 +1144,7 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg *RunConfig,
 		var sb strings.Builder
 		sb.WriteString(fmt.Sprintf("# Verification: %s\n\n", boolStr(verifyResult.Success, "PASS", "FAIL")))
 		sb.WriteString(fmt.Sprintf("**Layout:** %s  \n**Result:** %d/%d checks passed  \n\n", cfg.DiskLayout, countPassed(verifyResult.Checks), len(verifyResult.Checks)))
-		sb.WriteString("| Check | Status | Detail |\n")
-		sb.WriteString("|-------|--------|--------|\n")
-		for _, name := range sortedKeys(verifyResult.Checks) {
-			check := verifyResult.Checks[name]
-			status := "✅ PASS"
-			if !check.Pass {
-				status = "❌ FAIL"
-			}
-			// Clean detail: remove SSH host key warning, collapse whitespace, take first meaningful line
-			detail := strings.ReplaceAll(check.Detail, "Warning: Permanently added '[127.0.0.1]:2223' (ED25519) to the list of known hosts.", "")
-			detail = strings.ReplaceAll(detail, "\n", " ")
-			detail = strings.Join(strings.Fields(detail), " ")
-			detail = strings.TrimSpace(detail)
-			if detail == "" {
-				detail = "—"
-			}
-			if len(detail) > 100 {
-				detail = detail[:97] + "..."
-			}
-			// Escape pipes for markdown table
-			detail = strings.ReplaceAll(detail, "|", "\\|")
-			sb.WriteString(fmt.Sprintf("| %s | %s | %s |\n", name, status, detail))
-		}
+		sb.WriteString(formatCheckTable(verifyResult.Checks))
 		sb.WriteString(fmt.Sprintf("\n**Total:** %d checks, %d passed, %d failed — %s\n",
 			len(verifyResult.Checks), countPassed(verifyResult.Checks), countFailed(verifyResult.Checks),
 			boolStr(verifyResult.Success, "✅ ALL PASS", "❌ FAIL")))
@@ -1757,18 +1735,30 @@ func parseRCStatus(detail string) map[string]string {
 	return states
 }
 
-func hasHealthyBtrfsRaid1Layout(detail string) bool {
+// hasHealthyBtrfsRaidLayout validates a dual-disk btrfs RAID layout
+// (btrfsRaid0 or btrfsRaid1): two LUKS devices, RAID{level} data + metadata profiles.
+func hasHealthyBtrfsRaidLayout(detail string, level string) bool {
 	lowerDetail := strings.ToLower(detail)
-	// Accept both /dev/mapper/luks-* and /dev/dm-* in the mount line
 	hasMountedBtrfsRoot := regexp.MustCompile(`(?m)^/dev/(mapper/luks-|dm-)[^ ]+ / btrfs `).MatchString(detail)
 	hasEncryptedRootDevices := strings.Count(detail, "/dev/mapper/luks-") >= 2
 	hasTwoBtrfsDevices := len(regexp.MustCompile(`(?m)^\s*devid\s+[0-9]+`).FindAllString(detail, -1)) >= 2
-	hasRaid1ProfileHeader := regexp.MustCompile(`(?m)^Id Path\s+RAID1\s+RAID1(?:\s+RAID1)?(?:\s|$)`).MatchString(detail)
-	hasDataRaid1 := regexp.MustCompile(`(?m)\bData(?:,\s*RAID1:|\s+RAID1\b)`).MatchString(detail) || hasRaid1ProfileHeader
-	hasMetadataRaid1 := regexp.MustCompile(`(?m)\bMetadata(?:,\s*RAID1:|\s+RAID1\b)`).MatchString(detail) || hasRaid1ProfileHeader
+	hasRaidProfileHeader := regexp.MustCompile(fmt.Sprintf(`(?m)^Id Path\s+%[1]s\s+%[1]s(?:\s+%[1]s)?(?:\s|$)`, level)).MatchString(detail)
+	hasDataRaid := regexp.MustCompile(fmt.Sprintf(`(?m)\bData(?:,\s*%[1]s:|\s+%[1]s\b)`, level)).MatchString(detail) || hasRaidProfileHeader
+	hasMetadataRaid := regexp.MustCompile(fmt.Sprintf(`(?m)\bMetadata(?:,\s*%[1]s:|\s+%[1]s\b)`, level)).MatchString(detail) || hasRaidProfileHeader
 	hasMissingDevice := strings.Contains(lowerDetail, " is missing")
 
-	return hasMountedBtrfsRoot && hasEncryptedRootDevices && hasTwoBtrfsDevices && hasDataRaid1 && hasMetadataRaid1 && !hasMissingDevice
+	return hasMountedBtrfsRoot && hasEncryptedRootDevices && hasTwoBtrfsDevices && hasDataRaid && hasMetadataRaid && !hasMissingDevice
+}
+
+// hasHealthyBtrfsRaid1Layout validates a dual-disk btrfs RAID1 layout.
+func hasHealthyBtrfsRaid1Layout(detail string) bool {
+	return hasHealthyBtrfsRaidLayout(detail, "RAID1")
+}
+
+// hasHealthyBtrfsRaid0Layout validates a dual-disk btrfs RAID0 layout
+// (btrfsRaid0): two LUKS devices, RAID0 data + metadata profiles.
+func hasHealthyBtrfsRaid0Layout(detail string) bool {
+	return hasHealthyBtrfsRaidLayout(detail, "RAID0")
 }
 
 // hasHealthyBtrfsSingleLayout validates a single-disk btrfs layout (btrfsStandard):
@@ -1796,22 +1786,6 @@ func hasHealthyBtrfsSingleLayout(detail string) bool {
 	hasDupMetadata := hasSingleProfile || hasDupMetadataRatio
 
 	return hasMountedBtrfsRoot && hasOneEncryptedDevice && hasOneBtrfsDevice && hasSingleData && hasDupMetadata
-}
-
-// hasHealthyBtrfsRaid0Layout validates a dual-disk btrfs RAID0 layout
-// (btrfsRaid0): two LUKS devices, RAID0 data + metadata profiles.
-func hasHealthyBtrfsRaid0Layout(detail string) bool {
-	lowerDetail := strings.ToLower(detail)
-	// Accept both /dev/mapper/luks-* and /dev/dm-* in the mount line
-	hasMountedBtrfsRoot := regexp.MustCompile(`(?m)^/dev/(mapper/luks-|dm-)[^ ]+ / btrfs `).MatchString(detail)
-	hasEncryptedRootDevices := strings.Count(detail, "/dev/mapper/luks-") >= 2
-	hasTwoBtrfsDevices := len(regexp.MustCompile(`(?m)^\s*devid\s+[0-9]+`).FindAllString(detail, -1)) >= 2
-	hasRaid0ProfileHeader := regexp.MustCompile(`(?m)^Id Path\s+RAID0\s+RAID0(?:\s+RAID0)?(?:\s|$)`).MatchString(detail)
-	hasDataRaid0 := regexp.MustCompile(`(?m)\bData(?:,\s*RAID0:|\s+RAID0\b)`).MatchString(detail) || hasRaid0ProfileHeader
-	hasMetadataRaid0 := regexp.MustCompile(`(?m)\bMetadata(?:,\s*RAID0:|\s+RAID0\b)`).MatchString(detail) || hasRaid0ProfileHeader
-	hasMissingDevice := strings.Contains(lowerDetail, " is missing")
-
-	return hasMountedBtrfsRoot && hasEncryptedRootDevices && hasTwoBtrfsDevices && hasDataRaid0 && hasMetadataRaid0 && !hasMissingDevice
 }
 
 // hasHealthyBtrfsUnencryptedLayout validates a single-disk unencrypted btrfs
@@ -3074,10 +3048,18 @@ func writeTestResults(runDir string, result VerifyResult) {
 		boolStr(result.Success, "PASS", "FAIL"),
 		len(result.Checks), countPassed(result.Checks), countFailed(result.Checks),
 		boolStr(result.Success, "✅ ALL PASS", "❌ FAIL")))
+	sb.WriteString(formatCheckTable(result.Checks))
+
+	_ = os.WriteFile(filepath.Join(testDir, "summary.md"), []byte(sb.String()), 0o600)
+}
+
+// formatCheckTable renders verify checks as a markdown table.
+func formatCheckTable(checks map[string]CheckResult) string {
+	var sb strings.Builder
 	sb.WriteString("| Check | Status | Detail |\n")
 	sb.WriteString("|-------|--------|--------|\n")
-	for _, name := range sortedKeys(result.Checks) {
-		check := result.Checks[name]
+	for _, name := range sortedKeys(checks) {
+		check := checks[name]
 		status := "✅ PASS"
 		if !check.Pass {
 			status = "❌ FAIL"
@@ -3095,8 +3077,7 @@ func writeTestResults(runDir string, result VerifyResult) {
 		detail = strings.ReplaceAll(detail, "|", "\\|")
 		sb.WriteString(fmt.Sprintf("| %s | %s | %s |\n", name, status, detail))
 	}
-
-	_ = os.WriteFile(filepath.Join(testDir, "summary.md"), []byte(sb.String()), 0o600)
+	return sb.String()
 }
 
 func boolStr(b bool, trueStr, falseStr string) string {

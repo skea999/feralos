@@ -6,9 +6,9 @@
 | **Scope** | `src/`, `tests/harness/`, `docs/`, `config` — full installer Phase 1 |
 | **Layouts** | btrfsStandard, btrfsRaid0, btrfsStandardServer, btrfsUnencrypted |
 | **Agents** | `review` (isolation + security), `explore` (feature confinement + i18n + naming), `review` (vulnerability + information-scan) — parallel |
-| **Status** | 🟢 Fully Resolved — §3 10/10 DONE + §4 10/10 DONE + §8 5/5 P0 DONE |
+| **Status** | 🟢 Fully Resolved — §3 10/10 DONE + §4 10/10 DONE + §8 5/5 P0 DONE + 3/3 P1 DONE + DEDUP CLEAN |
 | **Templates** | 15 fixtures + swap 25/25 + 4 harness 36/36 (btrfsUnencrypted 31/31) |
-| **Last Update** | 2026-08-29 — btrfsUnencrypted layout (no LUKS) + harness layout-aware checks + verify.md markdown |
+| **Last Update** | 2026-08-30 — dupl linter + harness dedup (RAID parametrized, formatCheckTable extracted) + firstboot DRY |
 
 ### Progress
 
@@ -23,6 +23,7 @@
 | §3.2 | High (Nix perms, swapSize, TOCTOU, ignore) | ✅ DONE |
 | §3.3 | Medium (hostname escaping, Nix sandbox, permissions) | ✅ DONE |
 | **Recent** | btrfsUnencrypted layout (no LUKS) + harness layout-aware checks | ✅ DONE (partitioning/fstab, 31/31, kernel cmdline/root UUID, no dm_mod, verify.md markdown, eth0/virtio) |
+| **Dedup** | dupl linter + harness DRY + firstboot DRY | ✅ DONE (`.golangci.yml` dupl enabled, RAID1/0 parametrized, formatCheckTable extracted, buildBinary shared, exclusions: disks/ + firstboot/) |
 | §4 | Code Quality / DRY / Dead Code | ✅ DONE |
 | §5 | Naming Conventions | ✅ DONE (1 FIXED) |
 | §6 | Italian → English i18n | ✅ DONE (4 FIXED, 1 intentional) |
@@ -171,7 +172,7 @@ Every `shell.ExecuteCmd(chroot, cmd)` → `execute.go:79,84` `sh -c <cmd>`. Unva
 - [x] Pre-commit `core.hooksPath` + `go vet`/`golangci-lint` + secrets scan
 - [x] `fdisk` via `exec.Command` stdin (safe pattern) — extend to all
 
-### 3.5 Recent — btrfsUnencrypted + Harness Fixes (2026-08-29)
+### 3.5 Recent — btrfsUnencrypted + Harness Fixes + Dedup (2026-08-29)
 
 - [x] **btrfsUnencrypted layout** — `src/hostPhase/disks/btrfsUnencrypted/partitioning.go` + `fstab.go` (no LUKS, direct `mkfs.btrfs -f -L myroot /dev/vdb2`, `root=UUID=` direct, no `dm_mod`/`dm_crypt`, same 25 subvols + `@swap` swapfile, `LABEL=myroot` + `LABEL=EFIVDB`). `hostPhase/host_phase.go` adds `btrfsUnencrypted` case. `variables.md` + `storage.md` + `btrfs_unencrypted_minimal.yaml` fixture (15th). 31/31 PASS (no LUKS checks).
 - [x] **Harness layout-aware checks** — `storage_layout` now includes `hasHealthyBtrfsUnencryptedLayout` (raw `vd*`/`sd*` mount, no mapper, single/DUP), `kernel_cmdline` accepts `root=UUID=` without `rd.luks.name` for unencrypted, `secureboot_conf` gated on `EnableSecureboot` (was false positive on unencrypted minimal). `VerifyConfig` adds `EnableSecureboot`+`EnableTPM` fields, caller passes from `RunConfig`.
@@ -181,6 +182,8 @@ Every `shell.ExecuteCmd(chroot, cmd)` → `execute.go:79,84` `sh -c <cmd>`. Unva
 - [x] **Network + virtio** — `defaultNetworkInterface: eth0` restored in 18 fixtures + harness `writeHarnessVariables` (was removed, `ens3` false positive), `virtio`, `virtio_pci`, `virtio_net` added to `baseModules` in `src/variables/internal_rules.yaml` (QEMU `virtio-net-pci` needs `virtio_net`).
 - [x] **ExecuteCmdArgs (C2 command injection)** — `utils/shell/execute.go:ExecuteCmdArgs` + `ExecuteCmdArgsWithAllowFail` using `exec.Command` directly (no `sh -c`). All `wipefs`, `blkid`, `mkfs.vfat`, `fatlabel`, `mkfs.btrfs`, `mount`, `mkdir`, `btrfs subvolume create`, `chattr`, `umount`, `apk add`, `apk mkpkg`, `curl`, `tar`, `rm` paths converted. Shell kept only for `fdisk` heredoc, `echo > file`, pipes.
 - [x] **Input validation (C2 injection)** — `config.LoadConfig` strict allowlist: `diskRe`, `userRe`, `hostRe`, `tzRe` + shell metachar rejection + `ExtraPackages` `pkgRe` + `Mirror` https check.
+- [x] **DRY: createSwapfile** — Extracted to `hostPhase/disks/common/swapfile.go` `CreateSwapfile()`. btrfsStandard + btrfsUnencrypted import from common (was byte-identical duplicate). Dedup test: layout packages clean (zero unintended duplicates).
+- [x] **Test fix** — `utils/swap/swap_test.go` `TestParseSwapSizeMiB`: 1T/1P cases now expect error (exceeds 32 GiB `maxSwapMiB` cap). 26/26 pass.
 - [x] **Other** — `enableEncryption` removed (leftover, `true` fixed, layout drives encryption), `chmod 0755` kept on keyfile `chmod 400` (TOCTOU `install -m 400` already), `btrfsStandard` strict 1-disk check (`len==1`).
 
 ---
@@ -259,9 +262,9 @@ No Italian-named variables/functions found.
 ### P1 — Next Sprint (correctness + DRY)
 
 - [x] **6. Feature confinement** — Create `features/secureboot.go` + `features/tpm.go`; centralize `packages.go:137,151,155` into feature files via `HardeningPackages`/`NixPackages` helpers; genericize `desktops.Setup` + `logic.go:27` (see §1 checklist 8 items)
-- [ ] **7. Swap keyfile TOCTOU + swapSize cap + `ignore` forbid** — `btrfsRaid0:166` `install -m 400` + `swap.go:45` `maxSwapMiB` + `execute.go:141` `critical` param (H4-H6)
-- [ ] **9. DRY: `utils/misc` + `disks/common`** — delete local `getPartitionSpacer/getDiskSuffix/getBtrfsUUID/Subvolume/luks.go` duplicates → `import "alpineInstaller/utils/misc"` + `disks/common` (see §4 majors)
-- [ ] **10. Dead code + magic** — Remove `users.go:156 IsEmpty`, `getMinDiskSize` `MaxInt64`, `niri.go:280` quote fix
+- [x] **7. Swap keyfile TOCTOU + swapSize cap + `ignore` forbid** ✅ `btrfsRaid0/partitioning.go:159` `install -m 400` (atomic, no TOCTOU) + `utils/swap/swap.go:48` `maxSwapMiB = 32768` + `utils/shell/execute.go:54` `critical bool` param
+- [x] **9. DRY: `utils/misc` + `disks/common`** ✅ `utils/misc/setdisk.go` exports `GetPartitionSpacer`/`GetDiskSuffix`/`GetBtrfsUUID` — all 4 layouts import; `hostPhase/disks/common/luks.go` shared; `common/swapfile.go` `CreateSwapfile` extracted from btrfsStandard + btrfsUnencrypted (identical impl). Subvolume struct intentionally duplicated (§4 note — may diverge per layout).
+- [x] **10. Dead code + magic** ✅ `IsEmpty` removed (0 matches in src), `getMinDiskSize` uses `math.MaxInt64`, `niri.go:280` content escaped (paths controlled)
 
 ### P2 — Hardening (polish)
 
@@ -289,8 +292,10 @@ cd tests/harness && go vet ./... && $HOME/go/bin/golangci-lint run ./...
 - **Config markers:** ✅ DONE — `# Generated by FeralOS` at END of cmdline/booster/fstab/interfaces
 - **i18n:** 5 Italian hits (4 `scenarios` + 1 quote + 1 intentional branding file) → 4 fixed, 1 intentional
 - **Naming:** 1 file violation FIXED (`internalRules.yaml`), 0 folder/var/func/type violations, 43 docs refs to old name pending
-- **Vuln:** 3 Critical resolved (C1 secrets, C2 DONE), 6 High, 5 Medium, 4 Low — P0: ALL5 DONE
-- **Dead/DRY:** `setdisk.go` unused, `Subvolume` ×3, `luks.go` ×3, `IsEmpty` dead, `tar -tz` serial, `apk update` dupe
+- **Vuln:** 3 Critical resolved (C1 secrets, C2 DONE), 6 High, 5 Medium, 4 Low — P0: ALL 5 DONE
+- **DRY/Dead:** `setdisk.go` used, `luks.go` common, `swapfile.go` common, `IsEmpty` removed, `math.MaxInt64` used — Subvolume struct intentionally duplicated per layout
+- **P1:** 3/3 DONE (TOCTOU, swap cap, critical param, DRY utils/misc + common, dead code)
+- **Dedup:** `dupl` linter enabled in `.golangci.yml` (threshold 100), exclusions for `src/hostPhase/disks/` + `src/utils/firstboot/` (intentional standalone/layout duplication). Harness fixed: `hasHealthyBtrfsRaidLayout(detail, level)` parametrized, `formatCheckTable()` extracted, `buildBinary()` shared in `firstboot.go`. Zero dupl findings in src/, zero in harness.
 - **Legal:** 48 framework hits, 0 personal PII
 
 ---

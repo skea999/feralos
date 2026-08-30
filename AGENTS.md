@@ -103,9 +103,12 @@ Rules: gitignored `tests/artifacts/**/*` except `.gitkeep`, never commit outputs
 
 ```bash
 cd src && go vet ./...
-cd src && golangci-lint run ./...
+cd src && golangci-lint run ./...       # includes dupl (code clone detection)
 cd tests/harness && go vet ./...
+cd tests/harness && golangci-lint run ./...
 ```
+
+**Dupl exclusions** (intentional duplication): `src/hostPhase/disks/` (layout packages), `src/utils/firstboot/` (standalone binaries). Config: `.golangci.yml` → `dupl.threshold: 100` + `exclude-rules`.
 
 → Details: `docs/guides/development.md` (lint/format)
 
@@ -288,6 +291,14 @@ All prior swap/vector/dummy issues resolved. See `CHANGELOG.md` Fixed section. C
 - enableEncryption removed (leftover)
 - Final cleanup disabled (BTRFS Transaction aborted -5) — sleep 20s before shutdown
 - **TODO**: investigate why final `cleanup.Cleanup(conf)` causes `BTRFS Transaction aborted -5, forced readonly` during runner shutdown
+
+### 2026-08-30 — Dedup: dupl linter + harness DRY + firstboot DRY
+**Agent:** codebase
+- **dupl linter**: added `dupl` to `.golangci.yml` (threshold 100), exclusions for `src/hostPhase/disks/` + `src/utils/firstboot/` (intentional duplication). Pre-commit hook runs golangci-lint which includes dupl.
+- **Harness dedup**: `hasHealthyBtrfsRaidLayout(detail, level string)` parametrized (was 2 identical functions for RAID1/RAID0). `formatCheckTable()` extracted (was 2 identical verify table loops). Zero dupl findings in harness.
+- **firstboot DRY**: `buildBinary()` extracted to `firstboot.go`, `secureboot.go` + `tpm.go` now thin wrappers (13 lines each). Standalone binaries (`src/firstBoot/`) untouched.
+- **swap_test.go fix**: `TestParseSwapSizeMiB` 1T/1P cases now expect error (32 GiB `maxSwapMiB` cap). 26/26 pass.
+- **Docs**: `review.md` updated (§3.5 dedup entry, Appendix dedup row), `AGENTS.md` lint section updated with dupl info.
 
 ### 2026-08-26 — Entry-point delegation + isolation doc + harness prepare-runner fix
 **Agent:** codebase

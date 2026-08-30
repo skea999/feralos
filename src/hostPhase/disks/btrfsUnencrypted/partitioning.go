@@ -1,6 +1,7 @@
 package btrfsUnencrypted
 
 import (
+	"alpineInstaller/hostPhase/disks/common"
 	"alpineInstaller/utils/config"
 	"alpineInstaller/utils/misc"
 	"alpineInstaller/utils/shell"
@@ -68,7 +69,7 @@ func RunBtrfsSetup(conf *config.Config) error {
 			return fmt.Errorf("failed to resolve swap size: %w", err)
 		}
 		fmt.Println("[INFO] Creating swapfile in /swap subvolume...")
-		if err := createSwapfile(i.ChrootDir, swapSizeMiB); err != nil {
+		if err := common.CreateSwapfile(i.ChrootDir, swapSizeMiB); err != nil {
 			return fmt.Errorf("swapfile creation failed: %w", err)
 		}
 		u.Runlevels["boot"] = append(u.Runlevels["boot"], "swap")
@@ -91,28 +92,6 @@ func RunBtrfsSetup(conf *config.Config) error {
 
 	// 8. Generate Fstab
 	return GenerateFstab(conf)
-}
-
-// createSwapfile creates a swapfile using btrfs native command.
-func createSwapfile(chroot string, sizeMiB int) error {
-	swapDir := chroot + "/swap"
-	swapFile := swapDir + "/swapfile"
-
-	if _, err := shell.ExecuteCmdArgs("", "mkdir", "-p", swapDir); err != nil {
-		return fmt.Errorf("failed to create swap directory: %w", err)
-	}
-
-	_, _ = shell.ExecuteCmdArgs("", "rm", "-f", swapFile)
-
-	fmt.Println("[INFO] Creating swapfile with btrfs filesystem mkswapfile...")
-	if _, err := shell.ExecuteCmdArgs("", "btrfs", "filesystem", "mkswapfile", "--size", fmt.Sprintf("%dM", sizeMiB), swapFile); err != nil {
-		return fmt.Errorf("failed to create swapfile: %w", err)
-	}
-
-	lsattrOut, _ := shell.ExecuteCmdArgs("", "lsattr", swapFile)
-	fmt.Printf("[INFO] lsattr swapfile: %s\n", strings.TrimSpace(lsattrOut))
-
-	return nil
 }
 
 // getRootUUID returns the UUID of a btrfs filesystem on a partition (not LUKS).
