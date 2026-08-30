@@ -107,7 +107,7 @@ desktopEnvironments:
     services: {"sddm": "default", "dbus": "default"}
     groups: ["video", "input"]
   niri:
-    packages: ["niri", "niri-portalsconf", "greetd", "greetd-regreet", "greetd-openrc", "elogind", "elogind-openrc", "dbus", "foot", "wayvnc", "xdg-desktop-portal-wlr", "xdg-desktop-portal-gtk", "pipewire", "polkit-elogind", "polkit-gnome", "xwayland-satellite", "wl-clipboard", "mesa-dri-gallium", "wayland-libs-server"]
+    packages: ["niri", "niri-portalsconf", "greetd", "greetd-regreet", "greetd-openrc", "elogind", "elogind-openrc", "dbus", "alacritty", "wayvnc", "xdg-desktop-portal-wlr", "xdg-desktop-portal-gtk", "pipewire", "polkit-elogind", "polkit-gnome", "xwayland-satellite", "wl-clipboard", "mesa-dri-gallium", "wayland-libs-server"]
     # turnstile: edge only (not in Alpine 3.24) — include when stable
     services: {"greetd": "default", "elogind": "default"}
     # render group does not exist on Alpine (video covers DRM access)

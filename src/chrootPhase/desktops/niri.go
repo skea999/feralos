@@ -156,9 +156,9 @@ port=5900
 		return fmt.Errorf("chown wayvnc config: %w", err)
 	}
 
-	// 7. xdg-su wrapper — niri unsupported by xdg-su, use foot + su
+	// 7. xdg-su wrapper — niri unsupported by xdg-su, use alacritty + su
 	xdgSu := `#!/bin/sh
-# xdg-su wrapper — for niri uses foot+su, other DEs call the original
+# xdg-su wrapper — for niri uses alacritty+su, other DEs call the original
 # Not overwritten by updates (in /usr/local/bin)
 
 case "$XDG_CURRENT_DESKTOP" in
@@ -172,11 +172,11 @@ case "$XDG_CURRENT_DESKTOP" in
                 *) shift ;;
             esac
         done
-        if [ -n "$cmd" ] && command -v foot >/dev/null 2>&1; then
+        if [ -n "$cmd" ] && command -v alacritty >/dev/null 2>&1; then
             if [ -n "$user" ]; then
-                exec foot -e su -c "$cmd" "$user"
+                exec alacritty -e su -c "$cmd" "$user"
             else
-                exec foot -e su -c "$cmd"
+                exec alacritty -e su -c "$cmd"
             fi
         fi
         exit 1
