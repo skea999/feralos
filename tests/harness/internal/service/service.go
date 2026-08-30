@@ -1263,11 +1263,12 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		checks["docker_symlink"] = "docker ps"
 	}
 
-	// Webmin checks — web admin panel (standalone binary)
+	// Webmin checks — web admin panel
 	if cfg.EnableWebmin {
-		checks["webmin_binary"] = "ls -la /opt/feralos_webmin 2>/dev/null && echo 'binary exists' || echo 'binary missing'"
-		checks["webmin_config"] = "ls /opt/webmin/config/ 2>/dev/null || echo 'no config dir (run after first boot)'"
-		checks["webmin_compose"] = "test -f /opt/webmin/docker-compose.yml && echo 'compose file exists' || echo 'compose file missing (run after first boot)'"
+		checks["webmin_container"] = "podman ps --format '{{.Names}}' | grep -q '^webmin$' && echo 'webmin running' || echo 'webmin not running'"
+		checks["webmin_compose"] = "test -f /opt/webmin/docker-compose.yml && echo 'compose file exists' || echo 'compose file missing'"
+		checks["webmin_config"] = "ls /opt/webmin/config/ 2>/dev/null || echo 'no config dir'"
+		checks["webmin_service"] = "ls /etc/init.d/webmin-ensure 2>/dev/null && echo 'service exists' || echo 'no service'"
 	}
 
 	if cfg.EnableSecureboot {

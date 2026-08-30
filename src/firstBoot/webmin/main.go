@@ -45,58 +45,21 @@ func main() {
 		return
 	}
 
-	if !cfg.EnablePodman {
-		fmt.Println("[INFO] Enabling Podman for Webmin...")
-		cfg.EnablePodman = true
+	// Podman is already installed and configured in chrootPhase
+	// Just verify it's working
+	fmt.Println("[INFO] Verifying Podman...")
+	if _, err := shell.ExecuteCmd("", "podman --version"); err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR: Podman not available: %v\n", err)
+		os.Exit(1)
 	}
 
-	// --- 1. Configure Podman ---
-	setupPodman(cfg)
-
-	// --- 2. Install Webmin ---
+	// --- Install Webmin ---
 	setupWebmin(cfg)
 
 	fmt.Println("\n=== Webmin Setup Complete ===")
 	fmt.Printf("Access: https://localhost:10000\n")
 	fmt.Printf("User: root\n")
 	fmt.Printf("Config: /opt/webmin/docker-compose.yml\n")
-}
-
-func setupPodman(cfg *InstallConfig) {
-	fmt.Println("\n[1/2] Configuring Podman...")
-
-	// Enable podman service
-	if _, err := shell.ExecuteCmd("", "rc-update add podman default"); err != nil {
-		fmt.Printf("[WARNING] Failed to add podman to default runlevel: %v\n", err)
-	}
-
-	// Enable cgroups
-	if _, err := shell.ExecuteCmd("", "rc-update add cgroups default"); err != nil {
-		fmt.Printf("[WARNING] Failed to add cgroups to default runlevel: %v\n", err)
-	}
-
-	// Configure storage driver for btrfs
-	fmt.Println("[INFO] Configuring Podman storage driver (btrfs)...")
-	if _, err := shell.ExecuteCmd("", "mkdir -p /etc/containers"); err != nil {
-		fmt.Printf("[WARNING] Failed to create containers config dir: %v\n", err)
-	}
-	storageConf := "cat > /etc/containers/storage.conf << 'STORAGE'\n[storage]\ndriver = \"btrfs\"\nSTORAGE"
-	if _, err := shell.ExecuteCmd("", storageConf); err != nil {
-		fmt.Printf("[WARNING] Failed to write storage.conf: %v\n", err)
-	}
-
-	// Configure subuid/subgid for rootless containers
-	u := cfg.UserName
-	subuidContent := fmt.Sprintf("%s:100000:65536\n", u)
-	subgidContent := fmt.Sprintf("%s:100000:65536\n", u)
-	if _, err := shell.ExecuteCmd("", fmt.Sprintf("echo '%s' > /etc/subuid", subuidContent)); err != nil {
-		fmt.Printf("[WARNING] Failed to write /etc/subuid: %v\n", err)
-	}
-	if _, err := shell.ExecuteCmd("", fmt.Sprintf("echo '%s' > /etc/subgid", subgidContent)); err != nil {
-		fmt.Printf("[WARNING] Failed to write /etc/subgid: %v\n", err)
-	}
-
-	fmt.Println("[INFO] Podman configured.")
 }
 
 func setupWebmin(cfg *InstallConfig) {
