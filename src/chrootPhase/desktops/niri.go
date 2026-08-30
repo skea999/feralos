@@ -279,6 +279,6 @@ stop() {
 // writeFile writes a file inside the chroot via shell (echo pattern).
 func writeFile(chroot, path, content string) error {
 	escaped := strings.ReplaceAll(content, "'", "'\\''")
-	_, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p $(dirname %s) && echo '%s' > %s", path, escaped, path))
+	_, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p \"$(dirname '%s')\" && echo '%s' > '%s'", path, escaped, path))
 	return err
 }

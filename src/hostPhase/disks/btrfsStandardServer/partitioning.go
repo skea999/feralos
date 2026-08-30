@@ -1,9 +1,12 @@
 package btrfsStandardServer
 
 import (
+	"alpineInstaller/hostPhase/disks/common"
 	"alpineInstaller/utils/config"
+	"alpineInstaller/utils/misc"
 	"alpineInstaller/utils/shell"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 )
@@ -62,81 +65,81 @@ func RunBtrfsSetup(conf *config.Config) error {
 		}
 
 		// Format EFI partition
-		partitionSpacer := getPartitionSpacer(disk)
+		partitionSpacer := misc.GetPartitionSpacer(disk)
 		efiPart := disk + partitionSpacer + "1"
-		if _, mkfsErr := shell.ExecuteCmd("", fmt.Sprintf("mkfs.vfat -F 32 %s", efiPart)); mkfsErr != nil {
+		if _, mkfsErr := shell.ExecuteCmdArgs("", "mkfs.vfat", "-F", "32", efiPart); mkfsErr != nil {
 			return fmt.Errorf("failed to format EFI on %s: %w", disk, mkfsErr)
 		}
-		label := "EFI" + strings.ToUpper(getDiskSuffix(disk))
-		if _, labelErr := shell.ExecuteCmd("", fmt.Sprintf("fatlabel %s %s", efiPart, label)); labelErr != nil {
+		label := "EFI" + strings.ToUpper(misc.GetDiskSuffix(disk))
+		if _, labelErr := shell.ExecuteCmdArgs("", "fatlabel", efiPart, label); labelErr != nil {
 			return fmt.Errorf("failed to label EFI on %s: %w", disk, labelErr)
 		}
 	}
 
 	// 4. LUKS Encryption on RAID partitions (partition 2)
 	fmt.Println("[INFO] Configuring LUKS encryption on RAID partitions...")
-	luksRAID1, err := SetupLuksPartition(d1+getPartitionSpacer(d1)+"2", u.LuksPassword)
+	luksRAID1, err := common.SetupLuksPartition(d1+misc.GetPartitionSpacer(d1)+"2", u.LuksPassword)
 	if err != nil {
 		return fmt.Errorf("LUKS setup failed on %s: %w", d1, err)
 	}
-	luksRAID2, err := SetupLuksPartition(d2+getPartitionSpacer(d2)+"2", u.LuksPassword)
+	luksRAID2, err := common.SetupLuksPartition(d2+misc.GetPartitionSpacer(d2)+"2", u.LuksPassword)
 	if err != nil {
 		return fmt.Errorf("LUKS setup failed on %s: %w", d2, err)
 	}
 
 	// 5. LUKS Encryption on Swap partitions (partition 3)
 	fmt.Println("[INFO] Configuring LUKS encryption on Swap partitions...")
-	swapPart1 := d1 + getPartitionSpacer(d1) + "3"
-	swapPart2 := d2 + getPartitionSpacer(d2) + "3"
+	swapPart1 := d1 + misc.GetPartitionSpacer(d1) + "3"
+	swapPart2 := d2 + misc.GetPartitionSpacer(d2) + "3"
 
-	if luksErr := LuksFormat(swapPart1, u.LuksPassword); luksErr != nil {
+	if luksErr := common.LuksFormat(swapPart1, u.LuksPassword); luksErr != nil {
 		return fmt.Errorf("LUKS format swap failed on %s: %w", d1, luksErr)
 	}
-	if luksErr := LuksFormat(swapPart2, u.LuksPassword); luksErr != nil {
+	if luksErr := common.LuksFormat(swapPart2, u.LuksPassword); luksErr != nil {
 		return fmt.Errorf("LUKS format swap failed on %s: %w", d2, luksErr)
 	}
 
 	// Open swap LUKS
-	swapUUID1, err := LuksUUID(swapPart1)
+	swapUUID1, err := common.LuksUUID(swapPart1)
 	if err != nil {
 		return err
 	}
-	swapUUID2, err := LuksUUID(swapPart2)
+	swapUUID2, err := common.LuksUUID(swapPart2)
 	if err != nil {
 		return err
 	}
 
-	if err := LuksOpen(swapPart1, "luks-"+swapUUID1, u.LuksPassword); err != nil {
+	if err := common.LuksOpen(swapPart1, "luks-"+swapUUID1, u.LuksPassword); err != nil {
 		return fmt.Errorf("LUKS open swap failed on %s: %w", d1, err)
 	}
-	if err := LuksOpen(swapPart2, "luks-"+swapUUID2, u.LuksPassword); err != nil {
+	if err := common.LuksOpen(swapPart2, "luks-"+swapUUID2, u.LuksPassword); err != nil {
 		return fmt.Errorf("LUKS open swap failed on %s: %w", d2, err)
 	}
 
 	// Format swap
-	swapSuffix1 := getDiskSuffix(d1)
-	swapSuffix2 := getDiskSuffix(d2)
-	if _, err := shell.ExecuteCmd("", fmt.Sprintf("mkswap -L swap-%s%s3 %s", swapSuffix1, getPartitionSpacer(d1), LuksMapperPath(swapUUID1))); err != nil {
+	swapSuffix1 := misc.GetDiskSuffix(d1)
+	swapSuffix2 := misc.GetDiskSuffix(d2)
+	if _, err := shell.ExecuteCmdArgs("", "mkswap", "-L", fmt.Sprintf("swap-%s%s3", swapSuffix1, misc.GetPartitionSpacer(d1)), common.LuksMapperPath(swapUUID1)); err != nil {
 		return fmt.Errorf("mkswap failed on %s: %w", d1, err)
 	}
-	if _, err := shell.ExecuteCmd("", fmt.Sprintf("mkswap -L swap-%s%s3 %s", swapSuffix2, getPartitionSpacer(d2), LuksMapperPath(swapUUID2))); err != nil {
+	if _, err := shell.ExecuteCmdArgs("", "mkswap", "-L", fmt.Sprintf("swap-%s%s3", swapSuffix2, misc.GetPartitionSpacer(d2)), common.LuksMapperPath(swapUUID2)); err != nil {
 		return fmt.Errorf("mkswap failed on %s: %w", d2, err)
 	}
 
 	// 6. Format data partitions (partition 4)
 	fmt.Println("[INFO] Formatting data partitions...")
-	dataPart1 := d1 + getPartitionSpacer(d1) + "4"
-	dataPart2 := d2 + getPartitionSpacer(d2) + "4"
-	if _, err := shell.ExecuteCmd("", fmt.Sprintf("mkfs.btrfs -L data-%s%s4 %s", swapSuffix1, getPartitionSpacer(d1), dataPart1)); err != nil {
+	dataPart1 := d1 + misc.GetPartitionSpacer(d1) + "4"
+	dataPart2 := d2 + misc.GetPartitionSpacer(d2) + "4"
+	if _, err := shell.ExecuteCmdArgs("", "mkfs.btrfs", "-L", fmt.Sprintf("data-%s%s4", swapSuffix1, misc.GetPartitionSpacer(d1)), dataPart1); err != nil {
 		return fmt.Errorf("mkfs.btrfs data failed on %s: %w", d1, err)
 	}
-	if _, err := shell.ExecuteCmd("", fmt.Sprintf("mkfs.btrfs -L data-%s%s4 %s", swapSuffix2, getPartitionSpacer(d2), dataPart2)); err != nil {
+	if _, err := shell.ExecuteCmdArgs("", "mkfs.btrfs", "-L", fmt.Sprintf("data-%s%s4", swapSuffix2, misc.GetPartitionSpacer(d2)), dataPart2); err != nil {
 		return fmt.Errorf("mkfs.btrfs data failed on %s: %w", d2, err)
 	}
 
 	// 7. Create Btrfs RAID1 on top of LUKS
 	fmt.Println("[INFO] Creating Btrfs RAID1 on LUKS devices...")
-	if _, err := shell.ExecuteCmd("", fmt.Sprintf("mkfs.btrfs -L myroot -d raid1 -m raid1 %s %s", luksRAID1, luksRAID2)); err != nil {
+	if _, err := shell.ExecuteCmdArgs("", "mkfs.btrfs", "-L", "myroot", "-d", "raid1", "-m", "raid1", luksRAID1, luksRAID2); err != nil {
 		return fmt.Errorf("mkfs.btrfs RAID1 failed: %w", err)
 	}
 
@@ -152,13 +155,19 @@ func RunBtrfsSetup(conf *config.Config) error {
 	// new files.
 	swapKey := "/etc/dmcrypt/swap.key"
 	hostSwapKey := i.ChrootDir + swapKey
-	if _, err := shell.ExecuteCmd("", fmt.Sprintf("mkdir -p %s/etc/dmcrypt %s/etc/conf.d && dd if=/dev/urandom of=%s bs=512 count=4 && chmod 400 %s", i.ChrootDir, i.ChrootDir, hostSwapKey, hostSwapKey)); err != nil {
+	if _, err := shell.ExecuteCmdArgs("", "mkdir", "-p", i.ChrootDir+"/etc/dmcrypt", i.ChrootDir+"/etc/conf.d"); err != nil {
 		return fmt.Errorf("failed to create swap keyfile: %w", err)
 	}
-	if err := LuksAddKey(swapPart1, hostSwapKey, u.LuksPassword); err != nil {
+	if _, err := shell.ExecuteCmdArgs("", "dd", "if=/dev/urandom", "of="+hostSwapKey, "bs=512", "count=4"); err != nil {
+		return fmt.Errorf("failed to create swap keyfile: %w", err)
+	}
+	if _, err := shell.ExecuteCmdArgs("", "chmod", "400", hostSwapKey); err != nil {
+		return fmt.Errorf("failed to create swap keyfile: %w", err)
+	}
+	if err := common.LuksAddKey(swapPart1, hostSwapKey, u.LuksPassword); err != nil {
 		return fmt.Errorf("failed to add key to swap1: %w", err)
 	}
-	if err := LuksAddKey(swapPart2, hostSwapKey, u.LuksPassword); err != nil {
+	if err := common.LuksAddKey(swapPart2, hostSwapKey, u.LuksPassword); err != nil {
 		return fmt.Errorf("failed to add key to swap2: %w", err)
 	}
 	dmcryptConf := fmt.Sprintf(`
@@ -170,8 +179,8 @@ target=swap-%s%s
 source=UUID=%s
 key=%s
 
-`, swapSuffix1, getPartitionSpacer(d1)+"3", swapUUID1, swapKey,
-		swapSuffix2, getPartitionSpacer(d2)+"3", swapUUID2, swapKey)
+`, swapSuffix1, misc.GetPartitionSpacer(d1)+"3", swapUUID1, swapKey,
+		swapSuffix2, misc.GetPartitionSpacer(d2)+"3", swapUUID2, swapKey)
 	escapedDmcryptConf := strings.ReplaceAll(dmcryptConf, "'", "'\\''")
 	if _, err := shell.ExecuteCmd("", fmt.Sprintf("echo '%s' > %s/etc/conf.d/dmcrypt", escapedDmcryptConf, i.ChrootDir)); err != nil {
 		return fmt.Errorf("failed to write dmcrypt config: %w", err)
@@ -179,14 +188,14 @@ key=%s
 
 	// 9. Inject kernel cmdline for booster
 	fmt.Println("[INFO] Injecting kernel cmdline for booster...")
-	raidUUID1, _ := LuksUUID(d1 + getPartitionSpacer(d1) + "2")
-	raidUUID2, _ := LuksUUID(d2 + getPartitionSpacer(d2) + "2")
+	raidUUID1, _ := common.LuksUUID(d1 + misc.GetPartitionSpacer(d1) + "2")
+	raidUUID2, _ := common.LuksUUID(d2 + misc.GetPartitionSpacer(d2) + "2")
 
 	kernelCmdline := fmt.Sprintf(
 		"rd.luks.name=%s=luks-%s rd.luks.name=%s=luks-%s root=UUID=%s rootfstype=btrfs rootflags=subvol=@,device=/dev/mapper/luks-%s rootdelay=30 rootwait console=ttyS0,115200",
 		raidUUID1, raidUUID1,
 		raidUUID2, raidUUID2,
-		getBtrfsUUID(luksRAID1),
+		misc.GetBtrfsUUID(luksRAID1),
 		raidUUID2,
 	)
 	u.KernelCmdline = append(u.KernelCmdline, kernelCmdline)
@@ -201,33 +210,10 @@ key=%s
 	return GenerateFstab(conf)
 }
 
-// getPartitionSpacer returns "p" for NVMe devices, "" otherwise.
-func getPartitionSpacer(disk string) string {
-	if strings.Contains(disk, "nvme") {
-		return "p"
-	}
-	return ""
-}
-
-// getDiskSuffix returns the disk name without path prefix.
-func getDiskSuffix(disk string) string {
-	parts := strings.Split(disk, "/")
-	return parts[len(parts)-1]
-}
-
-// getBtrfsUUID returns the UUID of a btrfs filesystem.
-func getBtrfsUUID(device string) string {
-	out, err := shell.ExecuteCmd("", fmt.Sprintf("blkid -o value -s UUID %s", device))
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(out)
-}
-
 func getMinDiskSize(d1, d2 string) (int64, error) {
-	var minSize int64 = 9223372036854775807
+	var minSize int64 = math.MaxInt64
 	for _, d := range []string{d1, d2} {
-		out, err := shell.ExecuteCmd("", fmt.Sprintf("blockdev --getsize64 %s", d))
+		out, err := shell.ExecuteCmdArgs("", "blockdev", "--getsize64", d)
 		if err != nil {
 			return 0, err
 		}
@@ -277,13 +263,13 @@ func setupSubvolumesAndMounts(chroot string, luksDevice string, d1 string, d2 st
 
 	// Step 1: Mount root WITHOUT compression to create subvolumes
 	fmt.Println("[INFO] Mounting root without compression to create subvolumes...")
-	if _, err := shell.ExecuteCmd("", fmt.Sprintf("mount -t btrfs -o autodefrag,ssd %s %s", luksDevice, chroot)); err != nil {
+	if _, err := shell.ExecuteCmdArgs("", "mount", "-t", "btrfs", "-o", "autodefrag,ssd", luksDevice, chroot); err != nil {
 		return fmt.Errorf("failed to mount btrfs root: %w", err)
 	}
 
 	// Step 2: Create all subvolumes
 	for _, s := range subvols {
-		if _, err := shell.ExecuteCmd("", fmt.Sprintf("btrfs subvolume create %s/%s", chroot, s.Name)); err != nil {
+		if _, err := shell.ExecuteCmdArgs("", "btrfs", "subvolume", "create", chroot+"/"+s.Name); err != nil {
 			return fmt.Errorf("failed to create subvolume %s: %w", s.Name, err)
 		}
 	}
@@ -296,14 +282,14 @@ func setupSubvolumesAndMounts(chroot string, luksDevice string, d1 string, d2 st
 	for _, s := range subvols {
 		if s.NoCoW {
 			target := chroot + "/" + s.Name
-			if _, err := shell.ExecuteCmd("", fmt.Sprintf("chattr +C %s", target)); err != nil {
+			if _, err := shell.ExecuteCmdArgs("", "chattr", "+C", target); err != nil {
 				return fmt.Errorf("failed to set NoCoW on %s: %w", s.Name, err)
 			}
 		}
 	}
 
 	// Step 4: Unmount temporary root
-	if _, err := shell.ExecuteCmd("", fmt.Sprintf("umount %s", chroot)); err != nil {
+	if _, err := shell.ExecuteCmdArgs("", "umount", chroot); err != nil {
 		return fmt.Errorf("failed to unmount btrfs root: %w", err)
 	}
 
@@ -311,7 +297,7 @@ func setupSubvolumesAndMounts(chroot string, luksDevice string, d1 string, d2 st
 	for _, s := range subvols {
 		target := chroot + s.Path
 		if s.Path != "" {
-			if _, err := shell.ExecuteCmd("", fmt.Sprintf("mkdir -p %s", target)); err != nil {
+			if _, err := shell.ExecuteCmdArgs("", "mkdir", "-p", target); err != nil {
 				return fmt.Errorf("failed to create directory %s: %w", target, err)
 			}
 		}
@@ -320,41 +306,41 @@ func setupSubvolumesAndMounts(chroot string, luksDevice string, d1 string, d2 st
 		if s.NoCoW {
 			opts += ",nodatacow"
 		}
-		if _, err := shell.ExecuteCmd("", fmt.Sprintf("mount -t btrfs -o %s %s %s", opts, luksDevice, target)); err != nil {
+		if _, err := shell.ExecuteCmdArgs("", "mount", "-t", "btrfs", "-o", opts, luksDevice, target); err != nil {
 			return fmt.Errorf("failed to mount subvolume %s: %w", s.Name, err)
 		}
 	}
 
 	// EFI Mounts
-	partitionSpacer1 := getPartitionSpacer(d1)
-	partitionSpacer2 := getPartitionSpacer(d2)
+	partitionSpacer1 := misc.GetPartitionSpacer(d1)
+	partitionSpacer2 := misc.GetPartitionSpacer(d2)
 
-	if _, err := shell.ExecuteCmd("", fmt.Sprintf("mkdir -p %s", chroot+"/boot/efi")); err != nil {
+	if _, err := shell.ExecuteCmdArgs("", "mkdir", "-p", chroot+"/boot/efi"); err != nil {
 		return fmt.Errorf("failed to create /boot/efi: %w", err)
 	}
-	if _, err := shell.ExecuteCmd("", fmt.Sprintf("mount %s %s", d1+partitionSpacer1+"1", chroot+"/boot/efi")); err != nil {
+	if _, err := shell.ExecuteCmdArgs("", "mount", d1+partitionSpacer1+"1", chroot+"/boot/efi"); err != nil {
 		return fmt.Errorf("failed to mount EFI1: %w", err)
 	}
-	if _, err := shell.ExecuteCmd("", fmt.Sprintf("mkdir -p %s", chroot+"/boot/efi2")); err != nil {
+	if _, err := shell.ExecuteCmdArgs("", "mkdir", "-p", chroot+"/boot/efi2"); err != nil {
 		return fmt.Errorf("failed to create /boot/efi2: %w", err)
 	}
-	if _, err := shell.ExecuteCmd("", fmt.Sprintf("mount %s %s", d2+partitionSpacer2+"1", chroot+"/boot/efi2")); err != nil {
+	if _, err := shell.ExecuteCmdArgs("", "mount", d2+partitionSpacer2+"1", chroot+"/boot/efi2"); err != nil {
 		return fmt.Errorf("failed to mount EFI2: %w", err)
 	}
 
 	// Data Mounts
-	s1 := strings.ToLower(getDiskSuffix(d1))
-	s2 := strings.ToLower(getDiskSuffix(d2))
-	if _, err := shell.ExecuteCmd("", fmt.Sprintf("mkdir -p %s", chroot+"/data/data-"+s1+partitionSpacer1+"4")); err != nil {
+	s1 := strings.ToLower(misc.GetDiskSuffix(d1))
+	s2 := strings.ToLower(misc.GetDiskSuffix(d2))
+	if _, err := shell.ExecuteCmdArgs("", "mkdir", "-p", chroot+"/data/data-"+s1+partitionSpacer1+"4"); err != nil {
 		return fmt.Errorf("failed to create data dir: %w", err)
 	}
-	if _, err := shell.ExecuteCmd("", fmt.Sprintf("mount -t btrfs -o compress=zstd:3,autodefrag,ssd %s %s", d1+partitionSpacer1+"4", chroot+"/data/data-"+s1+partitionSpacer1+"4")); err != nil {
+	if _, err := shell.ExecuteCmdArgs("", "mount", "-t", "btrfs", "-o", "compress=zstd:3,autodefrag,ssd", d1+partitionSpacer1+"4", chroot+"/data/data-"+s1+partitionSpacer1+"4"); err != nil {
 		return fmt.Errorf("failed to mount data1: %w", err)
 	}
-	if _, err := shell.ExecuteCmd("", fmt.Sprintf("mkdir -p %s", chroot+"/data/data-"+s2+partitionSpacer2+"4")); err != nil {
+	if _, err := shell.ExecuteCmdArgs("", "mkdir", "-p", chroot+"/data/data-"+s2+partitionSpacer2+"4"); err != nil {
 		return fmt.Errorf("failed to create data dir: %w", err)
 	}
-	if _, err := shell.ExecuteCmd("", fmt.Sprintf("mount -t btrfs -o compress=zstd:3,autodefrag,ssd %s %s", d2+partitionSpacer2+"4", chroot+"/data/data-"+s2+partitionSpacer2+"4")); err != nil {
+	if _, err := shell.ExecuteCmdArgs("", "mount", "-t", "btrfs", "-o", "compress=zstd:3,autodefrag,ssd", d2+partitionSpacer2+"4", chroot+"/data/data-"+s2+partitionSpacer2+"4"); err != nil {
 		return fmt.Errorf("failed to mount data2: %w", err)
 	}
 

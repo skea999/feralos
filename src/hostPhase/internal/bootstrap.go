@@ -34,22 +34,22 @@ func BootstrapAlpine(conf *config.Config) error {
 	fullURL := fmt.Sprintf("%s/%s", archURL, apkFileName)
 
 	fmt.Printf("[DEBUG] Downloading %s\n", apkFileName)
-	_, dlErr := shell.ExecuteCmd("", fmt.Sprintf("curl -LO %s", fullURL))
+	_, dlErr := shell.ExecuteCmdArgs("", "curl", "-LO", fullURL)
 	if dlErr != nil {
 		return fmt.Errorf("failed to download apk-static: %w", dlErr)
 	}
 
 	fmt.Println("[DEBUG] Extracting apk-tools-static")
-	_, extractErr := shell.ExecuteCmd("", fmt.Sprintf("tar -xzf %s", apkFileName))
+	_, extractErr := shell.ExecuteCmdArgs("", "tar", "-xzf", apkFileName)
 	if extractErr != nil {
 		return fmt.Errorf("failed to extract apk-static: %w", extractErr)
 	}
 
 	fmt.Println("[INFO] Initializing Alpine base system into target...")
-	_, err = shell.ExecuteCmd("", fmt.Sprintf("./sbin/apk.static -X %s -U --allow-untrusted -p %s --initdb add alpine-base", repoURL, i.ChrootDir))
+	_, err = shell.ExecuteCmdArgs("", "./sbin/apk.static", "-X", repoURL, "-U", "--allow-untrusted", "-p", i.ChrootDir, "--initdb", "add", "alpine-base")
 
-	_, _ = shell.ExecuteCmd("", fmt.Sprintf("rm %s", apkFileName))
-	_, _ = shell.ExecuteCmd("", "rm -rf sbin")
+	_, _ = shell.ExecuteCmdArgs("", "rm", apkFileName)
+	_, _ = shell.ExecuteCmdArgs("", "rm", "-rf", "sbin")
 
 	return err
 }

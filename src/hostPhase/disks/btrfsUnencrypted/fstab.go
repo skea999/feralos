@@ -2,6 +2,7 @@ package btrfsUnencrypted
 
 import (
 	"alpineInstaller/utils/config"
+	"alpineInstaller/utils/misc"
 	"alpineInstaller/utils/shell"
 	"fmt"
 	"strings"
@@ -26,11 +27,6 @@ func GenerateFstab(conf *config.Config) error {
 		return fmt.Errorf("failed to create /etc directory: %w", err)
 	}
 	var fstabContent strings.Builder
-
-	diskSuffix := func(path string) string {
-		parts := strings.Split(path, "/")
-		return parts[len(parts)-1]
-	}
 
 	// Header comment
 	fstabContent.WriteString("# btrfs compression: per-subvolume via 'btrfs property set compression none'\n")
@@ -83,7 +79,7 @@ func GenerateFstab(conf *config.Config) error {
 	}
 
 	// EFI Partition
-	s1 := strings.ToUpper(diskSuffix(disk))
+	s1 := strings.ToUpper(misc.GetDiskSuffix(disk))
 	fmt.Fprintf(&fstabContent, "\nLABEL=EFI%-10s  /boot/efi               vfat   rw,noatime,fmask=0022,dmask=0022,codepage=437,iocharset=ascii,shortname=mixed,utf8,errors=remount-ro  0  2\n", s1)
 
 	// Swapfile

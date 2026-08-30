@@ -51,19 +51,22 @@ trusted-users = root`
 		return fmt.Errorf("failed to write nix.conf: %w", err)
 	}
 
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("adduser %s nix", u.UserName)); err != nil {
+	if _, err := shell.ExecuteCmdArgs(chroot, "adduser", u.UserName, "nix"); err != nil {
 		fmt.Printf("[WARNING] Failed to add user to nix group: %v\n", err)
 	}
 
-	if _, err := shell.ExecuteCmd(chroot, "chown root:nixbld /nix/var/nix/build && chmod 750 /nix/var/nix/build"); err != nil {
+	if _, err := shell.ExecuteCmdArgs(chroot, "chown", "root:nixbld", "/nix/var/nix/build"); err != nil {
+		fmt.Printf("[WARNING] Failed to set build dir ownership: %v\n", err)
+	}
+	if _, err := shell.ExecuteCmdArgs(chroot, "chmod", "750", "/nix/var/nix/build"); err != nil {
 		fmt.Printf("[WARNING] Failed to set build dir permissions: %v\n", err)
 	}
 
-	if _, err := shell.ExecuteCmd(chroot, "rc-update add nix-daemon default"); err != nil {
+	if _, err := shell.ExecuteCmdArgs(chroot, "rc-update", "add", "nix-daemon", "default"); err != nil {
 		fmt.Printf("[WARNING] Failed to add nix-daemon to default: %v\n", err)
 	}
 
-	if _, err := shell.ExecuteCmd(chroot, "nix-channel --add https://nixos.org/channels/nixos-26.05 nixpkgs"); err != nil {
+	if _, err := shell.ExecuteCmdArgs(chroot, "nix-channel", "--add", "https://nixos.org/channels/nixos-26.05", "nixpkgs"); err != nil {
 		fmt.Printf("[WARNING] Failed to add nix channel: %v\n", err)
 	}
 
@@ -90,14 +93,14 @@ set -gx TMPDIR /nix/var/nix/build/tmp`
 	nixBashEnv := `export XKB_CONFIG_ROOT=/usr/share/X11/xkb
 export TMPDIR=/nix/var/nix/build/tmp`
 	escapedNixBashEnv := strings.ReplaceAll(nixBashEnv, "'", "'\\''")
-	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /etc/bash"); err != nil {
+	if _, err := shell.ExecuteCmdArgs(chroot, "mkdir", "-p", "/etc/bash"); err != nil {
 		fmt.Printf("[WARNING] Failed to create /etc/bash: %v\n", err)
 	}
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/bash/nix.sh", escapedNixBashEnv)); err != nil {
 		return fmt.Errorf("failed to write nix bash env: %w", err)
 	}
 
-	if _, err := shell.ExecuteCmd(chroot, "ln -sf /etc/bash/nix.sh /etc/profile.d/nix-bash.sh"); err != nil {
+	if _, err := shell.ExecuteCmdArgs(chroot, "ln", "-sf", "/etc/bash/nix.sh", "/etc/profile.d/nix-bash.sh"); err != nil {
 		fmt.Printf("[WARNING] Failed to symlink nix bash env: %v\n", err)
 	}
 
@@ -110,10 +113,13 @@ export TMPDIR=/nix/var/nix/build/tmp`
 		// OpenRC refuses to run services without /run/openrc state, which is
 		// only created at boot: provide it manually so the daemon can start
 		// inside the chroot.
-		if _, err := shell.ExecuteCmd(chroot, "mkdir -p /run/openrc && touch /run/openrc/softlevel"); err != nil {
+		if _, err := shell.ExecuteCmdArgs(chroot, "mkdir", "-p", "/run/openrc"); err != nil {
 			fmt.Printf("[WARNING] Failed to prepare /run/openrc: %v\n", err)
 		}
-		if _, err := shell.ExecuteCmd(chroot, "rc-service nix-daemon start"); err != nil {
+		if _, err := shell.ExecuteCmdArgs(chroot, "touch", "/run/openrc/softlevel"); err != nil {
+			fmt.Printf("[WARNING] Failed to prepare /run/openrc: %v\n", err)
+		}
+		if _, err := shell.ExecuteCmdArgs(chroot, "rc-service", "nix-daemon", "start"); err != nil {
 			fmt.Printf("[WARNING] Failed to start nix-daemon in chroot: %v\n", err)
 		}
 
@@ -122,14 +128,17 @@ export TMPDIR=/nix/var/nix/build/tmp`
 		// subvolume (@nix-var-nix-build, mounted at /nix/var/nix/build).
 		// The dir persists in the subvolume, so it exists after boot too.
 		nixTmp := "/nix/var/nix/build/tmp"
-		if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p %s && chmod 1777 %s", nixTmp, nixTmp)); err != nil {
+		if _, err := shell.ExecuteCmdArgs(chroot, "mkdir", "-p", nixTmp); err != nil {
+			return fmt.Errorf("failed to prepare nix build tmp dir: %w", err)
+		}
+		if _, err := shell.ExecuteCmdArgs(chroot, "chmod", "1777", nixTmp); err != nil {
 			return fmt.Errorf("failed to prepare nix build tmp dir: %w", err)
 		}
 
 		// The default flake registry maps nixpkgs -> nixpkgs-unstable, which
 		// would override the stable channel for `nixpkgs#...` installs. Pin
 		// the user's registry to the stable branch (same as the channel).
-		if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("su - %s -c 'nix registry add nixpkgs github:NixOS/nixpkgs/nixos-26.05'", u.UserName)); err != nil {
+		if _, err := shell.ExecuteCmdArgs(chroot, "su", "-", u.UserName, "-c", "nix registry add nixpkgs github:NixOS/nixpkgs/nixos-26.05"); err != nil {
 			fmt.Printf("[WARNING] Failed to pin nixpkgs registry to stable: %v\n", err)
 		}
 
@@ -141,14 +150,14 @@ export TMPDIR=/nix/var/nix/build/tmp`
 		// 'add' is the current command ('install' is a deprecated alias).
 		for _, pkg := range u.NixPackages {
 			fmt.Printf("[INFO] nix profile add %s\n", pkg)
-			cmd := fmt.Sprintf("su - %s -c 'TMPDIR=%s NIXPKGS_ALLOW_INSECURE=1 NIXPKGS_ALLOW_UNFREE=1 nix profile add --option sandbox false %s'", u.UserName, nixTmp, pkg)
-			if _, err := shell.ExecuteCmd(chroot, cmd); err != nil {
+			inner := fmt.Sprintf("TMPDIR=%s NIXPKGS_ALLOW_INSECURE=1 NIXPKGS_ALLOW_UNFREE=1 nix profile add --option sandbox false %s", nixTmp, pkg)
+			if _, err := shell.ExecuteCmdArgs(chroot, "su", "-", u.UserName, "-c", inner); err != nil {
 				return fmt.Errorf("failed to install nix package %s: %w", pkg, err)
 			}
 		}
 
 		// Stop the daemon again — the target boots its own nix-daemon service.
-		if _, err := shell.ExecuteCmd(chroot, "rc-service nix-daemon stop"); err != nil {
+		if _, err := shell.ExecuteCmdArgs(chroot, "rc-service", "nix-daemon", "stop"); err != nil {
 			fmt.Printf("[WARNING] Failed to stop nix-daemon in chroot: %v\n", err)
 		}
 	}

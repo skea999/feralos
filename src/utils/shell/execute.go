@@ -175,3 +175,119 @@ func ExecuteCmdWithAllowFail(chroot string, cmd string, allowFail bool, critical
 
 	return "", fmt.Errorf("unreachable")
 }
+
+// ExecuteCmdArgs executes a command without shell (no sh -c) — safe for variable inputs.
+// Use for single commands that don't need shell features ( >, |, &&, ;).
+// For host: exec.Command(name, args...)
+// For chroot: exec.Command("chroot", chroot, name, args...)
+func ExecuteCmdArgs(chroot, name string, args ...string) (string, error) {
+	return ExecuteCmdArgsWithAllowFail(chroot, name, args, false, false)
+}
+
+// ExecuteCmdArgsWithAllowFail — same as ExecuteCmdArgs but with allowFail/critical.
+func ExecuteCmdArgsWithAllowFail(chroot, name string, args []string, allowFail, critical bool) (string, error) {
+	tag := "CMD"
+	if chroot != "" {
+		tag = "CHROOT"
+	}
+	caller := GetCaller()
+	prefix := ""
+	if caller != "" {
+		prefix = fmt.Sprintf("[%s]", caller)
+	}
+	// Build log string like "adduser -D bob"
+	logCmd := name
+	if len(args) > 0 {
+		logCmd += " " + strings.Join(args, " ")
+	}
+	if chroot != "" {
+		logCmd = fmt.Sprintf("chroot %s %s", chroot, logCmd)
+	}
+	var lastErr error
+	var lastStdout string
+	for attempt := 1; attempt <= MaxRetries; attempt++ {
+		timestamp := time.Now().Format("2006-01-02 15:04:05")
+		fmt.Printf("\n%s[%s] %s: %s", prefix, timestamp, tag, logCmd)
+		start := time.Now()
+		var stdout, stderr bytes.Buffer
+		var err error
+		var execCmd *exec.Cmd
+		if chroot != "" {
+			allArgs := append([]string{chroot, name}, args...)
+			execCmd = exec.Command("chroot", allArgs...)
+		} else {
+			execCmd = exec.Command(name, args...)
+		}
+		execCmd.Stdout = &stdout
+		execCmd.Stderr = &stderr
+		err = execCmd.Run()
+		duration := time.Since(start)
+		stdoutStr := stdout.String()
+		if stdout.Len() > 0 {
+			for _, line := range strings.Split(stdoutStr, "\n") {
+				if line != "" {
+					fmt.Printf("[stdout] %s\n", line)
+				}
+			}
+		}
+		if stderr.Len() > 0 {
+			for _, line := range strings.Split(stderr.String(), "\n") {
+				if line != "" {
+					fmt.Printf("[stderr] %s\n", line)
+				}
+			}
+		}
+		exitCode := 0
+		if err != nil {
+			var exitErr *exec.ExitError
+			if errors.As(err, &exitErr) {
+				exitCode = exitErr.ExitCode()
+			}
+		}
+		status := "OK"
+		if exitCode != 0 {
+			status = "FAIL"
+		}
+		fmt.Printf("[%s][RESULT] %s exit=%d time=%v\n\n", prefix, status, exitCode, duration.Round(time.Millisecond))
+		if err == nil || allowFail {
+			return stdoutStr, nil
+		}
+		lastErr = err
+		lastStdout = stdoutStr
+		if attempt < MaxRetries {
+			fmt.Printf("[%s][RETRY] Attempt %d/%d failed, retrying in 3s...\n", prefix, attempt, MaxRetries)
+			time.Sleep(3 * time.Second)
+			continue
+		}
+		if os.Getenv("SKEA_NONINTERACTIVE") == "1" && !critical {
+			decision := strings.ToLower(os.Getenv("SKEA_NONINTERACTIVE_DECISION"))
+			switch decision {
+			case "ignore", "skip":
+				fmt.Printf("[WARNING] Non-interactive mode: ignoring error and continuing.\n")
+				return lastStdout, nil
+			default:
+				fmt.Printf("[CRITICAL] Non-interactive mode: aborting script.\n")
+				return "", fmt.Errorf("command failed after %d attempts: %s: %w", MaxRetries, logCmd, lastErr)
+			}
+		}
+		for {
+			fmt.Printf("Options: [s]top, [i]gnore, [r]etry: ")
+			input, _ := stdinReader.ReadString('\n')
+			choice := strings.ToLower(strings.TrimSpace(input))
+			switch choice {
+			case "s":
+				fmt.Printf("[CRITICAL] Script aborted by user.\n")
+				os.Exit(1)
+			case "i":
+				fmt.Printf("[WARNING] Error ignored. Continuing...\n")
+				return lastStdout, nil
+			case "r":
+				fmt.Printf("[INFO] Retrying command...\n")
+				attempt = 0
+			default:
+				fmt.Printf("[INFO] Invalid input. Please enter 's', 'i', or 'r'.\n")
+			}
+		}
+	}
+	return "", fmt.Errorf("unreachable")
+}

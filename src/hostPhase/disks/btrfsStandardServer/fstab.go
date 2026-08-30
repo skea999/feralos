@@ -2,6 +2,7 @@ package btrfsStandardServer
 
 import (
 	"alpineInstaller/utils/config"
+	"alpineInstaller/utils/misc"
 	"alpineInstaller/utils/shell"
 	"fmt"
 	"strings"
@@ -23,8 +24,8 @@ func GenerateFstab(conf *config.Config) error {
 
 	d1 := u.Disks[0]
 	d2 := u.Disks[1]
-	sp1 := getPartitionSpacer(d1)
-	sp2 := getPartitionSpacer(d2)
+	sp1 := misc.GetPartitionSpacer(d1)
+	sp2 := misc.GetPartitionSpacer(d2)
 
 	fmt.Println("[INFO] Writing /etc/fstab for LUKS + Btrfs RAID1 Server Layout...")
 
@@ -33,12 +34,6 @@ func GenerateFstab(conf *config.Config) error {
 		return fmt.Errorf("failed to create /etc directory: %w", err)
 	}
 	var fstabContent strings.Builder
-
-	// Helper to get disk suffix (e.g., "sda", "nvme0n1")
-	diskSuffix := func(path string) string {
-		parts := strings.Split(path, "/")
-		return parts[len(parts)-1]
-	}
 
 	// Header comment
 	if _, err := fstabContent.WriteString("# btrfs compression: per-subvolume via 'btrfs property set compression none'\n"); err != nil {
@@ -108,8 +103,8 @@ func GenerateFstab(conf *config.Config) error {
 	}
 
 	// 2. EFI Partitions
-	s1 := strings.ToUpper(diskSuffix(d1))
-	s2 := strings.ToUpper(diskSuffix(d2))
+	s1 := strings.ToUpper(misc.GetDiskSuffix(d1))
+	s2 := strings.ToUpper(misc.GetDiskSuffix(d2))
 
 	if _, err := fmt.Fprintf(&fstabContent, "\nLABEL=EFI%-10s  /boot/efi               vfat   rw,noatime,fmask=0022,dmask=0022,codepage=437,iocharset=ascii,shortname=mixed,utf8,errors=remount-ro  0  2\n", s1); err != nil {
 		return fmt.Errorf("failed to write fstab EFI1 entry: %w", err)
@@ -120,8 +115,8 @@ func GenerateFstab(conf *config.Config) error {
 
 	// 3. Swap (LUKS-backed dm-crypt mappers — use /dev/mapper paths, not
 	// LABEL: busybox swapon -a can't resolve by-label symlinks at swap time)
-	s1lower := strings.ToLower(diskSuffix(d1))
-	s2lower := strings.ToLower(diskSuffix(d2))
+	s1lower := strings.ToLower(misc.GetDiskSuffix(d1))
+	s2lower := strings.ToLower(misc.GetDiskSuffix(d2))
 
 	if _, err := fmt.Fprintf(&fstabContent, "\n/dev/mapper/swap-%s%s  none                    swap   defaults,sw,pri=2  0  0\n", s1lower, sp1+"3"); err != nil {
 		return fmt.Errorf("failed to write fstab swap1 entry: %w", err)

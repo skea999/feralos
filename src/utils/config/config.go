@@ -189,12 +189,39 @@ func validateConfig(conf *Config) error {
 			return fmt.Errorf("invalid extra package %q: must match [a-zA-Z0-9._+-]+", pkg)
 		}
 	}
+	for _, pkg := range u.NixPackages {
+		if !pkgRe.MatchString(pkg) {
+			return fmt.Errorf("invalid nix package %q: must match [a-zA-Z0-9._+-]+", pkg)
+		}
+	}
 
 	// Validate Mirror
 	if u.Mirror != "" {
 		if !strings.HasPrefix(u.Mirror, "http://") && !strings.HasPrefix(u.Mirror, "https://") {
 			return fmt.Errorf("invalid mirror %q: must start with http:// or https://", u.Mirror)
 		}
+		if shellMeta.MatchString(u.Mirror) {
+			return fmt.Errorf("invalid mirror %q: contains shell metacharacters", u.Mirror)
+		}
+	}
+	// Validate Branch / Arch (used in shell curl pipe)
+	branchRe := regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
+	if u.Branch != "" && !branchRe.MatchString(u.Branch) {
+		return fmt.Errorf("invalid branch %q: must match [a-zA-Z0-9._-]+", u.Branch)
+	}
+	archRe := regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
+	if u.Arch != "" && !archRe.MatchString(u.Arch) {
+		return fmt.Errorf("invalid arch %q: must match [a-zA-Z0-9_-]+", u.Arch)
+	}
+	// Validate DefaultNetworkInterface (used in shell echo > file)
+	ifaceRe := regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
+	if u.DefaultNetworkInterface != "" && !ifaceRe.MatchString(u.DefaultNetworkInterface) {
+		return fmt.Errorf("invalid defaultNetworkInterface %q: must match [a-zA-Z0-9._-]+", u.DefaultNetworkInterface)
+	}
+
+	// LuksPassword fallback: if not set, use the login password
+	if conf.User.LuksPassword == "" {
+		conf.User.LuksPassword = conf.User.Password
 	}
 
 	return nil

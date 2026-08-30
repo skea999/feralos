@@ -1,4 +1,4 @@
-package btrfsStandardServer
+package common
 
 import (
 	"alpineInstaller/utils/shell"
@@ -38,7 +38,7 @@ func LuksOpen(device, name, password string) error {
 
 // LuksUUID returns the UUID of a LUKS-encrypted partition.
 func LuksUUID(device string) (string, error) {
-	out, err := shell.ExecuteCmd("", fmt.Sprintf("blkid -o value -s UUID %s", device))
+	out, err := shell.ExecuteCmdArgs("", "blkid", "-o", "value", "-s", "UUID", device)
 	if err != nil {
 		return "", fmt.Errorf("failed to get LUKS UUID for %s: %w", device, err)
 	}
@@ -66,23 +66,19 @@ func LuksAddKey(device, keyfile, password string) error {
 // SetupLuksPartition formats, opens, and returns the mapper path for a partition.
 // This is the main entry point for LUKS setup on a single partition.
 func SetupLuksPartition(device, password string) (string, error) {
-	// 1. Wipe existing signatures
-	if _, err := shell.ExecuteCmd("", fmt.Sprintf("wipefs -a %s", device)); err != nil {
+	if _, err := shell.ExecuteCmdArgs("", "wipefs", "-a", device); err != nil {
 		return "", fmt.Errorf("wipefs failed on %s: %w", device, err)
 	}
 
-	// 2. Format with LUKS2
 	if err := LuksFormat(device, password); err != nil {
 		return "", err
 	}
 
-	// 3. Get UUID
 	uuid, err := LuksUUID(device)
 	if err != nil {
 		return "", err
 	}
 
-	// 4. Open
 	mapperName := "luks-" + uuid
 	if err := LuksOpen(device, mapperName, password); err != nil {
 		return "", err

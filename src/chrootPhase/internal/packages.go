@@ -67,17 +67,13 @@ func createProvideDummy(chroot, pkgName string) error {
 	fmt.Printf("[INFO] Creating provide dummy: %s v999 (empty)\n", pkgName)
 
 	apkPath := fmt.Sprintf("/tmp/provide-%s.apk", pkgName)
-	_, _ = shell.ExecuteCmd(chroot, "rm -rf "+apkPath)
+	_, _ = shell.ExecuteCmdArgs(chroot, "rm", "-rf", apkPath)
 
-	mkpkgCmd := fmt.Sprintf(
-		"apk mkpkg --info name:%s --info version:999 --info description:Dummy %s for dependency satisfaction --info arch:noarch --output %s",
-		pkgName, pkgName, apkPath,
-	)
-	if _, err := shell.ExecuteCmd(chroot, mkpkgCmd); err != nil {
+	if _, err := shell.ExecuteCmdArgs(chroot, "apk", "mkpkg", "--info", "name:"+pkgName, "--info", "version:999", "--info", "description:Dummy "+pkgName+" for dependency satisfaction", "--info", "arch:noarch", "--output", apkPath); err != nil {
 		return fmt.Errorf("apk mkpkg failed for %s: %w", pkgName, err)
 	}
 
-	if _, err := shell.ExecuteCmd(chroot, "apk add --allow-untrusted "+apkPath); err != nil {
+	if _, err := shell.ExecuteCmdArgs(chroot, "apk", "add", "--allow-untrusted", apkPath); err != nil {
 		return fmt.Errorf("failed to install provide dummy %s: %w", pkgName, err)
 	}
 
@@ -88,7 +84,7 @@ func createProvideDummy(chroot, pkgName string) error {
 		fmt.Printf("[WARNING] Provide dummy %s may not be properly installed\n", pkgName)
 	}
 
-	_, _ = shell.ExecuteCmd(chroot, "rm -rf "+apkPath)
+	_, _ = shell.ExecuteCmdArgs(chroot, "rm", "-rf", apkPath)
 	return nil
 }
 
@@ -98,30 +94,25 @@ func createDummySymlinkPackage(chroot, replacedPkg, replacementBin string) error
 	apkPath := fmt.Sprintf("/tmp/dummy-%s.apk", replacedPkg)
 	replacedBin := fmt.Sprintf("/usr/bin/%s", replacedPkg)
 
-	_, _ = shell.ExecuteCmd(chroot, "rm -rf "+tmpDir+" "+apkPath)
+	_, _ = shell.ExecuteCmdArgs(chroot, "rm", "-rf", tmpDir, apkPath)
 
-	if _, err := shell.ExecuteCmd(chroot, "mkdir -p "+tmpDir+"/usr/bin"); err != nil {
+	if _, err := shell.ExecuteCmdArgs(chroot, "mkdir", "-p", tmpDir+"/usr/bin"); err != nil {
 		return fmt.Errorf("failed to create dir: %w", err)
 	}
 
 	// Create symlink inside package content
-	symlinkCmd := fmt.Sprintf("ln -s %s %s%s", replacementBin, tmpDir, replacedBin)
-	if _, err := shell.ExecuteCmd(chroot, symlinkCmd); err != nil {
+	if _, err := shell.ExecuteCmdArgs(chroot, "ln", "-s", replacementBin, tmpDir+replacedBin); err != nil {
 		return fmt.Errorf("failed to create symlink %s → %s: %w", replacedBin, replacementBin, err)
 	}
 
 	desc := fmt.Sprintf("Dummy %s replaced by %s", replacedPkg, replacementBin)
 
 	infoName := fmt.Sprintf("name:%s", replacedPkg)
-	mkpkgCmd := fmt.Sprintf(
-		"apk mkpkg --files %s --info %s --info version:999 --info description:%q --info arch:noarch --output %s",
-		tmpDir, infoName, desc, apkPath,
-	)
-	if _, err := shell.ExecuteCmd(chroot, mkpkgCmd); err != nil {
+	if _, err := shell.ExecuteCmdArgs(chroot, "apk", "mkpkg", "--files", tmpDir, "--info", infoName, "--info", "version:999", "--info", "description:"+desc, "--info", "arch:noarch", "--output", apkPath); err != nil {
 		return fmt.Errorf("apk mkpkg failed for %s: %w", replacedPkg, err)
 	}
 
-	if _, err := shell.ExecuteCmd(chroot, "apk add --allow-untrusted "+apkPath); err != nil {
+	if _, err := shell.ExecuteCmdArgs(chroot, "apk", "add", "--allow-untrusted", apkPath); err != nil {
 		return fmt.Errorf("failed to install dummy %s: %w", replacedPkg, err)
 	}
 
@@ -132,7 +123,7 @@ func createDummySymlinkPackage(chroot, replacedPkg, replacementBin string) error
 		fmt.Printf("[WARNING] Dummy %s may not be properly installed\n", replacedPkg)
 	}
 
-	_, _ = shell.ExecuteCmd(chroot, "rm -rf "+tmpDir+" "+apkPath)
+	_, _ = shell.ExecuteCmdArgs(chroot, "rm", "-rf", tmpDir, apkPath)
 	return nil
 }
 
@@ -144,7 +135,7 @@ func SetupPackages(conf *config.Config) error {
 
 	fmt.Println("[INFO] Installing packages...")
 
-	if _, err := shell.ExecuteCmd(chroot, "apk update"); err != nil {
+	if _, err := shell.ExecuteCmdArgs(chroot, "apk", "update"); err != nil {
 		return fmt.Errorf("apk update failed: %w", err)
 	}
 
@@ -155,7 +146,7 @@ func SetupPackages(conf *config.Config) error {
 	var allPkgs []string
 	allPkgs = append(allPkgs, u.AllPackages...)
 
-	cpuInfo, _ := shell.ExecuteCmd(chroot, "cat /proc/cpuinfo")
+	cpuInfo, _ := shell.ExecuteCmdArgs(chroot, "cat", "/proc/cpuinfo")
 	if strings.Contains(cpuInfo, "AMD") {
 		allPkgs = append(allPkgs, "amd-ucode")
 	} else if strings.Contains(cpuInfo, "GenuineIntel") {
@@ -174,9 +165,11 @@ func SetupPackages(conf *config.Config) error {
 	// Zswap modules (owned by features/zswap.go)
 	u.Modules = appendUnique(u.Modules, features.ZswapModules(conf)...)
 
-	pkgList := strings.Join(allPkgs, " ")
-	if _, err := shell.ExecuteCmd(chroot, "apk add "+pkgList); err != nil {
-		return fmt.Errorf("failed to install packages: %w", err)
+	if len(allPkgs) > 0 {
+		args := append([]string{"add"}, allPkgs...)
+		if _, err := shell.ExecuteCmdArgs(chroot, "apk", args...); err != nil {
+			return fmt.Errorf("failed to install packages: %w", err)
+		}
 	}
 
 	// Final APK upgrade

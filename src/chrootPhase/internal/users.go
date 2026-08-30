@@ -21,9 +21,9 @@ func SetupUsers(conf *config.Config) error {
 		return fmt.Errorf("failed to set root password: %w\n%s", err, string(output))
 	}
 
-	// 2. Create user
+	// 2. Create user — no shell, safe for variable username
 	fmt.Printf("[INFO] Creating user %s...\n", u.UserName)
-	if _, err := shell.ExecuteCmd(chroot, "adduser -D "+u.UserName); err != nil {
+	if _, err := shell.ExecuteCmdArgs(chroot, "adduser", "-D", u.UserName); err != nil {
 		return fmt.Errorf("failed to create user %s: %w", u.UserName, err)
 	}
 	passwdCmd = exec.Command("chroot", chroot, "passwd", u.UserName)
@@ -39,14 +39,14 @@ func SetupUsers(conf *config.Config) error {
 
 	// 4. Add to dynamic groups
 	for _, group := range u.UserGroups {
-		checkGroup, _ := shell.ExecuteCmd(chroot, fmt.Sprintf("getent group %s >/dev/null 2>&1 && echo EXISTS || echo NOT_EXISTS", group))
-		if !strings.Contains(checkGroup, "EXISTS") {
-			if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("addgroup %s", group)); err != nil {
+		_, err := shell.ExecuteCmdArgsWithAllowFail(chroot, "getent", []string{"group", group}, true, false)
+		if err != nil {
+			if _, err := shell.ExecuteCmdArgs(chroot, "addgroup", group); err != nil {
 				fmt.Printf("[WARNING] Failed to create group %s: %v\n", group, err)
 				continue
 			}
 		}
-		if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("adduser %s %s", u.UserName, group)); err != nil {
+		if _, err := shell.ExecuteCmdArgs(chroot, "adduser", u.UserName, group); err != nil {
 			fmt.Printf("[WARNING] Failed to add %s to group %s: %v\n", u.UserName, group, err)
 		}
 	}
@@ -54,7 +54,7 @@ func SetupUsers(conf *config.Config) error {
 	// 5. Add to standard groups
 	extraGroups := []string{"lp", "input", "cdrom", "dialout", "video", "netdev", "plugdev", "users"}
 	for _, group := range extraGroups {
-		if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("adduser %s %s", u.UserName, group)); err != nil {
+		if _, err := shell.ExecuteCmdArgs(chroot, "adduser", u.UserName, group); err != nil {
 			fmt.Printf("[WARNING] Failed to add %s to group %s: %v\n", u.UserName, group, err)
 		}
 	}
@@ -78,16 +78,16 @@ func SetupUsers(conf *config.Config) error {
 
 	// 8. Shell (fish)
 	fmt.Println("[INFO] Setting default shell to fish...")
-	if _, err := shell.ExecuteCmd(chroot, "chsh root -s /usr/bin/fish"); err != nil {
+	if _, err := shell.ExecuteCmdArgs(chroot, "chsh", "root", "-s", "/usr/bin/fish"); err != nil {
 		fmt.Printf("[WARNING] Failed to set root shell: %v\n", err)
 	}
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("chsh %s -s /usr/bin/fish", u.UserName)); err != nil {
+	if _, err := shell.ExecuteCmdArgs(chroot, "chsh", u.UserName, "-s", "/usr/bin/fish"); err != nil {
 		fmt.Printf("[WARNING] Failed to set user shell: %v\n", err)
 	}
 
-	// 9. System limits
+	// 9. System limits — uses shell redirection, UserName validated in config
 	fmt.Println("[INFO] Configuring system limits...")
-	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /etc/security"); err != nil {
+	if _, err := shell.ExecuteCmdArgs(chroot, "mkdir", "-p", "/etc/security"); err != nil {
 		fmt.Printf("[WARNING] Failed to create /etc/security: %v\n", err)
 	}
 	limitsContent := fmt.Sprintf(`* hard nofile 100000
@@ -124,7 +124,7 @@ func ensureIncusAdminGroup(chroot string) error {
 
 	// Create the group
 	fmt.Println("[INFO] Creating incus-admin group...")
-	if _, err := shell.ExecuteCmd(chroot, "addgroup incus-admin"); err != nil {
+	if _, err := shell.ExecuteCmdArgs(chroot, "addgroup", "incus-admin"); err != nil {
 		return fmt.Errorf("failed to create incus-admin group: %w", err)
 	}
 
@@ -133,31 +133,35 @@ func ensureIncusAdminGroup(chroot string) error {
 }
 
 func setupSSHKey(chroot, userName, sshKey string) error {
-	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /root/.ssh && chmod 700 /root/.ssh"); err != nil {
+	if _, err := shell.ExecuteCmdArgs(chroot, "mkdir", "-p", "/root/.ssh"); err != nil {
 		return fmt.Errorf("failed to create root .ssh: %w", err)
+	}
+	if _, err := shell.ExecuteCmdArgs(chroot, "chmod", "700", "/root/.ssh"); err != nil {
+		return fmt.Errorf("failed to chmod root .ssh: %w", err)
 	}
 	escapedSshKey := strings.ReplaceAll(sshKey, "'", "'\\''")
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /root/.ssh/authorized_keys", escapedSshKey)); err != nil {
 		return fmt.Errorf("failed to write root authorized_keys: %w", err)
 	}
-	if _, err := shell.ExecuteCmd(chroot, "chmod 600 /root/.ssh/authorized_keys"); err != nil {
+	if _, err := shell.ExecuteCmdArgs(chroot, "chmod", "600", "/root/.ssh/authorized_keys"); err != nil {
 		return fmt.Errorf("failed to chmod root authorized_keys: %w", err)
 	}
 
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p /home/%s/.ssh && chmod 700 /home/%s/.ssh", userName, userName)); err != nil {
+	if _, err := shell.ExecuteCmdArgs(chroot, "mkdir", "-p", "/home/"+userName+"/.ssh"); err != nil {
 		return fmt.Errorf("failed to create user .ssh: %w", err)
+	}
+	if _, err := shell.ExecuteCmdArgs(chroot, "chmod", "700", "/home/"+userName+"/.ssh"); err != nil {
+		return fmt.Errorf("failed to chmod user .ssh: %w", err)
 	}
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /home/%s/.ssh/authorized_keys", escapedSshKey, userName)); err != nil {
 		return fmt.Errorf("failed to write user authorized_keys: %w", err)
 	}
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("chmod 600 /home/%s/.ssh/authorized_keys && chown -R %s:%s /home/%s/.ssh", userName, userName, userName, userName)); err != nil {
+	if _, err := shell.ExecuteCmdArgs(chroot, "chmod", "600", "/home/"+userName+"/.ssh/authorized_keys"); err != nil {
+		return fmt.Errorf("failed to chmod user authorized_keys: %w", err)
+	}
+	if _, err := shell.ExecuteCmdArgs(chroot, "chown", "-R", userName+":"+userName, "/home/"+userName+"/.ssh"); err != nil {
 		return fmt.Errorf("failed to chmod user authorized_keys: %w", err)
 	}
 
 	return nil
-}
-
-// IsEmpty checks if a string is empty or whitespace-only.
-func IsEmpty(s string) bool {
-	return strings.TrimSpace(s) == ""
 }
