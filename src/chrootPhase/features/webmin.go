@@ -73,6 +73,11 @@ func SetupWebmin(conf *config.Config) error {
 		}
 	}
 
+	// Create oneshot service to ensure Webmin is running
+	if err := createWebminService(conf); err != nil {
+		fmt.Printf("[WARNING] Failed to create webmin service: %v\n", err)
+	}
+
 	// Install Webmin modules inside container
 	if err := installWebminModules(conf); err != nil {
 		fmt.Printf("[WARNING] Failed to install some Webmin modules: %v\n", err)
@@ -103,6 +108,58 @@ func SetupWebmin(conf *config.Config) error {
 		fmt.Printf("[WARNING] Failed to create Webmin .desktop file: %v\n", err)
 	}
 
+	return nil
+}
+
+// createWebminService creates an OpenRC oneshot service to ensure Webmin is running at boot.
+func createWebminService(conf *config.Config) error {
+	chroot := conf.Internal.ChrootDir
+
+	serviceScript := `#!/sbin/openrc-run
+
+description="Webmin Podman Container - oneshot ensure running"
+
+depend() {
+    need net
+    after podman
+}
+
+start() {
+    ebegin "Checking Webmin container"
+    if podman ps --format '{{.Names}}' | grep -q '^webmin$'; then
+        einfo "Webmin already running"
+        eend 0
+    else
+        einfo "Starting Webmin container"
+        cd /opt/webmin && podman compose up -d
+        eend $?
+    fi
+}
+`
+
+	serviceFile := "/etc/init.d/webmin-ensure"
+	tmp, err := os.CreateTemp("", "webmin-service-")
+	if err != nil {
+		return fmt.Errorf("failed to create temp file: %w", err)
+	}
+	defer os.Remove(tmp.Name())
+
+	if _, err := tmp.WriteString(serviceScript); err != nil {
+		tmp.Close()
+		return fmt.Errorf("failed to write service script: %w", err)
+	}
+	tmp.Close()
+
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("cp %s %s && chmod 755 %s", tmp.Name(), serviceFile, serviceFile)); err != nil {
+		return fmt.Errorf("failed to install webmin service: %w", err)
+	}
+
+	// Enable the service
+	if _, err := shell.ExecuteCmdArgs(chroot, "rc-update", "add", "webmin-ensure", "default"); err != nil {
+		fmt.Printf("[WARNING] Failed to add webmin-ensure to default runlevel: %v\n", err)
+	}
+
+	fmt.Println("[INFO] Webmin oneshot service created: /etc/init.d/webmin-ensure")
 	return nil
 }
 
