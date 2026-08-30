@@ -184,6 +184,9 @@ Every `shell.ExecuteCmd(chroot, cmd)` → `execute.go:79,84` `sh -c <cmd>`. Unva
 - [x] **Input validation (C2 injection)** — `config.LoadConfig` strict allowlist: `diskRe`, `userRe`, `hostRe`, `tzRe` + shell metachar rejection + `ExtraPackages` `pkgRe` + `Mirror` https check.
 - [x] **DRY: createSwapfile** — Extracted to `hostPhase/disks/common/swapfile.go` `CreateSwapfile()`. btrfsStandard + btrfsUnencrypted import from common (was byte-identical duplicate). Dedup test: layout packages clean (zero unintended duplicates).
 - [x] **Test fix** — `utils/swap/swap_test.go` `TestParseSwapSizeMiB`: 1T/1P cases now expect error (exceeds 32 GiB `maxSwapMiB` cap). 26/26 pass.
+- [x] **Harness dedup** — `hasHealthyBtrfsRaidLayout(detail, level)` parametrized, `formatCheckTable()` extracted. Zero dupl findings in harness.
+- [x] **Fixture** — `btrfs_standard_server_full_stack.yaml` added (btrfsStandardServer + secureboot + TPM + hardening + zswap + nix + swap + incus).
+- [x] **log_errors allowRe** — `sysctl: error:.*is an unknown key` added (IPv6 QEMU VM warnings).
 - [x] **Other** — `enableEncryption` removed (leftover, `true` fixed, layout drives encryption), `chmod 0755` kept on keyfile `chmod 400` (TOCTOU `install -m 400` already), `btrfsStandard` strict 1-disk check (`len==1`).
 
 ---
