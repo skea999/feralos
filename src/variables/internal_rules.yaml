@@ -136,6 +136,8 @@ videoDrivers:
 dummyPackages:
   bat:
     replace: less
+  docker:
+    replace: podman
 
 # Dynamic logic: if a package is in the install list, apply these changes
 packageLogic:

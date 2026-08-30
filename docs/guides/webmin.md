@@ -260,21 +260,19 @@ EOF
 chmod +x /opt/webmin/commands/nix-*
 ```
 
-### podman commands
+### Docker/Podman module
 
-```bash
-cat > /opt/webmin/commands/podman-ps << 'EOF'
-#!/bin/sh
-podman ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
-EOF
+The Docker module for Webmin is automatically installed when Webmin is set up. It uses Podman via a `docker` → `podman` symlink (created by the docker dummy package).
 
-cat > /opt/webmin/commands/podman-images << 'EOF'
-#!/bin/sh
-podman images --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}"
-EOF
+**Features:**
+- List containers (running, stopped)
+- Start/stop/restart containers
+- View container logs
+- Container properties
+- System info
+- Monitor types for System Status
 
-chmod +x /opt/webmin/commands/podman-*
-```
+No additional setup needed — the module works out of the box with Podman.
 
 ## Container Management
 

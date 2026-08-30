@@ -280,6 +280,25 @@ func installWebminModules(conf *config.Config) error {
 
 	_, _ = shell.ExecuteCmdArgs(chroot, "rm", "-f", "/tmp/custom.wbm.gz", "/tmp/custom.wbm")
 
+	// Docker module (works with Podman via symlink)
+	fmt.Println("[INFO] Installing Docker module for Podman...")
+	downloadDocker := "curl -sSL https://github.com/dave-lang/webmin-docker/releases/latest/download/docker.wbm.gz -o /tmp/docker.wbm.gz"
+	if _, err := shell.ExecuteCmd(chroot, downloadDocker); err != nil {
+		return fmt.Errorf("failed to download docker module: %w", err)
+	}
+
+	extractDocker := "cd /tmp && gunzip docker.wbm.gz 2>/dev/null; podman cp /tmp/docker.wbm webmin:/tmp/docker.wbm"
+	if _, err := shell.ExecuteCmd(chroot, extractDocker); err != nil {
+		return fmt.Errorf("failed to extract docker module: %w", err)
+	}
+
+	installDocker := "podman exec webmin /usr/share/webmin/install-module.pl /tmp/docker.wbm"
+	if _, err := shell.ExecuteCmd(chroot, installDocker); err != nil {
+		fmt.Printf("[WARNING] Failed to install docker module: %v\n", err)
+	}
+
+	_, _ = shell.ExecuteCmdArgs(chroot, "rm", "-f", "/tmp/docker.wbm.gz", "/tmp/docker.wbm")
+
 	return nil
 }
 
