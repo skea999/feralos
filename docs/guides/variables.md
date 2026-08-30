@@ -93,6 +93,9 @@ variables:
 | `enableSwap` | `bool` | `btrfsStandard`/`btrfsUnencrypted`/`btrfsRaid0`: enable swap (file or LUKS partitions). `btrfsStandardServer`: always true (LUKS swap). `swapSize` only matters when true. |
 | `swapSize` | `string` | `auto` (2×RAM) or explicit `8G`/`4096M`/`4096K`. Split `/2` per disk on `btrfsRaid0`. |
 | `enableDebug` | `bool` | Debug logging via `HardeningPackages()`. |
+| `enablePodman` | `bool` | Podman rootless containers, subuid/subgid, podman group. |
+| `enableWebmin` | `bool` | Webmin web admin panel (requires podman). Modules: firewall, packages, btrfs, smart, proc, cron, logs, custom commands. |
+| `webminListenAll` | `bool` | `false`: localhost:10000 only. `true`: 0.0.0.0:10000 (all interfaces). |
 
 ### Extra Packages
 

@@ -8,7 +8,10 @@
 - [`first_boot.md`](./first_boot.md) — **First boot post-install**: run standalone `feralos_secureboot` + `feralos_tpm` from `/opt/feralos_*`, enroll sbctl, bind LUKS to TPM2, rebuild UKI. QEMU harness runs these automatically; real hardware runs manually.
 - [`variables.md`](./variables.md) — **Variables compilation**: full `variables.yaml` example + option tables (disks, layout, user, hostname, mirror, desktop, video, `Enable*`, `swapSize`, `extraPackages`), compilation via `logic.ApplyRules` + `internal_rules.yaml`, fixtures.
 
-All three copy `AGENTS.md` + `docs/INSTALLER.md` flow for offline use (single source, no duplicate except `AGENTS.md`).
+## Desktop Application Guides
+
+- [`webmin.md`](./webmin.md) — **Webmin web administration**: install, configure modules (firewall, packages, btrfs, smart, cron, logs), custom commands for btrbk/nix, Firefox PWA setup.
+- [`podman.md`](./podman.md) — **Podman rootless containers**: install, rootless config, Docker compatibility, volume management, Webmin integration.
 
 ## Development Guides (for contributors)
 
