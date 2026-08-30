@@ -4,6 +4,8 @@ import (
 	"alpineInstaller/utils/config"
 	"alpineInstaller/utils/shell"
 	"fmt"
+	"os"
+	"strings"
 )
 
 // WebminPackages returns the APK packages needed for Webmin.
@@ -11,12 +13,12 @@ func WebminPackages(conf *config.Config) []string {
 	if !conf.User.EnableWebmin {
 		return nil
 	}
-	// Webmin is installed via setup.sh, but we need basic dependencies
-	return []string{"perl", "perl-io-socket-ssl", "net-tools", "procps", "cronie"}
+	// Webmin runs in a Podman container — no APK packages needed on host
+	return nil
 }
 
 // SetupWebmin installs and configures Webmin web administration panel.
-// Webmin requires Podman (for container management features).
+// Webmin runs in a Podman container with minimal permissions.
 func SetupWebmin(conf *config.Config) error {
 	if !conf.User.EnableWebmin {
 		fmt.Println("[INFO] Webmin disabled, skipping...")
@@ -32,50 +34,65 @@ func SetupWebmin(conf *config.Config) error {
 	chroot := conf.Internal.ChrootDir
 	u := conf.User
 
-	fmt.Println("[INFO] Installing and configuring Webmin...")
+	fmt.Println("[INFO] Installing Webmin via Podman container...")
 
-	// Download and install Webmin setup.sh
-	fmt.Println("[INFO] Downloading Webmin setup.sh...")
-	if _, err := shell.ExecuteCmd(chroot, "curl -sSL https://raw.githubusercontent.com/webmin/webmin/master/setup.sh -o /tmp/webmin-setup.sh"); err != nil {
-		return fmt.Errorf("failed to download webmin setup.sh: %w", err)
+	// Pull Webmin image
+	fmt.Println("[INFO] Pulling Webmin Docker image...")
+	if _, err := shell.ExecuteCmd(chroot, "podman pull docker.io/webmin/webmin:latest"); err != nil {
+		return fmt.Errorf("failed to pull webmin image: %w", err)
 	}
 
-	// Run setup.sh in unattended mode
-	fmt.Println("[INFO] Running Webmin setup.sh...")
-	if _, err := shell.ExecuteCmd(chroot, "sh /tmp/webmin-setup.sh --unattended"); err != nil {
-		return fmt.Errorf("failed to run webmin setup.sh: %w", err)
-	}
-
-	// Configure listen address
+	// Determine listen address
 	listenAddr := "127.0.0.1"
 	if conf.User.WebminListenAll {
 		listenAddr = "0.0.0.0"
 	}
 	fmt.Printf("[INFO] Configuring Webmin to listen on %s:10000\n", listenAddr)
 
-	// Update miniserv.conf listen address
-	listenLine := fmt.Sprintf("sed -i 's/^bind=.*/bind=%s/' /etc/webmin/miniserv.conf", listenAddr)
-	if _, err := shell.ExecuteCmd(chroot, listenLine); err != nil {
-		fmt.Printf("[WARNING] Failed to set Webmin listen address: %v\n", err)
+	// Stop and remove existing webmin container if any
+	_, _ = shell.ExecuteCmd(chroot, "podman rm -f webmin 2>/dev/null")
+
+	// Run Webmin container with minimal permissions
+	fmt.Println("[INFO] Starting Webmin container...")
+	runCmd := fmt.Sprintf(`podman run -d \
+		--name webmin \
+		--hostname feralos-webmin \
+		--read-only \
+		--cap-drop ALL \
+		--cap-add SYS_CHROOT \
+		--cap-add NET_BIND_SERVICE \
+		--cap-add AUDIT_WRITE \
+		--cap-add SETUID \
+		--cap-add SETGID \
+		--cap-add FOWNER \
+		--cap-add DAC_OVERRIDE \
+		--cap-add SYS_ADMIN \
+		-p %s:10000 \
+		-v /etc:/host/etc:ro \
+		-v /var:/host/var:ro \
+		-v /proc:/host/proc:ro \
+		-v /sys:/host/sys:ro \
+		-v /run:/host/run:ro \
+		-v /boot:/host/boot:ro \
+		-v /home:/host/home:rw \
+		-v /root:/host/root:rw \
+		-e WEBMIN_CONFIG=/host/etc/webmin \
+		-e MINISERV_CONFIG=/host/etc/webmin/miniserv.conf \
+		--restart unless-stopped \
+		docker.io/webmin/webmin:latest`, listenAddr)
+	if _, err := shell.ExecuteCmd(chroot, runCmd); err != nil {
+		return fmt.Errorf("failed to start webmin container: %w", err)
 	}
 
-	// Enable webmin service
-	if _, err := shell.ExecuteCmdArgs(chroot, "rc-update", "add", "webmin", "default"); err != nil {
-		fmt.Printf("[WARNING] Failed to add webmin to default runlevel: %v\n", err)
-	}
-
-	// Configure Webmin modules
+	// Configure Webmin modules (inside container)
 	if err := configureWebminModules(conf); err != nil {
 		fmt.Printf("[WARNING] Failed to configure some Webmin modules: %v\n", err)
 	}
 
 	// Set root password for Webmin auth
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo 'root:%s' | chpasswd", u.Password)); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("podman exec webmin sh -c 'echo \"root:%s\" | chpasswd'", u.Password)); err != nil {
 		fmt.Printf("[WARNING] Failed to set root password for Webmin: %v\n", err)
 	}
-
-	// Clean up setup script
-	_, _ = shell.ExecuteCmdArgs(chroot, "rm", "-f", "/tmp/webmin-setup.sh")
 
 	listenInfo := "localhost:10000"
 	if conf.User.WebminListenAll {
@@ -98,9 +115,6 @@ func createWebminDesktopFile(conf *config.Config) error {
 	u := conf.User
 
 	webminUrl := "https://localhost:10000"
-	if conf.User.WebminListenAll {
-		webminUrl = "https://localhost:10000"
-	}
 
 	desktopContent := fmt.Sprintf(`[Desktop Entry]
 Name=Webmin
@@ -132,116 +146,85 @@ StartupNotify=true
 	return nil
 }
 
-// configureWebminModules enables and configures the built-in Webmin modules.
+// configureWebminModules enables and configures the built-in Webmin modules inside the container.
+// writeContainerConfig writes content to a file inside the webmin Podman container.
+// Uses temp file + podman cp to avoid shell quoting issues with echo.
+func writeContainerConfig(chroot, path, content string) error {
+	const container = "webmin"
+
+	tmp, err := os.CreateTemp("", "webmin-config-")
+	if err != nil {
+		return fmt.Errorf("failed to create temp file: %w", err)
+	}
+	defer os.Remove(tmp.Name())
+
+	if _, err := tmp.WriteString(content); err != nil {
+		tmp.Close()
+		return fmt.Errorf("failed to write temp file: %w", err)
+	}
+	tmp.Close()
+
+	// podman cp needs container:path — mkdir parent first
+	dir := path[:strings.LastIndex(path, "/")]
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("podman exec %s mkdir -p %s", container, dir)); err != nil {
+		return fmt.Errorf("failed to create dir %s: %w", dir, err)
+	}
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("podman cp %s %s:%s", tmp.Name(), container, path)); err != nil {
+		return fmt.Errorf("failed to copy config to %s:%s: %w", container, path, err)
+	}
+	return nil
+}
+
 func configureWebminModules(conf *config.Config) error {
 	chroot := conf.Internal.ChrootDir
 
 	// FirewallD module — configure to use firewall-cmd
 	fmt.Println("[INFO] Configuring Webmin FirewallD module...")
-	firewalldModuleDir := "/etc/webmin/firewalld"
-	if _, err := shell.ExecuteCmdArgs(chroot, "mkdir", "-p", firewalldModuleDir); err != nil {
-		return fmt.Errorf("failed to create firewalld module dir: %w", err)
-	}
-
 	firewallCmdConfig := "firewall_cmd=/usr/sbin/firewall-cmd\nfirewall_type=firewalld\n"
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > %s/config", firewallCmdConfig, firewalldModuleDir)); err != nil {
+	if err := writeContainerConfig(chroot, "/etc/webmin/firewalld/config", firewallCmdConfig); err != nil {
 		return fmt.Errorf("failed to write firewalld config: %w", err)
 	}
 
 	// Software Packages module — configure for apk
 	fmt.Println("[INFO] Configuring Webmin Software Packages module for apk...")
-	packagesModuleDir := "/etc/webmin/software"
-	if _, err := shell.ExecuteCmdArgs(chroot, "mkdir", "-p", packagesModuleDir); err != nil {
-		return fmt.Errorf("failed to create software module dir: %w", err)
-	}
-
 	packagesConfig := "package_type=apk\nupdate_command=apk update\ninstall_command=apk add\nremove_command=apk del\nsearch_command=apk search\n"
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > %s/config", packagesConfig, packagesModuleDir)); err != nil {
+	if err := writeContainerConfig(chroot, "/etc/webmin/software/config", packagesConfig); err != nil {
 		return fmt.Errorf("failed to write software config: %w", err)
-	}
-
-	// Disk and Network Filesystems module — configure for btrfs
-	fmt.Println("[INFO] Configuring Webmin Disk/Filesystems module for btrfs...")
-	mountModuleDir := "/etc/webmin/mount"
-	if _, err := shell.ExecuteCmdArgs(chroot, "mkdir", "-p", mountModuleDir); err != nil {
-		return fmt.Errorf("failed to create mount module dir: %w", err)
-	}
-
-	mountConfig := "fstab_file=/etc/fstab\nmount_command=/bin/mount\numount_command=/bin/umount\n"
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > %s/config", mountConfig, mountModuleDir)); err != nil {
-		return fmt.Errorf("failed to write mount config: %w", err)
 	}
 
 	// Custom Commands module — pre-configure for btrbk and nix
 	fmt.Println("[INFO] Configuring Webmin Custom Commands module...")
-	customModuleDir := "/etc/webmin/custom"
-	if _, err := shell.ExecuteCmdArgs(chroot, "mkdir", "-p", customModuleDir); err != nil {
-		return fmt.Errorf("failed to create custom module dir: %w", err)
-	}
-
-	// Create custom commands directory for user scripts
-	if _, err := shell.ExecuteCmdArgs(chroot, "mkdir", "-p", "/etc/webmin/custom/commands"); err != nil {
-		fmt.Printf("[WARNING] Failed to create custom commands dir: %v\n", err)
-	}
-
 	customConfig := "commands_dir=/etc/webmin/custom/commands\n"
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > %s/config", customConfig, customModuleDir)); err != nil {
+	if err := writeContainerConfig(chroot, "/etc/webmin/custom/config", customConfig); err != nil {
 		return fmt.Errorf("failed to write custom config: %w", err)
 	}
 
-	// SMART Status module — configure for disk health monitoring
+	// SMART Status module
 	fmt.Println("[INFO] Configuring Webmin SMART Status module...")
-	smartModuleDir := "/etc/webmin/smart-status"
-	if _, err := shell.ExecuteCmdArgs(chroot, "mkdir", "-p", smartModuleDir); err != nil {
-		return fmt.Errorf("failed to create smart-status module dir: %w", err)
-	}
-
 	smartConfig := "smartctl_command=/usr/sbin/smartctl\nsmartd_conf=/etc/smartd.conf\n"
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > %s/config", smartConfig, smartModuleDir)); err != nil {
+	if err := writeContainerConfig(chroot, "/etc/webmin/smart-status/config", smartConfig); err != nil {
 		return fmt.Errorf("failed to write smart-status config: %w", err)
 	}
 
-	// Process Monitoring module — configure for real-time process view
+	// Process Monitoring module
 	fmt.Println("[INFO] Configuring Webmin Process Monitoring module...")
-	procModuleDir := "/etc/webmin/proc"
-	if _, err := shell.ExecuteCmdArgs(chroot, "mkdir", "-p", procModuleDir); err != nil {
-		return fmt.Errorf("failed to create proc module dir: %w", err)
-	}
-
 	procConfig := "ps_command=/bin/ps\nkill_command=/bin/kill\nrenice_command=/usr/bin/renice\n"
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > %s/config", procConfig, procModuleDir)); err != nil {
+	if err := writeContainerConfig(chroot, "/etc/webmin/proc/config", procConfig); err != nil {
 		return fmt.Errorf("failed to write proc config: %w", err)
 	}
 
-	// Cron Jobs module — configure for scheduled tasks
+	// Cron Jobs module
 	fmt.Println("[INFO] Configuring Webmin Cron Jobs module...")
-	cronModuleDir := "/etc/webmin/cron"
-	if _, err := shell.ExecuteCmdArgs(chroot, "mkdir", "-p", cronModuleDir); err != nil {
-		return fmt.Errorf("failed to create cron module dir: %w", err)
-	}
-
 	cronConfig := "cron_dir=/etc/crontabs\ncron_command=/usr/bin/crontab\n"
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > %s/config", cronConfig, cronModuleDir)); err != nil {
+	if err := writeContainerConfig(chroot, "/etc/webmin/cron/config", cronConfig); err != nil {
 		return fmt.Errorf("failed to write cron config: %w", err)
 	}
 
-	// Log Viewer module — configure for system log viewing
+	// Log Viewer module
 	fmt.Println("[INFO] Configuring Webmin Log Viewer module...")
-	logModuleDir := "/etc/webmin/logviewer"
-	if _, err := shell.ExecuteCmdArgs(chroot, "mkdir", "-p", logModuleDir); err != nil {
-		return fmt.Errorf("failed to create logviewer module dir: %w", err)
-	}
-
 	logConfig := "log_files=/var/log/messages\nlog_files=/var/log/syslog\nlog_files=/var/log/auth.log\nlog_command=/usr/bin/tail\n"
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > %s/config", logConfig, logModuleDir)); err != nil {
+	if err := writeContainerConfig(chroot, "/etc/webmin/logviewer/config", logConfig); err != nil {
 		return fmt.Errorf("failed to write logviewer config: %w", err)
-	}
-
-	// Enable modules in Webmin config
-	modulesConfig := "/etc/webmin/miniserv.conf"
-	enableModule := fmt.Sprintf("sed -i 's|^#.*firewalld|firewalld|' %s", modulesConfig)
-	if _, err := shell.ExecuteCmd(chroot, enableModule); err != nil {
-		fmt.Printf("[WARNING] Failed to enable firewalld module: %v\n", err)
 	}
 
 	return nil
