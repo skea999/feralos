@@ -89,21 +89,62 @@ func setupWebmin(cfg *InstallConfig) {
 	// Stop and remove existing webmin container if any
 	_, _ = shell.ExecuteCmd("", "podman rm -f webmin 2>/dev/null")
 
+	// Seed /etc/webmin from the image: our bind mount shadows the bundled
+	// config dir, so miniserv.conf must be pre-copied or the container
+	// exits with "miniserv.conf not found". Idempotent — skips if already
+	// seeded (config persists across runs in /opt/webmin/config).
+	if _, err := shell.ExecuteCmd("", "test -f /opt/webmin/config/miniserv.conf"); err != nil {
+		fmt.Println("[INFO] Seeding /etc/webmin from image...")
+		seed := func(cmd string) error {
+			_, err := shell.ExecuteCmd("", cmd)
+			return err
+		}
+		if err := seed("podman create --name webmin-seed docker.io/demosthenesk/webmin:noble"); err != nil {
+			fmt.Fprintf(os.Stderr, "ERROR: failed to create seed container: %v\n", err)
+			os.Exit(1)
+		}
+		if err := seed("podman cp webmin-seed:/etc/webmin/. /opt/webmin/config/"); err != nil {
+			_ = seed("podman rm -f webmin-seed")
+			fmt.Fprintf(os.Stderr, "ERROR: failed to copy webmin config: %v\n", err)
+			os.Exit(1)
+		}
+		_ = seed("podman rm -f webmin-seed")
+		fmt.Println("[INFO] Webmin config seeded.")
+	}
+
 	// Start with podman compose
 	fmt.Println("[INFO] Starting Webmin with podman compose...")
-	if _, err := shell.ExecuteCmd("", "cd /opt/webmin && podman compose up -d"); err != nil {
-		fmt.Println("[INFO] Trying podman-compose...")
-		if _, err2 := shell.ExecuteCmd("", "cd /opt/webmin && podman-compose up -d"); err2 != nil {
-			fmt.Printf("[WARNING] Failed to start webmin: %v (also tried podman-compose: %v)\n", err, err2)
-		}
+	composeUp := func(cmd string) error {
+		_, err := shell.ExecuteCmd("", fmt.Sprintf("sh -c 'cd /opt/webmin && %s'", cmd))
+		return err
 	}
+	composeErr := composeUp("podman compose up -d")
+	if composeErr != nil {
+		fmt.Println("[INFO] Trying podman-compose...")
+		composeErr = composeUp("podman-compose up -d")
+	}
+	if composeErr != nil {
+		fmt.Fprintf(os.Stderr, "[ERROR] Failed to start webmin container: %v\n", composeErr)
+		os.Exit(1)
+	}
+
+	// Verify the container is actually running
+	if _, err := shell.ExecuteCmd("", "podman ps --format '{{.Names}}' | grep -q '^webmin$'"); err != nil {
+		fmt.Fprintln(os.Stderr, "[ERROR] webmin container is not running after compose up")
+		os.Exit(1)
+	}
+	fmt.Println("[INFO] Webmin container running.")
 
 	// Create oneshot service
 	createWebminService()
 
-	// Set root password
+	// Set root password — changepass.pl is the webmin-native method
+	// (updates webmin's own user DB), chpasswd covers unix auth fallback.
+	if _, err := shell.ExecuteCmd("", fmt.Sprintf("podman exec webmin /usr/share/webmin/changepass.pl /etc/webmin root '%s'", cfg.Password)); err != nil {
+		fmt.Printf("[WARNING] Failed to set webmin root password: %v\n", err)
+	}
 	if _, err := shell.ExecuteCmd("", fmt.Sprintf("echo 'root:%s' | chpasswd", cfg.Password)); err != nil {
-		fmt.Printf("[WARNING] Failed to set root password: %v\n", err)
+		fmt.Printf("[WARNING] Failed to set unix root password: %v\n", err)
 	}
 
 	// Create .desktop file
@@ -116,7 +157,7 @@ func setupWebmin(cfg *InstallConfig) {
 func generateComposeFile(listenAddr string) {
 	composeContent := fmt.Sprintf(`services:
   webmin:
-    image: docker.io/pschatzmann/webmin:latest
+    image: docker.io/demosthenesk/webmin:noble
     container_name: webmin
     hostname: feralos-webmin
     restart: unless-stopped
@@ -145,13 +186,15 @@ func generateComposeFile(listenAddr string) {
       - /boot:/host/boot:ro
       - /home:/host/home:rw
       - /root:/host/root:rw
-    environment:
-      - WEBMIN_CONFIG=/etc/webmin
-      - MINISERV_CONFIG=/etc/webmin/miniserv.conf
+    tmpfs:
+      - /tmp
+      - /run
+      - /var/log
+      - /var/webmin
 `, listenAddr)
 
-	escaped := strings.ReplaceAll(composeContent, "'", "'\\''")
-	if _, err := shell.ExecuteCmd("", fmt.Sprintf("cat > /opt/webmin/docker-compose.yml << 'COMPOSE'\n%s\nCOMPOSE", escaped)); err != nil {
+	// Quoted heredoc = literal content, no escaping needed
+	if _, err := shell.ExecuteCmd("", fmt.Sprintf("cat > /opt/webmin/docker-compose.yml << 'COMPOSE'\n%s\nCOMPOSE", composeContent)); err != nil {
 		fmt.Printf("[WARNING] Failed to write compose file: %v\n", err)
 	}
 	_, _ = shell.ExecuteCmd("", "chown root:root /opt/webmin/docker-compose.yml")
@@ -204,8 +247,8 @@ start() {
 `
 
 	serviceFile := "/etc/init.d/webmin-ensure"
-	escaped := strings.ReplaceAll(serviceScript, "'", "'\\''")
-	if _, err := shell.ExecuteCmd("", fmt.Sprintf("cat > %s << 'SERVICE'\n%s\nSERVICE", serviceFile, escaped)); err != nil {
+	// Quoted heredoc = literal content, no escaping needed
+	if _, err := shell.ExecuteCmd("", fmt.Sprintf("cat > %s << 'SERVICE'\n%s\nSERVICE", serviceFile, serviceScript)); err != nil {
 		fmt.Printf("[WARNING] Failed to install webmin service: %v\n", err)
 	}
 	_, _ = shell.ExecuteCmd("", fmt.Sprintf("chmod 755 %s", serviceFile))
@@ -226,7 +269,7 @@ StartupNotify=true
 	desktopDir := "~/projects/feralos/home/.local/share/applications"
 	_, _ = shell.ExecuteCmd("", fmt.Sprintf("mkdir -p %s", desktopDir))
 	desktopFile := desktopDir + "/webmin.desktop"
-	escaped := strings.ReplaceAll(desktopContent, "'", "'\\''")
-	_, _ = shell.ExecuteCmd("", fmt.Sprintf("cat > %s << 'DESKTOP'\n%s\nDESKTOP", desktopFile, escaped))
+	// Quoted heredoc = literal content, no escaping needed
+	_, _ = shell.ExecuteCmd("", fmt.Sprintf("cat > %s << 'DESKTOP'\n%s\nDESKTOP", desktopFile, desktopContent))
 	_, _ = shell.ExecuteCmd("", fmt.Sprintf("chown <user>:<user> %s", desktopFile))
 }

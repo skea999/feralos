@@ -47,14 +47,14 @@ func SetupPodman(conf *config.Config) error {
 		return fmt.Errorf("failed to write /etc/subgid: %w", err)
 	}
 
-	// Configure storage driver for chroot environment (pivot_root doesn't work)
-	fmt.Println("[INFO] Configuring Podman storage driver...")
+	// Storage driver: btrfs (root filesystem is btrfs). Alpine ships a full
+	// storage.conf — override only the driver line, keep the rest.
+	fmt.Println("[INFO] Configuring Podman storage driver (btrfs)...")
 	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /etc/containers"); err != nil {
 		fmt.Printf("[WARNING] Failed to create containers config dir: %v\n", err)
 	}
-	storageConf := "cat > /etc/containers/storage.conf << 'STORAGE'\n[storage]\ndriver = \"vfs\"\nSTORAGE"
-	if _, err := shell.ExecuteCmd(chroot, storageConf); err != nil {
-		fmt.Printf("[WARNING] Failed to write storage.conf: %v\n", err)
+	if _, err := shell.ExecuteCmd(chroot, `sed -i 's/^#*driver[[:space:]]*=.*/driver = "btrfs"/' /etc/containers/storage.conf`); err != nil {
+		fmt.Printf("[WARNING] Failed to set storage driver: %v\n", err)
 	}
 
 	fmt.Println("[INFO] Podman configured for rootless containers.")

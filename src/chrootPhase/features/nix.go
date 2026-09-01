@@ -71,11 +71,12 @@ trusted-users = root`
 	}
 
 	fmt.Println("[INFO] Setting Nix environment variables...")
-	// TMPDIR points at the nix build subvolume: /tmp is mounted noexec + 0755
-	// (security), so nix temp files must live on @nix-var-nix-build. This is
-	// permanent — future builds by the user also use the subvolume.
-	nixEnv := `export XKB_CONFIG_ROOT=/usr/share/X11/xkb
-export TMPDIR=/nix/var/nix/build/tmp`
+	// XKB_CONFIG_ROOT: nix-installed GUI apps need the host X11 xkb data.
+	// NOTE: TMPDIR is deliberately NOT exported globally — /tmp is noexec
+	// (security) so nix builds need the @nix-var-nix-build subvolume, but the
+	// var is scoped to the nix daemon only via /etc/conf.d/nix-daemon below.
+	// A global export leaks into podman etc. and breaks containers-storage.
+	nixEnv := `export XKB_CONFIG_ROOT=/usr/share/X11/xkb`
 	escapedNixEnv := strings.ReplaceAll(nixEnv, "'", "'\\''")
 	// Append (not overwrite): preserve the PATH/daemon setup the Alpine nix
 	// package ships in /etc/profile.d/nix-daemon.sh.
@@ -83,15 +84,18 @@ export TMPDIR=/nix/var/nix/build/tmp`
 		return fmt.Errorf("failed to write nix env: %w", err)
 	}
 
-	nixFishEnv := `set -gx XKB_CONFIG_ROOT /usr/share/X11/xkb
-set -gx TMPDIR /nix/var/nix/build/tmp`
+	// Scope TMPDIR to the nix daemon service only (OpenRC sources conf.d)
+	if _, err := shell.ExecuteCmd(chroot, "echo 'TMPDIR=/nix/var/nix/build/tmp' > /etc/conf.d/nix-daemon"); err != nil {
+		return fmt.Errorf("failed to write /etc/conf.d/nix-daemon: %w", err)
+	}
+
+	nixFishEnv := `set -gx XKB_CONFIG_ROOT /usr/share/X11/xkb`
 	escapedNixFishEnv := strings.ReplaceAll(nixFishEnv, "'", "'\\''")
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' >> /etc/fish/conf.d/nix.fish", escapedNixFishEnv)); err != nil {
 		return fmt.Errorf("failed to write nix fish env: %w", err)
 	}
 
-	nixBashEnv := `export XKB_CONFIG_ROOT=/usr/share/X11/xkb
-export TMPDIR=/nix/var/nix/build/tmp`
+	nixBashEnv := `export XKB_CONFIG_ROOT=/usr/share/X11/xkb`
 	escapedNixBashEnv := strings.ReplaceAll(nixBashEnv, "'", "'\\''")
 	if _, err := shell.ExecuteCmdArgs(chroot, "mkdir", "-p", "/etc/bash"); err != nil {
 		fmt.Printf("[WARNING] Failed to create /etc/bash: %v\n", err)

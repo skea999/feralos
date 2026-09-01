@@ -35,9 +35,11 @@ fi' > /etc/profile.d/console.sh`
 		return fmt.Errorf("failed to set timezone: %w", err)
 	}
 
-	// 5. Locale
+	// 5. Locale — "it" → "it_IT.UTF-8" (same expansion as the shell reference;
+	// bare "it" is invalid for musl setlocale and crashes conmon)
 	fmt.Println("[INFO] Setting up locale...")
-	localeContent := fmt.Sprintf("echo 'export CHARSET=%s\nexport LANG=%s\nLC_COLLATE=%s' > /etc/profile.d/20locale.sh", u.Locale, u.Locale, u.Locale)
+	localeFull := fmt.Sprintf("%s_%s.UTF-8", u.Locale, strings.ToUpper(u.Locale))
+	localeContent := fmt.Sprintf("echo 'export CHARSET=%s\nexport LANG=%s\nLC_COLLATE=%s' > /etc/profile.d/20locale.sh", localeFull, localeFull, localeFull)
 	if _, err := shell.ExecuteCmd(chroot, localeContent); err != nil {
 		return fmt.Errorf("failed to write locale config: %w", err)
 	}

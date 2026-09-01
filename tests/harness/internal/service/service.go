@@ -1049,6 +1049,19 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg *RunConfig,
 		tpmBindingSuccessful = true
 	}
 
+	// Run Webmin binary — installs Webmin container (podman compose).
+	// webmin-ensure oneshot restarts it on the verification boot.
+	if cfg.EnableWebmin {
+		webminLogPath := filepath.Join(runDir, "webmin-post-install.log")
+		webminDiag, webminErr := runWebminOnTarget(ctx, targetGuest)
+		if webminDiag != "" {
+			_ = os.WriteFile(webminLogPath, []byte(webminDiag), 0o600)
+		}
+		if webminErr != nil {
+			logHarness("WARNING: webmin setup failed: %v\n", webminErr)
+		}
+	}
+
 	// Run diagnostics
 	postInstallDiag, diagErr := runPostInstallDiag(ctx, targetGuest)
 	if postInstallDiag != "" {
@@ -1263,12 +1276,15 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		checks["docker_symlink"] = "docker ps"
 	}
 
-	// Webmin checks — web admin panel
+	// Webmin checks — functional assertions: container running, port mapped,
+	// HTTP answering. Binary runs on first boot (runWebminOnTarget);
+	// webmin-ensure oneshot restarts the container on this verification boot.
+	// No "|| echo" fallbacks — these must FAIL when webmin doesn't work.
 	if cfg.EnableWebmin {
-		checks["webmin_container"] = "podman ps --format '{{.Names}}' | grep -q '^webmin$' && echo 'webmin running' || echo 'webmin not running'"
-		checks["webmin_compose"] = "test -f /opt/webmin/docker-compose.yml && echo 'compose file exists' || echo 'compose file missing'"
-		checks["webmin_config"] = "ls /opt/webmin/config/ 2>/dev/null || echo 'no config dir'"
-		checks["webmin_service"] = "ls /etc/init.d/webmin-ensure 2>/dev/null && echo 'service exists' || echo 'no service'"
+		checks["webmin_binary"] = "test -x /opt/feralos_webmin"
+		checks["webmin_container"] = "podman ps --format '{{.Names}}' | grep -q '^webmin$'"
+		checks["webmin_port"] = "podman port webmin 10000 | grep -q 10000"
+		checks["webmin_http"] = "for i in 1 2 3 4 5 6 7 8; do wget -q -T 5 -O /dev/null --no-check-certificate https://localhost:10000/ && exit 0; sleep 5; done; exit 1"
 	}
 
 	if cfg.EnableSecureboot {
@@ -2720,6 +2736,28 @@ export SKEA_NONINTERACTIVE=1
 export SKEA_NONINTERACTIVE_DECISION=ignore
 export SKEA_LUKS_PASSWORD=` + shellQuote(password) + `
 /opt/feralos_tpm
+`
+
+	var outBuf, errBuf strings.Builder
+	if err := guest.Run(ctx, targetGuest, "sh -s -- <<'SCRIPT'\n"+script+"\nSCRIPT", &outBuf, &errBuf); err != nil {
+		detail := strings.TrimSpace(errBuf.String())
+		if outBuf.Len() > 0 {
+			detail = strings.TrimSpace(outBuf.String()) + "\nstderr: " + detail
+		}
+		if detail != "" {
+			return detail, fmt.Errorf("%w: %s", err, detail)
+		}
+		return "", err
+	}
+	return outBuf.String(), nil
+}
+
+// runWebminOnTarget runs the Webmin firstBoot binary — writes /opt/webmin
+// compose + configs, pulls the image and starts the container.
+func runWebminOnTarget(ctx context.Context, targetGuest guest.Options) (string, error) {
+	script := `set -eu
+export SKEA_NONINTERACTIVE=1
+/opt/feralos_webmin
 `
 
 	var outBuf, errBuf strings.Builder
