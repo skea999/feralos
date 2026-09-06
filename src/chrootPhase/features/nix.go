@@ -41,9 +41,9 @@ func SetupNix(conf *config.Config) error {
 	// NOTE: allow-unfree/allow-insecure are NOT recognized by Alpine's nix
 	// build (unknown setting warnings) — NIXPKGS_ALLOW_* env vars in
 	// /etc/profile.d/nix-daemon.sh (and fish/bash) carry that permanently.
-	nixConf := `build-dir = /nix/var/nix/build
+	nixConf := fmt.Sprintf(`build-dir = /nix/var/nix/build
 extra-experimental-features = nix-command flakes
-trusted-users = root`
+trusted-users = root %s`, u.UserName)
 	escapedNixConf := strings.ReplaceAll(nixConf, "'", "'\\''")
 	// Append (not overwrite): preserve Alpine's allowed-users=@nix,
 	// build-users-group=nixbld and max-jobs from /etc/nix/nix.conf.
@@ -58,7 +58,7 @@ trusted-users = root`
 	if _, err := shell.ExecuteCmdArgs(chroot, "chown", "root:nixbld", "/nix/var/nix/build"); err != nil {
 		fmt.Printf("[WARNING] Failed to set build dir ownership: %v\n", err)
 	}
-	if _, err := shell.ExecuteCmdArgs(chroot, "chmod", "750", "/nix/var/nix/build"); err != nil {
+	if _, err := shell.ExecuteCmdArgs(chroot, "chmod", "775", "/nix/var/nix/build"); err != nil {
 		fmt.Printf("[WARNING] Failed to set build dir permissions: %v\n", err)
 	}
 
@@ -135,6 +135,9 @@ trusted-users = root`
 		if _, err := shell.ExecuteCmdArgs(chroot, "mkdir", "-p", nixTmp); err != nil {
 			return fmt.Errorf("failed to prepare nix build tmp dir: %w", err)
 		}
+		if _, err := shell.ExecuteCmdArgs(chroot, "chown", "root:nixbld", nixTmp); err != nil {
+			fmt.Printf("[WARNING] Failed to set tmp dir ownership: %v\n", err)
+		}
 		if _, err := shell.ExecuteCmdArgs(chroot, "chmod", "1777", nixTmp); err != nil {
 			return fmt.Errorf("failed to prepare nix build tmp dir: %w", err)
 		}
@@ -152,12 +155,32 @@ trusted-users = root`
 		// fails inside the installer chroot (EINVAL — / is not a mountpoint).
 		// This is chroot-only; the installed system keeps the default sandbox.
 		// 'add' is the current command ('install' is a deprecated alias).
+		var failedPkgs []string
 		for _, pkg := range u.NixPackages {
 			fmt.Printf("[INFO] nix profile add %s\n", pkg)
 			inner := fmt.Sprintf("TMPDIR=%s NIXPKGS_ALLOW_INSECURE=1 NIXPKGS_ALLOW_UNFREE=1 nix profile add --option sandbox false %s", nixTmp, pkg)
 			if _, err := shell.ExecuteCmdArgs(chroot, "su", "-", u.UserName, "-c", inner); err != nil {
-				return fmt.Errorf("failed to install nix package %s: %w", pkg, err)
+				fmt.Printf("[WARNING] Failed to install nix package %s: %v\n", pkg, err)
+				failedPkgs = append(failedPkgs, pkg)
 			}
+		}
+		if len(failedPkgs) > 0 {
+			fmt.Printf("[WARNING] Failed to install %d nix package(s): %s\n", len(failedPkgs), strings.Join(failedPkgs, ", "))
+		}
+
+		fmt.Println("[INFO] Testing nix update path (dry-run)...")
+		if _, err := shell.ExecuteCmdArgs(chroot, "su", "-", u.UserName, "-c", "nix flake update --dry-run 2>&1 || true"); err != nil {
+			fmt.Printf("[WARNING] nix flake update dry-run failed: %v\n", err)
+		}
+		if _, err := shell.ExecuteCmdArgs(chroot, "su", "-", u.UserName, "-c", "nix profile upgrade --dry-run 2>&1 || true"); err != nil {
+			fmt.Printf("[WARNING] nix profile upgrade dry-run failed: %v\n", err)
+		}
+
+		if _, err := shell.ExecuteCmd(chroot, "sed -i 's/trusted-users = root .*/trusted-users = root/' /etc/nix/nix.conf"); err != nil {
+			fmt.Printf("[WARNING] Failed to clean trusted-users in nix.conf: %v\n", err)
+		}
+		if _, err := shell.ExecuteCmdArgs(chroot, "rc-service", "nix-daemon", "restart"); err != nil {
+			fmt.Printf("[WARNING] Failed to restart nix-daemon in chroot: %v\n", err)
 		}
 
 		// Stop the daemon again — the target boots its own nix-daemon service.

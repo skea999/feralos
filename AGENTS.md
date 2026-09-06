@@ -191,6 +191,8 @@ Each `Enable*` flag (and `DesktopEnvironment`) is owned by exactly ONE file unde
 |---------|-----------|-------------|
 | `EnableSecureboot` | `utils/firstboot/secureboot.go` | `main.go` |
 | `EnableTPM` | `utils/firstboot/tpm.go` | `main.go` |
+| `EnableWebmin` | `utils/firstboot/webmin.go` | `main.go` |
+| `EnablePodman` | `chrootPhase/features/podman.go` | `packages.go` + `chroot_phase.go` |
 | `EnableHardening` | `chrootPhase/features/hardening.go` | `packages.go` + `chroot_phase.go` |
 | `EnableNix` | `chrootPhase/features/nix.go` | `packages.go` + `chroot_phase.go` |
 | `EnableZswap` | `chrootPhase/features/zswap.go` + `zswap_server.go` | `packages.go` + `chroot_phase.go` |
@@ -208,14 +210,15 @@ No backward compat. Breaking changes allowed without fallback (e.g., breaking ch
 
 ## FirstBoot Architecture
 
-Activatable features (Secure Boot, TPM) use standalone binaries in `src/firstBoot/`:
+Activatable features (Secure Boot, TPM, Webmin) use standalone binaries in `src/firstBoot/`:
 
 - `src/firstBoot/secureboot/main.go` — autonomous: installs packages, generates EFI keys, enrolls sbctl, builds+signs UKI, writes hooks
 - `src/firstBoot/tpm/main.go` — autonomous: checks TPM, installs clevis@edge + tpm2-tools, binds LUKS to TPM2, rebuilds initramfs+UKI
+- `src/firstBoot/webmin/main.go` — autonomous: verifies podman, creates `/opt/webmin`, generates compose + module configs, seeds `/etc/webmin` from image (`webmin-seed` container), starts via `podman compose up -d`, creates `webmin-ensure` oneshot, sets root password via `changepass.pl` + `chpasswd`
 
 **Installer flow**:
 
-1. `firstboot.SetupSecureboot(conf)` / `firstboot.SetupTpm(conf)` compile binaries → copy to `/opt/feralos_*`
+1. `firstboot.SetupSecureboot(conf)` / `firstboot.SetupTpm(conf)` / `firstboot.SetupWebmin(conf)` compile binaries → copy to `/opt/feralos_*`
 2. `firstboot.WriteInstallConfig(conf)` writes `/opt/feralos/config.yaml` (disk layout, LUKS UUIDs, user info)
 3. Binaries are autonomous — installer does NOT run them
 
@@ -233,7 +236,7 @@ Activatable features (Secure Boot, TPM) use standalone binaries in `src/firstBoo
 
 **Known limitation**: Secure Boot enrollment cannot be confirmed in QEMU (no real efivarfs). TPM auto-unlock CAN be confirmed and works reliably.
 
-→ Details: `docs/architecture/firstboot.md` (hostPhase/firstBoot design), `docs/guides/first_boot.md` (real hardware steps), `docs/FIRST_BOOT.md` is deprecated → `guides/first_boot.md`
+→ Details: `docs/architecture/firstboot.md` (hostPhase/firstBoot design), `docs/guides/first_boot.md` (real hardware steps), `docs/guides/webmin.md` (webmin compose/seed), `docs/guides/podman.md` (btrfs driver), `docs/FIRST_BOOT.md` is deprecated → `guides/first_boot.md`
 
 ## Project Structure
 
@@ -268,7 +271,31 @@ All prior swap/vector/dummy issues resolved. See `CHANGELOG.md` Fixed section. C
 
 ---
 
-*Updated: 2026-08-29*
+*Updated: 2026-09-06*
+
+### 2026-09-06 — Nix perms + Podman btrfs + Webmin divider + Harness checks
+
+- **Nix:** `trusted-users = root <user>` temp inject during chroot install (allows `--option sandbox false`), then cleaned to `root` via `sed` + `rc-service nix-daemon restart`; `/nix/var/nix/build` is `775` + `chown root:nixbld`; `/nix/var/nix/build/tmp` is `1777` + `chown root:nixbld` (world-writable sticky); `TMPDIR` scoped to daemon via `/etc/conf.d/nix-daemon` (was global export leaked into podman → broke `containers-storage`); install loop non-fatal (collect `failedPkgs` warning), dry-run `nix flake update` + `nix profile upgrade`; single-block `trusted-users` install
+- **Podman:** `btrfs` driver via `sed -i 's/^#*driver.*/driver = "btrfs"/' /etc/containers/storage.conf` (keep Alpine's full config), `cgroups` service enabled alongside `podman`, `iptables` added, `fuse-overlayfs` kept as fallback
+- **Webmin:** standalone binary `src/firstBoot/webmin/main.go`, compose `read_only: true` + `tmpfs: /tmp /run /var/log /var/webmin`, image `demosthenesk/webmin:noble` (pschatzmann dead), seed `/etc/webmin` via `webmin-seed` container before first start, `webmin-ensure` oneshot service, `changepass.pl` + `chpasswd`, quoted heredocs, `---` divider in `docs/guides/webmin.md`
+- **Locale:** `it` → `it_IT.UTF-8` (`%s_%s.UTF-8` expansion) — bare `it` crashes `conmon` `setlocale` (musl)
+- **Harness:** functional checks `webmin_binary`/`webmin_container`/`webmin_port`/`webmin_http` (8×5s wget retry, no `|| echo` fallback), `trusted_users_clean`, `works_in_real_life` (no non-interactive warning in installer.log), `nix_build_tmp_perms` (stat 777), `nix_packages_missing` (7 expected for niri), `chmod_77_check` now excludes `/nix/var/nix/build/tmp` and checks `chmod 777/1777`; 45/45 PASS with `demosthenesk` image; `runWebminOnTarget` + `runScriptOnTarget` DRY
+- **Niri:** `cosmic-files/edit/screenshot/player/store/settings`, `okular`, `eog`, `cups`, `firewalld-gui`, `gnome-firmware`, `thunderbird`, `gnome-disk-utility`, `kcron`, `cosmic-store`, `ksystemlog`, `rclone`/`rclone-ui`, `mission-center`, `nix-software-center`; `cups-browsed` moved to nix (`nixpkgs#cups-browsed`); removed `wl-clipboard`; 7 nix packages for niri
+- **Fixtures:** `full_stack.yaml` updated (enablePodman+enableWebmin true), new per-layout `btrfs_*_full_stack.yaml` (raid0, server, unencrypted); `btrfs_standard_niri_full_test.yaml` untracked test fixture
+- **Hooks:** `govulncheck` now warning-only (not blocking commit)
+- **Docs:** `docs/guides/webmin.md` (divider, seed, tmpfs, demosthenesk, Implementation Notes), `docs/guides/podman.md` (btrfs sed, cgroups, iptables, fuse-overlayfs), `docs/harness/artifacts.md` (new checks table, nix perms, podman/webmin details)
+
+### 2026-09-02 — Webmin + Locale + TMPDIR + Podman fixes
+
+- **Locale:** `it` → `it_IT.UTF-8` (bare `it` crashes conmon setlocale)
+- **Nix TMPDIR:** scoped to daemon via `/etc/conf.d/nix-daemon` (was global export, leaked into podman and broke containers-storage)
+- **Image:** `demosthenesk/webmin:noble` (pschatzmann dead — webmin 1.820 2016)
+- **Seed:** `/etc/webmin` from image before first start (`webmin-seed` container, bind mount shadowed `miniserv.conf`)
+- **tmpfs:** `/tmp /run /var/log /var/webmin` with `read_only: true`
+- **Heredocs:** quoted heredocs — no escaping (was breaking `webmin-ensure` script)
+- **Binary:** exits 1 on compose failure, verifies `podman ps` (harness reports honestly)
+- **Podman:** `btrfs` driver via `sed` (was `vfs`), `cgroups` service
+- **Harness:** functional webmin checks (`webmin_container`/`port`/`http`), `runWebminOnTarget` on first boot like tpm pattern; 45/45 PASS
 
 ### 2026-08-29 — Config markers + verify checks + cleanup enabled
 - Installer now appends `# Generated by FeralOS Installer` at END of all config files: /etc/kernel/cmdline, /etc/booster.yaml, /etc/network/interfaces, /etc/fstab (4 layouts)

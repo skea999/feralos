@@ -1,6 +1,6 @@
 # Variables Reference
 
-> **User guide** — compilation of `variables.yaml`. Template: `src/variables/variables.yaml`. Fixtures (14 templates): `tests/fixtures/variables/` (see `tests/fixtures/variables/README.md`). Processed by `utils/logic.ApplyRules` + `internal_rules.yaml`.
+> **User guide** — compilation of `variables.yaml`. Template: `src/variables/variables.yaml`. Fixtures (19 templates): `tests/fixtures/variables/` (see `tests/fixtures/variables/README.md`). Processed by `utils/logic.ApplyRules` + `internal_rules.yaml`.
 
 Full example (current template):
 
@@ -62,7 +62,7 @@ variables:
 |-----|------|-------------|
 | `hostname` | `string` | System hostname (`/etc/hostname`, `/etc/hosts`). |
 | `timezone` | `string` | `Europe/Rome`, `America/New_York`, etc. |
-| `locale` | `string` | `it`, `en`, `de`, etc. |
+| `locale` | `string` | `it`, `en`, `de`, etc. (`it` expanded to `it_IT.UTF-8` — bare `it` crashes `conmon` `setlocale` on musl) |
 | `keymap` | `string` | Console keymap `it`, `us`, etc. |
 
 ### Repository and Architecture
@@ -78,7 +78,7 @@ variables:
 
 | Key | Type | Description |
 |-----|------|-------------|
-| `desktopEnvironment` | `string` | `none` (server), `kde`, `niri`, `gnome`. `niri` pulls `greetd`+`elogind`. |
+| `desktopEnvironment` | `string` | `none` (server), `kde`, `niri`, `gnome`. `niri` pulls `greetd`+`elogind`, plus 20 APK packages (cosmic-files/edit/screenshot/player/store/settings, okular, eog, cups, cups-filters, avahi, system-config-printer, libreoffice, galculator, firefox, firewalld-gui, gnome-firmware, thunderbird, gnome-disk-utility, kcron, ksystemlog) and 7 nix packages (quickshell, dms-shell, rclone, rclone-ui, mission-center, nix-software-center, cups-browsed). `cups-browsed` moved to nix (`nixpkgs#cups-browsed`), `wl-clipboard` removed. See `internal_rules.yaml:desktopEnvironments.niri`. |
 | `videoDriver` | `string` | `none`, `amdgpu`, `nvidia`, `intel` — adds `mesa`, `vulkan`, `xf86-*`. |
 
 ### Feature Toggles
@@ -89,12 +89,12 @@ variables:
 | `enableTPM` | `bool` | Compile `feralos_tpm` → `/opt/feralos_tpm`, bind LUKS → TPM2 via clevis. Always passes swtpm to QEMU. |
 | `enableHardening` | `bool` | AppArmor, sysctl, permissions. Includes `enableDebug` false path. |
 | `enableZswap` | `bool` | Zswap compressed swap, `vm.min_free_kbytes` 1% RAM. Server always, others toggle. |
-| `enableNix` | `bool` | Nix package manager, `/nix` subvolumes, daemon. |
+| `enableNix` | `bool` | Nix package manager, `/nix` subvolumes, daemon. Build dir `775` + `chown root:nixbld`, tmp `1777` + `chown root:nixbld`, `trusted-users = root <user>` temp during chroot then cleaned to `root`, `TMPDIR=/nix/var/nix/build/tmp` scoped to daemon via `/etc/conf.d/nix-daemon`. |
 | `enableSwap` | `bool` | `btrfsStandard`/`btrfsUnencrypted`/`btrfsRaid0`: enable swap (file or LUKS partitions). `btrfsStandardServer`: always true (LUKS swap). `swapSize` only matters when true. |
 | `swapSize` | `string` | `auto` (2×RAM) or explicit `8G`/`4096M`/`4096K`. Split `/2` per disk on `btrfsRaid0`. |
 | `enableDebug` | `bool` | Debug logging via `HardeningPackages()`. |
-| `enablePodman` | `bool` | Podman rootless containers, subuid/subgid, podman group. |
-| `enableWebmin` | `bool` | Webmin web admin panel (requires podman). Modules: firewall, packages, btrfs, smart, proc, cron, logs, custom commands. |
+| `enablePodman` | `bool` | Podman rootless containers, subuid/subgid, `podman`+`cgroups` services, `btrfs` storage driver (`sed` on `storage.conf`), `iptables`+`podman-compose`+`podman-docker`+`fuse-overlayfs`. |
+| `enableWebmin` | `bool` | Webmin web admin panel (requires podman). Standalone binary `src/firstBoot/webmin/main.go`, image `demosthenesk/webmin:noble`, compose `read_only`+`tmpfs`+`cap_drop ALL`, seed `/etc/webmin` via `webmin-seed`, oneshot `webmin-ensure`, `changepass.pl`+`chpasswd`. Modules: firewall, packages, btrfs, smart, proc, cron, logs, custom commands. `---` divider in compose docs. |
 | `webminListenAll` | `bool` | `false`: localhost:10000 only. `true`: 0.0.0.0:10000 (all interfaces). |
 
 ### Extra Packages
@@ -107,6 +107,6 @@ variables:
 
 1. **Generator** (`src/utils/createConfig/create_values.go`) starts from `src/variables/variables.yaml` template, prompts for `disks` → `diskLayout` → `hostname` → `userName`/`password` → `desktopEnvironment` → flags, writes `variables.yaml`.
 2. **Installer** (`src/main.go`) loads `variables.yaml` + `internal_rules.yaml`, `logic.ApplyRules(conf)` injects groups/services/modules per package, validates `len(disks)`.
-3. **Harness fixtures** (`tests/fixtures/variables/*.yaml`) are curated 15 templates covering minimal/noswap/explicit/full/isolate per layout.
+3. **Harness fixtures** (`tests/fixtures/variables/*.yaml`) are curated 19 templates covering minimal/noswap/explicit/full/isolate per layout + 3 new per-layout full_stack (raid0, server, unencrypted) and `btrfs_standard_niri_full_test.yaml`.
 
 See `docs/architecture/feature_confinement.md` for where each `Enable*` is owned.

@@ -11,17 +11,17 @@ import (
 )
 
 type InstallConfig struct {
-	DiskLayout     string   `yaml:"disk_layout"`
-	Disks          []string `yaml:"disks"`
-	LuksUUIDs      []string `yaml:"luks_uuids"`
-	UserName       string   `yaml:"user_name"`
-	Password       string   `yaml:"password"`
-	Hostname       string   `yaml:"hostname"`
-	Mirror         string   `yaml:"mirror"`
-	Branch         string   `yaml:"branch"`
-	EnablePodman   bool     `yaml:"enable_podman"`
-	EnableWebmin   bool     `yaml:"enable_webmin"`
-	WebminListenAll bool    `yaml:"webmin_listen_all"`
+	DiskLayout      string   `yaml:"disk_layout"`
+	Disks           []string `yaml:"disks"`
+	LuksUUIDs       []string `yaml:"luks_uuids"`
+	UserName        string   `yaml:"user_name"`
+	Password        string   `yaml:"password"`
+	Hostname        string   `yaml:"hostname"`
+	Mirror          string   `yaml:"mirror"`
+	Branch          string   `yaml:"branch"`
+	EnablePodman    bool     `yaml:"enable_podman"`
+	EnableWebmin    bool     `yaml:"enable_webmin"`
+	WebminListenAll bool     `yaml:"webmin_listen_all"`
 }
 
 func loadConfig() *InstallConfig {

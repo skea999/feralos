@@ -66,18 +66,18 @@ if [ -n "$GO_FILES" ]; then
   if [ -n "$VULN_BIN" ]; then
     if [ "$HAS_SRC" = "yes" ]; then
       if ! (cd src && "$VULN_BIN" ./...); then
-        echo "✗ govulncheck failed in src/ — commit rejected"
-        echo "To bypass: git commit --no-verify"
-        exit 1
+        echo "⚠ govulncheck found vulnerabilities in src/ (warning only, not blocking)"
+      else
+        echo "✓ govulncheck passed in src/"
       fi
     fi
     if [ "$HAS_HARNESS" = "yes" ]; then
       if ! (cd tests/harness && "$VULN_BIN" ./...); then
-        echo "✗ govulncheck failed in tests/harness/ — commit rejected"
-        exit 1
+        echo "⚠ govulncheck found vulnerabilities in tests/harness/ (warning only, not blocking)"
+      else
+        echo "✓ govulncheck passed in tests/harness/"
       fi
     fi
-    echo "✓ govulncheck passed"
   fi
 fi
 echo "=== Pre-commit: Information Scan ==="

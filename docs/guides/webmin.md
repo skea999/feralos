@@ -2,6 +2,8 @@
 
 > Web-based system administration for FeralOS. Installed as a standalone binary after first boot.
 
+---
+
 ## Overview
 
 Webmin provides a web interface for managing:
@@ -35,7 +37,9 @@ Webmin is installed automatically when `enableWebmin: true` in `variables.yaml`.
 ### Manual Installation
 
 ```bash
-# Run the installer binary
+# Run the installer binary (standalone, like feralos_secureboot/tpm)
+# Podman is already configured in chrootPhase (btrfs driver, cgroups, subuid/subgid)
+# Binary only verifies podman --version, seeds config, starts container
 /opt/feralos_webmin
 
 # Or configure manually
@@ -89,6 +93,10 @@ services:
 ```
 
 > **Note:** First run seeds `/etc/webmin` from the image (`webmin-seed` container) — needed because the config bind mount shadows the bundled `miniserv.conf`.
+
+> **Image:** `docker.io/demosthenesk/webmin:noble` (pschatzmann dead — webmin 1.820 2016). Verified 2026-09-02.
+
+---
 
 ## Directory Structure
 
@@ -157,10 +165,21 @@ cd /opt/webmin && podman compose down
 
 - **Container isolation** — Podman, not host
 - **Minimal capabilities** — Only necessary Linux capabilities
-- **Read-only root** — Immutable container filesystem
+- **Read-only root** — Immutable container filesystem (`tmpfs: /tmp /run /var/log /var/webmin` writable)
 - **Persistent config** — `/opt/webmin/config/` survives restarts
 - **HTTPS only** — SSL by default
-- **Storage driver** — btrfs (native support)
+- **Storage driver** — btrfs (native, via `sed` on `/etc/containers/storage.conf`)
+- **No global TMPDIR leak** — Nix TMPDIR scoped to daemon via `/etc/conf.d/nix-daemon` (was global export that broke `containers-storage`)
+
+---
+
+## Implementation Notes (recent fixes)
+
+- **Locale:** `it` → `it_IT.UTF-8` expansion (same as shell reference; bare `it` crashes `conmon` `setlocale`)
+- **Nix TMPDIR:** scoped to daemon only (`/etc/conf.d/nix-daemon`), not `/etc/profile.d/nix-daemon.sh` globally — leaked into podman caused `containers-storage` failure
+- **Heredocs:** quoted heredocs (`<< 'COMPOSE'`) — no escaping, prevents broken `webmin-ensure` script
+- **Binary:** exits 1 on compose failure, verifies `podman ps` after start — harness reports honestly
+- **Divider:** `---` horizontal rule separates Quick Start / Directory Structure / Implementation Notes for readability
 
 ## Troubleshooting
 

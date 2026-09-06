@@ -32,6 +32,8 @@ Violation = feature logic leaked outside owner.
 |---------|-----------|-------------|
 | `EnableSecureboot` | `utils/firstboot/secureboot.go` | `main.go` |
 | `EnableTPM` | `utils/firstboot/tpm.go` | `main.go` |
+| `EnableWebmin` | `utils/firstboot/webmin.go` | `main.go` |
+| `EnablePodman` | `chrootPhase/features/podman.go` | `packages.go` + `chroot_phase.go` |
 | `EnableHardening` | `chrootPhase/features/hardening.go` | `packages.go` + `chroot_phase.go` |
 | `EnableNix` | `chrootPhase/features/nix.go` | `packages.go` + `chroot_phase.go` |
 | `EnableZswap` | `chrootPhase/features/zswap.go` + `zswap_server.go` | `packages.go` + `chroot_phase.go` |

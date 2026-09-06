@@ -109,14 +109,14 @@ desktopEnvironments:
     services: {"sddm": "default", "dbus": "default"}
     groups: ["video", "input"]
   niri:
-    packages: ["niri", "niri-portalsconf", "greetd", "greetd-regreet", "greetd-openrc", "elogind", "elogind-openrc", "dbus", "alacritty", "wayvnc", "xdg-desktop-portal-wlr", "xdg-desktop-portal-gtk", "pipewire", "polkit-elogind", "polkit-gnome", "xwayland-satellite", "mesa-dri-gallium", "wayland-libs-server", "cosmic-files", "cosmic-edit", "cosmic-screenshot", "okular", "eog", "cups", "cups-filters", "cups-browsed", "avahi", "system-config-printer", "cosmic-player", "libreoffice", "galculator", "firefox", "firewalld-gui", "gnome-firmware", "thunderbird"]
+    packages: ["niri", "niri-portalsconf", "greetd", "greetd-regreet", "greetd-openrc", "elogind", "elogind-openrc", "dbus", "alacritty", "wayvnc", "xdg-desktop-portal-wlr", "xdg-desktop-portal-gtk", "pipewire", "polkit-elogind", "polkit-gnome", "xwayland-satellite", "mesa-dri-gallium", "wayland-libs-server", "cosmic-files", "cosmic-edit", "cosmic-screenshot", "okular", "eog", "cups", "cups-filters", "avahi", "system-config-printer", "cosmic-player", "libreoffice", "galculator", "firefox", "firewalld-gui", "gnome-firmware", "thunderbird", "gnome-disk-utility", "kcron", "cosmic-store", "ksystemlog", "cosmic-settings"]
     # turnstile: edge only (not in Alpine 3.24) — include when stable
     services: {"greetd": "default", "elogind": "default", "firewalld": "default"}
     # render group does not exist on Alpine (video covers DRM access)
     groups: ["video", "input"]
     # Both from the stable nixpkgs channel (nixos-26.05) — dms-shell is
     # packaged in nixpkgs (no external flake needed)
-    nixPackages: ["nixpkgs#quickshell", "nixpkgs#dms-shell", "nixpkgs#rclone", "nixpkgs#rclone-ui"]
+    nixPackages: ["nixpkgs#quickshell", "nixpkgs#dms-shell", "nixpkgs#rclone", "nixpkgs#rclone-ui", "nixpkgs#mission-center", "github:snowfallorg/nix-software-center#nix-software-center", "nixpkgs#cups-browsed"]
 
 # 3. Video Drivers Definitions
 videoDrivers:

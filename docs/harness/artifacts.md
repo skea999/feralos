@@ -83,6 +83,29 @@ Each run produces per-check result files under `tests/`. 4 marker checks verify 
 
 All 4 layouts PASS 35/35 with markers enabled. Markers appended at END of each config file (single-point verification). See `tests/harness/internal/checks/` for implementation.
 
+## Additional harness checks (post-2026-09-02)
+
+| Check | What it verifies | Pass condition |
+|-------|------------------|----------------|
+| `trusted_users_clean` | Nix `trusted-users` temp injection cleaned | `! grep -q "<user>" /etc/nix/nix.conf` (user added during chroot install, then cleaned via `sed -i 's/trusted-users = root .*/trusted-users = root/'`) |
+| `nix_packages_missing` | Expected nix profile packages installed | `nix profile list` count >= expected (7 for niri: quickshell, dms-shell, rclone, rclone-ui, mission-center, nix-software-center, cups-browsed; 1 otherwise) |
+| `nix_build_tmp_perms` | Nix build tmp world-writable | `stat -c %a /nix/var/nix/build/tmp` contains `777` (1777) |
+| `chmod_77_check` | No insecure chmod in installer.log | Count `chmod 777`/`chmod 1777` excluding `/nix/var/nix/build/tmp` (which SHOULD be 1777) must be 0; previous check flagged `775` false positive |
+| `works_in_real_life` | No ignored errors | `installer.log` must NOT contain `[WARNING] Non-interactive mode: ignoring error and continuing.` |
+| `webmin_binary` | Webmin firstboot binary present | `test -x /opt/feralos_webmin` |
+| `webmin_container` | Webmin container running | `podman ps --format '{{.Names}}' \| grep -q '^webmin$'` (no `|| echo` fallback — must FAIL when not running) |
+| `webmin_port` | Webmin port mapped | `podman port webmin 10000 \| grep -q 10000` |
+| `webmin_http` | Webmin HTTP answering | `wget -q -T 5 --no-check-certificate https://localhost:10000/` retry 8×5s |
+| `podman_*` | Podman functional | `podman info`, `podman ps` etc. when `enablePodman=true` |
+
+**Nix tmp permissions:** `/nix/var/nix/build` is `775` + `chown root:nixbld`; `/nix/var/nix/build/tmp` is `1777` + `chown root:nixbld` (world-writable sticky). Required because `/tmp` is `noexec` + `0755` for security, so nix temp must live on `@nix-var-nix-build` subvolume. `TMPDIR` scoped to daemon only via `/etc/conf.d/nix-daemon` (not global export — leaked into podman and broke `containers-storage`).
+
+**Podman storage driver:** `btrfs` via `sed` on `/etc/containers/storage.conf` (keep Alpine's full config, override only `driver` line). `cgroups` service enabled alongside `podman`. `fuse-overlayfs` kept as fallback for rootless overlay. `iptables` added to package set.
+
+**Webmin:** `demosthenesk/webmin:noble` image (pschatzmann dead), config seeded via `webmin-seed` container before first start, `tmpfs` for `/tmp /run /var/log /var/webmin` with `read_only: true`, quoted heredocs, binary exits 1 on compose failure.
+
+**Harness result:** 45/45 PASS including `webmin_http` functional check with `demosthenesk` image.
+
 ## Cache reuse
 
 - `cache/base-images/<file>` keyed by URL basename; `cache.EnsureDownloaded` skips if present.

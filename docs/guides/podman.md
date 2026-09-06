@@ -19,11 +19,17 @@ Podman is installed automatically when `enablePodman: true` in `variables.yaml`.
 ### Manual Installation
 
 ```bash
-# Install podman and dependencies
-apk add podman podman-openrc catatonit slirp4netns fuse-overlayfs uidmap shadow-uidmap podman-compose podman-docker
+# Install podman and dependencies (exact set from chrootPhase/features/podman.go:PodmanPackages)
+apk add podman podman-openrc iptables podman-compose podman-docker fuse-overlayfs
+# docker is a dummy package (internal_rules.yaml: podman replace docker) → docker → podman symlink
 
-# Enable service
+# Enable services (both required — cgroups for podman)
 rc-update add podman default
+rc-update add cgroups default
+
+# Storage driver: btrfs (root is btrfs, Alpine ships full storage.conf — sed only driver line)
+mkdir -p /etc/containers
+sed -i 's/^#*driver[[:space:]]*=.*/driver = "btrfs"/' /etc/containers/storage.conf
 
 # Add user to podman group
 adduser <username> podman
@@ -35,10 +41,12 @@ ln -sf /usr/bin/podman /usr/local/bin/docker
 ### Rootless Configuration
 
 ```bash
-# Configure subuid/subgid for rootless containers
-echo "<username>:100000:65536" >> /etc/subuid
-echo "<username>:100000:65536" >> /etc/subgid
+# Configure subuid/subgid for rootless containers (SetupPodman writes exactly this)
+echo "<username>:100000:65536" > /etc/subuid
+echo "<username>:100000:65536" > /etc/subgid
 ```
+
+> **fuse-overlayfs kept**: required as fallback for rootless overlay even with btrfs driver (kernel overlay still needs fuse).
 
 ## Usage
 
