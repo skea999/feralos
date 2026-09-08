@@ -273,6 +273,11 @@ All prior swap/vector/dummy issues resolved. See `CHANGELOG.md` Fixed section. C
 
 *Updated: 2026-09-06*
 
+### 2026-09-08 — Nix SSL env + nix_packages_missing parse fix
+
+- **Nix:** user-side `su - user` nix commands (registry add, profile add loop, flake metadata + profile list smoke tests) now prefix `NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt` — daemon-side `ssl-cert-file` in nix.conf didn't cover the nix client TLS
+- **Harness:** `nix_packages_missing` check rewritten: `grep -oE "quickshell|dms-shell|rclone-ui|rclone|mission-center|nix-software-center|cups-browsed" | sort -u | wc -l` (unique names — `nix profile list` prints 3 lines/package so old `wc -l` overcounted); post-processing strips `\r` + takes last line before `Atoi` (SSH warning prefixed output broke parse); expected count = `len(cfg.NixPackages)` when set (7 for niri), FAIL messages embed raw output
+
 ### 2026-09-06 — Nix perms + Podman btrfs + Webmin divider + Harness checks
 
 - **Nix:** `trusted-users = root <user>` temp inject during chroot install (allows `--option sandbox false`), then cleaned to `root` via `sed` + `rc-service nix-daemon restart`; `/nix/var/nix/build` is `775` + `chown root:nixbld`; `/nix/var/nix/build/tmp` is `1777` + `chown root:nixbld` (world-writable sticky); `TMPDIR` scoped to daemon via `/etc/conf.d/nix-daemon` (was global export leaked into podman → broke `containers-storage`); install loop non-fatal (collect `failedPkgs` warning), dry-run `nix flake update` + `nix profile upgrade`; single-block `trusted-users` install

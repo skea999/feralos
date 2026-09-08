@@ -49,6 +49,8 @@ All notable changes to FeralOS will be documented in this file.
 - **`enableSwap` + `swapSize`** — generic swap toggle replacing `enableSwapfile`: btrfsStandard keeps swapfile, btrfsRaid0 uses LUKS swap partitions, btrfsStandardServer unchanged (always LUKS swap). `swapSize` default `auto` = 2× RAM (via `utils/swap.ResolveSwapSizeMiB`), or explicit `8G`/`4096M`
 
 ### Fixed
+- nix_packages_missing harness check: `grep -oE | sort -u | wc -l` unique-name count (nix profile list prints 3 lines/package, old wc -l overcounted); post-processing strips `\r` + SSH warning prefix, parses last line, FAIL messages embed raw output
+- Nix client commands (`su - user` registry add / profile add / smoke tests) now prefix `NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt` — daemon ssl-cert-file alone didn't cover user-side nix client TLS
 - Pointer copy bug in configurator.go, hardening.go, zswap.go (u := conf.User → u := &conf.User)
 - zswap cmdline flow: now appends to KernelCmdline slice, not overwrite file
 - dmcrypt skips for btrfsStandard (uses swapfile, no swap partition)

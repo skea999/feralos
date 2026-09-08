@@ -41,9 +41,12 @@ func SetupNix(conf *config.Config) error {
 	// NOTE: allow-unfree/allow-insecure are NOT recognized by Alpine's nix
 	// build (unknown setting warnings) — NIXPKGS_ALLOW_* env vars in
 	// /etc/profile.d/nix-daemon.sh (and fish/bash) carry that permanently.
+	// ssl-cert-file: builder curl (crates.io fetchers) must see the host CA
+	// bundle, else "unable to get local issuer certificate" → 403 cascade.
 	nixConf := fmt.Sprintf(`build-dir = /nix/var/nix/build
 extra-experimental-features = nix-command flakes
-trusted-users = root %s`, u.UserName)
+trusted-users = root %s
+ssl-cert-file = /etc/ssl/certs/ca-certificates.crt`, u.UserName)
 	escapedNixConf := strings.ReplaceAll(nixConf, "'", "'\\''")
 	// Append (not overwrite): preserve Alpine's allowed-users=@nix,
 	// build-users-group=nixbld and max-jobs from /etc/nix/nix.conf.
@@ -145,7 +148,7 @@ trusted-users = root %s`, u.UserName)
 		// The default flake registry maps nixpkgs -> nixpkgs-unstable, which
 		// would override the stable channel for `nixpkgs#...` installs. Pin
 		// the user's registry to the stable branch (same as the channel).
-		if _, err := shell.ExecuteCmdArgs(chroot, "su", "-", u.UserName, "-c", "nix registry add nixpkgs github:NixOS/nixpkgs/nixos-26.05"); err != nil {
+		if _, err := shell.ExecuteCmdArgs(chroot, "su", "-", u.UserName, "-c", "NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt nix registry add nixpkgs github:NixOS/nixpkgs/nixos-26.05"); err != nil {
 			fmt.Printf("[WARNING] Failed to pin nixpkgs registry to stable: %v\n", err)
 		}
 
@@ -158,7 +161,7 @@ trusted-users = root %s`, u.UserName)
 		var failedPkgs []string
 		for _, pkg := range u.NixPackages {
 			fmt.Printf("[INFO] nix profile add %s\n", pkg)
-			inner := fmt.Sprintf("TMPDIR=%s NIXPKGS_ALLOW_INSECURE=1 NIXPKGS_ALLOW_UNFREE=1 nix profile add --option sandbox false %s", nixTmp, pkg)
+			inner := fmt.Sprintf("TMPDIR=%s NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt NIXPKGS_ALLOW_INSECURE=1 NIXPKGS_ALLOW_UNFREE=1 nix profile add --option sandbox false %s", nixTmp, pkg)
 			if _, err := shell.ExecuteCmdArgs(chroot, "su", "-", u.UserName, "-c", inner); err != nil {
 				fmt.Printf("[WARNING] Failed to install nix package %s: %v\n", pkg, err)
 				failedPkgs = append(failedPkgs, pkg)
@@ -168,12 +171,14 @@ trusted-users = root %s`, u.UserName)
 			fmt.Printf("[WARNING] Failed to install %d nix package(s): %s\n", len(failedPkgs), strings.Join(failedPkgs, ", "))
 		}
 
-		fmt.Println("[INFO] Testing nix update path (dry-run)...")
-		if _, err := shell.ExecuteCmdArgs(chroot, "su", "-", u.UserName, "-c", "nix flake update --dry-run 2>&1 || true"); err != nil {
-			fmt.Printf("[WARNING] nix flake update dry-run failed: %v\n", err)
+		// Update-path smoke tests — this nix version lacks --dry-run flags,
+		// so validate flake infra + profile readability instead (no side effects).
+		fmt.Println("[INFO] Testing nix update path...")
+		if _, err := shell.ExecuteCmdArgs(chroot, "su", "-", u.UserName, "-c", "NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt nix flake metadata nixpkgs 2>&1 || true"); err != nil {
+			fmt.Printf("[WARNING] nix flake metadata failed: %v\n", err)
 		}
-		if _, err := shell.ExecuteCmdArgs(chroot, "su", "-", u.UserName, "-c", "nix profile upgrade --dry-run 2>&1 || true"); err != nil {
-			fmt.Printf("[WARNING] nix profile upgrade dry-run failed: %v\n", err)
+		if _, err := shell.ExecuteCmdArgs(chroot, "su", "-", u.UserName, "-c", "NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt nix profile list 2>&1 || true"); err != nil {
+			fmt.Printf("[WARNING] nix profile list failed: %v\n", err)
 		}
 
 		if _, err := shell.ExecuteCmd(chroot, "sed -i 's/trusted-users = root .*/trusted-users = root/' /etc/nix/nix.conf"); err != nil {

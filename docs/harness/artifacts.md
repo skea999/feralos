@@ -88,7 +88,7 @@ All 4 layouts PASS 35/35 with markers enabled. Markers appended at END of each c
 | Check | What it verifies | Pass condition |
 |-------|------------------|----------------|
 | `trusted_users_clean` | Nix `trusted-users` temp injection cleaned | `! grep -q "<user>" /etc/nix/nix.conf` (user added during chroot install, then cleaned via `sed -i 's/trusted-users = root .*/trusted-users = root/'`) |
-| `nix_packages_missing` | Expected nix profile packages installed | `nix profile list` count >= expected (7 for niri: quickshell, dms-shell, rclone, rclone-ui, mission-center, nix-software-center, cups-browsed; 1 otherwise) |
+| `nix_packages_missing` | Expected nix profile packages installed | Unique package-name count (`grep -oE \| sort -u \| wc -l`) >= expected (`len(cfg.NixPackages)` when set — 7 for niri: quickshell, dms-shell, rclone, rclone-ui, mission-center, nix-software-center, cups-browsed; 1 otherwise). Post-processing strips `\r` + SSH warning, takes last line before Atoi; FAIL messages embed raw output |
 | `nix_build_tmp_perms` | Nix build tmp world-writable | `stat -c %a /nix/var/nix/build/tmp` contains `777` (1777) |
 | `chmod_77_check` | No insecure chmod in installer.log | Count `chmod 777`/`chmod 1777` excluding `/nix/var/nix/build/tmp` (which SHOULD be 1777) must be 0; previous check flagged `775` false positive |
 | `works_in_real_life` | No ignored errors | `installer.log` must NOT contain `[WARNING] Non-interactive mode: ignoring error and continuing.` |
