@@ -171,6 +171,9 @@ func SetupPackages(conf *config.Config) error {
 	// Webmin packages (owned by features/webmin.go)
 	allPkgs = append(allPkgs, features.WebminPackages(conf)...)
 
+	// Flatpak packages (owned by features/flatpak.go)
+	allPkgs = append(allPkgs, features.FlatpakPackages(conf)...)
+
 	if len(allPkgs) > 0 {
 		args := append([]string{"add"}, allPkgs...)
 		if _, err := shell.ExecuteCmdArgs(chroot, "apk", args...); err != nil {

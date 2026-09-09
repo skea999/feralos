@@ -50,12 +50,13 @@ type UserVariables struct {
 	DefaultNetworkInterface string `yaml:"defaultNetworkInterface"`
 
 	// Runtime fields
-	UserGroups    []string
-	Runlevels     map[string][]string
-	AllPackages   []string
-	NixPackages   []string
-	Modules       []string
-	KernelCmdline []string
+	UserGroups      []string
+	Runlevels       map[string][]string
+	AllPackages     []string
+	NixPackages     []string
+	FlatpakPackages []string `yaml:"flatpakPackages"`
+	Modules         []string
+	KernelCmdline   []string
 }
 
 type InternalRules struct {
@@ -81,12 +82,13 @@ type DummyPackageRule struct {
 
 // Ensure the field is named "Packages" to match logic.go
 type DynamicPackageRules struct {
-	Packages      []string          `yaml:"packages"`
-	NixPackages   []string          `yaml:"nixPackages"`
-	Groups        []string          `yaml:"groups"`
-	Services      map[string]string `yaml:"services"`
-	Modules       []string          `yaml:"modules"`
-	KernelCmdline []string          `yaml:"kernelCmdline"`
+	Packages        []string          `yaml:"packages"`
+	NixPackages     []string          `yaml:"nixPackages"`
+	FlatpakPackages []string          `yaml:"flatpakPackages"`
+	Groups          []string          `yaml:"groups"`
+	Services        map[string]string `yaml:"services"`
+	Modules         []string          `yaml:"modules"`
+	KernelCmdline   []string          `yaml:"kernelCmdline"`
 }
 
 func LoadConfig(userPath string) (*Config, error) {
@@ -195,6 +197,12 @@ func validateConfig(conf *Config) error {
 	for _, pkg := range u.NixPackages {
 		if !pkgRe.MatchString(pkg) {
 			return fmt.Errorf("invalid nix package %q: must match [a-zA-Z0-9._+-]+", pkg)
+		}
+	}
+	flatpakRe := regexp.MustCompile(`^[a-zA-Z0-9._+:/-]+$`)
+	for _, pkg := range u.FlatpakPackages {
+		if !flatpakRe.MatchString(pkg) {
+			return fmt.Errorf("invalid flatpak package %q: must match [a-zA-Z0-9._+:/-]+", pkg)
 		}
 	}
 

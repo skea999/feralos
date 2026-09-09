@@ -8,7 +8,7 @@ import (
 )
 
 // SetupNiri configures the niri desktop environment:
-// greetd (greeter), regreet, niri configs (greeter + user), wayvnc,
+// greetd (greeter), regreet, niri configs (greeter + user),
 // xdg-su wrapper, and the OpenRC dms service (adapted from the systemd
 // user service shipped by the DankMaterialShell flake).
 // Reference: references/niri/install-niri.sh (openSUSE/systemd → Alpine/OpenRC).
@@ -62,9 +62,9 @@ font_name = "Cantarell 16"
 icon_theme_name = "Adwaita"
 theme_name = "Adwaita"
 
-[commands]
-reboot = ["systemctl", "reboot"]
-poweroff = ["systemctl", "poweroff"]
+	[commands]
+reboot = ["reboot"]
+poweroff = ["poweroff"]
 
 [appearance]
 greeting_msg = "Welcome back!"
@@ -107,8 +107,7 @@ environment {
 		return fmt.Errorf("chown /var/lib/greetd: %w", err)
 	}
 
-	// 5. niri config for the real user — keymap, wayland environment,
-	// wayvnc spawned at session start (per-session, like the reference).
+	// 5. niri config for the real user — keymap, wayland environment.
 	userNiri := fmt.Sprintf(`input {
     keyboard {
         xkb {
@@ -129,8 +128,6 @@ environment {
     WLR_NO_HARDWARE_CURSORS "1"
     WINIT_WAYLAND_NO_AVOID_RESIZE "1"
 }
-
-spawn-at-startup "wayvnc"
 `, u.Keymap)
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p /home/%s/.config/niri", u.UserName)); err != nil {
 		return fmt.Errorf("mkdir user niri config dir: %w", err)
@@ -142,21 +139,7 @@ spawn-at-startup "wayvnc"
 		return fmt.Errorf("chown user niri config: %w", err)
 	}
 
-	// 6. wayvnc config (from apk) — listen on all interfaces, default port
-	wayvncConf := `address=0.0.0.0
-port=5900
-`
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p /home/%s/.config/wayvnc", u.UserName)); err != nil {
-		return fmt.Errorf("mkdir wayvnc config dir: %w", err)
-	}
-	if err := writeFile(chroot, fmt.Sprintf("/home/%s/.config/wayvnc/config", u.UserName), wayvncConf); err != nil {
-		return fmt.Errorf("write wayvnc config: %w", err)
-	}
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("chown -R %s:%s /home/%s/.config/wayvnc", u.UserName, u.UserName, u.UserName)); err != nil {
-		return fmt.Errorf("chown wayvnc config: %w", err)
-	}
-
-	// 7. xdg-su wrapper — niri unsupported by xdg-su, use alacritty + su
+	// 6. xdg-su wrapper — niri unsupported by xdg-su, use alacritty + su
 	xdgSu := `#!/bin/sh
 # xdg-su wrapper — for niri uses alacritty+su, other DEs call the original
 # Not overwritten by updates (in /usr/local/bin)
@@ -192,7 +175,7 @@ exec /usr/bin/xdg-su "$@"
 		return fmt.Errorf("chmod xdg-su: %w", err)
 	}
 
-	// 8. OpenRC dms service — adapted from the systemd user service shipped
+	// 7. OpenRC dms service — adapted from the systemd user service shipped
 	// by the DMS flake. dms needs a running wayland session: wait for the
 	// user's wayland socket, then start dms with WAYLAND_DISPLAY set.
 	dmsPath := fmt.Sprintf("/home/%s/.local/state/nix/profiles/profile/bin/dms", u.UserName)
@@ -250,7 +233,7 @@ stop() {
 		fmt.Printf("[WARNING] Failed to add dms to default runlevel: %v\n", err)
 	}
 
-	// 9. greeter needs video/input groups for the greeter session, plus the
+	// 8. greeter needs video/input groups for the greeter session, plus the
 	// greetd group: greetd's init script re-owns /var/lib/greetd to
 	// greetd:greetd 0750 at every boot, so greeter (home there) must be able
 	// to traverse it to reach its niri config.
@@ -263,7 +246,7 @@ stop() {
 		fmt.Printf("[WARNING] Failed to add greeter to video/input/greetd: %v\n", err)
 	}
 
-	// 10. Generate DMS user config (binds/layout/colors) — non-fatal.
+	// 9. Generate DMS user config (binds/layout/colors) — non-fatal.
 	// Use the full path: the nix profile bin dir is not on the login PATH.
 	dmsBin := dmsPath
 	for _, setup := range []string{"binds", "layout", "colors"} {

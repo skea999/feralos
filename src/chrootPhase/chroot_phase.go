@@ -64,6 +64,11 @@ func Run(conf *config.Config) error {
 		return fmt.Errorf("nix setup failed: %w", err)
 	}
 
+	// 7b. Setup flatpak (optional) — installs flatpak apps from flathub
+	if err := features.SetupFlatpak(conf); err != nil {
+		return fmt.Errorf("flatpak setup failed: %w", err)
+	}
+
 	// 6a. Setup desktop environment (configurations — kde/gnome need none)
 	if err := desktops.Setup(conf); err != nil {
 		return fmt.Errorf("desktop setup failed: %w", err)

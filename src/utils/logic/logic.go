@@ -54,6 +54,7 @@ func ApplyRules(conf *config.Config) {
 func applyRule(u *config.UserVariables, rule *config.DynamicPackageRules) {
 	u.AllPackages = appendUnique(u.AllPackages, rule.Packages...)
 	u.NixPackages = appendUnique(u.NixPackages, rule.NixPackages...)
+	u.FlatpakPackages = appendUnique(u.FlatpakPackages, rule.FlatpakPackages...)
 	u.UserGroups = appendUnique(u.UserGroups, rule.Groups...)
 	u.Modules = appendUnique(u.Modules, rule.Modules...)
 	u.KernelCmdline = appendUnique(u.KernelCmdline, rule.KernelCmdline...)

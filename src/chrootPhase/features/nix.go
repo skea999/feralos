@@ -161,7 +161,7 @@ ssl-cert-file = /etc/ssl/certs/ca-certificates.crt`, u.UserName)
 		var failedPkgs []string
 		for _, pkg := range u.NixPackages {
 			fmt.Printf("[INFO] nix profile add %s\n", pkg)
-			inner := fmt.Sprintf("TMPDIR=%s NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt NIXPKGS_ALLOW_INSECURE=1 NIXPKGS_ALLOW_UNFREE=1 nix profile add --option sandbox false %s", nixTmp, pkg)
+			inner := fmt.Sprintf("TMPDIR=%s NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt NIXPKGS_ALLOW_INSECURE=1 NIXPKGS_ALLOW_UNFREE=1 nix profile add --impure --option sandbox false %s", nixTmp, pkg)
 			if _, err := shell.ExecuteCmdArgs(chroot, "su", "-", u.UserName, "-c", inner); err != nil {
 				fmt.Printf("[WARNING] Failed to install nix package %s: %v\n", pkg, err)
 				failedPkgs = append(failedPkgs, pkg)
