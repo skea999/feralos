@@ -27,11 +27,6 @@ func SetupFlatpak(conf *config.Config) error {
 	chroot := conf.Internal.ChrootDir
 	fmt.Println("[INFO] Configuring Flatpak...")
 
-	// Ensure /lib/modules exists (kernel module path, flatpak checks it)
-	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /lib/modules"); err != nil {
-		fmt.Printf("[WARNING] Failed to create /lib/modules: %v\n", err)
-	}
-
 	// Add Flathub remote (idempotent)
 	if _, err := shell.ExecuteCmd(chroot, "flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo"); err != nil {
 		fmt.Printf("[WARNING] Failed to add flathub remote: %v\n", err)

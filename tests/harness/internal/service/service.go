@@ -1284,6 +1284,7 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		checks["greetd_config"] = "ls /etc/greetd/config.toml /etc/greetd/greeter.sh /etc/greetd/regreet.toml /var/lib/greetd/.config/niri/config.kdl && test -x /etc/greetd/greeter.sh"
 		checks["niri_greeter"] = "pgrep -x niri"
 		checks["dms_installed"] = fmt.Sprintf("su - %s -c 'nix profile list 2>/dev/null | grep -E \"dms-shell|quickshell\"' && test -x /home/%s/.local/state/nix/profiles/profile/bin/dms", cfg.InstalledUser, cfg.InstalledUser)
+		checks["firewall_rustdesk"] = "firewall-cmd --permanent --list-ports 2>/dev/null | grep -q 21115 || grep -rq 21115 /etc/firewalld/ 2>/dev/null"
 	}
 
 	// Flatpak checks — verify rustdesk flatpak installed via flathub (niri only)
@@ -1750,10 +1751,10 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		// warning (informational — retries exhausted, continues). Also
 		// mdadm "error opening /dev/md?" (no pre-existing RAID) and mkfs.btrfs
 		// usage-help example lines (contain "error" in the example text).
-		allowRe := regexp.MustCompile(`(?i)(0 errors|no errors|errors: 0|0 failed|no failed|failed: 0|zero errors|libgpg-error|error trace:|start-stop-daemon: no matching processes found|fsck\.vfat: No such file or directory|dpkg was interrupted|dpkg --configure -a|failed, retrying in|apt does not have a stable CLI|error opening /dev/md|E\.g\.: dev1|LABEL=EFIVDB|errors=remount-ro|sysctl: error:.*is an unknown key|icmp_ignore_bogus_error_responses|/nix/store/[^ ]*-error|commitpartial: No such file|bwrap: pivot_root: Invalid argument|To enable access to XDG directories)`)
+		allowRe := regexp.MustCompile(`(?i)(0 errors|no errors|errors: 0|0 failed|no failed|failed: 0|zero errors|libgpg-error|error trace:|start-stop-daemon: no matching processes found|fsck\.vfat: No such file or directory|dpkg was interrupted|dpkg --configure -a|failed, retrying in|apt does not have a stable CLI|error opening /dev/md|E\.g\.: dev1|LABEL=EFIVDB|errors=remount-ro|sysctl: error:.*is an unknown key|icmp_ignore_bogus_error_responses|/nix/store/[^ ]*-error|commitpartial|bwrap.*pivot_root|To enable access to XDG directories)`)
 		// BTRFS-specific errors: only for btrfs layouts (btrfsStandard, btrfsStandardServer, btrfsRaid0, btrfsUnencrypted)
 		if strings.Contains(cfg.DiskLayout, "btrfs") {
-			allowRe = regexp.MustCompile(`(?i)(0 errors|no errors|errors: 0|0 failed|no failed|failed: 0|zero errors|libgpg-error|error trace:|start-stop-daemon: no matching processes found|fsck\.vfat: No such file or directory|dpkg was interrupted|dpkg --configure -a|failed, retrying in|apt does not have a stable CLI|error opening /dev/md|E\.g\.: dev1|LABEL=EFIVDB|errors=remount-ro|sysctl: error:.*is an unknown key|icmp_ignore_bogus_error_responses|/nix/store/[^ ]*-error|commitpartial: No such file|bwrap: pivot_root: Invalid argument|To enable access to XDG directories|BTRFS error.*is missing|BTRFS error.*failed to read the system array|BTRFS error.*open_ctree failed|BTRFS Transaction aborted|forced readonly)`)
+			allowRe = regexp.MustCompile(`(?i)(0 errors|no errors|errors: 0|0 failed|no failed|failed: 0|zero errors|libgpg-error|error trace:|start-stop-daemon: no matching processes found|fsck\.vfat: No such file or directory|dpkg was interrupted|dpkg --configure -a|failed, retrying in|apt does not have a stable CLI|error opening /dev/md|E\.g\.: dev1|LABEL=EFIVDB|errors=remount-ro|sysctl: error:.*is an unknown key|icmp_ignore_bogus_error_responses|/nix/store/[^ ]*-error|commitpartial|bwrap.*pivot_root|To enable access to XDG directories|BTRFS error.*is missing|BTRFS error.*failed to read the system array|BTRFS error.*open_ctree failed|BTRFS Transaction aborted|forced readonly)`)
 		}
 		var problems []string
 		for _, logName := range []string{"target-serial.log", "installer.log"} {

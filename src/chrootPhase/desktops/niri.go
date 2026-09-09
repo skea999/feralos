@@ -108,7 +108,7 @@ environment {
 	}
 
 	// 5. niri config for the real user — keymap, wayland environment.
-	userNiri := fmt.Sprintf(`input {
+	userNiriBase := fmt.Sprintf(`input {
     keyboard {
         xkb {
             rules "evdev"
@@ -129,6 +129,25 @@ environment {
     WINIT_WAYLAND_NO_AVOID_RESIZE "1"
 }
 `, u.Keymap)
+	// RustDesk autostart — only if flatpak com.rustdesk.RustDesk is installed
+	hasRustdesk := false
+	for _, f := range conf.User.FlatpakPackages {
+		if strings.Contains(f, "rustdesk") {
+			hasRustdesk = true
+			break
+		}
+	}
+	userNiri := userNiriBase
+	if hasRustdesk {
+		userNiri += "spawn-at-startup \"flatpak\" \"run\" \"com.rustdesk.RustDesk\" \"--service\"\n"
+		// Firewall for RustDesk direct IP (21115-21119/tcp + 21116/udp)
+		if _, err := shell.ExecuteCmd(chroot, "firewall-cmd --permanent --add-port=21115-21119/tcp 2>/dev/null || true"); err != nil {
+			fmt.Printf("[WARNING] Failed to add rustdesk tcp ports to firewall: %v\n", err)
+		}
+		if _, err := shell.ExecuteCmd(chroot, "firewall-cmd --permanent --add-port=21116/udp 2>/dev/null || true"); err != nil {
+			fmt.Printf("[WARNING] Failed to add rustdesk udp port to firewall: %v\n", err)
+		}
+	}
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p /home/%s/.config/niri", u.UserName)); err != nil {
 		return fmt.Errorf("mkdir user niri config dir: %w", err)
 	}

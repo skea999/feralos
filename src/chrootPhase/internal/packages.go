@@ -135,6 +135,11 @@ func SetupPackages(conf *config.Config) error {
 
 	fmt.Println("[INFO] Installing packages...")
 
+	// Ensure /lib/modules exists before apk add (flatpak and others check it)
+	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /lib/modules"); err != nil {
+		fmt.Printf("[WARNING] Failed to create /lib/modules: %v\n", err)
+	}
+
 	if _, err := shell.ExecuteCmdArgs(chroot, "apk", "update"); err != nil {
 		return fmt.Errorf("apk update failed: %w", err)
 	}
