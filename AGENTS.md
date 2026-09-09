@@ -200,6 +200,11 @@ Each `Enable*` flag (and `DesktopEnvironment`) is owned by exactly ONE file unde
 | `EnableSwap` | `hostPhase/disks/*` | `host_phase.go` (disk layout layer) |
 | `DesktopEnvironment` | `chrootPhase/desktops/desktops.go` | `chroot_phase.go` |
 
+**Desktop environments supported:**
+- `niri` — custom config (greetd, regreet, niri config, DMS, xdg-su) in `chrootPhase/desktops/niri.go`
+- `kde` — packages only via `internal_rules.yaml`, no custom config
+- `cosmic` — packages only via `internal_rules.yaml` (uses seatd, not elogind), no custom config
+
 → Details: `docs/architecture/feature_confinement.md`, `docs/guides/development.md` (how to add feature)
 
 ## Compatibility

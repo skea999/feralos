@@ -23,7 +23,7 @@ variables:
 
   # Layout
   diskLayout: "btrfsStandard" # Options defined in internal_rules
-  desktopEnvironment: "none"        # Options: none, kde
+  desktopEnvironment: "none"        # Options: none, kde, niri, cosmic
   videoDriver: "none"               # Options: none, amdgpu, nvidia, intel
 
   # SSH (optional)

@@ -20,7 +20,7 @@ variables:
   arch: "x86_64"
   branch: "latest-stable"
   diskLayout: "btrfsStandard" # btrfsStandard | btrfsRaid0 | btrfsStandardServer | btrfsUnencrypted
-  desktopEnvironment: "none"        # none | kde | niri | gnome
+  desktopEnvironment: "none"        # none | kde | niri | cosmic
   videoDriver: "none"               # none | amdgpu | nvidia | intel
   sshAuthorizedKey: ""
   enableSecureboot: false
@@ -78,7 +78,7 @@ variables:
 
 | Key | Type | Description |
 |-----|------|-------------|
-| `desktopEnvironment` | `string` | `none` (server), `kde`, `niri`, `gnome`. `niri` pulls `greetd`+`elogind`+`xdg-user-dirs`/`firewalld` plus 20 APK packages (cosmic-files/edit/screenshot/player/store/settings, okular, eog, cups, cups-filters, avahi, system-config-printer, libreoffice, galculator, firefox, firewalld-gui, gnome-firmware, thunderbird, gnome-disk-utility, kcron, ksystemlog, cosmic-settings) and 6 nix packages (quickshell, dms-shell, rclone, rclone-ui, mission-center, cups-browsed — `nix-software-center` manual via `github:snowfallorg/nix-software-center`, `wl-clipboard` removed) + `flathub:com.rustdesk.RustDesk` flatpak (conditional rustdesk autostart `spawn-at-startup flatpak run com.rustdesk.RustDesk --service` + `firewall-offline-cmd --zone=public --add-port=21115-21119/tcp`/`21116/udp`). See `internal_rules.yaml:desktopEnvironments.niri`, `docs/guides/niri.md`. |
+| `desktopEnvironment` | `string` | `none` (server), `kde`, `niri`, `cosmic`. `niri` pulls `greetd`+`elogind`+`xdg-user-dirs`/`firewalld` plus 20 APK packages (cosmic-files/edit/screenshot/player/store/settings, okular, eog, cups, cups-filters, avahi, system-config-printer, libreoffice, galculator, firefox, firewalld-gui, gnome-firmware, thunderbird, gnome-disk-utility, kcron, ksystemlog, cosmic-settings) and 6 nix packages (quickshell, dms-shell, rclone, rclone-ui, mission-center, cups-browsed — `nix-software-center` manual via `github:snowfallorg/nix-software-center`, `wl-clipboard` removed) + `flathub:com.rustdesk.RustDesk` flatpak (conditional rustdesk autostart `spawn-at-startup flatpak run com.rustdesk.RustDesk --service` + `firewall-offline-cmd --zone=public --add-port=21115-21119/tcp`/`21116/udp`). `cosmic` uses `seatd` (not elogind) + 19 APK packages (cosmic-session/term/greeter/edit/player/store/settings/screenshot/icons/initial-setup + elogind dependencies replaced with seatd). See `internal_rules.yaml:desktopEnvironments.niri`, `docs/guides/niri.md`. |
 | `videoDriver` | `string` | `none`, `amdgpu`, `nvidia`, `intel` — adds `mesa`, `vulkan`, `xf86-*`. |
 
 ### Feature Toggles

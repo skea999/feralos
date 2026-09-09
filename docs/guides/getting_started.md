@@ -53,7 +53,7 @@ sudo bash <(curl -fsSL https://raw.githubusercontent.com/skem/skeaAlpineInstalle
    # also: src/variables/variables.yaml, tests/fixtures/variables/*.yaml (14 templates)
    ```
 
-   Wizard asks: target `disks` → `diskLayout` (`btrfsStandard`/`btrfsRaid0`/`btrfsStandardServer`/`btrfsUnencrypted`) → `hostname` → `userName`/`password` (also LUKS passphrase) → `desktopEnvironment` (`none`/`niri`/`kde`/`gnome`) → optional `Enable*` flags. Full list + `swapSize`/`extraPackages` → `docs/guides/variables.md`; rules → `internal_rules.yaml`.
+   Wizard asks: target `disks` → `diskLayout` (`btrfsStandard`/`btrfsRaid0`/`btrfsStandardServer`/`btrfsUnencrypted`) → `hostname` → `userName`/`password` (also LUKS passphrase) → `desktopEnvironment` (`none`/`niri`/`kde`/`cosmic`) → optional `Enable*` flags. Full list + `swapSize`/`extraPackages` → `docs/guides/variables.md`; rules → `internal_rules.yaml`.
 
 5. **Wait** — partitioning → LUKS → Btrfs → bootstrap → chroot → UKI. ~5-10 min. Reboot, remove USB.
 

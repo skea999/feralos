@@ -2,6 +2,7 @@ package desktops
 
 import (
 	"alpineInstaller/utils/config"
+	"alpineInstaller/utils/shell"
 	"fmt"
 )
 
@@ -18,9 +19,16 @@ func Setup(conf *config.Config) error {
 		return nil
 	}
 
+	chroot := conf.Internal.ChrootDir
+
+	// Enable Unicode in rc.conf — required for all desktop environments on
+	// Alpine (musl disables unicode by default).
+	if _, err := shell.ExecuteCmd(chroot, `sed -i 's/^#unicode="YES"$/unicode="YES"/' /etc/rc.conf`); err != nil {
+		fmt.Printf("[WARNING] Failed to enable unicode in rc.conf: %v\n", err)
+	}
+
 	fn, ok := setupRegistry[de]
 	if !ok {
-		fmt.Printf("[WARNING] Desktop environment %q not implemented, skipping\n", de)
 		return nil
 	}
 

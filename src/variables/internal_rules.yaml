@@ -124,6 +124,10 @@ desktopEnvironments:
     #   nix profile add github:snowfallorg/nix-software-center#nix-software-center
     nixPackages: ["nixpkgs#quickshell", "nixpkgs#dms-shell", "nixpkgs#rclone", "nixpkgs#rclone-ui", "nixpkgs#mission-center", "nixpkgs#cups-browsed"]
     flatpakPackages: ["flathub:com.rustdesk.RustDesk"]
+  cosmic:
+    packages: ["cosmic-session", "cosmic-term", "cosmic-greeter", "cosmic-edit", "cosmic-player", "cosmic-store", "cosmic-settings", "cosmic-screenshot", "cosmic-icons", "cosmic-initial-setup", "adwaita-icon-theme", "desktop-file-utils", "hicolor-icon-theme", "seatd", "seatd-openrc", "dbus", "polkit", "pipewire", "xdg-desktop-portal-cosmic"]
+    services: {"cosmic-greeter": "default", "seatd": "default", "dbus": "default"}
+    groups: ["video", "input"]
 
 # 3. Video Drivers Definitions
 videoDrivers:
