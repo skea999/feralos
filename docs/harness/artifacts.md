@@ -83,12 +83,12 @@ Each run produces per-check result files under `tests/`. 4 marker checks verify 
 
 All 4 layouts PASS 35/35 with markers enabled. Markers appended at END of each config file (single-point verification). See `tests/harness/internal/checks/` for implementation.
 
-## Additional harness checks (post-2026-09-02)
+## Additional harness checks (post-2026-09-02, updated 2026-09-09 — 51/51)
 
 | Check | What it verifies | Pass condition |
 |-------|------------------|----------------|
 | `trusted_users_clean` | Nix `trusted-users` temp injection cleaned | `! grep -q "<user>" /etc/nix/nix.conf` (user added during chroot install, then cleaned via `sed -i 's/trusted-users = root .*/trusted-users = root/'`) |
-| `nix_packages_missing` | Expected nix profile packages installed | Unique package-name count (`grep -oE \| sort -u \| wc -l`) >= expected (`len(cfg.NixPackages)` when set — 7 for niri: quickshell, dms-shell, rclone, rclone-ui, mission-center, nix-software-center, cups-browsed; 1 otherwise). Post-processing strips `\r` + SSH warning, takes last line before Atoi; FAIL messages embed raw output |
+| `nix_packages_missing` | Expected nix profile packages installed | Unique package-name count (`grep -oE \| sort -u \| wc -l`) >= expected (`len(cfg.NixPackages)` when set — 6 for niri stable: quickshell, dms-shell, rclone, rclone-ui, mission-center, cups-browsed; 1 otherwise). Post-processing strips `\r` + SSH warning, takes last line before Atoi; FAIL messages embed raw output |
 | `nix_build_tmp_perms` | Nix build tmp world-writable | `stat -c %a /nix/var/nix/build/tmp` contains `777` (1777) |
 | `chmod_77_check` | No insecure chmod in installer.log | Count `chmod 777`/`chmod 1777` excluding `/nix/var/nix/build/tmp` (which SHOULD be 1777) must be 0; previous check flagged `775` false positive |
 | `works_in_real_life` | No ignored errors | `installer.log` must NOT contain `[WARNING] Non-interactive mode: ignoring error and continuing.` |
@@ -97,14 +97,21 @@ All 4 layouts PASS 35/35 with markers enabled. Markers appended at END of each c
 | `webmin_port` | Webmin port mapped | `podman port webmin 10000 \| grep -q 10000` |
 | `webmin_http` | Webmin HTTP answering | `wget -q -T 5 --no-check-certificate https://localhost:10000/` retry 8×5s |
 | `podman_*` | Podman functional | `podman info`, `podman ps` etc. when `enablePodman=true` |
+| `niri_*` | Niri desktop valid | `niri_config_valid` (validate both kdl), `greetd_config` (greeter files +x), `niri_greeter` (pgrep niri), `dms_installed` (nix profile + binary) |
+| `firewall_rustdesk` | RustDesk firewall ports | `firewall-cmd --permanent --list-ports | grep 21115` OR `grep -rq 21115 /etc/firewalld/` (permanent, not runtime — `firewall-offline-cmd --zone=public` in chroot) |
+| `flatpak_installed` | RustDesk flatpak | `flatpak list | grep rustdesk` when `desktopEnvironment==niri` or `len(FlatpakPackages)>0` |
 
-**Nix tmp permissions:** `/nix/var/nix/build` is `775` + `chown root:nixbld`; `/nix/var/nix/build/tmp` is `1777` + `chown root:nixbld` (world-writable sticky). Required because `/tmp` is `noexec` + `0755` for security, so nix temp must live on `@nix-var-nix-build` subvolume. `TMPDIR` scoped to daemon only via `/etc/conf.d/nix-daemon` (not global export — leaked into podman and broke `containers-storage`).
+**Nix tmp permissions:** `/nix/var/nix/build` is `775` + `chown root:nixbld`; `/nix/var/nix/build/tmp` is `1777` + `chown root:nixbld` (world-writable sticky). Required because `/tmp` is `noexec` + `0755` for security, so nix temp must live on `@nix-var-nix-build` subvolume. `TMPDIR` scoped to daemon only via `/etc/conf.d/nix-daemon` (not global export — leaked into podman and broke `containers-storage`). Nix SSL: `NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt` prefixed to all `su - user` nix client cmds.
 
 **Podman storage driver:** `btrfs` via `sed` on `/etc/containers/storage.conf` (keep Alpine's full config, override only `driver` line). `cgroups` service enabled alongside `podman`. `fuse-overlayfs` kept as fallback for rootless overlay. `iptables` added to package set.
 
-**Webmin:** `demosthenesk/webmin:noble` image (pschatzmann dead), config seeded via `webmin-seed` container before first start, `tmpfs` for `/tmp /run /var/log /var/webmin` with `read_only: true`, quoted heredocs, binary exits 1 on compose failure.
+**Webmin (podman-based):** `demosthenesk/webmin:noble` image (pschatzmann dead), config seeded via `webmin-seed` container before first start, `tmpfs` for `/tmp /run /var/log /var/webmin` with `read_only: true`, quoted heredocs, binary exits 1 on compose failure, `podman --version` only (podman already in chrootPhase). Compose: `podman compose up -d`.
 
-**Harness result:** 45/45 PASS including `webmin_http` functional check with `demosthenesk` image.
+**Niri + Flatpak + Firewall:** `regreet.toml` `reboot = ["reboot"]` / `poweroff = ["poweroff"]` (not `systemctl` — Alpine OpenRC); `xdg-user-dirs` in `standardPackages` (flatpak portal); `/lib/modules` mkdir before `apk update` in `chrootPhase/internal/packages.go` (was `features/flatpak.go` after install); `wayvnc` removed; rustdesk `spawn-at-startup flatpak run com.rustdesk.RustDesk --service` conditional + `firewall-offline-cmd --zone=public` for `21115-21119/tcp`+`21116/udp`.
+
+**Log allowlist:** `log_errors` allowRe expanded 2026-09-09 to `commitpartial|bwrap.*pivot_root|To enable access to XDG directories` (flatpak XDG portal noise, was exact `commitpartial: No such file` + `bwrap: pivot_root: Invalid argument`). Base + btrfs `BTRFS error` allowlist retained.
+
+**Harness result:** **51/51 PASS** including `firewall_rustdesk` + `flatpak_installed` + `niri_*` 4, with `demosthenesk` image (was 45/45, +6 checks).
 
 ## Cache reuse
 

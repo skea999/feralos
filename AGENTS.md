@@ -246,7 +246,7 @@ Full tree → `docs/INSTALLER.md#project-structure` and `docs/architecture/overv
 
 - **Architecture**: `docs/architecture/overview.md` (principle + tree), `isolation.md` (entry-point + internal rule + hostPhase order), `logging.md` (ExecuteCmd rule), `feature_confinement.md` (single-owner), `storage.md` (layouts: btrfsStandardServer, btrfsStandard, btrfsRaid0, btrfsUnencrypted), `firstboot.md` (secureboot/tpm 3-boot) — all double of AGENTS.md above
 - **ADRs**: `docs/adr/README.md` → ADR-001 Go installer, 002 isolation, 003 internal rule, 004 ExecuteCmd, 005 LUKS+Btrfs+booster+UKI, 006 no compat (decisions from AGENTS.md)
-- **Guides** (user guides only): `docs/guides/README.md` (index) → `getting_started.md` (real hardware), `first_boot.md` (secureboot/tpm post-install), `variables.md` (variables.yaml compilation), `development.md` (how to code / separation)
+- **Guides** (user guides only): `docs/guides/README.md` (index) → `getting_started.md` (real hardware), `first_boot.md` (secureboot/tpm post-install), `variables.md` (variables.yaml compilation), `niri.md` (niri + rustdesk flatpak + firewall), `webmin.md` (podman-based web admin), `podman.md` (btrfs driver), `development.md` (how to code / separation)
 - **Harness**: `docs/harness/README.md` (index) → `overview.md` (what it does), `workflow.md` (3-phase + 3-boot), `artifacts.md` (where generated, gitignored), `building.md` (where compiled binary goes), `development.md` (how to code), `commands.md` (CLI+MCP), `debug_run.md` (`tests/debug_run/` boot existing run, LUKS inject). `tests/harness/README.md` is pointer only.
 - **Intent / Ideas**: `docs/intent/vision.md`, `docs/intent/goals.md`, `docs/intent/vocabulary.md`, `docs/ideas/backlog.md` ← `CONTEXT.md` / `ROADMAP.md` / `TASKS.md`
 
@@ -259,9 +259,9 @@ Full tree → `docs/INSTALLER.md#project-structure` and `docs/architecture/overv
 | Phase 1 | btrfsStandardServer, btrfsStandard, btrfsRaid0 | Completed |
 | Phase 1 | Generator, Test harness, Nix | Completed |
 | Phase 1 | btrfsUnencrypted | Completed |
+| Phase 1 | niri + flatpak rustdesk + firewall + webmin/podman | Completed |
 | Phase 1 | Refining | Planned |
-| Phase 2 | niri + wayvnc | Planned |
-| Phase 3 | Dinit, Custom repo, Full release | Planned |
+| Phase 2 | Dinit, Custom repo, Full release | Planned |
 
 See `ROADMAP.md` for pipeline priorities. Memory-safe alternatives table → `CONTEXT.md`. Backlog → `docs/ideas/backlog.md`.
 
@@ -271,7 +271,15 @@ All prior swap/vector/dummy issues resolved. See `CHANGELOG.md` Fixed section. C
 
 ---
 
-*Updated: 2026-09-06*
+*Updated: 2026-09-09*
+
+### 2026-09-09 — Niri rustdesk flatpak + firewall offline-cmd, harness 51/51 PASS
+
+- **Niri:** conditional `spawn-at-startup "flatpak" "run" "com.rustdesk.RustDesk" "--service"` in `~/.config/niri/config.kdl` only when `flatpakPackages` contains `rustdesk` (`hasRustdesk` over `conf.User.FlatpakPackages`); `firewall-offline-cmd --zone=public --add-port=21115-21119/tcp` + `21116/udp` (was `firewall-cmd --permanent` which fails when `firewalld` not running in chroot); `regreet.toml` `reboot = ["reboot"]` / `poweroff = ["poweroff"]` (was `systemctl reboot` — Alpine OpenRC); `xdg-user-dirs` added to `standardPackages` for flatpak portal; `/lib/modules` mkdir moved to `chrootPhase/internal/packages.go:SetupPackages` **before** `apk update`/`apk add` (was in `features/flatpak.go` after install — flatpak checks module path early); `wayvnc` removed (`spawn-at-startup "wayvnc"` + wayvnc config dropped, remote via flatpak RustDesk)
+- **Flatpak:** `chrootPhase/features/flatpak.go` — `FlatpakPackages()` returns `["flatpak"]` when `len(FlatpakPackages)>0`, `SetupFlatpak` does `flatpak remote-add --if-not-exists flathub` + per-entry `flatpak install -y --noninteractive <remote> <appID>` (split `flathub:com.rustdesk.RustDesk`); `internal_rules.yaml:desktopEnvironments.niri` now `flatpakPackages: ["flathub:com.rustdesk.RustDesk"]` + 6 nix packages (quickshell, dms-shell, rclone, rclone-ui, mission-center, cups-browsed — `nix-software-center` manual due to crates.io 403 on QEMU IPs); `config.go:FlatpakPackages []string yaml:"flatpakPackages"`, `logic.go:applyRule` propagates `FlatpakPackages`
+- **Podman/Webmin:** webmin **podman-based** verified — `podman` APK (`podman-openrc`, `iptables`, `podman-compose`, `podman-docker`, `fuse-overlayfs`) with `btrfs` driver via `sed` on `/etc/containers/storage.conf`, `cgroups`+`podman` services; webmin standalone binary `src/firstBoot/webmin/main.go` verifies `podman --version` only (podman already in chrootPhase), builds `/opt/feralos_webmin` → `podman compose up -d` with `read_only`+`tmpfs`, seed via `webmin-seed`, `webmin-ensure` oneshot; `nix` tmp `775`/`1777` `root:nixbld`, `TMPDIR` scoped to daemon via `/etc/conf.d/nix-daemon`, locale `it→it_IT.UTF-8`
+- **Harness:** `firewall_rustdesk` check (`firewall-cmd --permanent --list-ports | grep 21115` || `grep -rq 21115 /etc/firewalld/` — permanent ports, not runtime), `flatpak_installed` (`flatpak list | grep rustdesk`), allowlist widened `commitpartial|bwrap.*pivot_root|To enable access to XDG directories` (flatpak XDG portal noise, was `commitpartial: No such file` exact), `/lib/modules` timing fix verified, `xdg-user-dirs` no longer missing; **51/51 PASS** (was 45/45, now +6: `firewall_rustdesk`, `flatpak_installed`, `niri_*` 4)
+- **Docs:** new `docs/guides/niri.md` (greetd/regreet/niri/rustdesk autostart conditional + firewall offline-cmd + flatpak + `xdg-user-dirs`/`/lib/modules`/`regreet` fixes + podman/webmin integration + troubleshooting); updated `AGENTS.md` history + Docs Index + Roadmap (niri completed), `docs/guides/README.md` (niri index), `docs/guides/variables.md` (flatpakPackages + firewall ports), `docs/guides/development.md` (feature map + module map), `docs/harness/artifacts.md` (51/51 table, new checks, allowlist, /lib/modules)
 
 ### 2026-09-08 — Nix SSL env + nix_packages_missing parse fix
 

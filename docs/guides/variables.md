@@ -78,7 +78,7 @@ variables:
 
 | Key | Type | Description |
 |-----|------|-------------|
-| `desktopEnvironment` | `string` | `none` (server), `kde`, `niri`, `gnome`. `niri` pulls `greetd`+`elogind`, plus 20 APK packages (cosmic-files/edit/screenshot/player/store/settings, okular, eog, cups, cups-filters, avahi, system-config-printer, libreoffice, galculator, firefox, firewalld-gui, gnome-firmware, thunderbird, gnome-disk-utility, kcron, ksystemlog) and 7 nix packages (quickshell, dms-shell, rclone, rclone-ui, mission-center, nix-software-center, cups-browsed). `cups-browsed` moved to nix (`nixpkgs#cups-browsed`), `wl-clipboard` removed. See `internal_rules.yaml:desktopEnvironments.niri`. |
+| `desktopEnvironment` | `string` | `none` (server), `kde`, `niri`, `gnome`. `niri` pulls `greetd`+`elogind`+`xdg-user-dirs`/`firewalld` plus 20 APK packages (cosmic-files/edit/screenshot/player/store/settings, okular, eog, cups, cups-filters, avahi, system-config-printer, libreoffice, galculator, firefox, firewalld-gui, gnome-firmware, thunderbird, gnome-disk-utility, kcron, ksystemlog, cosmic-settings) and 6 nix packages (quickshell, dms-shell, rclone, rclone-ui, mission-center, cups-browsed — `nix-software-center` manual via `github:snowfallorg/nix-software-center`, `wl-clipboard` removed) + `flathub:com.rustdesk.RustDesk` flatpak (conditional rustdesk autostart `spawn-at-startup flatpak run com.rustdesk.RustDesk --service` + `firewall-offline-cmd --zone=public --add-port=21115-21119/tcp`/`21116/udp`). See `internal_rules.yaml:desktopEnvironments.niri`, `docs/guides/niri.md`. |
 | `videoDriver` | `string` | `none`, `amdgpu`, `nvidia`, `intel` — adds `mesa`, `vulkan`, `xf86-*`. |
 
 ### Feature Toggles
@@ -94,7 +94,8 @@ variables:
 | `swapSize` | `string` | `auto` (2×RAM) or explicit `8G`/`4096M`/`4096K`. Split `/2` per disk on `btrfsRaid0`. |
 | `enableDebug` | `bool` | Debug logging via `HardeningPackages()`. |
 | `enablePodman` | `bool` | Podman rootless containers, subuid/subgid, `podman`+`cgroups` services, `btrfs` storage driver (`sed` on `storage.conf`), `iptables`+`podman-compose`+`podman-docker`+`fuse-overlayfs`. |
-| `enableWebmin` | `bool` | Webmin web admin panel (requires podman). Standalone binary `src/firstBoot/webmin/main.go`, image `demosthenesk/webmin:noble`, compose `read_only`+`tmpfs`+`cap_drop ALL`, seed `/etc/webmin` via `webmin-seed`, oneshot `webmin-ensure`, `changepass.pl`+`chpasswd`. Modules: firewall, packages, btrfs, smart, proc, cron, logs, custom commands. `---` divider in compose docs. |
+| `enableWebmin` | `bool` | Webmin **podman-based** web admin panel (requires podman). Standalone binary `src/firstBoot/webmin/main.go` (verifies podman, seeds config, `podman compose up -d`), image `demosthenesk/webmin:noble` (was `pschatzmann` dead), compose `read_only`+`tmpfs` (`/tmp /run /var/log /var/webmin`)+`cap_drop ALL`, seed `/etc/webmin` via `webmin-seed` container (bind mount shadow), oneshot `webmin-ensure`, `changepass.pl`+`chpasswd`. Modules: firewall, packages, btrfs, smart, proc, cron, logs, custom commands. `---` divider in compose docs. |
+| `flatpakPackages` | `[]string` | Flatpak apps (e.g. `flathub:com.rustdesk.RustDesk`) — set via `internal_rules.yaml:desktopEnvironments.niri.flatpakPackages` or `variables.yaml`. Triggers `flatpak` APK + `SetupFlatpak` (flathub remote + `flatpak install -y`), niri conditional rustdesk autostart + firewall ports `21115-21119/tcp`+`21116/udp` via `firewall-offline-cmd`. `xdg-user-dirs` + `/lib/modules` before apk required. |
 | `webminListenAll` | `bool` | `false`: localhost:10000 only. `true`: 0.0.0.0:10000 (all interfaces). |
 
 ### Extra Packages

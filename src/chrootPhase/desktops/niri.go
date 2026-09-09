@@ -140,11 +140,11 @@ environment {
 	userNiri := userNiriBase
 	if hasRustdesk {
 		userNiri += "spawn-at-startup \"flatpak\" \"run\" \"com.rustdesk.RustDesk\" \"--service\"\n"
-		// Firewall for RustDesk direct IP (21115-21119/tcp + 21116/udp)
-		if _, err := shell.ExecuteCmd(chroot, "firewall-cmd --permanent --add-port=21115-21119/tcp 2>/dev/null || true"); err != nil {
+		// Firewall for RustDesk direct IP (21115-21119/tcp + 21116/udp) — use offline cmd (firewalld not running in chroot)
+		if _, err := shell.ExecuteCmd(chroot, "firewall-offline-cmd --zone=public --add-port=21115-21119/tcp 2>&1 || true"); err != nil {
 			fmt.Printf("[WARNING] Failed to add rustdesk tcp ports to firewall: %v\n", err)
 		}
-		if _, err := shell.ExecuteCmd(chroot, "firewall-cmd --permanent --add-port=21116/udp 2>/dev/null || true"); err != nil {
+		if _, err := shell.ExecuteCmd(chroot, "firewall-offline-cmd --zone=public --add-port=21116/udp 2>&1 || true"); err != nil {
 			fmt.Printf("[WARNING] Failed to add rustdesk udp port to firewall: %v\n", err)
 		}
 	}
