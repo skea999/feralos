@@ -276,7 +276,15 @@ All prior swap/vector/dummy issues resolved. See `CHANGELOG.md` Fixed section. C
 
 ---
 
-*Updated: 2026-09-09*
+*Updated: 2026-09-10*
+
+### 2026-09-10 — Dinit planning + docs split (installer vs feralos-aports) + KDE/COSMIC DEs
+**Agent:** codebase
+- **COSMIC + KDE desktop environments added**: `internal_rules.yaml` `desktopEnvironments.cosmic` (seatd — NOT elogind, verified: Alpine cosmic-greeter OpenRC init requires seatd; polkit not polkit-elogind) + `kde` fixture; `desktops.go` unicode sed in rc.conf for ALL DEs (musl default off) + "not implemented" warning removed (packages/services come from internal_rules); harness fixtures `btrfs_standard_cosmic_full_test.yaml` + `btrfs_standard_kde_full_test.yaml` both **41/41 PASS**; `log_errors` allowlist += `abseil-cpp-strerror` (pkg name contains "error")
+- **Dinit planning complete** (branch `developDinit`): dinit from Alpine community 0.21.0 (`--shutdown-prefix=dinit-`); boot = Chimera suite `dinit-chimera` v0.99.24 built from upstream tarball (52 services, 12 compiled C++ helpers, only `kmod` links libkmod); our glue = 2 hook scripts (`dinit-devd` eudev, `dinit-cryptdisks`) + `getty@` (upstream ships none); switch via cmdline `init=` (booster init-agnostic, OpenRC coexists); Phase 4 turnstile (chimera project, ex `dinit-userservd`, backend Dinit is the upstream reference) → `dinit --user`, DMS becomes a user service; polkit `turnstile.patch` Chimera REQUIRED with turnstile (verified: Alpine 127-r2 does NOT have it, versions aligned 127=127-r2)
+- **Docs split by competence**: packaging docs (PACKAGES/SERVICES/REPOSITORY/TOOLCHAIN/CONVERSION) → repo `references/feralos-aports` (github.com/skea999/feralos-aports, nested clone, own .git); system docs (BOOT/TROUBLESHOOTING) + rewritten README/PLAN stay in `docs/dinit/`; aports repo hasss `PLAN.md` step-by-step (8 step, checkbox) + `STATUS.md` (update-per-step) + `.github/workflows/build.yml` draft + `.gitignore`
+- **Toolchain decision CLOSED**: aports + abuild + GCC (no clang/LLVM/libc++); cports rejected (build root = Chimera base libc++, source-bootstrap unsupported on Alpine host due to patched musl SONAME) — record in aports `docs/TOOLCHAIN.md`
+- **Note**: `references/*` is gitignored in the outer repo — the nested clone does not touch the installer repo
 
 ### 2026-09-09 — Niri rustdesk flatpak + firewall offline-cmd, harness 51/51 PASS
 
