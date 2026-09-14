@@ -1,6 +1,8 @@
 # Dinit Integration — Installer Side
 
-> **Status**: planning → execution (packaging in `feralos-aports` repo)
+> **Status**: packaging underway in [feralos-aports](https://github.com/skea999/feralos-aports)
+> (CI live: build → sign → publish → client-verify; **rule 0** active: use Alpine
+> packages whenever they exist — sd-tools dropped, Alpine community provides it).
 > **Branch**: `developDinit`
 > **Updated**: 2026-09-10
 
