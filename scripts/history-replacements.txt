@@ -101,3 +101,37 @@ changes show-desktop to minimize all applications==>changes show-desktop to mini
 #try to include all needed firmware==>#try to include all needed firmware
 // Run performs all final configuration steps inside the Alpine chroot environment.==>// Run performs all final configuration steps inside the Alpine chroot environment.
 * [ ] test all DEs for minimal installation==>* [ ] test all DEs for minimal installation
+
+# --- oldDevelop legacy (scriptv bash / early Go) ---
+Look up the mandatory template==>Look up the mandatory template
+dynamic from the first two disks in the list==>dynamic from the first two disks in the list
+only on the first two disks in the list==>only on the first two disks in the list
+Make sure the hooks directory exists==>Make sure the hooks directory exists
+changes icon grouping to do not group==>changes icon grouping to do not group
+color the terminal of the installed version==>color the terminal of the installed version
+also not sure it works on musl==>also not sure it works on musl
+not sure it works because there is only it there==>not sure it works because there is only it there
+run post-install scripts automatically==>run post-install scripts automatically
+[CRITICAL ERROR] The variables.yaml file is missing required fields.==>[CRITICAL ERROR] The variables.yaml file is missing required fields.
+install all packages together with packagename&!packagevariable==>install all packages together with packagename&!packagevariable
+install only packages without meta packages (base system for example)==>install only packages without meta packages (base system for example)
+In a standard single-disk layout, mdadm or raid features are not needed==>In a standard single-disk layout, mdadm or raid features are not needed
+language is it_IT.UTF-8 and not it (to make it all uppercase==>language is it_IT.UTF-8 and not it (to make it all uppercase
+but it seems to work anyway==>but it seems to work anyway
+the luks part not in the bootloader but in the initrfs==>the luks part not in the bootloader but in the initrfs
+[FATAL ERROR] Cannot find the mandatory template. Make sure 'alpineInstaller/variables/variables.yaml' exists.==>[FATAL ERROR] Cannot find the mandatory template. Make sure 'alpineInstaller/variables/variables.yaml' exists.
+Temporary mount of the btrfs root to create the subvolumes==>Temporary mount of the btrfs root to create the subvolumes
+not needed unless used for checking==>not needed unless used for checking
+This u.Runlevels map holds system defaults + those added by extra packages==>This u.Runlevels map holds system defaults + those added by extra packages
+this does not work, must use sed and do it on root and home==>this does not work, must use sed and do it on root and home
+If the error is that the file does not exist, continue with an empty struct for the wizard==>If the error is that the file does not exist, continue with an empty struct for the wizard
+if not running then run:==>if not running then run:
+remove the grep from the result==>remove the grep from the result
+If Subvolume is not defined in partitioning.go, uncomment these lines:==>If Subvolume is not defined in partitioning.go, uncomment these lines:
+We use u.AllPackages which already contains Standard + Extra + packages derived from the rules==>We use u.AllPackages which already contains Standard + Extra + packages derived from the rules
+Validation: If essential fields are empty (sign the YAML file was incomplete), we error out.==>Validation: If essential fields are empty (sign the YAML file was incomplete), we error out.
+Check that there are at least 2 disks for the RAID1==>Check that there are at least 2 disks for the RAID1
+reboot and shutdown do not work (to fix with symlinks)==>reboot and shutdown do not work (to fix with symlinks)
+even with the symlink, poweroff after the symlink does not work: sudo shutdown -p now should in theory be handled automatically by switch-inutils but not sure it works==>even with the symlink, poweroff after the symlink does not work: sudo shutdown -p now should in theory be handled automatically by switch-inutils but not sure it works
+s6 does not work because /etc/locale.conf is not done right (though with the fix it now works)==>s6 does not work because /etc/locale.conf is not done right (though with the fix it now works)
+but not sure it works==>but not sure it works
