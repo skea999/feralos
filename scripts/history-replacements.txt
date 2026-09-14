@@ -1,0 +1,95 @@
+#
+replacement  (literal substring replace, applies everywhere)==>replacement  (literal substring replace, applies everywhere)
+#
+#
+#
+
+#
+~/Progetti/skeaAlpineInstaller==>~/Progetti/skeaAlpineInstaller
+~/projects==>~/projects
+
+#
+user-confirmed hard requirement==>user-confirmed hard requirement
+user-confirmed hard requirement==>user-confirmed hard requirement
+use cases==>use cases
+Docs split by competence==>Docs split by competence
+see feralos-aports entry above==>see feralos-aports entry above
+Dinit backend is the upstream reference==>Dinit backend is the upstream reference
+DMS becomes a user service==>DMS becomes a user service
+REQUIRED with turnstile==>REQUIRED with turnstile
+verified: Alpine 127-r2 does NOT have it, versions aligned 127=127-r2==>verified: Alpine 127-r2 does NOT have it, versions aligned 127=127-r2
+the nested clone does not touch the installer repo==>the nested clone does not touch the installer repo
+aports repo hasss==>aports repo hassss
+unsupported on Alpine host due to patched musl SONAME==>unsupported on Alpine host due to patched musl SONAME
+full APK pipeline==>full APK pipeline
+APK pipeline==>APK pipeline
+use Alpine packages whenever they exist==>use Alpine packages whenever they exist
+signature verified client-side==>signature verified client-side
+fresh container, only feralos.pub trusted==>fresh container, only feralos.pub trusted
+install without --allow-untrusted==>install without --allow-untrusted
+Source-verified facts==>Source-verified facts
+meson installs it to==>meson installs it to
+relocates to==>relocates to
+OpenRC coexistence==>OpenRC coexistence
+not usr-merged==>not usr-merged
+pre-rendered manpage==>pre-rendered manpage
+only tag==>only tag
+mkinitfs honors init==>mkinitfs honors init
+initramfs-agnostic packages, mkinitfs NOT tested by us==>initramfs-agnostic packages, mkinitfs NOT tested by us
+optional PACKAGES all mandatory==>optional PACKAGES all mandatory
+droppable only if the build fails AND boot does not need them==>droppable only if the build fails AND boot does not need them
+What it does (source-verified)==>What it does (source-verified)
+NOT replaceable with==>NOT replaceable with
+no external dependencies==>no external dependencies
+the only one linking==>the only one linking
+complements booster (initramfs ≠ runtime)==>complements booster (initramfs ≠ runtime)
+shared semantics==>shared semantics
+busybox/util-linux equivalents exist but cannot be swapped without patching upstream scripts==>busybox/util-linux equivalents exist but cannot be swapped without patching upstream scripts
+sysctl.d processing with precedence==>sysctl.d processing with precedence
+same reason to keep it==>same reason to keep it
+registers binfmt.d==>registers binfmt.d
+zram setup from==>zram setup from
+replaceable by a real udev monitor in the future==>replaceable by a real udev monitor in the future
+uutils compatibility==>uutils compatibility
+pure C++ syscalls (zero coreutils)==>pure C++ syscalls (zero coreutils)
+restricted POSIX, zero GNU-vs-BSD diverging flags==>restricted POSIX, zero GNU-vs-BSD diverging flags
+C port of the BSD utilities from FreeBSD==>C port of the BSD utilities from FreeBSD
+also tested on GNU and busybox==>also tested on GNU and busybox
+The POSIX common denominator covers==>The POSIX common denominator covers
+without friction==>without friction
+fallback: busybox, already present on Alpine==>fallback: busybox, already present on Alpine
+originally==>originally
+spawns==>spawns
+upstream reference (requires==>upstream reference (requires
+same maintainer as dinit), adapted==>same maintainer as dinit), adapted
+turnstiled PAM stack==>turnstiled PAM stack
+elogind registers the session (seat/power stay with elogind)==>elogind registers the session (seat/power stay with elogind)
+What it solves==>What it solves
+in the user dbus service==>in the user dbus service
+as a real dinit user service==>as a real dinit user service
+replaces the OpenRC async hack in==>replaces the OpenRC async hack in
+RESOLVED with patch (decided)==>RESOLVED with patch (decided)
+live in the PAM session==>live in the PAM session
+denied without a patch==>denied without a patch
+Versions aligned==>Versions aligned
+edge identical: same build, same commit==>edge identical: same build, same commit
+coherent with our==>coherent with our
+copied + patch; use sub-package==>copied + patch; use sub-package
+The PAM file must be named exactly==>The PAM file must be named exactly
+patch not needed (dormant without turnstile)==>patch not needed (dormant without turnstile)
+Verified: Alpine does NOT have the patch==>Verified: Alpine does NOT have the patch
+logical proof==>logical proof
+still carries the patch==>still carries the patch
+if upstream 127 had it, Chimera would have dropped it==>if upstream 127 had it, Chimera would have dropped it
+is packaging-only (variant split, openrc script)==>is packaging-only (variant split, openrc script)
+optional for other DEs==>optional for other DEs
+root-supervised system service (upstream ships an example dinit service)==>root-supervised system service (upstream ships an example dinit service)
+elogind owns seat/power; turnstile owns sessions + lingering==>elogind owns seat/power; turnstile owns sessions + lingering
+PAM integration==>PAM integration
+in the turnstiled stack==>in the turnstiled stack
+becomes a user service==>becomes a user service
+the current OpenRC async hack==>the current OpenRC async hack
+can be removed: with turnstile the==>can be removed: with turnstile the
+exists before the login prompt (the==>exists before the login prompt (the
+ready step waits for the first user services before login completes==>ready step waits for the first user services before login completes
+polkit non-local session (Chimera patches polkit) — evaluate in the desktop phase==>polkit non-local session (Chimera patches polkit) — evaluate in the desktop phase
