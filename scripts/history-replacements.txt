@@ -19,7 +19,7 @@ DMS becomes a user service==>DMS becomes a user service
 REQUIRED with turnstile==>REQUIRED with turnstile
 verified: Alpine 127-r2 does NOT have it, versions aligned 127=127-r2==>verified: Alpine 127-r2 does NOT have it, versions aligned 127=127-r2
 the nested clone does not touch the installer repo==>the nested clone does not touch the installer repo
-aports repo hasss==>aports repo hassss
+aports repo hass==>aports repo hasss
 unsupported on Alpine host due to patched musl SONAME==>unsupported on Alpine host due to patched musl SONAME
 full APK pipeline==>full APK pipeline
 APK pipeline==>APK pipeline
