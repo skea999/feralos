@@ -145,9 +145,14 @@ sudo bash setup.sh
 - **Nix**: Working (package manager for software not in Alpine repos)
 - **Podman + Webmin**: Working (containers + web admin UI)
 
-### FeralOS Package Repository — Live
+### FeralOS Package Repository
 
-[feralos-aports](https://github.com/skea999/feralos-aports) builds and publishes **signed APK packages** (abuild → GitHub Pages, CI-verified client installs). Rule 0: we use Alpine packages whenever they exist and only package what's missing or needs FeralOS patches.
+[feralos-aports](https://github.com/skea999/feralos-aports) builds and publishes **signed APK packages** (abuild → GitHub Pages, CI-verified client installs).
+
+Two distinct goals — don't confuse them:
+
+1. **Today — delta repository (live)**: per rule 0 we use Alpine packages whenever they exist, so our repository hosts **only what Alpine is missing** or what needs FeralOS patches (e.g. `dinit-chimera`; later turnstile + patched polkit).
+2. **Future — full repository** (requires maintainers): a complete FeralOS-built package set that would replace the Alpine repositories entirely. **Not started** — rule 0 exists precisely because we are not there yet.
 
 ### Dinit Init System — In Progress
 
