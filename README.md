@@ -103,7 +103,7 @@ Stack: **k3s** + **LINSTOR/Pirateus** as distributed storage backend for **Incus
 3. Open a terminal and run:
 
 ```bash
-wget https://gitea.com/skea999/skeaAlpineInstaller/raw/branch/main/setup.sh
+wget https://gitea.com/sketa999/skeaAlpineInstaller/raw/branch/main/setup.sh
 sudo bash setup.sh
 ```
 
