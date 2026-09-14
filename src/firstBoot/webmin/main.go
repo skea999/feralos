@@ -148,7 +148,7 @@ func setupWebmin(cfg *InstallConfig) {
 	}
 
 	// Create .desktop file
-	createDesktopFile()
+	createDesktopFile(cfg.UserName)
 
 	fmt.Println("[INFO] Webmin installed.")
 	fmt.Printf("[INFO] Enabled modules: FirewallD, Software Packages, Disk/Filesystems, Custom Commands, SMART, Process, Cron, Logs\n")
@@ -255,7 +255,11 @@ start() {
 	_, _ = shell.ExecuteCmd("", "rc-update add webmin-ensure default")
 }
 
-func createDesktopFile() {
+func createDesktopFile(userName string) {
+	if userName == "" {
+		fmt.Println("[WARNING] No user name in config — skipping .desktop file creation")
+		return
+	}
 	desktopContent := `[Desktop Entry]
 Name=Webmin
 Comment=Web-based system administration panel
@@ -266,10 +270,10 @@ Type=Application
 Categories=System;
 StartupNotify=true
 `
-	desktopDir := "~/projects/feralos/home/.local/share/applications"
+	desktopDir := fmt.Sprintf("/home/%s/.local/share/applications", userName)
 	_, _ = shell.ExecuteCmd("", fmt.Sprintf("mkdir -p %s", desktopDir))
 	desktopFile := desktopDir + "/webmin.desktop"
 	// Quoted heredoc = literal content, no escaping needed
 	_, _ = shell.ExecuteCmd("", fmt.Sprintf("cat > %s << 'DESKTOP'\n%s\nDESKTOP", desktopFile, desktopContent))
-	_, _ = shell.ExecuteCmd("", fmt.Sprintf("chown <user>:<user> %s", desktopFile))
+	_, _ = shell.ExecuteCmd("", fmt.Sprintf("chown %s:%s %s", userName, userName, desktopFile))
 }

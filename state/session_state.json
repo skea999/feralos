@@ -295,7 +295,7 @@
     {
       "date": "2026-08-20",
       "decision": "enableSwapfile → enableSwap (generic) + swapSize variable (default auto = 2x RAM)",
-      "rationale": "btrfsStandard keeps swapfile, btrfsRaid0 uses 2 LUKS swap partitions (partition 2, swapSize/2 each), btrfsStandardServer unchanged (always LUKS swap — user: 'mandatory by design'). swapSize = TOTAL swap size split across partitions; auto = 2x RAM via /proc/meminfo MemTotal. Resolved by utils/swap.ResolveSwapSizeMiB. swap service conditional on enableSwap (fixes latent bug: swap never activated on RAID0)."
+      "rationale": "btrfsStandard keeps swapfile, btrfsRaid0 uses 2 LUKS swap partitions (partition 2, swapSize/2 each), btrfsStandardServer unchanged (always LUKS swap — user-confirmed hard requirement). swapSize = TOTAL swap size split across partitions; auto = 2x RAM via /proc/meminfo MemTotal. Resolved by utils/swap.ResolveSwapSizeMiB. swap service conditional on enableSwap (fixes latent bug: swap never activated on RAID0)."
     },
     {
       "date": "2026-08-20",
@@ -315,7 +315,7 @@
     {
       "date": "2026-08-20",
       "decision": "Fixtures library Tier1/2/3 split for CI cost",
-      "rationale": "14 templates cover all scenarios without 384-combo explosion. Tier1 CI gate minimal+noswap per layout (2h), Tier2 nightly explicit+isolate (4h), Tier3 manual full. Validated critical gap btrfsRaid0-noswap 32/32 and explicit 8G both layouts 32/32."
+      "rationale": "14 templates cover all use cases without 384-combo explosion. Tier1 CI gate minimal+noswap per layout (2h), Tier2 nightly explicit+isolate (4h), Tier3 manual full. Validated critical gap btrfsRaid0-noswap 32/32 and explicit 8G both layouts 32/32."
     }
   ],
   "risks": [
