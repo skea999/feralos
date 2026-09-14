@@ -93,3 +93,7 @@ can be removed: with turnstile the==>can be removed: with turnstile the
 exists before the login prompt (the==>exists before the login prompt (the
 ready step waits for the first user services before login completes==>ready step waits for the first user services before login completes
 polkit non-local session (Chimera patches polkit) — evaluate in the desktop phase==>polkit non-local session (Chimera patches polkit) — evaluate in the desktop phase
+changes show-desktop to minimize all applications==>changes show-desktop to minimize all applications
+#try to include all needed firmware==>#try to include all needed firmware
+// Run performs all final configuration steps inside the Alpine chroot environment.==>// Run performs all final configuration steps inside the Alpine chroot environment.
+* [ ] test all DEs for minimal installation==>* [ ] test all DEs for minimal installation
