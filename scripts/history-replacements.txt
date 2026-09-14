@@ -3,12 +3,16 @@ replacement  (literal substring replace, applies everywhere)==>replacement  (lit
 #
 #
 #
-
 #
+# WARNING: filter-repo applies these mappings to THIS file's own blobs on every
+# pass (LHS self-translation). If corrupted by a pass, restore from the commit
+# that introduced it ("restore full scrub mappings") BEFORE rerunning rewrite.
+
+# --- machine-local identifiers (forbidden) ---
 ~/Progetti/skeaAlpineInstaller==>~/Progetti/skeaAlpineInstaller
 ~/projects==>~/projects
 
-#
+# --- Italian -> English (known occurrences; extend from `extract` output) ---
 user-confirmed hard requirement==>user-confirmed hard requirement
 user-confirmed hard requirement==>user-confirmed hard requirement
 use cases==>use cases
@@ -19,7 +23,7 @@ DMS becomes a user service==>DMS becomes a user service
 REQUIRED with turnstile==>REQUIRED with turnstile
 verified: Alpine 127-r2 does NOT have it, versions aligned 127=127-r2==>verified: Alpine 127-r2 does NOT have it, versions aligned 127=127-r2
 the nested clone does not touch the installer repo==>the nested clone does not touch the installer repo
-aports repo hass==>aports repo hasss
+aports repo has==>aports repo hass
 unsupported on Alpine host due to patched musl SONAME==>unsupported on Alpine host due to patched musl SONAME
 full APK pipeline==>full APK pipeline
 APK pipeline==>APK pipeline

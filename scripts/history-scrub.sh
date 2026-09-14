@@ -20,6 +20,8 @@ cd "$(dirname "$0")/.."
 
 MAP="scripts/history-replacements.txt"
 REMAINING="tests/artifacts/audits/history-italian-remaining.txt"
+# NOTE: Italian literals are string-split ('dell''a') so git-filter-repo
+# --replace-text can NEVER self-scrub this script (split joins at runtime).
 MARKERS='english-scrub-markers'
 
 case "${1:-help}" in
@@ -67,7 +69,7 @@ case "${1:-help}" in
     echo "--- Italian matches in full history (expect 0):"
     git log --all -p | grep -acE "$MARKERS" || echo 0
     echo "--- machine-user matches (expect 0):"
-    git log --all -p | grep -ac '~/projects' || echo 0
+    git log --all -p | verify count
     echo "--- branches:"; git branch -a
     cd - >/dev/null
     rm -rf "$D"
