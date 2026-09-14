@@ -47,7 +47,7 @@ FeralOS is designed to be a real desktop distribution. Alpine has always been se
 - Replacing coreutils with uutils (Rust, no more `ls` segfaults)
 - Using fish as default shell (Rust, modern, user-friendly)
 - Using micro as editor (Go, intuitive, fast)
-- Integrating niri (Wayland compositor) + wayvnc (VNC server)
+- Integrating desktop environments: **niri** (Wayland compositor), **KDE Plasma** and **COSMIC** — remote access via RustDesk (flatpak), firewall via firewalld
 
 The `btrfsStandard` layout is ideal for desktop machines: single disk, Btrfs with subvolumes, LUKS2 encryption, swapfile on dedicated subvolume.
 
@@ -103,7 +103,7 @@ Stack: **k3s** + **LINSTOR/Pirateus** as distributed storage backend for **Incus
 3. Open a terminal and run:
 
 ```bash
-wget https://gitea.com/sketa999/skeaAlpineInstaller/raw/branch/main/setup.sh
+wget https://gitea.com/skea999/skeaAlpineInstaller/raw/branch/main/setup.sh
 sudo bash setup.sh
 ```
 
@@ -131,22 +131,31 @@ sudo bash setup.sh
 
 ## Project Status
 
-**Experimental.** FeralOS is in active development. The installer works and passes all automated tests (22/22 checks via QEMU harness), but expect rough edges on real hardware. Everything needs more testing on real hardware before production use.
+**Experimental.** FeralOS is in active development. The installer works and passes all automated tests (41–51 checks per fixture via the QEMU harness), but expect rough edges on real hardware. Everything needs more testing on real hardware before production use.
 
 ### Installer Status
 
 - **btrfsStandard**: Working
 - **btrfsStandardServer**: Working
-- **btrfsRaid0**: Planned
-- **btrfsStandardUnencrypted**: Planned
-- **Secure Boot**: Working (signed UKI via sbctl)
+- **btrfsRaid0**: Working
+- **btrfsStandardUnencrypted**: Working
+- **Desktop environments**: niri, KDE Plasma, COSMIC — Working
+- **Secure Boot**: Working (signed UKI)
 - **TPM**: Working (automatic LUKS unlock via Clevis)
 - **Nix**: Working (package manager for software not in Alpine repos)
+- **Podman + Webmin**: Working (containers + web admin UI)
 
-Currently uses official Alpine repositories. In the future, if the project gains maintainers, FeralOS may host its own repositories with custom packages and configurations.
+### FeralOS Package Repository — Live
+
+[feralos-aports](https://github.com/skea999/feralos-aports) builds and publishes **signed APK packages** (abuild → GitHub Pages, CI-verified client installs). Rule 0: we use Alpine packages whenever they exist and only package what's missing or needs FeralOS patches.
+
+### Dinit Init System — In Progress
+
+Dinit replaces OpenRC on the `developDinit` branch: the Chimera boot suite (`dinit-chimera`) is already packaged, signed and published in our repository. OpenRC stays installed — the switch is a kernel-cmdline choice (`init=`).
 
 We're looking for contributors, especially people interested in:
 - Testing on real hardware
+- Dinit boot testing
 
 ## Contributing
 
