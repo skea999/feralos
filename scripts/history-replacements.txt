@@ -1,137 +1,101 @@
 #
-replacement  (literal substring replace, applies everywhere)==>replacement  (literal substring replace, applies everywhere)
 #
 #
 #
-#
-# WARNING: filter-repo applies these mappings to THIS file's own blobs on every
-# pass (LHS self-translation). If corrupted by a pass, restore from the commit
-# that introduced it ("restore full scrub mappings") BEFORE rerunning rewrite.
-
-# --- machine-local identifiers (forbidden) ---
-~/Progetti/skeaAlpineInstaller==>~/Progetti/skeaAlpineInstaller
-~/projects==>~/projects
-
-# --- Italian -> English (known occurrences; extend from `extract` output) ---
-user-confirmed hard requirement==>user-confirmed hard requirement
-user-confirmed hard requirement==>user-confirmed hard requirement
-use cases==>use cases
-Docs split by competence==>Docs split by competence
-see feralos-aports entry above==>see feralos-aports entry above
-Dinit backend is the upstream reference==>Dinit backend is the upstream reference
-DMS becomes a user service==>DMS becomes a user service
-REQUIRED with turnstile==>REQUIRED with turnstile
-verified: Alpine 127-r2 does NOT have it, versions aligned 127=127-r2==>verified: Alpine 127-r2 does NOT have it, versions aligned 127=127-r2
-the nested clone does not touch the installer repo==>the nested clone does not touch the installer repo
-aports repo has==>aports repo hass
-unsupported on Alpine host due to patched musl SONAME==>unsupported on Alpine host due to patched musl SONAME
-full APK pipeline==>full APK pipeline
-APK pipeline==>APK pipeline
-use Alpine packages whenever they exist==>use Alpine packages whenever they exist
-signature verified client-side==>signature verified client-side
-fresh container, only feralos.pub trusted==>fresh container, only feralos.pub trusted
-install without --allow-untrusted==>install without --allow-untrusted
-Source-verified facts==>Source-verified facts
-meson installs it to==>meson installs it to
-relocates to==>relocates to
-OpenRC coexistence==>OpenRC coexistence
-not usr-merged==>not usr-merged
-pre-rendered manpage==>pre-rendered manpage
-only tag==>only tag
-mkinitfs honors init==>mkinitfs honors init
-initramfs-agnostic packages, mkinitfs NOT tested by us==>initramfs-agnostic packages, mkinitfs NOT tested by us
-optional PACKAGES all mandatory==>optional PACKAGES all mandatory
-droppable only if the build fails AND boot does not need them==>droppable only if the build fails AND boot does not need them
-What it does (source-verified)==>What it does (source-verified)
-NOT replaceable with==>NOT replaceable with
-no external dependencies==>no external dependencies
-the only one linking==>the only one linking
-complements booster (initramfs ≠ runtime)==>complements booster (initramfs ≠ runtime)
-shared semantics==>shared semantics
-busybox/util-linux equivalents exist but cannot be swapped without patching upstream scripts==>busybox/util-linux equivalents exist but cannot be swapped without patching upstream scripts
-sysctl.d processing with precedence==>sysctl.d processing with precedence
-same reason to keep it==>same reason to keep it
-registers binfmt.d==>registers binfmt.d
-zram setup from==>zram setup from
-replaceable by a real udev monitor in the future==>replaceable by a real udev monitor in the future
-uutils compatibility==>uutils compatibility
-pure C++ syscalls (zero coreutils)==>pure C++ syscalls (zero coreutils)
-restricted POSIX, zero GNU-vs-BSD diverging flags==>restricted POSIX, zero GNU-vs-BSD diverging flags
-C port of the BSD utilities from FreeBSD==>C port of the BSD utilities from FreeBSD
-also tested on GNU and busybox==>also tested on GNU and busybox
-The POSIX common denominator covers==>The POSIX common denominator covers
-without friction==>without friction
-fallback: busybox, already present on Alpine==>fallback: busybox, already present on Alpine
-originally==>originally
-spawns==>spawns
-upstream reference (requires==>upstream reference (requires
-same maintainer as dinit), adapted==>same maintainer as dinit), adapted
-turnstiled PAM stack==>turnstiled PAM stack
-elogind registers the session (seat/power stay with elogind)==>elogind registers the session (seat/power stay with elogind)
-What it solves==>What it solves
-in the user dbus service==>in the user dbus service
-as a real dinit user service==>as a real dinit user service
-replaces the OpenRC async hack in==>replaces the OpenRC async hack in
-RESOLVED with patch (decided)==>RESOLVED with patch (decided)
-live in the PAM session==>live in the PAM session
-denied without a patch==>denied without a patch
-Versions aligned==>Versions aligned
-edge identical: same build, same commit==>edge identical: same build, same commit
-coherent with our==>coherent with our
-copied + patch; use sub-package==>copied + patch; use sub-package
-The PAM file must be named exactly==>The PAM file must be named exactly
-patch not needed (dormant without turnstile)==>patch not needed (dormant without turnstile)
-Verified: Alpine does NOT have the patch==>Verified: Alpine does NOT have the patch
-logical proof==>logical proof
-still carries the patch==>still carries the patch
-if upstream 127 had it, Chimera would have dropped it==>if upstream 127 had it, Chimera would have dropped it
-is packaging-only (variant split, openrc script)==>is packaging-only (variant split, openrc script)
-optional for other DEs==>optional for other DEs
-root-supervised system service (upstream ships an example dinit service)==>root-supervised system service (upstream ships an example dinit service)
-elogind owns seat/power; turnstile owns sessions + lingering==>elogind owns seat/power; turnstile owns sessions + lingering
-PAM integration==>PAM integration
-in the turnstiled stack==>in the turnstiled stack
-becomes a user service==>becomes a user service
-the current OpenRC async hack==>the current OpenRC async hack
-can be removed: with turnstile the==>can be removed: with turnstile the
-exists before the login prompt (the==>exists before the login prompt (the
-ready step waits for the first user services before login completes==>ready step waits for the first user services before login completes
-polkit non-local session (Chimera patches polkit) — evaluate in the desktop phase==>polkit non-local session (Chimera patches polkit) — evaluate in the desktop phase
-changes show-desktop to minimize all applications==>changes show-desktop to minimize all applications
-#try to include all needed firmware==>#try to include all needed firmware
-// Run performs all final configuration steps inside the Alpine chroot environment.==>// Run performs all final configuration steps inside the Alpine chroot environment.
-* [ ] test all DEs for minimal installation==>* [ ] test all DEs for minimal installation
-
-# --- oldDevelop legacy (scriptv bash / early Go) ---
-Look up the mandatory template==>Look up the mandatory template
-dynamic from the first two disks in the list==>dynamic from the first two disks in the list
-only on the first two disks in the list==>only on the first two disks in the list
-Make sure the hooks directory exists==>Make sure the hooks directory exists
-changes icon grouping to do not group==>changes icon grouping to do not group
-color the terminal of the installed version==>color the terminal of the installed version
-also not sure it works on musl==>also not sure it works on musl
-not sure it works because there is only it there==>not sure it works because there is only it there
-run post-install scripts automatically==>run post-install scripts automatically
-[CRITICAL ERROR] The variables.yaml file is missing required fields.==>[CRITICAL ERROR] The variables.yaml file is missing required fields.
-install all packages together with packagename&!packagevariable==>install all packages together with packagename&!packagevariable
-install only packages without meta packages (base system for example)==>install only packages without meta packages (base system for example)
-In a standard single-disk layout, mdadm or raid features are not needed==>In a standard single-disk layout, mdadm or raid features are not needed
-language is it_IT.UTF-8 and not it (to make it all uppercase==>language is it_IT.UTF-8 and not it (to make it all uppercase
-but it seems to work anyway==>but it seems to work anyway
-the luks part not in the bootloader but in the initrfs==>the luks part not in the bootloader but in the initrfs
-[FATAL ERROR] Cannot find the mandatory template. Make sure 'alpineInstaller/variables/variables.yaml' exists.==>[FATAL ERROR] Cannot find the mandatory template. Make sure 'alpineInstaller/variables/variables.yaml' exists.
-Temporary mount of the btrfs root to create the subvolumes==>Temporary mount of the btrfs root to create the subvolumes
-not needed unless used for checking==>not needed unless used for checking
-This u.Runlevels map holds system defaults + those added by extra packages==>This u.Runlevels map holds system defaults + those added by extra packages
-this does not work, must use sed and do it on root and home==>this does not work, must use sed and do it on root and home
-If the error is that the file does not exist, continue with an empty struct for the wizard==>If the error is that the file does not exist, continue with an empty struct for the wizard
-if not running then run:==>if not running then run:
-remove the grep from the result==>remove the grep from the result
-If Subvolume is not defined in partitioning.go, uncomment these lines:==>If Subvolume is not defined in partitioning.go, uncomment these lines:
-We use u.AllPackages which already contains Standard + Extra + packages derived from the rules==>We use u.AllPackages which already contains Standard + Extra + packages derived from the rules
-Validation: If essential fields are empty (sign the YAML file was incomplete), we error out.==>Validation: If essential fields are empty (sign the YAML file was incomplete), we error out.
-Check that there are at least 2 disks for the RAID1==>Check that there are at least 2 disks for the RAID1
-reboot and shutdown do not work (to fix with symlinks)==>reboot and shutdown do not work (to fix with symlinks)
-even with the symlink, poweroff after the symlink does not work: sudo shutdown -p now should in theory be handled automatically by switch-inutils but not sure it works==>even with the symlink, poweroff after the symlink does not work: sudo shutdown -p now should in theory be handled automatically by switch-inutils but not sure it works
-s6 does not work because /etc/locale.conf is not done right (though with the fix it now works)==>s6 does not work because /etc/locale.conf is not done right (though with the fix it now works)
-but not sure it works==>but not sure it works
+MARKERS='english-scrub-markers'==>MARKERS='english-scrub-markers'
+MARKERS='english-scrub-markers'==>MARKERS='english-scrub-markers'
+  'english-scrub-markers'==>  'english-scrub-markers'
+try to include all needed firmware==>try to include all needed firmware
+Update and Package Installation==>Update and Package Installation
+Subvolumes on Root Partition==>Subvolumes on Root Partition
+Subvolumes on RAID==>Subvolumes on RAID
+GPT Partitioning==>GPT Partitioning
+add icons to the application bar==>add icons to the application bar
+confirm before formatting==>confirm before formatting
+for this you need to identify the hardware==>for this you need to identify the hardware
+Extra Packages==>Extra Packages
+We try several common paths to make sure we find it==>We try several common paths to make sure we find it
+no disk specified in the configuration==>no disk specified in the configuration
+GRUB installation on both EFI disks for redundancy==>GRUB installation on both EFI disks for redundancy
+Initramfs regeneration (needed to include the raid1/btrfs modules loaded earlier)==>Initramfs regeneration (needed to include the raid1/btrfs modules loaded earlier)
+Save the current working kernel before apk overwrites it during an upgrade.==>Save the current working kernel before apk overwrites it during an upgrade.
+Initialize the minimal required fields if needed==>Initialize the minimal required fields if needed
+keyboard in kde==>keyboard in kde
+application style: add scrollbar handles==>application style: add scrollbar handles
+import the key for the repositories==>import the key for the repositories
+* [ ] functions==>* [ ] functions
+**Free** in philosophy==>**Free** in philosophy
+Most Linux distributions are "tamed" — they follow market rules, bend to business needs, accept compromises for compatibility.==>Most Linux distributions are "tamed" — they follow market rules, bend to business needs, accept compromises for compatibility.
+this should work, to be verified==>this should work, to be verified
+function to install package and enable service; input params: packagename, servicename==>function to install package and enable service; input params: packagename, servicename
+the default does not work; create a new staging file with the default values and ask first with yesNo==>the default does not work; create a new staging file with the default values and ask first with yesNo
+We could also add automatic creation of the config file here if we wanted==>We could also add automatic creation of the config file here if we wanted
+function, if to check mkdir, if to check execution exit 0 and for loop==>function, if to check mkdir, if to check execution exit 0 and for loop
+Indomitable in Vision==>Indomitable in Vision
+Formatting and Labeling==>Formatting and Labeling
+Subvolume Creation and Mount==>Subvolume Creation and Mount
+Fstab Generation==>Fstab Generation
+User creation without default groups (only its primary group)==>User creation without default groups (only its primary group)
+Added to DYNAMIC groups (including wheel if present in doas/sudo rules)==>Added to DYNAMIC groups (including wheel if present in doas/sudo rules)
+Formatting partitions...==>Formatting partitions...
+Final GRUB configuration file generation==>Final GRUB configuration file generation
+Starting single-disk partitioning (Standard)==>Starting single-disk partitioning (Standard)
+convert to a working installation on any distribution (i.e. with the tar)==>convert to a working installation on any distribution (i.e. with the tar)
+DE with minimal installation + terminal==>DE with minimal installation + terminal
+initial dependency installation for the most common package managers (apt, pacman, dnf, maybe others)==>initial dependency installation for the most common package managers (apt, pacman, dnf, maybe others)
+**Wildness** → Do not bend to conventions, look for better solutions==>**Wildness** → Do not bend to conventions, look for better solutions
+Executes: rc-update add <service> <runlevel>==>Executes: rc-update add <service> <runlevel>
+[SUCCESS] New file generated: %s\n==>[SUCCESS] New file generated: %s\n
+The values in [ ] come from the variables.yaml file.==>The values in [ ] come from the variables.yaml file.
+this file contains the commands the installation script will run==>this file contains the commands the installation script will run
+Wild but Structured==>Wild but Structured
+to be done in a universal way, so it can be installed from any linux version==>to be done in a universal way, so it can be installed from any linux version
+FeralOS is **feral**:==>FeralOS is **feral**:
+- **Rejects C when memory-safe alternatives exist** — uutils instead of coreutils, micro instead of vim==>- **Rejects C when memory-safe alternatives exist** — uutils instead of coreutils, micro instead of vim
+- **Does not compromise on security** — doas instead of sudo, zero unnecessary components==>- **Does not compromise on security** — doas instead of sudo, zero unnecessary components
+- **Rigid architecture** — standard core, pluggable data==>- **Rigid architecture** — standard core, pluggable data
+- **Clean code** — Go for the installer, Rust for system components==>- **Clean code** — Go for the installer, Rust for system components
+### The Mountain as Metaphor==>### The Mountain as Metaphor
+The Alps represent:==>The Alps represent:
+- **Solidity** — ancient, immovable rock that endures for centuries==>- **Solidity** — ancient, immovable rock that endures for centuries
+- **Freedom** — open peaks, infinite sky, absence of boundaries==>- **Freedom** — open peaks, infinite sky, absence of boundaries
+- **Wildness** — pristine forests, wild fauna, intact ecosystem==>- **Wildness** — pristine forests, wild fauna, intact ecosystem
+- **Necessary** — balances the ecosystem, eliminates the weak==>- **Necessary** — balances the ecosystem, eliminates the weak
+- **Intelligent** — hunts in packs, strategy, adaptability==>- **Intelligent** — hunts in packs, strategy, adaptability
+| **Ubuntu** | "Humanity towards others" | Community, accessibility |==>| **Ubuntu** | "Humanity towards others" | Community, accessibility |
+| **Fedora** | Fedora hat | Innovation, cutting edge |==>| **Fedora** | Fedora hat | Innovation, cutting edge |
+| **Alpine** | The Alps | Minimalism, simplicity |==>| **Alpine** | The Alps | Minimalism, simplicity |
+| **Arch** | Architecture | DIY, customization |==>| **Arch** | Architecture | DIY, customization |
+| **FeralOS** | Wild | Security, freedom, excellence |==>| **FeralOS** | Wild | Security, freedom, excellence |
+- **Promise of freedom** — open source, no hidden dependency==>- **Promise of freedom** — open source, no hidden dependency
+- **Freedom** → Open source, transparent code, no hidden dependency==>- **Freedom** → Open source, transparent code, no hidden dependency
+FeralOS embodies these qualities in the software world:==>FeralOS embodies these qualities in the software world:
+no logout on inactivity==>no logout on inactivity
+// Safety check to avoid a crash if the disk list is empty==>// Safety check to avoid a crash if the disk list is empty
+[INFO] Unattended mode active in the YAML file. Skipping wizard.==>[INFO] Unattended mode active in the YAML file. Skipping wizard.
+maybe better with itarball if present==>maybe better with itarball if present
+// Handles kernel fallback and EFI sync if a multi-disk setup is present.==>// Handles kernel fallback and EFI sync if a multi-disk setup is present.
+// If the hostname is empty, the YAML file was malformed or missing==>// If the hostname is empty, the YAML file was malformed or missing
+This subtitle captures the essence:==>This subtitle captures the essence:
+- **Wild** — the transformation FeralOS brings==>- **Wild** — the transformation FeralOS brings
+- **Solidity** → Memory-safe architecture, Rust and Go components==>- **Solidity** → Memory-safe architecture, Rust and Go components
+> **FeralOS** — *Alpine Linux, Wild*==>> **FeralOS** — *Alpine Linux, Wild*
+// If launched from the project root==>// If launched from the project root
+// If launched from installer/utility/==>// If launched from installer/utility/
+// If launched from installer/utility/makeVariables/==>// If launched from installer/utility/makeVariables/
+- **Phase 1** → Solid, tested installer==>- **Phase 1** → Solid, tested installer
+- **Phase 2** → Dinit instead of OpenRC, custom repository==>- **Phase 2** → Dinit instead of OpenRC, custom repository
+- **Phase 3** → Full distribution, desktop and server==>- **Phase 3** → Full distribution, desktop and server
+**FeralOS** derives from the English term **"feral"**, which in turn comes from the Latin **"feralis"** (belonging to the dead, deadly) and even earlier from **"ferus"** (wild, fierce).==>**FeralOS** derives from the English term **"feral"**, which in turn comes from the Latin **"feralis"** (belonging to the dead, deadly) and even earlier from **"ferus"** (wild, fierce).
+button management==>button management
+- **Intelligent** — dynamic rules, automatic configuration==>- **Intelligent** — dynamic rules, automatic configuration
+* [x] command success checking (if $? = 1 then )==>* [x] command success checking (if $? = 1 then )
+// Helper to extract the disk name (e.g. sda)==>// Helper to extract the disk name (e.g. sda)
+[ERROR] Error loading the template: %v==>[ERROR] Error loading the template: %v
+[ERROR] Save failed: %v==>[ERROR] Save failed: %v
+// PromptForConfig uses EXCLUSIVELY the values present in conf as defaults.==>// PromptForConfig uses EXCLUSIVELY the values present in conf as defaults.
+error: the RAID1 layout requires at least 2 disks, configured: %d==>error: the RAID1 layout requires at least 2 disks, configured: %d
+fdisk failed on %s: %w==>fdisk failed on %s: %w
+btrfsStandardServer layout requires at least 2 disks, found: %d==>btrfsStandardServer layout requires at least 2 disks, found: %d
+Make sure the template file is present and populated.==>Make sure the template file is present and populated.
+#==>#
