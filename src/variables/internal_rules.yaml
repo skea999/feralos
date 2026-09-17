@@ -9,6 +9,12 @@ defaultRunlevels:
   default: ["cgroups", "networking"]
   shutdown: ["mount-ro", "killprocs", "savecache"]
 
+# Dinit base services — enabled via boot.d symlinks when enableDinit is true.
+# dinit-chimera handles the early boot chain (pseudofs, udevd, fs, etc.)
+# — these are the services needed for a working system AFTER the early chain.
+defaultRunlevelsDinit:
+  boot: ["getty", "getty@ttyS0"]
+
 # Fixed system packages — matches reference skeaSimpleServer exactly
 standardPackages:
   # Core

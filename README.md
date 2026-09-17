@@ -168,7 +168,7 @@ Open to contributors. Read [CONTRIBUTING.md](CONTRIBUTING.md) for further detail
 
 ## Authors
 
-- skea999 (skea999@cryptolab.net)
+- skea999 (sket999@disroot.org)
 
 ## License
 

@@ -43,7 +43,8 @@ variables:
   enableDebug: false
   enablePodman: false
   enableWebmin: false
-  webminListenAll: false  # false = localhost only, true = all interfaces
+  webminListenAll: false
+  enableDinit: true  # false = localhost only, true = all interfaces
 
   # Extra Packages
   # Adding these will trigger dynamic rules (groups, services, etc.)

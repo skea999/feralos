@@ -62,7 +62,7 @@ Note the two `boot.d` directories — both are upstream conventions:
 | 21 | `early-binfmt` | binfmt.d | `binfmt.sh` + `binfmt` helper |
 | 22 | `early-cgroups` | cgroup controllers | `cgroups.sh` |
 | 23 | `early-tmpfiles` | full tmpfiles run | `sd-tmpfiles` (exit 65/73 tolerated) |
-| 24 | `early-console.target` | keymap/font — **distro hook** (optional) | our `dinit-console` (skip v1) |
+| 24 | `early-console.target` | keymap/font — **distro hook** (optional) | our `dinit-console` (Step 2e: kbd loadkmap/setfont via `/etc/conf.d/keymaps`,`consolefont`) |
 | 25 | `early-net-lo` | loopback up | `net-lo.sh` + `lo` helper |
 | 26 | `local.target` / `pre-local.target` | oneshots done, rc.local | `local.sh` |
 

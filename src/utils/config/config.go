@@ -45,6 +45,7 @@ type UserVariables struct {
 	EnablePodman     bool   `yaml:"enablePodman"`
 	EnableWebmin     bool   `yaml:"enableWebmin"`
 	WebminListenAll  bool   `yaml:"webminListenAll"`
+	EnableDinit      bool   `yaml:"enableDinit"`
 
 	// Network
 	DefaultNetworkInterface string `yaml:"defaultNetworkInterface"`
@@ -52,6 +53,7 @@ type UserVariables struct {
 	// Runtime fields
 	UserGroups      []string
 	Runlevels       map[string][]string
+	RunlevelsDinit  map[string][]string
 	AllPackages     []string
 	NixPackages     []string
 	FlatpakPackages []string `yaml:"flatpakPackages"`
@@ -60,16 +62,17 @@ type UserVariables struct {
 }
 
 type InternalRules struct {
-	ChrootDir           string                         `yaml:"chrootDir"`
-	StandardPackages    []string                       `yaml:"standardPackages"`
-	DefaultRunlevels    map[string][]string            `yaml:"defaultRunlevels"`
-	DiskLayouts         map[string]DynamicPackageRules `yaml:"diskLayouts"`
-	DesktopEnvironments map[string]DynamicPackageRules `yaml:"desktopEnvironments"`
-	VideoDrivers        map[string]DynamicPackageRules `yaml:"videoDrivers"`
-	PackageLogic        map[string]DynamicPackageRules `yaml:"packageLogic"`
-	DummyPackages       map[string]DummyPackageRule    `yaml:"dummyPackages"`
-	ProvidePackages     []string                       `yaml:"providePackages"`
-	BaseModules         []string                       `yaml:"baseModules"`
+	ChrootDir             string                         `yaml:"chrootDir"`
+	StandardPackages      []string                       `yaml:"standardPackages"`
+	DefaultRunlevels      map[string][]string            `yaml:"defaultRunlevels"`
+	DefaultRunlevelsDinit map[string][]string            `yaml:"defaultRunlevelsDinit"`
+	DiskLayouts           map[string]DynamicPackageRules `yaml:"diskLayouts"`
+	DesktopEnvironments   map[string]DynamicPackageRules `yaml:"desktopEnvironments"`
+	VideoDrivers          map[string]DynamicPackageRules `yaml:"videoDrivers"`
+	PackageLogic          map[string]DynamicPackageRules `yaml:"packageLogic"`
+	DummyPackages         map[string]DummyPackageRule    `yaml:"dummyPackages"`
+	ProvidePackages       []string                       `yaml:"providePackages"`
+	BaseModules           []string                       `yaml:"baseModules"`
 }
 
 // DummyPackageRule defines a package to replace with a memory-safe dummy.
@@ -128,6 +131,11 @@ func LoadConfig(userPath string) (*Config, error) {
 	conf.User.Runlevels = make(map[string][]string)
 	for k, v := range conf.Internal.DefaultRunlevels {
 		conf.User.Runlevels[k] = v
+	}
+
+	conf.User.RunlevelsDinit = make(map[string][]string)
+	for k, v := range conf.Internal.DefaultRunlevelsDinit {
+		conf.User.RunlevelsDinit[k] = v
 	}
 
 	// Input validation — reject shell metacharacters in fields that touch the shell

@@ -15,6 +15,9 @@ func SetupBoot(conf *config.Config) error {
 	// 1. Write final kernel cmdline
 	fmt.Println("[INFO] Writing final kernel cmdline...")
 	finalCmdline := strings.Join(u.KernelCmdline, " ")
+	if u.EnableDinit {
+		finalCmdline += " init=/usr/libexec/dinit/init"
+	}
 	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /etc/kernel"); err != nil {
 		return fmt.Errorf("failed to create /etc/kernel directory: %w", err)
 	}
