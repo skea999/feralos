@@ -102,7 +102,6 @@ type RunConfig struct {
 	EnableHardening     bool
 	EnablePodman        bool `yaml:"enablePodman"`
 	EnableWebmin        bool `yaml:"enableWebmin"`
-	EnableDinit         bool `yaml:"enableDinit"`
 	EnableZswap         bool
 	EnableNix           bool
 	EnableSwap          bool
@@ -152,7 +151,6 @@ type VariablesYAML struct {
 		EnableDebug             bool     `yaml:"enableDebug"`
 		EnablePodman            bool     `yaml:"enablePodman"`
 		EnableWebmin            bool     `yaml:"enableWebmin"`
-		EnableDinit             bool     `yaml:"enableDinit"`
 		ExtraPackages           []string `yaml:"extraPackages"`
 		NixPackages             []string `yaml:"nixPackages"`
 		FlatpakPackages         []string `yaml:"flatpakPackages"`
@@ -202,7 +200,6 @@ func LoadVariablesFile(cfg *RunConfig, filePath string) error {
 	cfg.SwapSize = v.SwapSize
 	cfg.EnablePodman = v.EnablePodman
 	cfg.EnableWebmin = v.EnableWebmin
-	cfg.EnableDinit = v.EnableDinit
 	if len(v.NixPackages) > 0 {
 		cfg.NixPackages = v.NixPackages
 	}
@@ -249,7 +246,6 @@ type VerifyConfig struct {
 	EnableTPM          bool
 	EnablePodman       bool
 	EnableWebmin       bool
-	EnableDinit        bool
 	EnableNix          bool
 	SwapSize           string
 	DiskLayout         string
@@ -1168,7 +1164,6 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg *RunConfig,
 		EnableTPM:          cfg.EnableTPM,
 		EnablePodman:       cfg.EnablePodman,
 		EnableWebmin:       cfg.EnableWebmin,
-		EnableDinit:        cfg.EnableDinit,
 		EnableNix:          cfg.EnableNix,
 		SwapSize:           cfg.SwapSize,
 		DiskLayout:         cfg.DiskLayout,
@@ -1322,19 +1317,6 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 
 	if cfg.EnableSecureboot {
 		checks["secureboot_conf"] = "cat /etc/kernel-hooks.d/secureboot.conf"
-	}
-
-	// Dinit checks — verify dinit is PID 1, base services are running,
-	// cmdline contains init=, and dinit-chimera suite is installed.
-	if cfg.EnableDinit {
-		checks["dinit_cmdline"] = "cat /proc/cmdline | grep -q 'init=/usr/libexec/dinit/init' && echo 'init= OK' || echo 'init= MISSING'"
-		checks["dinit_pid1"] = "ps -p 1 -o comm= | grep -q dinit && echo 'dinit PID1' || echo 'NOT dinit'"
-		checks["dinitctl_status"] = "dinitctl status 2>/dev/null || echo 'dinitctl failed'"
-		checks["dinit_services"] = "dinitctl status 2>/dev/null | grep -E 'boot|getty' || echo 'no dinit services'"
-		checks["dinit_chimera_installed"] = "apk info -e dinit-chimera && echo 'installed' || echo 'NOT installed'"
-		checks["dinit_getty_installed"] = "apk info -e getty-dinit && echo 'installed' || echo 'NOT installed'"
-		checks["dinit_feralos_repo"] = "grep -q 'feralos-aports' /etc/apk/repositories && echo 'repo OK' || echo 'repo MISSING'"
-		checks["dinit_key"] = "test -f /etc/apk/keys/feralos.rsa.pub && echo 'key OK' || echo 'key MISSING'"
 	}
 
 	result := VerifyResult{RunDir: cfg.RunDir, Success: true, Checks: map[string]CheckResult{}}
@@ -2421,7 +2403,6 @@ func writeHarnessVariables(cfg *RunConfig, keyPair guest.KeyPair, outputPath, al
 
   enablePodman: %s
   enableWebmin: %s
-  enableDinit: %s
   webminListenAll: false
 
   extraPackages:
@@ -2449,7 +2430,6 @@ func writeHarnessVariables(cfg *RunConfig, keyPair guest.KeyPair, outputPath, al
 		cfg.SwapSize,
 		yn(cfg.EnablePodman),
 		yn(cfg.EnableWebmin),
-		yn(cfg.EnableDinit),
 	)
 
 	// Flatpak packages: if explicitly set (e.g. via -f fixture), propagate

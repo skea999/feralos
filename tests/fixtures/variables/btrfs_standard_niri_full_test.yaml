@@ -26,7 +26,6 @@ variables:
   enableDebug: false
   enablePodman: true
   enableWebmin: false
-  enableDinit: true
   extraPackages:
     - incus-feature
     - incus-feature-vm
