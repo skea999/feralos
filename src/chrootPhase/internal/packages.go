@@ -140,13 +140,6 @@ func SetupPackages(conf *config.Config) error {
 		fmt.Printf("[WARNING] Failed to create /lib/modules: %v\n", err)
 	}
 
-	// Dinit: bootstrap FeralOS repo (keyring adds key + repositories.d entry)
-	if u.EnableDinit {
-		if err := bootstrapFeralosRepo(chroot); err != nil {
-			return fmt.Errorf("feralos repo bootstrap failed: %w", err)
-		}
-	}
-
 	if _, err := shell.ExecuteCmdArgs(chroot, "apk", "update"); err != nil {
 		return fmt.Errorf("apk update failed: %w", err)
 	}
@@ -193,66 +186,11 @@ func SetupPackages(conf *config.Config) error {
 		}
 	}
 
-	// Dinit: install dinit packages (after standard packages so we can
-	// detect which -openrc subpackages were pulled as dependencies)
-	if u.EnableDinit {
-		if err := installDinitPackages(chroot); err != nil {
-			return fmt.Errorf("dinit package installation failed: %w", err)
-		}
-	}
-
 	// Final APK upgrade
 	if err := FinalUpgrade(chroot); err != nil {
 		fmt.Printf("[WARNING] Final upgrade failed: %v\n", err)
 	}
 
-	return nil
-}
-
-// bootstrapFeralosRepo downloads and installs feralos-keyring, which adds
-// both the signing key and the repository definition to the chroot.
-func bootstrapFeralosRepo(chroot string) error {
-	fmt.Println("[INFO] Bootstrapping FeralOS package repository...")
-	url := "https://skea999.github.io/feralos-aports/feralos-aports/x86_64/feralos-keyring-1-r0.apk"
-	tmp := "/tmp/feralos-keyring.apk"
-	if _, err := shell.ExecuteCmdArgs(chroot, "wget", "-q", url, "-O", tmp); err != nil {
-		return fmt.Errorf("failed to download feralos-keyring: %w", err)
-	}
-	if _, err := shell.ExecuteCmdArgs(chroot, "apk", "add", "--allow-untrusted", tmp); err != nil {
-		return fmt.Errorf("failed to install feralos-keyring: %w", err)
-	}
-	fmt.Println("[INFO] FeralOS repository bootstrapped.")
-	return nil
-}
-
-// installDinitPackages detects which -openrc subpackages were installed and
-// installs their -dinit equivalents, plus dinit-chimera and getty-dinit.
-func installDinitPackages(chroot string) error {
-	fmt.Println("[INFO] Installing dinit packages...")
-
-	// detect installed -openrc subpackages
-	out, err := shell.ExecuteCmd(chroot, "apk info 2>/dev/null | grep -- '-openrc'")
-	if err != nil {
-		fmt.Println("[WARNING] Could not detect -openrc packages")
-	}
-
-	dinitPkgs := []string{"dinit-chimera", "getty-dinit"}
-
-	for _, line := range strings.Split(out, "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" || !strings.HasSuffix(line, "-openrc") {
-			continue
-		}
-		base := strings.TrimSuffix(line, "-openrc")
-		dinitPkg := base + "-dinit"
-		dinitPkgs = append(dinitPkgs, dinitPkg)
-	}
-
-	if _, err := shell.ExecuteCmdArgs(chroot, "apk", append([]string{"add"}, dinitPkgs...)...); err != nil {
-		return fmt.Errorf("failed to install dinit packages: %w", err)
-	}
-
-	fmt.Printf("[INFO] Dinit packages installed: %v\n", dinitPkgs)
 	return nil
 }
 
