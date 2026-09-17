@@ -230,13 +230,24 @@ func bootstrapFeralosRepo(chroot string) error {
 func installDinitPackages(chroot string) error {
 	fmt.Println("[INFO] Installing dinit packages...")
 
+	// packages handled by dinit-chimera early boot chain — no -dinit package exists
+	coveredBy := map[string]bool{
+		"busybox":           true,
+		"busybox-mdev":      true,
+		"cryptsetup":        true,
+		"eudev":             true,
+		"incus-feature":     true,
+		"kbd":               true,
+		"udev-init-scripts": true,
+	}
+
 	// detect installed -openrc subpackages
 	out, err := shell.ExecuteCmd(chroot, "apk info 2>/dev/null | grep -- '-openrc'")
 	if err != nil {
 		fmt.Println("[WARNING] Could not detect -openrc packages")
 	}
 
-	dinitPkgs := []string{"dinit-chimera", "getty-dinit"}
+	dinitPkgs := []string{"dinit", "dinit-chimera", "getty-dinit"}
 
 	for _, line := range strings.Split(out, "\n") {
 		line = strings.TrimSpace(line)
@@ -244,12 +255,20 @@ func installDinitPackages(chroot string) error {
 			continue
 		}
 		base := strings.TrimSuffix(line, "-openrc")
-		dinitPkg := base + "-dinit"
-		dinitPkgs = append(dinitPkgs, dinitPkg)
+		if coveredBy[base] {
+			continue // dinit-chimera handles this — no -dinit package needed
+		}
+		dinitPkgs = append(dinitPkgs, base+"-dinit")
 	}
 
 	if _, err := shell.ExecuteCmdArgs(chroot, "apk", append([]string{"add"}, dinitPkgs...)...); err != nil {
-		return fmt.Errorf("failed to install dinit packages: %w", err)
+		return fmt.Errorf("failed to install dinit packages %v: %w", dinitPkgs, err)
+	}
+
+	// verify dinit init binary exists — without it the system is unbootable
+	verify, _ := shell.ExecuteCmd(chroot, "test -f /usr/libexec/dinit/init && echo OK || echo MISSING")
+	if strings.Contains(verify, "MISSING") {
+		return fmt.Errorf("dinit init binary missing after install — system would be unbootable")
 	}
 
 	fmt.Printf("[INFO] Dinit packages installed: %v\n", dinitPkgs)
