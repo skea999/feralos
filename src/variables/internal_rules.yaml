@@ -11,10 +11,10 @@ defaultRunlevels:
 
 # Dinit base services — enabled via dinitctl when enableDinit is true.
 # This is the dinit counterpart of defaultRunlevels: ONLY what dinit-chimera
-# does not cover. Getty (tty1 + ttyS0) is ours (upstream ships none) and is
-# enabled here instead of by the package (Alpine model: install != enabled).
+# does not cover. Serial getty only (tty1 = VGA console, useless on server
+# + QEMU; real hardware users add getty@tty1 with dinitctl enable).
 defaultRunlevelsDinit:
-  boot: ["getty@tty1", "getty@ttyS0"]
+  boot: ["getty@ttyS0"]
 
 # OpenRC service names that must NOT be dinitctl-enabled:
 #   - chimera-covered base services (early chain provides them)
