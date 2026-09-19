@@ -58,17 +58,19 @@ func SetupServices(conf *config.Config) error {
 			return strings.Contains(out, "YES")
 		}
 		enableDinitSvc := func(svc string) {
-			_, _ = shell.ExecuteCmdArgs(chroot, "dinitctl", "--offline", "-d", "/lib/dinit.d", "enable", svc)
-			if !linkExists(svc) {
-				// fallback (template instances): create the same symlink
-				// dinitctl would create — instance name carries $1, target
-				// is the template body in /lib/dinit.d
-				base := svc
-				if idx := strings.Index(svc, "@"); idx > 0 {
-					base = svc[:idx]
-				}
-				_, _ = shell.ExecuteCmd(chroot, fmt.Sprintf("ln -sf /lib/dinit.d/%s /etc/dinit.d/boot.d/%s", base, svc))
+			// Alpine dinitctl 0.21.0: `--offline enable` CRASHES on every
+			// service (unique_ptr assert in cpbuffer — upstream bug), so the
+			// symlink is created directly. This is byte-for-byte what a
+			// working `dinitctl --offline -d /lib/dinit.d enable <svc>`
+			// would do: a link named <svc> in boot's waits-for.d
+			// (/etc/dinit.d/boot.d, the admin dir) targeting the description
+			// in /lib/dinit.d. Template instances carry the argument in the
+			// name (getty@tty1 -> $1 = tty1), target = template body.
+			base := svc
+			if idx := strings.Index(svc, "@"); idx > 0 {
+				base = svc[:idx]
 			}
+			_, _ = shell.ExecuteCmd(chroot, fmt.Sprintf("ln -sf /lib/dinit.d/%s /etc/dinit.d/boot.d/%s", base, svc))
 			if linkExists(svc) {
 				enabled++
 			} else {

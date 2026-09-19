@@ -47,15 +47,14 @@ dinitChimeraServices:
 #   agetty, busybox, udev-init-scripts, util-linux — chimera early chain covers
 #   cryptsetup — early-cryptdisks handles /etc/crypttab
 #   eudev — early-devd hook (/usr/libexec/dinit-devd) runs /sbin/udevd directly
-#   incus-feature — incus-feature-dinit ships the incusd host-daemon service
 #   kbd — early-console.target hook (/usr/libexec/dinit-console)
 #   makedumpfile — kdump handled by chimera early-kdump/try-kdump
+#   (incus-feature NOT skipped anymore: incus-feature-dinit ships incusd)
 dinitReplacedByChimera:
   - agetty
   - busybox
   - cryptsetup
   - eudev
-  - incus-feature
   - kbd
   - makedumpfile
   - udev-init-scripts
