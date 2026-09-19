@@ -123,5 +123,15 @@ root soft nofile 100000
 		fmt.Printf("[WARNING] Failed to write cron job: %v\n", err)
 	}
 
+	// 16. SSH host keys — baked at install time. The dinit sshd service runs
+	// plain `sshd -D -e` (no shell wrapper: dinit does not parse quotes), so
+	// the OpenRC initd key generation never runs. ssh-keygen -A is idempotent.
+	if out, _ := shell.ExecuteCmd(chroot, "apk info -e openssh >/dev/null 2>&1 && echo INSTALLED || echo NOT_INSTALLED"); strings.Contains(out, "INSTALLED") && !strings.Contains(out, "NOT_INSTALLED") {
+		fmt.Println("[INFO] Generating SSH host keys...")
+		if _, err := shell.ExecuteCmd(chroot, "ssh-keygen -A"); err != nil {
+			fmt.Printf("[WARNING] Failed to generate SSH host keys: %v\n", err)
+		}
+	}
+
 	return nil
 }
