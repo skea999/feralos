@@ -812,6 +812,10 @@ fi
 	// 'poweroff' + ACPI wait could hang and eat the run budget.
 	_ = runnerInstance.Kill()
 	runnerInstance = nil
+	// The runner's swtpm daemon is independent of QEMU (it does NOT die with
+	// CMD_SHUTDOWN on an instant kill) and holds the NVRAM lockfile — stop it
+	// before restarting swtpm for the target.
+	_ = qemu.StopSoftwareTPM(tpmPIDPath)
 
 	// The runner VM now has a TPM device. When it powers off QEMU sends
 	// CMD_SHUTDOWN to swtpm, causing swtpm to exit and remove the ctrl

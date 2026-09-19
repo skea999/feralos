@@ -232,6 +232,21 @@ func StartSoftwareTPM(cfg *SoftwareTPMConfig) error {
 		return fmt.Errorf("find swtpm: %w", err)
 	}
 
+	// A stale swtpm (e.g. after an instant runner-VM kill) still holds the
+	// NVRAM lockfile: SWTPM_NVRAM_Lock_Dir fails with EAGAIN. Kill it by
+	// pidfile and wait for the process to be gone before starting a new one.
+	if blob, err := os.ReadFile(cfg.PIDFile); err == nil {
+		if pid, perr := strconv.Atoi(strings.TrimSpace(string(blob))); perr == nil && pid > 0 {
+			_ = syscall.Kill(pid, syscall.SIGTERM)
+			for i := 0; i < 30; i++ {
+				if err := syscall.Kill(pid, 0); errors.Is(err, syscall.ESRCH) {
+					break
+				}
+				time.Sleep(100 * time.Millisecond)
+			}
+		}
+	}
+
 	for _, path := range []string{cfg.SocketPath, cfg.ControlPath, cfg.PIDFile} {
 		_ = os.Remove(path)
 	}
