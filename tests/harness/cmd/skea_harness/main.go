@@ -212,7 +212,7 @@ func parseRunArgs(args []string, repoRoot, artifactsRoot string) (service.RunCon
 	}
 
 	var variablesFile string
-	bootTimeoutSeconds := 600
+	bootTimeoutSeconds := 300
 	verifyTimeoutSeconds := 120
 	fs := flag.NewFlagSet("run", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
