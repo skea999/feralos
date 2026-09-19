@@ -103,6 +103,27 @@ func run(args []string) error {
 		if err != nil {
 			return err
 		}
+		// Inherit install settings from the run's variables.yaml — standalone
+		// verify otherwise uses defaults (wrong user, no dinit awareness...).
+		var rc service.RunConfig
+		if cfg.RunDir != "" {
+			err = service.LoadVariablesFile(&rc, filepath.Join(cfg.RunDir, "variables.yaml"))
+			if err == nil {
+				cfg.InstalledUser = rc.InstalledUser
+				cfg.DesktopEnvironment = rc.DesktopEnvironment
+				cfg.DiskLayout = rc.DiskLayout
+				cfg.EnableSwap = rc.EnableSwap
+				cfg.EnableSecureboot = rc.EnableSecureboot
+				cfg.EnableTPM = rc.EnableTPM
+				cfg.EnablePodman = rc.EnablePodman
+				cfg.EnableWebmin = rc.EnableWebmin
+				cfg.EnableDinit = rc.EnableDinit
+				cfg.EnableNix = rc.EnableNix
+				cfg.SwapSize = rc.SwapSize
+				cfg.NixPackages = rc.NixPackages
+				cfg.FlatpakPackages = rc.FlatpakPackages
+			}
+		}
 		result, err := harnessService.Verify(ctx, &cfg)
 		if err != nil {
 			return err
