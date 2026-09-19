@@ -1839,6 +1839,10 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 				}
 				state := line[:closeB+1]
 				name := strings.TrimSpace(line[closeB+1:])
+				// strip annotations: "chronyd (pid: 1534)", "login.target (has console)"
+				if paren := strings.Index(name, "("); paren > 0 {
+					name = strings.TrimSpace(name[:paren])
+				}
 				started[name] = strings.Contains(state, "+") && !strings.Contains(state, "X")
 			}
 			var notStarted []string
