@@ -808,11 +808,9 @@ fi
 
 	active.Phase = "powering-off-runner"
 	_ = stateStore.Save(&active)
-	if err := guest.Run(ctx, runnerGuest, "sudo poweroff", io.Discard, io.Discard); err != nil {
-		_ = qemu.SystemPowerdown(runnerQMPPath)
-	}
-
-	_ = runnerInstance.Wait()
+	// The runner is disposable — kill it instantly. A graceful SSH
+	// 'poweroff' + ACPI wait could hang and eat the run budget.
+	_ = runnerInstance.Kill()
 	runnerInstance = nil
 
 	// The runner VM now has a TPM device. When it powers off QEMU sends
