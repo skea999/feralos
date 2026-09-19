@@ -808,6 +808,9 @@ fi
 
 	active.Phase = "powering-off-runner"
 	_ = stateStore.Save(&active)
+	// Flush guest page caches (ESP is vfat — a hard kill loses dirty
+	// entries). 'sync' returns immediately, unlike 'poweroff' which hangs.
+	_ = guest.Run(ctx, runnerGuest, "sync", io.Discard, io.Discard)
 	// The runner is disposable — kill it instantly. A graceful SSH
 	// 'poweroff' + ACPI wait could hang and eat the run budget.
 	_ = runnerInstance.Kill()
