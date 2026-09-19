@@ -33,18 +33,19 @@ func SetupServices(conf *config.Config) error {
 	//   - packageLogic.services (merged into Runlevels) = per-package services
 	// Uses the upstream offline command (no running daemon needed in chroot):
 	//   dinitctl --offline -d /lib/dinit.d enable <svc>
-	// Services in dinitChimeraServices are provided by the dinit-chimera early
-	// chain (only OpenRC descriptions exist) and are never enabled.
+	// Services in dinitSkipServices are provided by the dinit-chimera
+	// early chain (or replaced by tmpfiles, e.g. vector-setup) and are
+	// never enabled.
 	if conf.User.EnableDinit {
-		fmt.Println("[INFO] Enabling Dinit services (dinitctl --offline, rules-driven)...")
+		fmt.Println("[INFO] Enabling Dinit services (rules-driven boot.d symlinks)...")
 		// defensive: boot.d dirs are shipped by dinit-chimera, but the
 		// enablement must not fail if the packaging changes
 		if _, err := shell.ExecuteCmd(chroot, "mkdir -p /etc/dinit.d/boot.d /lib/dinit.d/boot.d"); err != nil {
 			return err
 		}
-		chimera := make(map[string]bool, len(conf.Internal.DinitChimeraServices))
-		for _, s := range conf.Internal.DinitChimeraServices {
-			chimera[s] = true
+		skip := make(map[string]bool, len(conf.Internal.DinitSkipServices))
+		for _, s := range conf.Internal.DinitSkipServices {
+			skip[s] = true
 		}
 
 		enabled, skipped := 0, 0
@@ -88,7 +89,7 @@ func SetupServices(conf *config.Config) error {
 				continue // dinit-chimera handles these phases entirely
 			}
 			for _, svc := range services {
-				if chimera[svc] {
+				if skip[svc] {
 					skipped++
 					continue
 				}

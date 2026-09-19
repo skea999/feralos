@@ -67,7 +67,7 @@ type InternalRules struct {
 	DefaultRunlevels       map[string][]string            `yaml:"defaultRunlevels"`
 	DefaultRunlevelsDinit  map[string][]string            `yaml:"defaultRunlevelsDinit"`
 	DinitReplacedByChimera []string                       `yaml:"dinitReplacedByChimera"`
-	DinitChimeraServices   []string                       `yaml:"dinitChimeraServices"`
+	DinitSkipServices      []string                       `yaml:"dinitSkipServices"`
 	DiskLayouts            map[string]DynamicPackageRules `yaml:"diskLayouts"`
 	DesktopEnvironments    map[string]DynamicPackageRules `yaml:"desktopEnvironments"`
 	VideoDrivers           map[string]DynamicPackageRules `yaml:"videoDrivers"`

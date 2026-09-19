@@ -16,13 +16,10 @@ defaultRunlevels:
 defaultRunlevelsDinit:
   boot: ["getty@tty1", "getty@ttyS0"]
 
-# OpenRC service names that dinit-chimera already provides via its early
-# chain — never dinitctl-enabled (their -dinit description does not exist):
-#   hwclock/hostname/bootmisc/binfmt/fsck/root/procfs/loadkmap/localmount/swap
-#     -> early-hwclock/hostname/tmpfiles/binfmt/fs-fsck/root-rw/fstab/swap...
-#   cgroups -> early-cgroups; udev* -> early-devd hook; btrfs-scan ->
-#   early-fs-btrfs (+booster); dmcrypt -> /etc/crypttab via early-cryptdisks
-dinitChimeraServices:
+# OpenRC service names that must NOT be dinitctl-enabled:
+#   - chimera-covered base services (early chain provides them)
+#   - vector-setup: replaced under dinit by vector-dinit's tmpfiles file
+dinitSkipServices:
   - hwclock
   - hostname
   - bootmisc
@@ -40,6 +37,7 @@ dinitChimeraServices:
   - udev-postmount
   - btrfs-scan
   - dmcrypt
+  - vector-setup
 
 # -openrc subpackages whose service is already provided by the dinit-chimera
 # suite — never converted to -dinit (their -dinit equivalent does not exist
