@@ -73,9 +73,15 @@ func run(args []string) error {
 		defer cancelRun()
 		// Watchdog: guaranteed exit even if a phase ignores the context —
 		// kill every VM and exit. Fires only on the deadline, not on signals.
+		// With --keep-target-running the installed target is spared so the
+		// separate `verify` command can still produce the check table.
 		go func() {
 			<-runCtx.Done()
 			if runCtx.Err() == context.DeadlineExceeded {
+				if cfg.KeepTargetRunning {
+					fmt.Fprintf(os.Stderr, "harness: hard %s limit reached — keeping target running (--keep-target-running), exiting\n", runHardTimeout)
+					os.Exit(124)
+				}
 				fmt.Fprintf(os.Stderr, "harness: hard %s limit reached — killing VMs, exiting\n", runHardTimeout)
 				cleanupVMs()
 				os.Exit(124)
