@@ -118,5 +118,19 @@ start() {
 		fmt.Printf("[WARNING] Failed to make vector-setup executable: %v\n", err)
 	}
 
+	// Dinit: equivalent oneshot (vector-dinit depends-on vector-setup)
+	if conf.User.EnableDinit {
+		fmt.Println("[INFO] Creating vector-setup dinit service...")
+		vectorSetupDinit := `# dinit service: vector-setup (FeralOS installer — mirrors OpenRC vector-setup)
+type = scripted
+command = /bin/sh -c 'mkdir -p /run/vector && chown vector:vector /run/vector && chmod 755 /run/vector && ln -sf /run/vector/syslog.sock /dev/log && chown vector:vector /var/log; chown btrbk:btrbk /btrbk 2>/dev/null || true'
+depends-on = local.target
+`
+		escapedVectorSetupDinit := strings.ReplaceAll(vectorSetupDinit, "'", "'\\''")
+		if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /lib/dinit.d/vector-setup", escapedVectorSetupDinit)); err != nil {
+			fmt.Printf("[WARNING] Failed to write vector-setup dinit service: %v\n", err)
+		}
+	}
+
 	return nil
 }

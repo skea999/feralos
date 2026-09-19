@@ -276,7 +276,23 @@ All prior swap/vector/dummy issues resolved. See `CHANGELOG.md` Fixed section. C
 
 ---
 
-*Updated: 2026-09-10*
+*Updated: 2026-09-19*
+
+### 2026-09-19 — dinit Alpine/Artix model: rules-driven enablement + initd-aligned names
+**Agent:** codebase
+- **Root cause** (boot OK but wrong service set): our `-dinit` packages auto-enabled via `boot.d` links in `package()` (Chimera model install=enable) → every installed dep got a running service (dnsmasq, lxc, iptables, rasdaemon...) while real ones were missing (networking: nothing ran `ifup -a`; sshd: placeholder service; incusd: wrong service enabled).
+- **Model adopted (Artix-verified: alpm-hook prints `dinitctl enable`, cronie-dinit ships file only; volume techs = optional pkgs)**: packages ship service files ONLY (no boot.d links), enablement data-driven: `dinitctl --offline -d /lib/dinit.d enable <svc>` (upstream offline command; links land in boot's waits-for.d `/etc/dinit.d/boot.d` = admin dir). Services renamed to Alpine initd names (chronyd, smartd, sshd, incusd, nix-daemon, mdev, incus-agent) → `packageLogic.services` works identically for both inits, zero aliases.
+- **aports**: all 41 `-dinit` ship-only (pkgrel r2, agent r3); getty-dinit = single `getty` template body (depends agetty; dropped systemd-style getty@.service — dinit carries the arg in the instance NAME); NEW networking-dinit (`ifup -a` — critical gap) + incus-feature-dinit (`incusd`); DELETED sshd-dinit (sshd now real in openssh-server-common-dinit, mirroring Alpine's openssh-server-common-openrc→sshd.initd); vector-dinit depends-on vector-setup + config path .toml→.yaml; build.yml getty/chronyd/networking key-list updated.
+- **Installer**: `services.go` dinit branch = `dinitctl --offline enable` from `defaultRunlevelsDinit` (base: getty@tty1/getty@ttyS0) + `Runlevels` (default+boot levels; sysinit/shutdown skipped) with `dinitChimeraServices` skip-list (17 OpenRC-only names chimera covers — hwclock/udev/cgroups/btrfs-scan/dmcrypt...), verify via `boot.d` link existence (SKEA_NONINTERACTIVE-proof), fallback symlink for template instances; `config.go` `DinitChimeraServices`; `packages.go` core += networking-dinit; `logging.go` writes `/lib/dinit.d/vector-setup` oneshot when EnableDinit.
+- **Chimera volume services (zfs/lvm/mdadm/dmraid) left untouched**: upstream design = no-op when tool missing (we never install those tools); `dinit_skip_volumes` exists (scripts read /proc/cmdline) but NOT used (would also skip btrfs scan; booster already covers).
+- Expected enabled set (btrfsStandard): getty@tty1/ttyS0, networking, incusd, vector, vector-setup, cronie, chronyd, dbus, sshd, smartd, acpid, irqbalance, fwupd, earlyoom = same as OpenRC.
+
+### 2026-09-18 — dinit boot fix: services → /lib/dinit.d (Option B, Alpine standard)
+**Agent:** codebase
+- **Root cause** (run 2026-09-17T22-53-05Z, `dinit: boot: could not find service description.`): stock Alpine dinit 0.21 scans `/etc/dinit.d`, `/run/dinit.d`, `/usr/local/lib/dinit.d`, `/lib/dinit.d` — **NOT** `/usr/lib/dinit.d` (source-verified `options-processing.cc build_paths`; Chimera patches their dinit, Alpine doesn't). dinit-chimera installed all services to `/usr/lib/dinit.d` → PID 1 found nothing.
+- **aports**: dinit-chimera APKBUILD `prepare()` seds meson `srvdir = '/lib/dinit.d'` (meson `/` operator: absolute RHS discards prefix → EARLY_PATH/HELPER_PATH/SCRIPT_PATH coherent; tmpfdir/dlibdir unaffected), pkgrel 1→2; all 40 `*-dinit` APKBUILDs install paths → `/lib/dinit.d`, pkgrel 0→1. aports STATUS.md updated (Step 6b: needs push + CI + harness re-run).
+- **Installer**: `services.go` boot.d symlinks → `/lib/dinit.d`; `internal_rules.yaml` `defaultRunlevelsDinit: {}` (getty owned by getty-dinit pkg boot.d links; plain-name link of a dinit template is invalid — `$1` only expands for instances) + new `dinitReplacedByChimera` skip-list (agetty, busybox, cryptsetup, eudev, incus-feature, kbd, makedumpfile, udev-init-scripts, util-linux — covered by chimera suite); `config.go` `InternalRules.DinitReplacedByChimera`; `packages.go installDinitPackages` skips replaced bases (no warning/retry) + detects missing via output parse (`no such package`) since `SKEA_NONINTERACTIVE` swallows the error (old counter reported `30 installed, 0 missing` while 9 were missing, ~66s wasted in retries).
+- **Docs**: `docs/dinit/BOOT.md` (scan-list note + path fixes), `docs/dinit/TROUBLESHOOTING.md` (new symptom row), `docs/dinit/PLAN.md` path, aports STATUS.md.
 
 ### 2026-09-10 — feralos-aports: full APK pipeline (rule 0) + docs split
 **Agent:** codebase

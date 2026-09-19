@@ -29,6 +29,8 @@ revert `init=` to drop back into OpenRC — coexistence is the safety net).
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
+| `dinit: boot: could not find service description.` right after booster switch | services in `/usr/lib/dinit.d` — stock Alpine dinit does NOT scan it | dinit-chimera APKBUILD `prepare()` must override `srvdir` to `/lib/dinit.d`; all `*-dinit` pkgs install to `/lib/dinit.d` (pkgrel ≥ dinit-chimera 0.99.24-r2) |
+| `early-tmpfiles-dev command failed with exit code 139` → whole boot cascade FAILED | `sd-tmpfiles --create` segfaults — GCC use-after-scope in `CONF_PATHS_STRV` ([upstream #5](https://github.com/chimera-linux/sd-tools/issues/5)); Alpine's r3 is GCC-built and broken | use our `sd-tools-0.99.990-r993` (static-storage patch, inflated pkgver always beats Alpine 0.99.x); never let Alpine's r3 win: `apk policy sd-tools` must show 0.99.990-r993 |
 | Boots into OpenRC despite `init=` | cmdline lost (UKI not regenerated) | regenerate UKI after `/etc/kernel/cmdline` change |
 | `init=` ignored in initramfs stage | expected — booster is init-agnostic, only post-switch_root | n/a |
 | Hangs at `early-devd` | udevd path wrong in our hook | check `command -v udevd` / `/usr/lib/udev/udevd` in chroot; fix `dinit-devd` |
@@ -50,7 +52,7 @@ dinitctl status login.target network.target local.target
 dinitctl start|stop <svc>        # runtime control
 dinitctl enable|disable <svc>    # boot.d symlink add/remove
 
-ls /usr/lib/dinit.d/boot.d/      # enabled-by-package
+ls /lib/dinit.d/boot.d/          # enabled-by-package
 ls /etc/dinit.d/boot.d/          # enabled-by-admin
 ```
 
@@ -73,7 +75,7 @@ Coexistence guarantee: remove `init=` from cmdline → boots OpenRC exactly as b
 
 ```sh
 apk add dinit-chimera            # re-install/repair
-dinitcheck /usr/lib/dinit.d/<svc>
+dinitcheck /lib/dinit.d/<svc>
 vi /etc/kernel/cmdline           # re-add init= when fixed, regenerate UKI
 ```
 

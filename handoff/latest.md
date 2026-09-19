@@ -9,6 +9,12 @@
 
 ## Current Focus
 
+**Dinit Alpine/Artix model (2026-09-19)** — packages ship service files only (install ≠ enabled); enablement = `dinitctl --offline -d /lib/dinit.d enable <svc>` from installer rules (links → `/etc/dinit.d/boot.d`, boot's waits-for.d). Service names = Alpine initd names (chronyd/sshd/incusd/smartd/nix-daemon/mdev/incus-agent) → `packageLogic.services` identical for both inits. NEW networking-dinit (`ifup -a`, critical gap) + incus-feature-dinit (incusd); sshd-dinit deleted (sshd real in openssh-server-common-dinit); getty-dinit = single `getty` template (depends agetty); vector depends-on vector-setup (installer writes `/lib/dinit.d/vector-setup`); chimera volume services untouched (upstream no-op design). Expected enabled set = same as OpenRC (15 svc su btrfsStandard). aports Step 7 / installer `services.go`+`internal_rules.yaml`(`defaultRunlevelsDinit`+`dinitChimeraServices`)+`config.go`+`packages.go`+`logging.go`.
+
+**Pending user commands**: aports git rm (7 old service files + sshd-dinit dir) → `abuild -F checksum` per dir tocca-to → commit/push → CI → harness `btrfs_standard_dinit.yaml` (install timeout 10 min).
+
+**Dinit boot fix (2026-09-18)** — root cause: stock Alpine dinit does NOT scan `/usr/lib/dinit.d` → services relocated to `/lib/dinit.d` (dinit-chimera srvdir sed, APKBUILD r2; 40 -dinit r1→2); sd-tools reinstated 0.99.990-r993 (tmpfiles GCC use-after-scope patch, upstream #5); incus-feature-agent real command. Boot VERIFIED (login prompt, 2 clean boots, run 2026-09-19T00-51-57Z).
+
 Phase 1: Go installer complete + fixtures library + AGENTS compress + githooks vet/lint. Highlights (latest runs **32/32**):
 
 - **btrfsRaid0 layout** (`48ad7bc`): pure RAID0, EFI both disks, 2 LUKS swap p2 (`swapSize/2`) gated `enableSwap`, root p3 remainder, `swap_service` conditional (fixes latent bug: swap never activated on RAID0)

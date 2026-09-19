@@ -196,7 +196,7 @@ func SetupPackages(conf *config.Config) error {
 	// Dinit: install dinit packages (after standard packages so we can
 	// detect which -openrc subpackages were pulled as dependencies)
 	if u.EnableDinit {
-		if err := installDinitPackages(chroot); err != nil {
+		if err := installDinitPackages(conf); err != nil {
 			return fmt.Errorf("dinit package installation failed: %w", err)
 		}
 	}
@@ -228,48 +228,85 @@ func bootstrapFeralosRepo(chroot string) error {
 // installDinitPackages installs the dinit init system and converts all
 // installed -openrc subpackages to their -dinit equivalents.
 // Core packages (dinit, dinit-chimera, getty-dinit) are installed first.
-// Then each -openrc package is converted to its -dinit equivalent individually,
-// so a missing -dinit package doesn't block the others. Missing packages are
-// reported as warnings so we know what to create.
-func installDinitPackages(chroot string) error {
+// Bases listed in dinitReplacedByChimera are skipped: their service is
+// already provided by the dinit-chimera suite (see internal_rules.yaml).
+// Each remaining -openrc package is converted to its -dinit equivalent
+// individually, so a missing -dinit package doesn't block the others.
+// NOTE: SKEA_NONINTERACTIVE makes ExecuteCmdArgs swallow the exit error, so
+// "no such package" is detected from the output text, not from err.
+func installDinitPackages(conf *config.Config) error {
 	fmt.Println("[INFO] Installing dinit packages...")
+	chroot := conf.Internal.ChrootDir
 
 	// core packages — always installed first
-	corePkgs := []string{"dinit", "dinit-chimera", "getty-dinit"}
+	// (networking-dinit: nothing else brings eth0 up under dinit — chimera's
+	// network.target is only an ordering milestone)
+	corePkgs := []string{"dinit", "dinit-chimera", "getty-dinit", "networking-dinit"}
 	if _, err := shell.ExecuteCmdArgs(chroot, "apk", append([]string{"add"}, corePkgs...)...); err != nil {
 		return fmt.Errorf("failed to install core dinit packages %v: %w", corePkgs, err)
+	}
+	// SKEA_NONINTERACTIVE swallows the apk exit error — verify the core
+	// actually landed, otherwise the target cannot boot (hard failure)
+	for _, pkg := range corePkgs {
+		out, _ := shell.ExecuteCmd(chroot, "apk info -e "+pkg)
+		if strings.TrimSpace(out) == "" {
+			return fmt.Errorf("core dinit package %s is not installed (apk add failed — check for dependency conflicts above)", pkg)
+		}
 	}
 
 	// detect installed -openrc subpackages
 	out, _ := shell.ExecuteCmd(chroot, "apk info 2>/dev/null | grep -- '-openrc'")
 
-	// convert each -openrc to its -dinit equivalent individually
-	// (individual install: a missing -dinit doesn't block the others)
-	installed := 0
-	var missing []string
+	replaced := make(map[string]bool, len(conf.Internal.DinitReplacedByChimera))
+	for _, base := range conf.Internal.DinitReplacedByChimera {
+		replaced[base] = true
+	}
+
+	installed, skipped := 0, 0
+	var missing, failed []string
 	for _, line := range strings.Split(out, "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" || !strings.HasSuffix(line, "-openrc") {
 			continue
 		}
 		base := strings.TrimSuffix(line, "-openrc")
-		dinitPkg := base + "-dinit"
 
-		if _, err := shell.ExecuteCmdArgs(chroot, "apk", "add", dinitPkg); err != nil {
+		if replaced[base] {
+			skipped++
+			continue
+		}
+
+		dinitPkg := base + "-dinit"
+		outAdd, _ := shell.ExecuteCmdArgs(chroot, "apk", "add", dinitPkg)
+		if strings.Contains(outAdd, "no such package") {
 			missing = append(missing, dinitPkg)
-			fmt.Printf("[WARNING] -dinit package not available: %s (create it in feralos-aports)\n", dinitPkg)
+			continue
+		}
+		if outAdd == "" {
+			// empty output with a swallowed error = unexpected failure
+			failed = append(failed, dinitPkg)
 			continue
 		}
 		installed++
 	}
 
+	if skipped > 0 {
+		fmt.Printf("[INFO] Dinit conversion: %d -openrc packages covered by dinit-chimera (not converted)\n", skipped)
+	}
 	if len(missing) > 0 {
 		fmt.Printf("[WARNING] %d -dinit packages missing from repo (create them):\n", len(missing))
 		for _, m := range missing {
 			fmt.Printf("  - %s\n", m)
 		}
 	}
-	fmt.Printf("[INFO] Dinit conversion: %d installed, %d missing\n", installed, len(missing))
+	if len(failed) > 0 {
+		fmt.Printf("[WARNING] %d -dinit packages failed to install:\n", len(failed))
+		for _, f := range failed {
+			fmt.Printf("  - %s\n", f)
+		}
+	}
+	fmt.Printf("[INFO] Dinit conversion: %d installed, %d replaced-by-chimera, %d missing, %d failed\n",
+		installed, skipped, len(missing), len(failed))
 	return nil
 }
 

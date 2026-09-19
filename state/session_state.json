@@ -84,7 +84,8 @@
     "Githooks pre-commit now runs go vet + golangci-lint on staged Go files (src/harness) + secrets scan, fixed grep -- leading dash bug, set core.hooksPath=.githooks",
     "Fixtures library validated: 14/14 YAML valid, vet/lint clean both modules, swap 25/25 PASS (K ceil fix), harness critical gap btrfsRaid0-noswap 32/32 (swap_status header-only, RAID0 pure), explicit 8G both layouts 32/32 (8192M file / 4G per partition)",
     "btrfsStandardServer RAID1 fix: removed dead 8GB btrfs data disks (btrfsDisk1Path/btrfsDisk2Path) from harness QEMU args — created but never mounted/referenced by installer, causing udev race → dm-1 missing → busybox fallback. All 3 layouts now pass with secureboot+tpm: standard 31/31, raid0 33/33, server 32/32. BootTimeout increased to 10min for 3-boot flow with always-present swtpm.",
-    "Fixtures library: 14 curated variables.yaml templates covering btrfsStandard/Server/Raid0 x swap on/off x swapSize auto/8G x secureboot/tpm/hardening isolate x niri x full_stack"
+    "Fixtures library: 14 curated variables.yaml templates covering btrfsStandard/Server/Raid0 x swap on/off x swapSize auto/8G x secureboot/tpm/hardening isolate x niri x full_stack",
+    "dinit boot fix (run 2026-09-17T22-53-05Z): stock Alpine dinit 0.21 does NOT scan /usr/lib/dinit.d (options-processing.cc: /etc/dinit.d, /run/dinit.d, /usr/local/lib/dinit.d, /lib/dinit.d) — dinit-chimera services invisible to PID 1 → 'boot: could not find service description'. Fix Option B: aports srvdir sed → /lib/dinit.d (dinit-chimera r2, 40 *-dinit r1); installer symlinks → /lib/dinit.d; defaultRunlevelsDinit emptied (getty owned by getty-dinit pkg; plain-name link of template invalid — $1 not expanded); dinitReplacedByChimera skip-list (9 -openrc pkgs covered by chimera); installDinitPackages missing-detection via output parse (SKEA_NONINTERACTIVE swallowed err — old counter lied 30/0 while 9 missing, ~66s retries)"
   ],
   "decisions": [
     {
@@ -316,6 +317,16 @@
       "date": "2026-08-20",
       "decision": "Fixtures library Tier1/2/3 split for CI cost",
       "rationale": "14 templates cover all use cases without 384-combo explosion. Tier1 CI gate minimal+noswap per layout (2h), Tier2 nightly explicit+isolate (4h), Tier3 manual full. Validated critical gap btrfsRaid0-noswap 32/32 and explicit 8G both layouts 32/32."
+    },
+    {
+      "date": "2026-09-18",
+      "decision": "dinit services dir = /lib/dinit.d (Option B, Alpine standard) — NOT /usr/lib/dinit.d",
+      "rationale": "Stock Alpine dinit 0.21 system-init scan list (source-verified options-processing.cc build_paths): /etc/dinit.d, /run/dinit.d, /usr/local/lib/dinit.d, /lib/dinit.d. /usr/lib/dinit.d absent — Chimera works only because cports patches their dinit. dinit-chimera APKBUILD prepare() seds meson srvdir='/lib/dinit.d' (meson / operator: absolute RHS discards prefix → EARLY_PATH/HELPER_PATH/SCRIPT_PATH coherent; tmpfdir/dlibdir libdir-relative, unaffected). Plain mv NOT safe (paths compiled into scripts). Bonus: dinitctl also finds services (stock scan list). CI smoke had masked the bug with explicit -d flag."
+    },
+    {
+      "date": "2026-09-18",
+      "decision": "defaultRunlevelsDinit emptied; getty enablement owned by getty-dinit package; dinitReplacedByChimera skip-list for -openrc→-dinit conversion",
+      "rationale": "getty-dinit already ships boot.d/getty@tty1+getty@ttyS0; installer's plain 'getty' link loaded a template file as non-template service where $1 is NOT expanded → agetty no args → restart flap loop. 9 -openrc bases (agetty, busybox, cryptsetup, eudev, incus-feature, kbd, makedumpfile, udev-init-scripts, util-linux) are permanently covered by the dinit-chimera suite — skip-list in internal_rules.yaml (data-driven) instead of warning noise + wasted retries; missing -dinit detected via output parse ('no such package') since SKEA_NONINTERACTIVE swallows the error."
     }
   ],
   "risks": [
@@ -349,10 +360,10 @@
     }
   ],
   "next_actions": [
+    "Dinit: harness run btrfs_standard_dinit.yaml after aports CI republish (dinit-chimera r2 must be on Pages) — expect PID1 finds /lib/dinit.d/boot",
     "btrfsStandardUnencrypted layout (planned)",
     "Test on real hardware with 2x NVMe",
     "Test with partial features (Secure Boot only, TPM only)",
-    "Add more unit tests for verify checks",
-    "Plan Dinit integration"
+    "Add more unit tests for verify checks"
   ]
 }

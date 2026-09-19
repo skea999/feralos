@@ -62,17 +62,19 @@ type UserVariables struct {
 }
 
 type InternalRules struct {
-	ChrootDir             string                         `yaml:"chrootDir"`
-	StandardPackages      []string                       `yaml:"standardPackages"`
-	DefaultRunlevels      map[string][]string            `yaml:"defaultRunlevels"`
-	DefaultRunlevelsDinit map[string][]string            `yaml:"defaultRunlevelsDinit"`
-	DiskLayouts           map[string]DynamicPackageRules `yaml:"diskLayouts"`
-	DesktopEnvironments   map[string]DynamicPackageRules `yaml:"desktopEnvironments"`
-	VideoDrivers          map[string]DynamicPackageRules `yaml:"videoDrivers"`
-	PackageLogic          map[string]DynamicPackageRules `yaml:"packageLogic"`
-	DummyPackages         map[string]DummyPackageRule    `yaml:"dummyPackages"`
-	ProvidePackages       []string                       `yaml:"providePackages"`
-	BaseModules           []string                       `yaml:"baseModules"`
+	ChrootDir              string                         `yaml:"chrootDir"`
+	StandardPackages       []string                       `yaml:"standardPackages"`
+	DefaultRunlevels       map[string][]string            `yaml:"defaultRunlevels"`
+	DefaultRunlevelsDinit  map[string][]string            `yaml:"defaultRunlevelsDinit"`
+	DinitReplacedByChimera []string                       `yaml:"dinitReplacedByChimera"`
+	DinitChimeraServices   []string                       `yaml:"dinitChimeraServices"`
+	DiskLayouts            map[string]DynamicPackageRules `yaml:"diskLayouts"`
+	DesktopEnvironments    map[string]DynamicPackageRules `yaml:"desktopEnvironments"`
+	VideoDrivers           map[string]DynamicPackageRules `yaml:"videoDrivers"`
+	PackageLogic           map[string]DynamicPackageRules `yaml:"packageLogic"`
+	DummyPackages          map[string]DummyPackageRule    `yaml:"dummyPackages"`
+	ProvidePackages        []string                       `yaml:"providePackages"`
+	BaseModules            []string                       `yaml:"baseModules"`
 }
 
 // DummyPackageRule defines a package to replace with a memory-safe dummy.

@@ -23,9 +23,8 @@ func SetupNetwork(conf *config.Config) error {
 		return fmt.Errorf("failed to write hosts: %w", err)
 	}
 
-	if _, err := shell.ExecuteCmd(chroot, "echo 'nameserver 208.67.222.222\nnameserver 208.67.220.220' > /etc/resolv.conf"); err != nil {
-		return fmt.Errorf("failed to write resolv.conf: %w", err)
-	}
+	// resolv.conf: already written in chroot_phase.Run step 0 (BEFORE apk
+	// update — DNS needed to fetch); do NOT overwrite it here
 
 	iface := u.DefaultNetworkInterface
 	if iface == "" {

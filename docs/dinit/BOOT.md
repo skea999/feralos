@@ -19,20 +19,28 @@ UEFI → UKI (booster + kernel + cmdline)
          │  ulimit -c, auto-recovery/quiet/log-level from kernel cmdline
          │  exec env -i PATH=… HOME=/root dinit
          ▼
-   dinit (PID 1) reads /usr/lib/dinit.d/boot
+    dinit (PID 1) reads /lib/dinit.d/boot   **[FeralOS]** /lib, NOT /usr/lib
          ▼
-   boot ──depends-on──▶ system ──▶ login.target + network.target
-     │                     │
-     │                     └── waits-for.d: /usr/lib/dinit.d/boot.d   (packages)
-     └── waits-for.d: /etc/dinit.d/boot.d                              (admin overrides)
-         ▼
-   early chain (below) → local.target → network.target → login.target
-         ▼
-   getty / display manager
+    boot ──depends-on──▶ system ──▶ login.target + network.target
+      │                     │
+      │                     └── waits-for.d: /lib/dinit.d/boot.d   (packages)
+      └── waits-for.d: /etc/dinit.d/boot.d                              (admin overrides)
+          ▼
+    early chain (below) → local.target → network.target → login.target
+          ▼
+    getty / display manager
 ```
 
+**[FeralOS] Service directory = `/lib/dinit.d` (Alpine standard).** The stock
+Alpine `dinit` (0.21) scans only `/etc/dinit.d`, `/run/dinit.d`,
+`/usr/local/lib/dinit.d`, `/lib/dinit.d` — it does **NOT** scan `/usr/lib/dinit.d`
+(Chimera works because cports patches their dinit; Alpine's is unpatched).
+Symptom if services land in `/usr/lib/dinit.d`: `dinit: boot: could not find
+service description.` The dinit-chimera APKBUILD overrides meson `srvdir` to
+`/lib/dinit.d` in `prepare()`; all FeralOS `*-dinit` packages install there.
+
 Note the two `boot.d` directories — both are upstream conventions:
-- `/usr/lib/dinit.d/boot.d` — symlinks dropped by **packages** (our `*-dinit` pkgs)
+- `/lib/dinit.d/boot.d` — symlinks dropped by **packages** (our `*-dinit` pkgs)
 - `/etc/dinit.d/boot.d` — symlinks created by **admin** (or `dinitctl enable`)
 
 ## Early Boot Chain (upstream services, in dependency order)
