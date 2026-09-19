@@ -1828,12 +1828,16 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 			started := map[string]bool{}
 			for _, line := range strings.Split(svcCheck.Detail, "\n") {
 				line = strings.TrimSpace(line)
-				open := strings.Index(line, "[")
-				closeB := strings.Index(line, "]")
-				if open != 0 || closeB < 0 || closeB+1 >= len(line) {
+				// dinitctl list format: `[[+]     ] boot` — state marker(s)
+				// wrapped in an outer bracket pair, then the service name.
+				if !strings.HasPrefix(line, "[") {
 					continue
 				}
-				state := line[open : closeB+1]
+				closeB := strings.LastIndex(line, "]")
+				if closeB < 0 || closeB+1 >= len(line) {
+					continue
+				}
+				state := line[:closeB+1]
 				name := strings.TrimSpace(line[closeB+1:])
 				started[name] = strings.Contains(state, "+") && !strings.Contains(state, "X")
 			}
