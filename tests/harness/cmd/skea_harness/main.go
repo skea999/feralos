@@ -26,11 +26,11 @@ func main() {
 	}
 }
 
-// runHardTimeout is the maximum wall time for a whole `run` invocation
-// (install + boots + verify). Covers worst-case configs: base install ~3min,
-// desktop/kde/cosmic target boot ~3min, verify ~2min, margin ~4min.
-// Hard-coded by design: a run that hangs must die, always — no flag, no override.
-const runHardTimeout = 12 * time.Minute
+// Per-phase timeouts prevent hangs within each phase:
+//   Runner SSH wait: BootTimeout (5min default, flag -boot-timeout-seconds)
+//   Target SSH wait: BootTimeout (5min default)
+//   Verify: VerificationTimeout (2min default, flag -verify-timeout-seconds)
+// No global cap needed — the per-phase timeouts are the safety net.
 
 func run(args []string) error {
 	if len(args) == 0 {
@@ -69,32 +69,13 @@ func run(args []string) error {
 		if !cfg.KeepTargetRunning {
 			cleanupVMs()
 		}
-		// Hard 7-minute limit for the whole run (see runHardTimeout).
-		runCtx, cancelRun := context.WithTimeout(ctx, runHardTimeout)
-		defer cancelRun()
-		// Watchdog: guaranteed exit even if a phase ignores the context —
-		// kill every VM and exit. Fires only on the deadline, not on signals.
-		// With --keep-target-running the installed target is spared so the
-		// separate `verify` command can still produce the check table.
-		go func() {
-			<-runCtx.Done()
-			if runCtx.Err() == context.DeadlineExceeded {
-				if cfg.KeepTargetRunning {
-					fmt.Fprintf(os.Stderr, "harness: hard %s limit reached — keeping target running (--keep-target-running), exiting\n", runHardTimeout)
-					os.Exit(124)
-				}
-				fmt.Fprintf(os.Stderr, "harness: hard %s limit reached — killing VMs, exiting\n", runHardTimeout)
-				cleanupVMs()
-				os.Exit(124)
-			}
-		}()
 		// Always clean up after the test completes or fails.
 		defer func() {
 			if !cfg.KeepTargetRunning {
 				cleanupVMs()
 			}
 		}()
-		result, err := harnessService.RunInstall(runCtx, &cfg)
+		result, err := harnessService.RunInstall(ctx, &cfg)
 		if err != nil {
 			return err
 		}
