@@ -17,6 +17,14 @@ func SetupBoot(conf *config.Config) error {
 	finalCmdline := strings.Join(u.KernelCmdline, " ")
 	if u.EnableDinit {
 		finalCmdline += " init=/usr/libexec/dinit/init"
+		// Full service status trail (start/stop/fail, timestamps) to a file:
+		// once login.target (runs-on-console) takes the console, dinit's own
+		// output is inhibited — the file keeps the complete history. /run
+		// exists from the initramfs (written before /var/log is mounted).
+		// The dinit-boot-log service mirrors it to /var/log/dinit/boot.log
+		// (vector source + logrotate). Upstream wrapper param:
+		// dinit_log_file= -> --log-file.
+		finalCmdline += " dinit_log_file=/run/dinit-boot.log"
 	}
 	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /etc/kernel"); err != nil {
 		return fmt.Errorf("failed to create /etc/kernel directory: %w", err)

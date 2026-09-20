@@ -135,6 +135,35 @@ start() {
 		if _, err := shell.ExecuteCmd(chroot, "echo 'd /var/log/dinit 0755 root root -' > /usr/lib/tmpfiles.d/feralos-dinit.conf"); err != nil {
 			fmt.Printf("[WARNING] Failed to write dinit tmpfiles config: %v\n", err)
 		}
+
+		// dinit-boot-log: mirrors the PID1 status trail (/run/dinit-boot.log)
+		// into the persistent /var/log/dinit/boot.log — vector ingests it via
+		// the dinit_services glob, logrotate rotates it (copytruncate + tail -F)
+		fmt.Println("[INFO] Creating dinit-boot-log service...")
+		bootLogScript := `#!/bin/sh
+# FeralOS: persist the dinit status trail. dinit starts before /var/log is
+# mounted and before /var/log/dinit exists (tmpfiles) — PID1 writes to /run.
+cp /run/dinit-boot.log /var/log/dinit/boot.log 2>/dev/null || true
+exec tail -F /run/dinit-boot.log >> /var/log/dinit/boot.log 2>/dev/null
+`
+		escapedBootLogScript := strings.ReplaceAll(bootLogScript, "'", "'\\''")
+		if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /usr/libexec/dinit-boot-log && chmod 755 /usr/libexec/dinit-boot-log", escapedBootLogScript)); err != nil {
+			fmt.Printf("[WARNING] Failed to write dinit-boot-log script: %v\n", err)
+		}
+		bootLogService := `# dinit service: dinit-boot-log (FeralOS)
+# Mirrors /run/dinit-boot.log into /var/log/dinit/boot.log (persistent;
+# vector source dinit_services + logrotate). log-type=none: its own output
+# must never loop back into the file it tails.
+type = process
+command = /usr/libexec/dinit-boot-log
+restart = true
+depends-on = local.target
+log-type = none
+`
+		escapedBootLogService := strings.ReplaceAll(bootLogService, "'", "'\\''")
+		if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /lib/dinit.d/dinit-boot-log", escapedBootLogService)); err != nil {
+			fmt.Printf("[WARNING] Failed to write dinit-boot-log service: %v\n", err)
+		}
 	}
 
 	// Logrotate: vector does NOT rotate files — it only tails rotated ones

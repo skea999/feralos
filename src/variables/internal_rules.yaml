@@ -14,7 +14,7 @@ defaultRunlevels:
 # does not cover. Getty on both consoles: tty1 (real hardware display) +
 # ttyS0 (serial, server + harness).
 defaultRunlevelsDinit:
-  boot: ["getty@tty1", "getty@ttyS0"]
+  boot: ["getty@tty1", "getty@ttyS0", "dinit-boot-log"]
 
 # OpenRC service names that must NOT be dinitctl-enabled:
 #   - chimera-covered base services (early chain provides them)
