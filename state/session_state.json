@@ -85,7 +85,8 @@
     "Fixtures library validated: 14/14 YAML valid, vet/lint clean both modules, swap 25/25 PASS (K ceil fix), harness critical gap btrfsRaid0-noswap 32/32 (swap_status header-only, RAID0 pure), explicit 8G both layouts 32/32 (8192M file / 4G per partition)",
     "btrfsStandardServer RAID1 fix: removed dead 8GB btrfs data disks (btrfsDisk1Path/btrfsDisk2Path) from harness QEMU args — created but never mounted/referenced by installer, causing udev race → dm-1 missing → busybox fallback. All 3 layouts now pass with secureboot+tpm: standard 31/31, raid0 33/33, server 32/32. BootTimeout increased to 10min for 3-boot flow with always-present swtpm.",
     "Fixtures library: 14 curated variables.yaml templates covering btrfsStandard/Server/Raid0 x swap on/off x swapSize auto/8G x secureboot/tpm/hardening isolate x niri x full_stack",
-    "dinit boot fix (run 2026-09-17T22-53-05Z): stock Alpine dinit 0.21 does NOT scan /usr/lib/dinit.d (options-processing.cc: /etc/dinit.d, /run/dinit.d, /usr/local/lib/dinit.d, /lib/dinit.d) — dinit-chimera services invisible to PID 1 → 'boot: could not find service description'. Fix Option B: aports srvdir sed → /lib/dinit.d (dinit-chimera r2, 40 *-dinit r1); installer symlinks → /lib/dinit.d; defaultRunlevelsDinit emptied (getty owned by getty-dinit pkg; plain-name link of template invalid — $1 not expanded); dinitReplacedByChimera skip-list (9 -openrc pkgs covered by chimera); installDinitPackages missing-detection via output parse (SKEA_NONINTERACTIVE swallowed err — old counter lied 30/0 while 9 missing, ~66s retries)"
+    "dinit boot fix (run 2026-09-17T22-53-05Z): stock Alpine dinit 0.21 does NOT scan /usr/lib/dinit.d (options-processing.cc: /etc/dinit.d, /run/dinit.d, /usr/local/lib/dinit.d, /lib/dinit.d) — dinit-chimera services invisible to PID 1 → 'boot: could not find service description'. Fix Option B: aports srvdir sed → /lib/dinit.d (dinit-chimera r2, 40 *-dinit r1); installer symlinks → /lib/dinit.d; defaultRunlevelsDinit emptied (getty owned by getty-dinit pkg; plain-name link of template invalid — $1 not expanded); dinitReplacedByChimera skip-list (9 -openrc pkgs covered by chimera); installDinitPackages missing-detection via output parse (SKEA_NONINTERACTIVE swallowed err — old counter lied 30/0 while 9 missing, ~66s retries)",
+    "dinit COMPLETE (47/47): Alpine/Artix model (ship-only pkgs, rules enablement, initd names), networking-dinit + incus-feature-dinit + dinit-boot-log pkgs, sshd-dinit deleted, logrotate re-added (vector only tails rotated files), dinit-chimera r5 wrapper reads dinit_log_file from /proc/cmdline (booster does not forward unknown params to init env), services_status/verify dinit-aware, harness hard 7m limit + 5m boot + keep-target/verify split"
   ],
   "decisions": [
     {
@@ -357,10 +358,20 @@
       "severity": "low",
       "status": "resolved",
       "mitigation": "apk preserves modified /etc files as .apk-new (verified in Alpine docs: 'Whenever apk wants to install a file, but realizes a potentially edited one is already present, it will write its file to that filename with .apk-new appended'). /etc/init.d/swap is protected — the sed survives upgrades, no re-apply needed."
+    },
+    {
+      "date": "2026-09-20",
+      "decision": "dinit logging: daemon stderr to /var/log/dinit/<name>.log (log-type=file), PID1 trail via dinit_log_file=/run/dinit-boot.log mirrored by dinit-boot-log; logrotate re-added (supersedes 'vector replaces logrotate' — vector only TAILS rotated files)",
+      "rationale": "dinit default log-type=none discards stderr (no logs at all); /var/log mounts after dinit starts so the trail starts in /run and dinit-boot-log (aports pkg) mirrors it with cp + tail -F; rotation = logrotate copytruncate + delaycompress (vector-docs recommended), runs via /etc/periodic/daily (cronie), init-agnostic."
+    },
+    {
+      "date": "2026-09-20",
+      "decision": "harness: hard 7-minute run limit (runHardTimeout, non-configurable) + 5-minute boot wait + runner instant kill with guest sync + swtpm restart race fix + --keep-target-running respected by watchdog",
+      "rationale": "runs that hang must die deterministically; graceful runner poweroff hung inside the budget; instant kill exposed the swtpm NVRAM lock race (fixed) and ESP vfat lost late writes (fixed with guest sync); 7m fits install + target boot + separate verify (verify command runs against the kept-alive target)."
     }
   ],
   "next_actions": [
-    "Dinit: harness run btrfs_standard_dinit.yaml after aports CI republish (dinit-chimera r2 must be on Pages) — expect PID1 finds /lib/dinit.d/boot",
+    "dinit follow-ups: tighten 4 informational dinit_* verify checks; upstream issue for dinitctl --offline assert (Alpine 0.21); propose our sd-tools tmpfiles patch as PR to chimera-linux/sd-tools#5",
     "btrfsStandardUnencrypted layout (planned)",
     "Test on real hardware with 2x NVMe",
     "Test with partial features (Secure Boot only, TPM only)",

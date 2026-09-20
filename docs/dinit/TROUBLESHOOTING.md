@@ -51,12 +51,31 @@ dinitctl status boot system      # entry points
 dinitctl status login.target network.target local.target
 dinitctl start|stop <svc>        # runtime control
 dinitctl enable|disable <svc>    # boot.d symlink add/remove
+dinitctl catlog <svc>            # n/a: our services use log-type=file
 
-ls /lib/dinit.d/boot.d/          # enabled-by-package
-ls /etc/dinit.d/boot.d/          # enabled-by-admin
+ls /lib/dinit.d/boot.d/          # (unused: vendor dir, packages don't enable)
+ls /etc/dinit.d/boot.d/          # enabled by installer rules (boot waits-for)
+ls /var/log/dinit/               # per-service logs (log-type=file) + boot.log
+tail /var/log/dinit/boot.log     # PID1 status trail: every start/stop/fail
 ```
 
-Logging: dinit logs to console (+ `dinit_log_file=` if set). System logs go through
+## Logging Architecture (dinit)
+
+- PID1 trail: cmdline `dinit_log_file=/run/dinit-boot.log` → mirrored live to
+  `/var/log/dinit/boot.log` by `dinit-boot-log` (tail -F; logrotate
+  copytruncate-safe)
+- Daemon stderr: `log-type=file` → `/var/log/dinit/<name>.log`
+- Vector ingests both (`dinit_services` file source + syslog socket);
+  rotation via logrotate (`/etc/logrotate.d/feralos`, copytruncate +
+  delaycompress — vector-docs recommended)
+- NOTE: once `login.target` (runs-on-console, upstream) starts, dinit stops
+  printing to console — services keep running; read the trail from
+  `/var/log/dinit/boot.log`
+- `dinitctl --offline enable` crashes on Alpine dinit 0.21.0 (assert) —
+  installer creates the identical boot.d symlinks directly; retry dinitctl
+  when Alpine ships a fixed dinit
+
+Logging: dinit logs to console (+ `dinit_log_file` if set). System logs go through
 **vector** (our stack) — no journalctl on FeralOS; check `/var/log/` vector sinks.
 
 ## Package / Repo Issues
