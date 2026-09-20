@@ -95,6 +95,10 @@ standardPackages:
   - cpufrequtils
   - smartmontools
   # Logging
+  # logrotate: vector does NOT rotate files — it only tails rotated ones
+  # (copytruncate recommended by vector docs). Covers vector sinks AND
+  # dinit service logs; runs via /etc/periodic/daily (cronie).
+  - logrotate
   - vector
   - vector-openrc
   # Shell

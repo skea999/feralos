@@ -29,6 +29,13 @@ sources:
     decoding:
       codec: syslog
 
+  dinit_services:
+    type: file
+    include:
+      - "/var/log/dinit/*.log"
+      - "/var/log/dinit/*.log.1"
+    ignore_not_found: true
+
 transforms:
   auth_logs:
     type: filter
@@ -53,6 +60,7 @@ sinks:
     type: file
     inputs:
       - syslog
+      - dinit_services
     path: "/var/log/messages"
     encoding:
       codec: text
@@ -121,6 +129,42 @@ start() {
 	// Dinit: no vector-setup service needed — vector-dinit ships a tmpfiles
 	// file (/run/vector, /dev/log, /var/log, /btrbk) processed by the
 	// dinit-chimera early chain; vector-setup stays OpenRC-only.
+	if conf.User.EnableDinit {
+		// log dir for dinit services (log-type = file → /var/log/dinit/<name>.log);
+		// vector ingests it via the dinit_services source, logrotate rotates it
+		if _, err := shell.ExecuteCmd(chroot, "echo 'd /var/log/dinit 0755 root root -' > /usr/lib/tmpfiles.d/feralos-dinit.conf"); err != nil {
+			fmt.Printf("[WARNING] Failed to write dinit tmpfiles config: %v\n", err)
+		}
+	}
+
+	// Logrotate: vector does NOT rotate files — it only tails rotated ones
+	// (copytruncate + delaycompress recommended by vector docs). Covers the
+	// vector sinks AND the dinit service logs; works for OpenRC and dinit.
+	fmt.Println("[INFO] Writing logrotate configuration...")
+	logrotateConf := `/var/log/messages /var/log/auth.log /var/log/daemon.log /var/log/kern.log /var/log/vector.log {
+    daily
+    rotate 7
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+}
+
+/var/log/dinit/*.log {
+    daily
+    rotate 7
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+}
+`
+	escapedLogrotate := strings.ReplaceAll(logrotateConf, "'", "'\\''")
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p /etc/logrotate.d && echo '%s' > /etc/logrotate.d/feralos", escapedLogrotate)); err != nil {
+		fmt.Printf("[WARNING] Failed to write logrotate config: %v\n", err)
+	}
 
 	return nil
 }
