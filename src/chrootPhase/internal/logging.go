@@ -17,6 +17,34 @@ func SetupLogging(conf *config.Config, pkgList string) error {
 		return nil
 	}
 
+	// Dinit-only vector plumbing (service logs + PID1 boot trail): present
+	// only when enableDinit, so the config stays valid on OpenRC installs.
+	dinitSource := ""
+	dinitMsgInput := ""
+	dinitLogrotate := ""
+	if conf.User.EnableDinit {
+		dinitSource = `
+  dinit_services:
+    type: file
+    include:
+      - "/var/log/dinit/*.log"
+      - "/var/log/dinit/*.log.1"
+    ignore_not_found: true
+`
+		dinitMsgInput = "\n      - dinit_services"
+		dinitLogrotate = `
+/var/log/dinit/*.log {
+    daily
+    rotate 7
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+}
+`
+	}
+
 	fmt.Println("[INFO] Writing Vector logging configuration...")
 	vectorConfig := `# Vector configuration for FeralOS
 data_dir: "/var/lib/vector"
@@ -28,14 +56,7 @@ sources:
     path: /run/vector/syslog.sock
     decoding:
       codec: syslog
-
-  dinit_services:
-    type: file
-    include:
-      - "/var/log/dinit/*.log"
-      - "/var/log/dinit/*.log.1"
-    ignore_not_found: true
-
+` + dinitSource + `
 transforms:
   auth_logs:
     type: filter
@@ -59,8 +80,7 @@ sinks:
   messages:
     type: file
     inputs:
-      - syslog
-      - dinit_services
+      - syslog` + dinitMsgInput + `
     path: "/var/log/messages"
     encoding:
       codec: text
@@ -145,17 +165,7 @@ start() {
     notifempty
     copytruncate
 }
-
-/var/log/dinit/*.log {
-    daily
-    rotate 7
-    compress
-    delaycompress
-    missingok
-    notifempty
-    copytruncate
-}
-`
+` + dinitLogrotate
 	escapedLogrotate := strings.ReplaceAll(logrotateConf, "'", "'\\''")
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p /etc/logrotate.d && echo '%s' > /etc/logrotate.d/feralos", escapedLogrotate)); err != nil {
 		fmt.Printf("[WARNING] Failed to write logrotate config: %v\n", err)
