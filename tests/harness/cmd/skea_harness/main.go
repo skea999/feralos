@@ -27,9 +27,10 @@ func main() {
 }
 
 // runHardTimeout is the maximum wall time for a whole `run` invocation
-// (install + boots + verify). Hard-coded by design: a run that hangs must
-// die, always — no flag, no override.
-const runHardTimeout = 7 * time.Minute
+// (install + boots + verify). Covers worst-case configs: base install ~3min,
+// desktop/kde/cosmic target boot ~3min, verify ~2min, margin ~4min.
+// Hard-coded by design: a run that hangs must die, always — no flag, no override.
+const runHardTimeout = 12 * time.Minute
 
 func run(args []string) error {
 	if len(args) == 0 {
