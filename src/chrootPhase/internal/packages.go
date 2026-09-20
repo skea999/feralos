@@ -240,8 +240,9 @@ func installDinitPackages(conf *config.Config) error {
 
 	// core packages — always installed first
 	// (networking-dinit: nothing else brings eth0 up under dinit — chimera's
-	// network.target is only an ordering milestone)
-	corePkgs := []string{"dinit", "dinit-chimera", "getty-dinit", "networking-dinit"}
+	// network.target is only an ordering milestone; dinit-boot-log mirrors
+	// the PID1 status trail to /var/log/dinit/boot.log)
+	corePkgs := []string{"dinit", "dinit-chimera", "getty-dinit", "networking-dinit", "dinit-boot-log"}
 	if _, err := shell.ExecuteCmdArgs(chroot, "apk", append([]string{"add"}, corePkgs...)...); err != nil {
 		return fmt.Errorf("failed to install core dinit packages %v: %w", corePkgs, err)
 	}
