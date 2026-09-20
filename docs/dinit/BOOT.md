@@ -111,7 +111,7 @@ unmounts/tears down late state. No FeralOS code needed.
 `dinit_console_level=`, `dinit_log_file=`
 
 **dinit-chimera boot debug**: `dinit_early_debug=1`, `dinit_early_debug_slow=N`,
-`dinit_early_debug_log=FILE`, `dinit_early_root_remount=VAL`
+`dinit_early_debug_log=FILE`, `dinit_early_root_remount=`
 
 **Misc**: `dinit.runsize=` / `initramfs.runsize=` (default 10%),
 `fsck.mode=skip|force`, `fsck.repair=yes|no`, `fastboot`, `forcefsck`, `fsckfix`,
@@ -120,9 +120,10 @@ unmounts/tears down late state. No FeralOS code needed.
 ## FeralOS Cmdline (UKI / /etc/kernel/cmdline)
 
 ```
-root=UUID=… rootfstype=btrfs rootflags=subvol=@ … init=/usr/libexec/dinit/init
+root=UUID=… rootfstype=btrfs rootflags=subvol=@ … init=/usr/libexec/dinit/init dinit_log_file=/run/dinit-boot.log
 ```
 
-Only addition vs today: `init=`. Booster passes it through after `switch_root`.
-Temporary testing: edit cmdline at boot, or `booster` regen not required (UKI embeds
-cmdline from `/etc/kernel/cmdline` — regenerate UKI after change).
+- `init=/usr/libexec/dinit/init` — switches from OpenRC to dinit
+- `dinit_log_file=/run/dinit-boot.log` — full service status trail (read by wrapper via `/proc/cmdline` since booster does not forward unknown params to init's env; mirrored by `dinit-boot-log` to `/var/log/dinit/boot.log`)
+
+Note: regenerate UKI after changing cmdline.

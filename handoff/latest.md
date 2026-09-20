@@ -5,15 +5,15 @@
 
 ## Project Vision
 
-**FeralOS** is a new Linux distribution based on Alpine Linux, focused on **memory safety** and **security**. It replaces traditional C components with modern alternatives (uutils, micro, vector). For software not in Alpine repos or requiring glibc, **Nix** is used. After the installer is stable, **Dinit** will replace OpenRC, and a **custom repository** will be created for FeralOS services.
+**FeralOS** is a new Linux distribution based on Alpine Linux, focused on **memory safety** and **security**. It replaces traditional C components with modern alternatives (uutils, micro, vector). For software not in Alpine repos or requiring glibc, **Nix** is used. **Dinit** replaces OpenRC (complete, 47/47 verify). A **custom Alpine-style repository** for FeralOS packages is live on GitHub Pages.
 
 ## Current Focus
 
-**Dinit Alpine/Artix model (2026-09-19)** — packages ship service files only (install ≠ enabled); enablement = `dinitctl --offline -d /lib/dinit.d enable <svc>` from installer rules (links → `/etc/dinit.d/boot.d`, boot's waits-for.d). Service names = Alpine initd names (chronyd/sshd/incusd/smartd/nix-daemon/mdev/incus-agent) → `packageLogic.services` identical for both inits. NEW networking-dinit (`ifup -a`, critical gap) + incus-feature-dinit (incusd); sshd-dinit deleted (sshd real in openssh-server-common-dinit); getty-dinit = single `getty` template (depends agetty); vector depends-on vector-setup (installer writes `/lib/dinit.d/vector-setup`); chimera volume services untouched (upstream no-op design). Expected enabled set = same as OpenRC (15 svc su btrfsStandard). aports Step 7 / installer `services.go`+`internal_rules.yaml`(`defaultRunlevelsDinit`+`dinitChimeraServices`)+`config.go`+`packages.go`+`logging.go`.
+**Dinit — COMPLETE** (47/47 verify, 2026-09-20). Modello Alpine/Artix: pacchetti `-dinit` ship-only, enablement via regole. Servizi: chronyd, sshd, incusd, smartd, nix-daemon, mdev, incus-agent + networking-dinit (ifup -a). Log: `log-type=file` → `/var/log/dinit/<nome>.log`, trail PID1 → `/run/dinit-boot.log` (wrapper legge da `/proc/cmdline`) → `/var/log/dinit/boot.log` (tail -F), vector ingests, logrotate. aports Step 7 COMPLETE. Harness: verify 47/47 su btrfs_standard_dinit.
 
-**Pending user commands**: aports git rm (7 old service files + sshd-dinit dir) → `abuild -F checksum` per dir tocca-to → commit/push → CI → harness `btrfs_standard_dinit.yaml` (install timeout 10 min).
+**Desktops dinit**: KDE (`sddm-dinit`), Cosmic (`cosmic-greeter-dinit` + `seatd-dinit`), Niri (`greetd-dinit` + `elogind-dinit` + `polkit-elogind-dinit`) — tutti testati con harness.
 
-**Dinit boot fix (2026-09-18)** — root cause: stock Alpine dinit does NOT scan `/usr/lib/dinit.d` → services relocated to `/lib/dinit.d` (dinit-chimera srvdir sed, APKBUILD r2; 40 -dinit r1→2); sd-tools reinstated 0.99.990-r993 (tmpfiles GCC use-after-scope patch, upstream #5); incus-feature-agent real command. Boot VERIFIED (login prompt, 2 clean boots, run 2026-09-19T00-51-57Z).
+**Installer**: go vet/lint/build clean. Branch `developDinit` published su gitea (275 commit). History scrubbed: 0 italiano, 0 `/home/skem` in entrambi i repo.
 
 Phase 1: Go installer complete + fixtures library + AGENTS compress + githooks vet/lint. Highlights (latest runs **32/32**):
 
@@ -46,11 +46,13 @@ Phase 1: Go installer complete + fixtures library + AGENTS compress + githooks v
 - QEMU-based test harness with feature toggles
 - Non-interactive mode for automated testing
 - **Clevis TPM2 binding** — empty PCR policy (TPM identity only)
-- **Vector logging** — replaces rsyslog/logrotate (Rust, memory-safe)
+- **Vector logging** — replaces rsyslog (Rust, memory-safe); logrotate re-added for file rotation
   - Socket: `/run/vector/syslog.sock` (symlinked from `/dev/log`)
   - Sinks: `/var/log/messages`, `auth.log`, `daemon.log`, `kern.log`
-  - Service: `vector-setup` (boot) + `vector` (boot)
-  - Check: `apk info | grep -q '^vector$'` (init-system agnostic)
+  - Dinit services: `log-type=file` → `/var/log/dinit/<name>.log` + PID1 trail → `/var/log/dinit/boot.log`
+  - Vector `dinit_services` file source ingests dinit logs
+  - Logrotate: `/etc/logrotate.d/feralos` (copytruncate + delaycompress, daily, rotate 7)
+  - Service: `vector-setup` (OpenRC) + `vector` (boot) + `dinit-boot-log` (dinit, mirrors PID1 trail)
 - **btrbk** — btrfs backup/snapshot tool with subvolume `@btrbk`
 - **turnstile** — session tracker for desktop environments
 - **internal_rules.yaml cleaned** — only base OS in defaultRunlevels, services in packageLogic
@@ -70,11 +72,10 @@ Phase 1: Go installer complete + fixtures library + AGENTS compress + githooks v
 2. Test on real hardware with 2x NVMe
 3. Test with partial features (Secure Boot only, TPM only)
 4. Add more unit tests for verify checks
-5. Plan Dinit integration
 
 ### Phase 2 (Distribution)
-1. Dinit init system (replace OpenRC)
-2. Custom FeralOS repository
+1. ~~Dinit init system (replace OpenRC)~~ ✅ DONE
+2. Custom FeralOS repository — live on GitHub Pages
 3. Full distribution release
 
 ## Architecture Principle
@@ -151,7 +152,7 @@ Phase 1: Go installer complete + fixtures library + AGENTS compress + githooks v
 | rsyslog/logrotate | vector | Rust | No |
 | bash/zsh | fish | Rust | No |
 | lxd | incus | Go | No |
-| openrc | dinit (future) | C++ | No |
+| openrc | dinit | C++/Alpine | ✅ DONE |
 | grep (GNU) | BusyBox grep | POSIX BRE | Yes (built-in) |
 | find (GNU) | fd | Rust | No (different syntax) |
 | less | bat | Rust | Yes (symlink) |
