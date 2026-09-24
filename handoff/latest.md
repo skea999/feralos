@@ -15,6 +15,8 @@
 
 **Dinit shutdown + harness phases (2026-09-25)**: installer ships `dinit-shutdown` + wires conventional commands — `/usr/bin/{poweroff,halt,shutdown}` symlinks + `/usr/bin/{reboot,soft-reboot}` wrappers (busybox `poweroff` sends SIGUSR2 — a no-op under dinit; `dinitctl shutdown` only HALTs). Harness: numbered run phases (`[harness] phase N/9: …` → stdout + `harness.log`) and init-aware `powerOffTarget()` (`enableDinit` → `/usr/sbin/dinit-poweroff`; OpenRC → `poweroff`) with 5-min fail-not-hang bound; new verify check `dinit_shutdown_commands`. Verified: dinit **48/48** (2m41s), OpenRC **39/39** (2m32s), live reboot/poweroff test. Milestone log moved from AGENTS.md bottom to `CHANGELOG.md` (`## Milestone Log`).
 
+**Harness check truthfulness (2026-09-25)**: dinit verify checks made falsifiable — 8 of 9 `dinit_*` checks ended in `&& echo ok || echo fail` (the fallback `echo` always exits 0 → PASS forever), with 3 broken commands: busybox `ps` has no `-p` (→ `/proc/1/comm`), bare `dinitctl status` requires `<service-name>` (→ `dinitctl list`), `dinit_feralos_repo` grepped `/etc/apk/repositories` (keyring installs `/etc/apk/repositories.d/feralos.list`). All now `COND && echo '<ok>' || { echo '<fail>'; exit 1; }`; verified `btrfs_standard_dinit` **48/48** (run 2026-09-24T23-42-02Z).
+
 **Installer**: go vet/lint/build clean. Branch `developDinit` published su gitea (275 commit). History scrubbed: 0 italiano, 0 `/home/skem` in entrambi i repo.
 
 Phase 1: Go installer complete + fixtures library + AGENTS compress + githooks vet/lint. Highlights (latest runs **32/32**):

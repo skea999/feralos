@@ -80,6 +80,7 @@ All notable changes to FeralOS will be documented in this file.
 - btrfsStandardServer LUKS swap never activated: dmcrypt keyfile+conf.d written in hostPhase BEFORE the btrfs root was mounted at /mnt → files lost in host /mnt. Fixed: keyfile written directly into chroot after subvol mounts (step 8a) + fstab swap `LABEL=swap-*` → `/dev/mapper/swap-*` (busybox `swapon -a` can't resolve LABEL in fstab) + `swap_status` check now truthful
 - btrfsRaid0 swap never activated (latent bug): swap service was never added to the runlevel — now conditional on `enableSwap`
 - **dinit target shutdown (harness)**: busybox `poweroff` is a no-op under dinit (sends SIGUSR2, ignored; `dinitctl shutdown` only HALTs) → `powerOffTarget()` is init-aware (`dinit-poweroff` when `enableDinit`, `poweroff` otherwise) and bounded by `targetShutdownTimeout` (5m — fails the run instead of hanging; no force quit). Applied at boot1→boot2 + final shutdown; `debug_run` same
+- **harness dinit checks were unfalsifiable** (false green): `&& echo ok || echo fail` always exits 0 and `Verify` marks PASS on exit code 0 → 8 of 9 `dinit_*` checks could never fail, with 3 broken commands: busybox `ps` has no `-p` (→ read `/proc/1/comm`), bare `dinitctl status` requires `<service-name>` (→ `dinitctl list`), `dinit_feralos_repo` grepped `/etc/apk/repositories` (keyring installs `/etc/apk/repositories.d/feralos.list`). All dinit checks now `COND && echo '<ok>' || { echo '<fail>'; exit 1; }`; re-verified `btrfs_standard_dinit` **48/48 PASS** with truthful details (run 2026-09-24T23-42-02Z)
 
 ### Changed
 - Migrated from monolithic shell script to modular Go architecture
@@ -110,6 +111,12 @@ All notable changes to FeralOS will be documented in this file.
 ## Milestone Log
 
 > Detailed implementation history, moved here from `AGENTS.md` (2026-09-25); newest first.
+
+### 2026-09-25 — falsifiable dinit verify checks (48/48)
+**Agent:** codebase
+- **False green root cause**: `Verify` marks a check PASS when the SSH command exits 0 (`Pass: err == nil`) — but 8 of 9 `dinit_*` checks ended in `&& echo ok || echo fail`, and the fallback `echo` always exits 0 → unfalsifiable checks reported as green. Symptoms in the check files: `dinit_pid1` "NOT dinit" (busybox `ps` has no `-p`), `dinitctl_status` "dinitctl failed" / `dinit_services` "no dinit services" (bare `dinitctl status` needs `<service-name>` — source-verified `dinitctl.cc:449/513`), `dinit_feralos_repo` "repo MISSING" (keyring APKBUILD installs `/etc/apk/repositories.d/feralos.list`, not `/etc/apk/repositories`).
+- **Fix**: all dinit checks now `COND && echo '<ok>' || { echo '<fail>'; exit 1; }`; `dinit_pid1` reads `/proc/1/comm`, `dinitctl_status` uses `dinitctl list`, `dinit_feralos_repo` greps the keyring list, `dinit_shutdown_commands` gets a failure message. The system was correct all along — only the checks lied.
+- **Verified**: `btrfs_standard_dinit` **48/48 PASS** (run 2026-09-24T23-42-02Z) with real details (`dinit PID1`, full `dinitctl list`, service lines, `repo OK`); `gofmt`/`go vet`/`golangci-lint` clean. Docs: `docs/harness/development.md` (falsifiable-check rule).
 
 ### 2026-09-25 — harness phases + init-aware dinit shutdown + shutdown commands (48/48 dinit, 39/39 OpenRC)
 **Agent:** codebase

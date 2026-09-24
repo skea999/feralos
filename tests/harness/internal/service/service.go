@@ -1366,18 +1366,26 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 
 	// Dinit checks — verify dinit is PID 1, base services are running,
 	// cmdline contains init=, and dinit-chimera suite is installed.
+	// These MUST be falsifiable: each command exits non-zero when the
+	// condition is false. A bare "&& echo ok || echo fail" fallback always
+	// exits 0 and would make the check unconditionally green.
 	if cfg.EnableDinit {
-		checks["dinit_cmdline"] = "cat /proc/cmdline | grep -q 'init=/usr/libexec/dinit/init' && echo 'init= OK' || echo 'init= MISSING'"
-		checks["dinit_pid1"] = "ps -p 1 -o comm= | grep -q dinit && echo 'dinit PID1' || echo 'NOT dinit'"
-		checks["dinitctl_status"] = "dinitctl status 2>/dev/null || echo 'dinitctl failed'"
-		checks["dinit_services"] = "dinitctl status 2>/dev/null | grep -E 'boot|getty' || echo 'no dinit services'"
-		checks["dinit_chimera_installed"] = "apk info -e dinit-chimera && echo 'installed' || echo 'NOT installed'"
-		checks["dinit_getty_installed"] = "apk info -e getty-dinit && echo 'installed' || echo 'NOT installed'"
-		checks["dinit_feralos_repo"] = "grep -q 'feralos-aports' /etc/apk/repositories && echo 'repo OK' || echo 'repo MISSING'"
-		checks["dinit_key"] = "test -f /etc/apk/keys/feralos.rsa.pub && echo 'key OK' || echo 'key MISSING'"
+		checks["dinit_cmdline"] = "grep -q 'init=/usr/libexec/dinit/init' /proc/cmdline && echo 'init= OK' || { echo 'init= MISSING'; exit 1; }"
+		// Busybox ps has no -p flag — read /proc/1/comm directly.
+		checks["dinit_pid1"] = "[ \"$(cat /proc/1/comm)\" = dinit ] && echo 'dinit PID1' || { echo 'NOT dinit'; exit 1; }"
+		// dinitctl status needs <service-name>; bare `status` is a usage
+		// error. `dinitctl list` proves the control socket is functional.
+		checks["dinitctl_status"] = "dinitctl list || { echo 'dinitctl failed'; exit 1; }"
+		checks["dinit_services"] = "dinitctl list | grep -E 'boot|getty' || { echo 'no dinit services'; exit 1; }"
+		checks["dinit_chimera_installed"] = "apk info -e dinit-chimera && echo 'installed' || { echo 'NOT installed'; exit 1; }"
+		checks["dinit_getty_installed"] = "apk info -e getty-dinit && echo 'installed' || { echo 'NOT installed'; exit 1; }"
+		// feralos-keyring installs the repo definition into
+		// /etc/apk/repositories.d/feralos.list (not /etc/apk/repositories).
+		checks["dinit_feralos_repo"] = "grep -q 'feralos-aports' /etc/apk/repositories.d/feralos.list && echo 'repo OK' || { echo 'repo MISSING'; exit 1; }"
+		checks["dinit_key"] = "test -f /etc/apk/keys/feralos.rsa.pub && echo 'key OK' || { echo 'key MISSING'; exit 1; }"
 		// Conventional shutdown commands wired to dinit helpers by the
 		// installer (busybox poweroff/reboot do not work under dinit).
-		checks["dinit_shutdown_commands"] = "test -x /usr/bin/poweroff -a -x /usr/bin/reboot -a -x /usr/bin/halt -a -x /usr/bin/shutdown -a -x /usr/bin/soft-reboot && echo 'shutdown commands OK'"
+		checks["dinit_shutdown_commands"] = "test -x /usr/bin/poweroff -a -x /usr/bin/reboot -a -x /usr/bin/halt -a -x /usr/bin/shutdown -a -x /usr/bin/soft-reboot && echo 'shutdown commands OK' || { echo 'shutdown commands MISSING'; exit 1; }"
 	}
 
 	result := VerifyResult{RunDir: cfg.RunDir, Success: true, Checks: map[string]CheckResult{}}

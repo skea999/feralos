@@ -55,10 +55,11 @@ No `internal` package rule like `src/hostPhase/internal` — harness is a standa
 ### Adding a new check
 
 1. Add entry to `checks` map in `service.Verify` (`internal/service/service.go:Verify`): `checks["my_check"] = "shell command; echo detail"`.
-2. Add conditional block after the loop if it needs pass/fail logic (see `storage_layout`, `fstab`, `tpm_auto_unlock`, `less_dummy` patterns — flip `result.Success=false` and annotate `Detail`).
-3. For desktop-gated checks, guard with `if cfg.DesktopEnvironment == desktopNiri` (see `niri_config_valid` etc.).
-4. Wire `VerifyConfig` fields through `bootAndVerifyTarget` → `Verify` call if the check needs new config (e.g., `EnableSwap`, `DiskLayout` already plumbed).
-5. Test: `go vet ./...` in `tests/harness`, then `go run ./cmd/skea_harness -- verify --run-dir <run>` or a full `run -f <fixture>`.
+2. **Checks must be falsifiable**: the harness marks a check PASS when the SSH command exits 0 (`Pass: err == nil`). A bare `|| echo '<fail>'` fallback always exits 0 → the check can never go red (this made 8 `dinit_*` checks silently green). Use `COND && echo '<ok>' || { echo '<fail>'; exit 1; }` (or Go post-processing, next step).
+3. Add conditional block after the loop if it needs pass/fail logic (see `storage_layout`, `fstab`, `tpm_auto_unlock`, `less_dummy` patterns — flip `result.Success=false` and annotate `Detail`).
+4. For desktop-gated checks, guard with `if cfg.DesktopEnvironment == desktopNiri` (see `niri_config_valid` etc.).
+5. Wire `VerifyConfig` fields through `bootAndVerifyTarget` → `Verify` call if the check needs new config (e.g., `EnableSwap`, `DiskLayout` already plumbed).
+6. Test: `go vet ./...` in `tests/harness`, then `go run ./cmd/skea_harness -- verify --run-dir <run>` or a full `run -f <fixture>`.
 
 ## Swtpm always present
 

@@ -89,7 +89,8 @@
     "dinit COMPLETE (47/47): Alpine/Artix model (ship-only pkgs, rules enablement, initd names), networking-dinit + incus-feature-dinit + dinit-boot-log pkgs, sshd-dinit deleted, logrotate re-added (vector only tails rotated files), dinit-chimera r5 wrapper reads dinit_log_file from /proc/cmdline (booster does not forward unknown params to init env), services_status/verify dinit-aware, harness hard 7m limit + 5m boot + keep-target/verify split",
     "Harness run phases: [harness] phase N/9 (boot runner→run installer→reboot runner→boot target→run sbctl→run tpm→reboot target→boot target verification→verify) to stdout + runs/<ts>/harness.log; logHarness mirrored to stdout; MCP progress→stderr (SetProgressWriter)",
     "dinit target shutdown FIXED: busybox poweroff no-op under dinit (SIGUSR2 ignored; dinitctl shutdown=HALT) → powerOffTarget() init-aware (enableDinit→/usr/sbin/dinit-poweroff, else poweroff) + targetShutdownTimeout 5m (fail-not-hang, no force quit); installer corePkgs += dinit-shutdown (finalizer) + /usr/bin shutdown commands (poweroff/halt/shutdown symlinks + reboot/soft-reboot wrappers, Artix/Chimera style); verify check dinit_shutdown_commands; verified dinit 48/48 (2m41s) + OpenRC 39/39 (2m32s) + live debug_run reboot/poweroff test",
-    "Milestone log moved: AGENTS.md bottom section (125 lines: 14 dated entries + pointer) → CHANGELOG.md '## Milestone Log' (placed before [0.1.0], newest first); AGENTS.md 405→275 lines (ends at Known Issues); handoff milestone-log pointer updated"
+    "Milestone log moved: AGENTS.md bottom section (125 lines: 14 dated entries + pointer) → CHANGELOG.md '## Milestone Log' (placed before [0.1.0], newest first); AGENTS.md 405→275 lines (ends at Known Issues); handoff milestone-log pointer updated",
+    "Harness dinit verify checks made falsifiable: 8/9 dinit_* checks ended in '&& echo ok || echo fail' (fallback always exits 0 → PASS forever, false green); fixed commands (dinit_pid1 → /proc/1/comm, dinitctl_status → dinitctl list, dinit_feralos_repo → /etc/apk/repositories.d/feralos.list) + '|| { echo <fail>; exit 1; }' on all; verified btrfs_standard_dinit 48/48 with truthful details (run 2026-09-24T23-42-02Z)"
   ],
   "decisions": [
     {
@@ -341,6 +342,11 @@
       "date": "2026-09-25",
       "decision": "Milestone/history log lives in CHANGELOG.md (## Milestone Log section, newest first) — AGENTS.md no longer carries the dated history section",
       "rationale": "AGENTS.md keeps project context only and ends at Known Issues; dated implementation entries go to CHANGELOG.md. Future session entries append to the CHANGELOG Milestone Log section. handoff/latest.md 'Milestone log' pointer updated."
+    },
+    {
+      "date": "2026-09-25",
+      "decision": "Harness verify checks MUST be falsifiable: fail with non-zero exit, never a bare '|| echo <fail>' fallback",
+      "rationale": "Verify marks PASS on SSH exit code 0 (Pass: err == nil) — 'A && echo ok || echo fail' always exits 0, so the check can never go red (false green; 8 dinit_* checks affected). Fixes also corrected 3 commands: busybox ps has no -p (→ /proc/1/comm), bare dinitctl status is a usage error (→ dinitctl list), keyring installs the repo at /etc/apk/repositories.d/feralos.list (check grepped /etc/apk/repositories). All dinit checks now 'COND && echo <ok> || { echo <fail>; exit 1; }'; verified 48/48 (run 2026-09-24T23-42-02Z)."
     }
   ],
   "risks": [
@@ -384,7 +390,7 @@
     }
   ],
   "next_actions": [
-    "dinit follow-ups: tighten 4 informational dinit_* verify checks; upstream issue for dinitctl --offline assert (Alpine 0.21); propose our sd-tools tmpfiles patch as PR to chimera-linux/sd-tools#5",
+    "dinit follow-ups: upstream issue for dinitctl --offline assert (Alpine 0.21); propose our sd-tools tmpfiles patch as PR to chimera-linux/sd-tools#5",
     "btrfsStandardUnencrypted layout (planned)",
     "Test on real hardware with 2x NVMe",
     "Test with partial features (Secure Boot only, TPM only)",
