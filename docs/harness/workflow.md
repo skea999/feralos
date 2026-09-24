@@ -30,6 +30,8 @@ cache/base-images   overlay+8G    hostfwd 2222, cloud-init    tar -xzf,        d
 
 `service.RunInstall` (`internal/service/service.go:RunInstall`), CLI `parseRunArgs` requires `-f <variables.yaml>`.
 
+Phase announcements (`[harness] phase N/9: …`) print to stdout and are written to `harness.log`: 1 boot runner, 2 run installer, 3 reboot (runner), 4 boot target, 5 run sbctl, 6 run tpm, 7 reboot (target), 8 boot target (verification), 9 verify target. Target poweroff is init-aware: OpenRC → `poweroff`, dinit → `dinit-poweroff` (`dinit-shutdown` package).
+
 1. `LoadVariablesFile` parses `variables.yaml` into `RunConfig` (diskLayout, enableTPM/secureboot/hardening/zswap/nix, enableSwap/swapSize, desktopEnvironment, mirror).
 2. `cache.StartHTTPMirrorServer` serves `cache/web/alpine` as cache-first Alpine mirror; `RunConfig.AlpineMirror` set to guest URL (harness rewrites `variables.yaml` Alpine mirror to this).
 3. Create target disks: `qemu.CreateDisk` 16G default (`--disk-size`), 1 disk for `btrfsStandard`, 2 for `btrfsRaid0`/`btrfsStandardServer` under `runs/<timestamp>/`.

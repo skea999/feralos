@@ -46,6 +46,8 @@ No `internal` package rule like `src/hostPhase/internal` — harness is a standa
 
 ### Logging & execution
 
+- Run phases: `phase(n, name)` prints `[harness] phase N/9: …` for every `run` step (1 boot runner → 2 run installer → 3 reboot runner → 4 boot target → 5 run sbctl → 6 run tpm → 7 reboot target → 8 boot target verification → 9 verify target) to **stdout** and to `runs/<ts>/harness.log` — all `logHarness` messages go to both. MCP mode calls `service.SetProgressWriter(os.Stderr)` to keep the stdio JSON-RPC stream clean.
+- Target shutdown is init-aware (`powerOffTarget`): OpenRC → `poweroff`; dinit → `dinit-poweroff` (busybox `poweroff` sends SIGUSR2 which dinit ignores; `dinitctl shutdown` only HALTs). Bounded by `targetShutdownTimeout` (5m) — a guest that never powers off fails the run instead of hanging.
 - QEMU logs: `qemu.Start` writes `LogPath` (`runner-qemu.log`/`target-qemu.log`); serial logs via `-serial file:` or `-chardev socket,logfile=` (`runner-serial.log`/`target-serial.log` + `tser.sock`).
 - Guest execution: `guest.Run(ctx, opts, cmd, stdout, stderr)` and `guest.Output` (SSH exec, `Shell: bash|sh`); installer captured to `installer.log` file handle.
 - No `os.*` file-op bypass — harness is not the installer, but keep I/O observable via logs. Use `qemu.CopyFile`, `os.WriteFile` for artifacts with explicit paths.

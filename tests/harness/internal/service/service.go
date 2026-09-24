@@ -34,6 +34,9 @@ const (
 	layoutBtrfsRaid0          = "btrfsRaid0"
 	sshUserSkea               = "skea"
 	desktopNiri               = "niri"
+	// targetShutdownTimeout bounds the wait for the target VM to power off
+	// after a shutdown request — fail the run instead of hanging forever.
+	targetShutdownTimeout = 5 * time.Minute
 )
 
 type Service struct{}
@@ -41,14 +44,35 @@ type Service struct{}
 // harnessLog is the run-level log file. Set at start of RunInstall, nil elsewhere.
 var harnessLog *os.File
 
-// logHarness writes to harness.log + stderr. Non-nil only during a run.
+// harnessProgress receives run progress/phase messages (CLI: stdout). The
+// MCP server switches it to stderr to keep the stdio JSON-RPC stream clean.
+var harnessProgress io.Writer = os.Stdout
+
+// SetProgressWriter overrides where run progress messages are written.
+func SetProgressWriter(w io.Writer) {
+	if w != nil {
+		harnessProgress = w
+	}
+}
+
+// logHarness writes to harness.log (when a run is active) and the progress
+// writer (stdout by default).
 func logHarness(format string, args ...any) {
 	msg := fmt.Sprintf(format, args...)
 	if harnessLog != nil {
 		fmt.Fprint(harnessLog, msg)
 		_ = harnessLog.Sync()
 	}
-	fmt.Fprint(os.Stderr, msg)
+	fmt.Fprint(harnessProgress, msg)
+}
+
+// runPhaseTotal is the number of phases in the `run` flow, shown by phase().
+const runPhaseTotal = 9
+
+// phase announces the current run phase on stdout and in harness.log so a
+// stuck run is diagnosable without attaching to the VMs.
+func phase(n int, name string) {
+	logHarness("[harness] phase %d/%d: %s\n", n, runPhaseTotal, name)
 }
 
 type PrepareRunnerConfig struct {
@@ -628,6 +652,7 @@ func (service *Service) RunInstall(ctx context.Context, cfg *RunConfig) (RunResu
 	// Always pass swtpm to runner — binaries need /dev/tpmrm0 during install
 	runnerArgs = append(runnerArgs, tpmQEMUArgs(tpmControlPath)...)
 
+	phase(1, "boot runner")
 	runnerInstance, err := qemu.Start(ctx, &qemu.LaunchConfig{
 		Binary:       cfg.QemuBinary,
 		Args:         runnerArgs,
@@ -659,6 +684,7 @@ func (service *Service) RunInstall(ctx context.Context, cfg *RunConfig) (RunResu
 
 	active.Phase = "copying-repository"
 	_ = stateStore.Save(&active)
+	phase(2, "run installer")
 	remoteRepoRoot := fmt.Sprintf("/home/%s/skeaAlpineInstaller", cfg.RunnerSSHUser)
 	remoteRepoArchive := remoteRepoRoot + ".tar.gz"
 	repoArchivePath := filepath.Join(runDir, "repo.tgz")
@@ -808,6 +834,7 @@ fi
 
 	active.Phase = "powering-off-runner"
 	_ = stateStore.Save(&active)
+	phase(3, "reboot (runner)")
 	// Flush guest page caches (ESP is vfat — a hard kill loses dirty
 	// entries). 'sync' returns immediately, unlike 'poweroff' which hangs.
 	_ = guest.Run(ctx, runnerGuest, "sync", io.Discard, io.Discard)
@@ -988,6 +1015,7 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg *RunConfig,
 	active.TargetQemuLog = targetQemuLog
 	active.TargetFirmwareLog = targetFirmwareLog
 	_ = stateStore.Save(active)
+	phase(4, "boot target")
 
 	// Boot target — always with TPM (even if EnableTPM=false, swtpm is
 	// always present). firstBoot binaries use /dev/tpmrm0 if available.
@@ -1048,6 +1076,7 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg *RunConfig,
 	// Target has TPM available (always passed) — binaries can bind LUKS to TPM2.
 	active.Phase = "running-post-install"
 	_ = stateStore.Save(active)
+	phase(5, "run sbctl")
 
 	// Run sbctl enrollment (non-fatal in QEMU — no real efivarfs)
 	sbctlLogPath := filepath.Join(runDir, "sbctl.log")
@@ -1060,6 +1089,7 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg *RunConfig,
 	}
 
 	// Run TPM binary — binds LUKS to TPM2 if TPM is available
+	phase(6, "run tpm")
 	tpmLogPath := filepath.Join(runDir, "tpm-post-install.log")
 	tpmDiag, tpmErr := runTPMOnTarget(ctx, targetGuest, cfg.InstalledPassword)
 	_ = tpmErr // logged above
@@ -1098,10 +1128,13 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg *RunConfig,
 	}
 
 	// Power off and restart swtpm for verification boot
-	if poweroffErr := guest.Run(ctx, targetGuest, "poweroff", io.Discard, io.Discard); poweroffErr != nil {
-		_ = qemu.SystemPowerdown(targetQMPPath)
+	phase(7, "reboot (target)")
+	if poweroffErr := powerOffTarget(ctx, targetGuest, targetInstance, cfg, targetQMPPath); poweroffErr != nil {
+		active.Status = statusFailed
+		active.Error = poweroffErr.Error()
+		_ = stateStore.Save(active)
+		return RunResult{}, poweroffErr
 	}
-	_ = targetInstance.Wait()
 	targetInstance = nil
 
 	// Restart swtpm (killed by QEMU CMD_SHUTDOWN on poweroff)
@@ -1125,6 +1158,7 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg *RunConfig,
 	}
 
 	// Verification boot — boot with TPM, check LUKS auto-unlock
+	phase(8, "boot target (verification)")
 	targetArgs = buildTargetArgs(true)
 	var startErr error
 	targetInstance, startErr = qemu.Start(ctx, &qemu.LaunchConfig{
@@ -1160,6 +1194,7 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg *RunConfig,
 
 	active.Phase = "verifying"
 	_ = stateStore.Save(active)
+	phase(9, "verify target")
 	verifyResult, err := service.Verify(ctx, &VerifyConfig{
 		ArtifactsRoot:      cfg.ArtifactsRoot,
 		RunDir:             runDir,
@@ -1224,13 +1259,13 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg *RunConfig,
 		return result, nil
 	}
 
-	// Prefer SSH poweroff (guest-initiated, clean shutdown) over ACPI
-	// SystemPowerdown. Alpine has no acpid, so ACPI power button events
-	// are not handled and the VM would hang waiting for shutdown forever.
-	if err := guest.Run(ctx, targetGuest, "poweroff", io.Discard, io.Discard); err != nil {
-		_ = qemu.SystemPowerdown(targetQMPPath)
+	// Shut the target down (init-aware) before the run ends.
+	if poweroffErr := powerOffTarget(ctx, targetGuest, targetInstance, cfg, targetQMPPath); poweroffErr != nil {
+		active.Status = statusFailed
+		active.Error = poweroffErr.Error()
+		_ = stateStore.Save(active)
+		return RunResult{}, poweroffErr
 	}
-	_ = targetInstance.Wait()
 	targetInstance = nil
 	_ = stateStore.Clear()
 	return result, nil
@@ -1340,6 +1375,9 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		checks["dinit_getty_installed"] = "apk info -e getty-dinit && echo 'installed' || echo 'NOT installed'"
 		checks["dinit_feralos_repo"] = "grep -q 'feralos-aports' /etc/apk/repositories && echo 'repo OK' || echo 'repo MISSING'"
 		checks["dinit_key"] = "test -f /etc/apk/keys/feralos.rsa.pub && echo 'key OK' || echo 'key MISSING'"
+		// Conventional shutdown commands wired to dinit helpers by the
+		// installer (busybox poweroff/reboot do not work under dinit).
+		checks["dinit_shutdown_commands"] = "test -x /usr/bin/poweroff -a -x /usr/bin/reboot -a -x /usr/bin/halt -a -x /usr/bin/shutdown -a -x /usr/bin/soft-reboot && echo 'shutdown commands OK'"
 	}
 
 	result := VerifyResult{RunDir: cfg.RunDir, Success: true, Checks: map[string]CheckResult{}}
@@ -2872,6 +2910,54 @@ func waitForTargetSSH(ctx context.Context, instance *qemu.Instance, opts guest.O
 	}
 
 	return fmt.Errorf("ssh did not become ready within %s", timeout)
+}
+
+// powerOffTarget powers off the installed target with the command matching
+// its init system, then waits for QEMU to exit (bounded — a guest that never
+// powers off fails the run instead of hanging it).
+//
+//   - OpenRC (busybox init): `poweroff` works — busybox sends SIGUSR2, which
+//     busybox init handles (runs rc.shutdown, then performs the poweroff).
+//   - dinit: busybox `poweroff` is a NO-OP — dinit ignores SIGUSR2, and
+//     `dinitctl shutdown` sends HALT (QEMU would stay up). The POWEROFF
+//     request is `dinit-poweroff` (from the Alpine `dinit-shutdown` package,
+//     installed by the installer): the dinit daemon rolls back services, then
+//     execs `/usr/sbin/dinit-shutdown --system -p` which performs
+//     reboot(RB_POWER_OFF) — QEMU exits.
+//
+// The SSH connection drops while services stop, so a command error is only
+// treated as a failure when the command itself is missing (older install);
+// then fall back to the ACPI power-button event.
+func powerOffTarget(ctx context.Context, targetGuest guest.Options, targetInstance *qemu.Instance, cfg *RunConfig, qmpPath string) error {
+	shutdownCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	defer cancel()
+
+	if !cfg.EnableDinit {
+		if err := guest.Run(shutdownCtx, targetGuest, "poweroff", io.Discard, io.Discard); err != nil {
+			_ = qemu.SystemPowerdown(qmpPath)
+		}
+	} else {
+		output, err := guest.Output(shutdownCtx, targetGuest, "/usr/sbin/dinit-poweroff")
+		if err != nil && (strings.Contains(string(output), "not found") ||
+			strings.Contains(string(output), "No such file")) {
+			logHarness("harness: dinit-poweroff not available (%v) — falling back to ACPI powerdown\n", err)
+			_ = qemu.SystemPowerdown(qmpPath)
+		}
+	}
+
+	deadline := time.Now().Add(targetShutdownTimeout)
+	for time.Now().Before(deadline) {
+		if exited, _ := targetInstance.Exited(); exited {
+			_ = targetInstance.Wait()
+			return nil
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	initName := "openrc"
+	if cfg.EnableDinit {
+		initName = "dinit"
+	}
+	return fmt.Errorf("target VM did not power off within %s (init: %s)", targetShutdownTimeout, initName)
 }
 
 func tpmQEMUArgs(socketPath string) []string {

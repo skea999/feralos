@@ -33,6 +33,7 @@ type variablesYAML struct {
 		EnableHardening         bool     `yaml:"enableHardening"`
 		EnableZswap             bool     `yaml:"enableZswap"`
 		EnableNix               bool     `yaml:"enableNix"`
+		EnableDinit             bool     `yaml:"enableDinit"`
 		ExtraPackages           []string `yaml:"extraPackages"`
 		SSHAuthorizedKey        string   `yaml:"sshAuthorizedKey"`
 		DefaultNetworkInterface string   `yaml:"defaultNetworkInterface"`
@@ -817,7 +818,14 @@ func run(args []string) error {
 	<-ctx.Done()
 	fmt.Fprintf(os.Stderr, "\nshutting down...\n")
 
-	if err := sshRun(context.Background(), sshOpts, "poweroff"); err != nil {
+	// Init-aware shutdown: busybox `poweroff` sends SIGUSR2, which dinit
+	// ignores (and `dinitctl shutdown` only HALTs) — dinit needs
+	// `dinit-poweroff` from the dinit-shutdown package.
+	shutdownCommand := "poweroff"
+	if vars.Variables.EnableDinit {
+		shutdownCommand = "/usr/sbin/dinit-poweroff"
+	}
+	if err := sshRun(context.Background(), sshOpts, shutdownCommand); err != nil {
 		_ = qmpSystemPowerdown(targetQMPPath)
 	}
 	_ = instance.wait()

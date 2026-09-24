@@ -152,6 +152,8 @@ func run(args []string) error {
 		if err != nil {
 			return err
 		}
+		// Keep stdout clean for the JSON-RPC stream: progress → stderr.
+		service.SetProgressWriter(os.Stderr)
 		server := mcp.NewServer(harnessService, cfg.RepoRoot, cfg.ArtifactsRoot)
 		return server.Serve(ctx, os.Stdin, os.Stdout)
 	case "help", "--help", "-h":

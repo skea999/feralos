@@ -20,7 +20,7 @@ tests/artifacts/harness/
 ├── runs/<timestamp>/       # one per run (keep last 2, cleanOldRuns)
 │   ├── install-disk-1.qcow2 [, install-disk-2.qcow2]  # 16G default (qemu.CreateDisk)
 │   ├── runner-serial.log, runner-qemu.log, runner-qmp.sock
-│   ├── installer.log, post-install.log, harness.log (run summary at end), sbctl.log, tpm-post-install.log
+│   ├── installer.log, post-install.log, harness.log (phase log + run summary), sbctl.log, tpm-post-install.log
 │   ├── target-serial.log, target-qemu.log, target-firmware.log, tser.sock, target-qmp.sock
 │   ├── verify.md (markdown summary table — converted from verify.log; SSH warnings stripped, detail truncated), OVMF_VARS.fd
 │   ├── tpm.sock, tpm.sock.ctrl, tpm-state/, tpm.pid, tpm.log
@@ -100,6 +100,7 @@ All 4 layouts PASS 35/35 with markers enabled. Markers appended at END of each c
 | `niri_*` | Niri desktop valid | `niri_config_valid` (validate both kdl), `greetd_config` (greeter files +x), `niri_greeter` (pgrep niri), `dms_installed` (nix profile + binary) |
 | `firewall_rustdesk` | RustDesk firewall ports | `firewall-cmd --permanent --list-ports | grep 21115` OR `grep -rq 21115 /etc/firewalld/` (permanent, not runtime — `firewall-offline-cmd --zone=public` in chroot) |
 | `flatpak_installed` | RustDesk flatpak | `flatpak list | grep rustdesk` when `desktopEnvironment==niri` or `len(FlatpakPackages)>0` |
+| `dinit_shutdown_commands` | dinit shutdown commands wired | `/usr/bin/{poweroff,halt,shutdown}` symlinks + `/usr/bin/{reboot,soft-reboot}` wrappers all executable when `enableDinit=true` |
 
 **Nix tmp permissions:** `/nix/var/nix/build` is `775` + `chown root:nixbld`; `/nix/var/nix/build/tmp` is `1777` + `chown root:nixbld` (world-writable sticky). Required because `/tmp` is `noexec` + `0755` for security, so nix temp must live on `@nix-var-nix-build` subvolume. `TMPDIR` scoped to daemon only via `/etc/conf.d/nix-daemon` (not global export — leaked into podman and broke `containers-storage`). Nix SSL: `NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt` prefixed to all `su - user` nix client cmds.
 
