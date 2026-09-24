@@ -42,6 +42,7 @@ revert `init=` to drop back into OpenRC — coexistence is the safety net).
 | Two console services block each other | both `runs-on-console` | demote one to `shares-console` |
 | Network up but DNS dead | chronyd/netorder fine, resolv.conf empty | installer writes resolv.conf — check chroot step, not dinit |
 | Display manager never starts | seat provider missing (elogind vs seatd) or DM `depends-on` wrong | `dinitctl status elogind seatd <dm>` |
+| `poweroff`/`reboot` do nothing (machine keeps running) | Alpine's busybox `poweroff` sends SIGUSR2 — dinit ignores it (handles only SIGINT=reboot / SIGTERM=halt / SIGQUIT=now); `dinitctl shutdown` sends HALT (no poweroff); and without the `dinit-shutdown` binary PID 1 cannot finalize ANY shutdown | `dinit-shutdown` package (installer core) provides `dinit-poweroff` / `dinit-reboot`; installer also wires conventional commands (Artix/Chimera style): `poweroff`/`halt`/`shutdown` symlinks + `reboot`/`soft-reboot` wrappers in `/usr/bin`; daemon rolls back services then execs `/usr/sbin/dinit-shutdown --system -p/-r/-h` |
 
 ## Live Inspection (running system)
 

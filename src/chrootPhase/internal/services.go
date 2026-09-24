@@ -29,10 +29,15 @@ func SetupServices(conf *config.Config) error {
 
 	// Dinit: enablement is data-driven (Alpine model: packages ship service
 	// files, rules decide what runs), mirroring the OpenRC flow:
-	//   - defaultRunlevelsDinit = base services chimera doesn't cover (getty)
+	//   - defaultRunlevelsDinit = base services chimera doesn't cover
+	//     (system: processes boot.d; getty: console login)
 	//   - packageLogic.services (merged into Runlevels) = per-package services
-	// Uses the upstream offline command (no running daemon needed in chroot):
-	//   dinitctl --offline -d /lib/dinit.d enable <svc>
+	// Uses direct symlinks (Alpine dinitctl 0.21 --offline crashes on
+	// every service — upstream cpbuffer assert bug):
+	//   ln -sf /lib/dinit.d/<svc> /etc/dinit.d/boot.d/<svc>
+	// The 'system' service is critical: boot depends on system, and system
+	// processes /usr/lib/dinit.d/boot.d/ — without it, no boot.d services
+	// (networking, sshd, etc.) ever start.
 	// Services in dinitSkipServices are provided by the dinit-chimera
 	// early chain (or replaced by tmpfiles, e.g. vector-setup) and are
 	// never enabled.
@@ -97,7 +102,63 @@ func SetupServices(conf *config.Config) error {
 			}
 		}
 		fmt.Printf("[INFO] Dinit: %d services enabled, %d chimera-covered skipped\n", enabled, skipped)
+
+		if err := setupDinitShutdownCommands(chroot); err != nil {
+			return fmt.Errorf("dinit shutdown commands failed: %w", err)
+		}
 	}
+
+	return nil
+}
+
+// setupDinitShutdownCommands wires the conventional shutdown commands to
+// dinit's shutdown helpers so poweroff/reboot/halt/shutdown behave like on
+// Artix/Chimera (their dinit packages own /usr/bin/{poweroff,reboot,...}).
+// Alpine builds dinit with --shutdown-prefix=dinit- → helpers in /usr/sbin/.
+// The helpers derive the action from the invocation name (base_name(argv[0])):
+// plain symlinks work for poweroff/halt/shutdown (no reboot match → default
+// power down), but reboot/soft-reboot MUST exec the prefixed binary — a
+// "reboot"-named link matches neither "dinit-reboot" nor "dinit-soft-reboot"
+// and would power down instead of rebooting. /usr/bin precedes /sbin in PATH
+// → these shadow the busybox applets, which dinit cannot use (busybox
+// poweroff sends SIGUSR2 — dinit ignores it).
+func setupDinitShutdownCommands(chroot string) error {
+	type commandLink struct{ name, target string }
+
+	for _, link := range []commandLink{
+		{"poweroff", "/usr/sbin/dinit-poweroff"},
+		{"halt", "/usr/sbin/dinit-halt"},
+		{"shutdown", "/usr/sbin/dinit-shutdown"},
+	} {
+		if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("ln -sf %s /usr/bin/%s", link.target, link.name)); err != nil {
+			return fmt.Errorf("failed to link /usr/bin/%s: %w", link.name, err)
+		}
+	}
+
+	for _, wrapper := range []commandLink{
+		{"reboot", "/usr/sbin/dinit-reboot"},
+		{"soft-reboot", "/usr/sbin/dinit-soft-reboot"},
+	} {
+		// rm first: if the path ever exists as a symlink (e.g. a busybox
+		// applet), redirection would follow it and overwrite the target.
+		if _, err := shell.ExecuteCmd(chroot, "rm -f /usr/bin/"+wrapper.name); err != nil {
+			return fmt.Errorf("failed to remove stale /usr/bin/%s: %w", wrapper.name, err)
+		}
+		content := fmt.Sprintf("#!/bin/sh\nexec %s \"$@\"\n", wrapper.target)
+		escaped := strings.ReplaceAll(content, "'", "'\\''")
+		if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /usr/bin/%s", escaped, wrapper.name)); err != nil {
+			return fmt.Errorf("failed to write /usr/bin/%s wrapper: %w", wrapper.name, err)
+		}
+		if _, err := shell.ExecuteCmd(chroot, "chmod 755 /usr/bin/"+wrapper.name); err != nil {
+			return fmt.Errorf("failed to chmod /usr/bin/%s wrapper: %w", wrapper.name, err)
+		}
+	}
+
+	out, _ := shell.ExecuteCmd(chroot, "test -x /usr/bin/poweroff -a -x /usr/bin/reboot -a -x /usr/bin/halt -a -x /usr/bin/shutdown -a -x /usr/bin/soft-reboot && echo OK")
+	if !strings.Contains(out, "OK") {
+		return fmt.Errorf("dinit shutdown commands were not installed correctly")
+	}
+	fmt.Println("[INFO] Dinit shutdown commands installed (poweroff/reboot/halt/shutdown/soft-reboot)")
 
 	return nil
 }
