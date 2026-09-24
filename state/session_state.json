@@ -86,7 +86,10 @@
     "btrfsStandardServer RAID1 fix: removed dead 8GB btrfs data disks (btrfsDisk1Path/btrfsDisk2Path) from harness QEMU args — created but never mounted/referenced by installer, causing udev race → dm-1 missing → busybox fallback. All 3 layouts now pass with secureboot+tpm: standard 31/31, raid0 33/33, server 32/32. BootTimeout increased to 10min for 3-boot flow with always-present swtpm.",
     "Fixtures library: 14 curated variables.yaml templates covering btrfsStandard/Server/Raid0 x swap on/off x swapSize auto/8G x secureboot/tpm/hardening isolate x niri x full_stack",
     "dinit boot fix (run 2026-09-17T22-53-05Z): stock Alpine dinit 0.21 does NOT scan /usr/lib/dinit.d (options-processing.cc: /etc/dinit.d, /run/dinit.d, /usr/local/lib/dinit.d, /lib/dinit.d) — dinit-chimera services invisible to PID 1 → 'boot: could not find service description'. Fix Option B: aports srvdir sed → /lib/dinit.d (dinit-chimera r2, 40 *-dinit r1); installer symlinks → /lib/dinit.d; defaultRunlevelsDinit emptied (getty owned by getty-dinit pkg; plain-name link of template invalid — $1 not expanded); dinitReplacedByChimera skip-list (9 -openrc pkgs covered by chimera); installDinitPackages missing-detection via output parse (SKEA_NONINTERACTIVE swallowed err — old counter lied 30/0 while 9 missing, ~66s retries)",
-    "dinit COMPLETE (47/47): Alpine/Artix model (ship-only pkgs, rules enablement, initd names), networking-dinit + incus-feature-dinit + dinit-boot-log pkgs, sshd-dinit deleted, logrotate re-added (vector only tails rotated files), dinit-chimera r5 wrapper reads dinit_log_file from /proc/cmdline (booster does not forward unknown params to init env), services_status/verify dinit-aware, harness hard 7m limit + 5m boot + keep-target/verify split"
+    "dinit COMPLETE (47/47): Alpine/Artix model (ship-only pkgs, rules enablement, initd names), networking-dinit + incus-feature-dinit + dinit-boot-log pkgs, sshd-dinit deleted, logrotate re-added (vector only tails rotated files), dinit-chimera r5 wrapper reads dinit_log_file from /proc/cmdline (booster does not forward unknown params to init env), services_status/verify dinit-aware, harness hard 7m limit + 5m boot + keep-target/verify split",
+    "Harness run phases: [harness] phase N/9 (boot runner→run installer→reboot runner→boot target→run sbctl→run tpm→reboot target→boot target verification→verify) to stdout + runs/<ts>/harness.log; logHarness mirrored to stdout; MCP progress→stderr (SetProgressWriter)",
+    "dinit target shutdown FIXED: busybox poweroff no-op under dinit (SIGUSR2 ignored; dinitctl shutdown=HALT) → powerOffTarget() init-aware (enableDinit→/usr/sbin/dinit-poweroff, else poweroff) + targetShutdownTimeout 5m (fail-not-hang, no force quit); installer corePkgs += dinit-shutdown (finalizer) + /usr/bin shutdown commands (poweroff/halt/shutdown symlinks + reboot/soft-reboot wrappers, Artix/Chimera style); verify check dinit_shutdown_commands; verified dinit 48/48 (2m41s) + OpenRC 39/39 (2m32s) + live debug_run reboot/poweroff test",
+    "Milestone log moved: AGENTS.md bottom section (125 lines: 14 dated entries + pointer) → CHANGELOG.md '## Milestone Log' (placed before [0.1.0], newest first); AGENTS.md 405→275 lines (ends at Known Issues); handoff milestone-log pointer updated"
   ],
   "decisions": [
     {
@@ -328,6 +331,16 @@
       "date": "2026-09-18",
       "decision": "defaultRunlevelsDinit emptied; getty enablement owned by getty-dinit package; dinitReplacedByChimera skip-list for -openrc→-dinit conversion",
       "rationale": "getty-dinit already ships boot.d/getty@tty1+getty@ttyS0; installer's plain 'getty' link loaded a template file as non-template service where $1 is NOT expanded → agetty no args → restart flap loop. 9 -openrc bases (agetty, busybox, cryptsetup, eudev, incus-feature, kbd, makedumpfile, udev-init-scripts, util-linux) are permanently covered by the dinit-chimera suite — skip-list in internal_rules.yaml (data-driven) instead of warning noise + wasted retries; missing -dinit detected via output parse ('no such package') since SKEA_NONINTERACTIVE swallows the error."
+    },
+    {
+      "date": "2026-09-25",
+      "decision": "Init-aware target shutdown in harness: enableDinit → /usr/sbin/dinit-poweroff; OpenRC → poweroff; no force quit; bounded 5m wait that fails the run instead of hanging",
+      "rationale": "BusyBox poweroff sends SIGUSR2 which dinit ignores (only SIGINT=reboot/SIGTERM=halt/SIGQUIT=immediate); dinitctl shutdown sends HALT (QEMU stays); dinit-poweroff asks the daemon to roll back services then execs /usr/sbin/dinit-shutdown --system -p (reboot(RB_POWER_OFF)). The daemon needs the dinit-shutdown package to finalize ANY shutdown — added to installer corePkgs; conventional /usr/bin commands wired (poweroff/halt/shutdown symlinks + reboot/soft-reboot wrappers — invocation-name detection needs the dinit- prefix). Verified: dinit 48/48 (2m41s), OpenRC 39/39 (2m32s), live debug_run reboot/poweroff test."
+    },
+    {
+      "date": "2026-09-25",
+      "decision": "Milestone/history log lives in CHANGELOG.md (## Milestone Log section, newest first) — AGENTS.md no longer carries the dated history section",
+      "rationale": "AGENTS.md keeps project context only and ends at Known Issues; dated implementation entries go to CHANGELOG.md. Future session entries append to the CHANGELOG Milestone Log section. handoff/latest.md 'Milestone log' pointer updated."
     }
   ],
   "risks": [

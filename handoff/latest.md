@@ -1,7 +1,7 @@
 # Handoff
 
 **Active state**: `state/session_state.json`
-**Milestone log**: `AGENTS.md`
+**Milestone log**: `CHANGELOG.md`
 
 ## Project Vision
 
@@ -12,6 +12,8 @@
 **Dinit — COMPLETE** (47/47 verify, 2026-09-20). Modello Alpine/Artix: pacchetti `-dinit` ship-only, enablement via regole. Servizi: chronyd, sshd, incusd, smartd, nix-daemon, mdev, incus-agent + networking-dinit (ifup -a). Log: `log-type=file` → `/var/log/dinit/<nome>.log`, trail PID1 → `/run/dinit-boot.log` (wrapper legge da `/proc/cmdline`) → `/var/log/dinit/boot.log` (tail -F), vector ingests, logrotate. aports Step 7 COMPLETE. Harness: verify 47/47 su btrfs_standard_dinit.
 
 **Desktops dinit**: KDE (`sddm-dinit`), Cosmic (`cosmic-greeter-dinit` + `seatd-dinit`), Niri (`greetd-dinit` + `elogind-dinit` + `polkit-elogind-dinit`) — tutti testati con harness.
+
+**Dinit shutdown + harness phases (2026-09-25)**: installer ships `dinit-shutdown` + wires conventional commands — `/usr/bin/{poweroff,halt,shutdown}` symlinks + `/usr/bin/{reboot,soft-reboot}` wrappers (busybox `poweroff` sends SIGUSR2 — a no-op under dinit; `dinitctl shutdown` only HALTs). Harness: numbered run phases (`[harness] phase N/9: …` → stdout + `harness.log`) and init-aware `powerOffTarget()` (`enableDinit` → `/usr/sbin/dinit-poweroff`; OpenRC → `poweroff`) with 5-min fail-not-hang bound; new verify check `dinit_shutdown_commands`. Verified: dinit **48/48** (2m41s), OpenRC **39/39** (2m32s), live reboot/poweroff test. Milestone log moved from AGENTS.md bottom to `CHANGELOG.md` (`## Milestone Log`).
 
 **Installer**: go vet/lint/build clean. Branch `developDinit` published su gitea (275 commit). History scrubbed: 0 italiano, 0 `/home/skem` in entrambi i repo.
 
