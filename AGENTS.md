@@ -30,6 +30,8 @@ Key Decisions: `hostPhase` writes files (NO chroot), `chrootPhase` runs commands
 
 Storage `.agent-memory/`, scripts `.agents/skills/session-memory/scripts/`
 
+**The memory must be pushed.** `.agent-memory/` is tracked in git — after saving, commit and push it with the session's changes.
+
 ```bash
 .agents/skills/session-memory/scripts/memory.sh context --days 14
 .agents/skills/session-memory/scripts/memory.sh recall "vector" --limit 5
