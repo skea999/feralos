@@ -23,7 +23,7 @@ variables:
   enableNix: false
   enableSwap: true
   swapSize: auto
-  enableDebug: false
+  enableDebug: true
   enablePodman: false
   enableWebmin: false
   extraPackages:

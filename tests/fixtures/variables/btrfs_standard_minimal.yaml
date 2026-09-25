@@ -36,7 +36,7 @@ variables:
   enableNix: false
   enableSwap: true
   swapSize: auto
-  enableDebug: false
+  enableDebug: true
 
   # Extra Packages
   extraPackages:

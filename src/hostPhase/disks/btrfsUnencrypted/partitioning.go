@@ -82,7 +82,7 @@ func RunBtrfsSetup(conf *config.Config) error {
 	rootUUID, _ := getRootUUID(rootPart)
 
 	kernelCmdline := fmt.Sprintf(
-		"root=UUID=%s rootfstype=btrfs rootflags=subvol=@ rootdelay=30 rootwait console=ttyS0,115200",
+		"root=UUID=%s rootfstype=btrfs rootflags=subvol=@ rootdelay=30 rootwait",
 		rootUUID,
 	)
 	u.KernelCmdline = append(u.KernelCmdline, kernelCmdline)

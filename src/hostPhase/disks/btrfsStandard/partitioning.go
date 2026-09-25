@@ -91,7 +91,7 @@ func RunBtrfsSetup(conf *config.Config) error {
 	rootUUID, _ := common.LuksUUID(targetDisk + partitionSpacer + "2")
 
 	kernelCmdline := fmt.Sprintf(
-		"rd.luks.name=%s=luks-%s root=UUID=%s rootfstype=btrfs rootflags=subvol=@ rootdelay=30 rootwait console=ttyS0,115200",
+		"rd.luks.name=%s=luks-%s root=UUID=%s rootfstype=btrfs rootflags=subvol=@ rootdelay=30 rootwait",
 		rootUUID, rootUUID,
 		misc.GetBtrfsUUID(luksRoot),
 	)

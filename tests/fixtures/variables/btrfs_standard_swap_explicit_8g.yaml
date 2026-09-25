@@ -23,7 +23,7 @@ variables:
   enableNix: false
   enableSwap: true
   swapSize: 8G
-  enableDebug: false
+  enableDebug: true
   extraPackages:
     - incus-feature
     - incus-feature-vm

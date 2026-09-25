@@ -24,7 +24,7 @@ variables:
   enableNix: true
   enableSwap: true
   swapSize: auto
-  enableDebug: false
+  enableDebug: true
   extraPackages:
     - incus-feature
     - incus-feature-vm

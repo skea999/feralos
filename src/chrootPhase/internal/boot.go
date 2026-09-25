@@ -15,6 +15,11 @@ func SetupBoot(conf *config.Config) error {
 	// 1. Write final kernel cmdline
 	fmt.Println("[INFO] Writing final kernel cmdline...")
 	finalCmdline := strings.Join(u.KernelCmdline, " ")
+	if u.EnableDebug {
+		// Test-only: serial console lets the harness watch boot output and
+		// answer the LUKS passphrase prompt. Real hardware stays clean.
+		finalCmdline += " console=ttyS0,115200"
+	}
 	if u.EnableDinit {
 		finalCmdline += " init=/usr/libexec/dinit/init"
 		// Full service status trail (start/stop/fail, timestamps) to a file:

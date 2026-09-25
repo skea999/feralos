@@ -193,7 +193,7 @@ key=%s
 	raidUUID2, _ := common.LuksUUID(d2 + misc.GetPartitionSpacer(d2) + rootPart)
 
 	kernelCmdline := fmt.Sprintf(
-		"rd.luks.name=%s=luks-%s rd.luks.name=%s=luks-%s root=UUID=%s rootfstype=btrfs rootflags=subvol=@,device=/dev/mapper/luks-%s rootdelay=30 rootwait console=ttyS0,115200",
+		"rd.luks.name=%s=luks-%s rd.luks.name=%s=luks-%s root=UUID=%s rootfstype=btrfs rootflags=subvol=@,device=/dev/mapper/luks-%s rootdelay=30 rootwait",
 		raidUUID1, raidUUID1,
 		raidUUID2, raidUUID2,
 		misc.GetBtrfsUUID(luksRoot1),
