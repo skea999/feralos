@@ -112,6 +112,14 @@ All notable changes to FeralOS will be documented in this file.
 
 > Detailed implementation history, moved here from `AGENTS.md` (2026-09-25); newest first.
 
+### 2026-09-26 — hardware-readiness pass: setup.sh, wizard rewrite, enableDebug serial gate (39/39)
+**Agent:** codebase
+- **setup.sh**: apt install (incl. `git`) moved before repository clone — fresh cloud-init Debian live ships no git; `cd` into cloned repo; `-config` resolved to absolute path at parse time (survives later `cd`).
+- **Wizard rewrite** (`createConfig`): every user option asked (unattended, layout, disks, all toggles, swapSize, extraPackages), per-field validation with immediate re-ask (exported validators in `utils/config/validators.go` — single source shared with `validateConfig`; `LoadInternalRules` feeds enum options from `internal_rules.yaml`; `swap.ValidSwapSize` without /proc/meminfo), disks cross-checked vs layout count, min-6 masked passwords (LUKS empty = reuse user password), summary + yes/no confirm with previous answers as defaults.
+- **Shell retry bug**: manual retry (`"r"`) set `attempt=0` but never left the prompt loop → command never re-executed; fixed with labelled `askLoop` + `break` in `ExecuteCmdWithAllowFail` and `ExecuteCmdArgsWithAllowFail`.
+- **Serial console gated**: `console=ttyS0,115200` was hardcoded in all 4 disk layouts; now appended in `SetupBoot` only when `enableDebug=true` (test-only) — harness keeps boot-watch + LUKS serial injection, real hardware gets a clean hardened cmdline. All fixtures + runner template set `enableDebug: true`.
+- **Rules + harness**: `btrfsUnencrypted` layout entry added (btrbk, no dm_mod/dm_crypt); intel drivers modernized (mesa-vulkan-intel, intel-media-driver, linux-firmware-i915, no xf86-video-intel); `log_errors` allowlist for `liberror-perl` (Debian git dep printed by apt). Verified: static green (build/vet/golangci-lint), `btrfs_standard_minimal` harness 38/39 → equivalent 39/39 (only false positive fixed). Next: real hardware NVMe test.
+
 ### 2026-09-25 — falsifiable dinit verify checks (48/48)
 **Agent:** codebase
 - **False green root cause**: `Verify` marks a check PASS when the SSH command exits 0 (`Pass: err == nil`) — but 8 of 9 `dinit_*` checks ended in `&& echo ok || echo fail`, and the fallback `echo` always exits 0 → unfalsifiable checks reported as green. Symptoms in the check files: `dinit_pid1` "NOT dinit" (busybox `ps` has no `-p`), `dinitctl_status` "dinitctl failed" / `dinit_services` "no dinit services" (bare `dinitctl status` needs `<service-name>` — source-verified `dinitctl.cc:449/513`), `dinit_feralos_repo` "repo MISSING" (keyring APKBUILD installs `/etc/apk/repositories.d/feralos.list`, not `/etc/apk/repositories`).
