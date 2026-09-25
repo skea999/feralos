@@ -161,6 +161,10 @@ diskLayouts:
   btrfsRaid0:
     packages: ["btrfs-progs", "cryptsetup", "efibootmgr", "btrbk"]
     modules: ["dm_mod", "dm_crypt", "crc32c_cryptoapi", "zstd", "btrfs", "efivarfs", "nvme"]
+  # No LUKS → omits dm_mod/dm_crypt (docs/architecture/storage.md#common)
+  btrfsUnencrypted:
+    packages: ["btrbk"]
+    modules: ["crc32c_cryptoapi", "zstd", "btrfs", "efivarfs", "nvme"]
 
 # 2. Desktop Environments Definitions
 desktopEnvironments:
@@ -196,7 +200,7 @@ videoDrivers:
     packages: ["nvidia-lts", "nvidia-libs"]
     modules: ["nvidia", "nvidia-modeset"]
   intel:
-    packages: ["xf86-video-intel", "mesa-dri-intel"]
+    packages: ["mesa-dri-gallium", "mesa-va-gallium", "mesa-vulkan-intel", "intel-media-driver", "libva-intel-driver", "linux-firmware-i915"]
 
 # Dummy packages: if key is installed, creates symlink for replaced package
 # Symlink goes from /usr/bin/<replaced> → /usr/bin/<replacement>
