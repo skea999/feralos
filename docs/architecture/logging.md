@@ -21,7 +21,7 @@ File ops (`MkdirAll`, `Create`, `WriteFile`, `ReadFile`) and `exec.Command` bypa
 - **SKEA_NONINTERACTIVE handling**: after 3 failures
   - `SKEA_NONINTERACTIVE=1` + `SKEA_NONINTERACTIVE_DECISION=ignore|skip` → warn, continue
   - `SKEA_NONINTERACTIVE=1` + other/unset → abort, return error
-  - interactive → prompt `[s]top / [i]gnore / [r]etry`
+  - interactive → prompt `[s]top / [i]gnore / [r]etry`: `r` resets the full 3-attempt cycle (command re-executes immediately), `i` returns last stdout as success, `s` aborts installer
 
 See `docs/INSTALLER.md#Error Handling` for retry/user-feedback detail.
 
