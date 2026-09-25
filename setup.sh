@@ -21,7 +21,7 @@ configFile=""
 while [ $# -gt 0 ]; do
     case "$1" in
         -config)
-            configFile="$2"; shift 2 ;;
+            configFile="$(readlink -f "$2")"; shift 2 ;;
         --test)
             testMode=true
             testRepo="$2"; shift 2 ;;
@@ -43,6 +43,14 @@ if [ "$testMode" = true ] && [ -z "$configFile" ]; then
     exit 1
 fi
 
+# --- Install host deps (Debian live + harness runner) ---
+# Must run BEFORE git clone: cloud-init only installed tar/curl/parted, no git.
+# Harness: .skea_harness-bin shims take precedence on PATH; apt is fallback.
+echo "Installing host dependencies..."
+export DEBIAN_FRONTEND=noninteractive
+apt update -y
+apt install -y git golang-go btrfs-progs cryptsetup curl tar dosfstools rsync efitools sbsigntool ca-certificates
+
 # --- Locate repository ---
 if [ "$testMode" = true ]; then
     installDir="$testRepo"
@@ -59,6 +67,7 @@ else
         echo "Cloning repository..."
         rm -rf "$installDir"
         git clone --branch "$repoBranch" "$repoUrl" "$installDir"
+        cd "$installDir"
     fi
 fi
 
@@ -67,14 +76,6 @@ if [ ! -d "$installDir/src" ]; then
     echo "ERROR: $installDir/src not found"
     exit 1
 fi
-
-# --- Install host deps (Debian live + harness runner) ---
-# Cloud-init only installed tar/curl/parted for repo copy; golang + btrfs/crypt etc. come here
-# so real hardware (git clone) and harness (local tar copy) share same path.
-echo "Installing host dependencies..."
-export DEBIAN_FRONTEND=noninteractive
-apt update -y
-apt install -y golang-go btrfs-progs cryptsetup curl tar dosfstools rsync efitools sbsigntool ca-certificates
 
 # --- Build installer (runner-independent: regenerate sums for runner's Go version) ---
 echo "Building installer..."
