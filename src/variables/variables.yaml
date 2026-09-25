@@ -18,11 +18,11 @@ variables:
 
   # Repository and Architecture
   mirror: "https://dl-cdn.alpinelinux.org/alpine"
-  arch: "x86_64"
-  branch: "latest-stable"
+  arch: "x86_64"                    # x86_64 only (FeralOS custom repo is x86_64)
+  branch: "latest-stable"           # Options: latest-stable, edge, 3.22
 
   # Layout
-  diskLayout: "btrfsStandard" # Options defined in internal_rules
+  diskLayout: "btrfsStandard"       # Options: btrfsStandardServer, btrfsStandard, btrfsRaid0, btrfsUnencrypted
   desktopEnvironment: "none"        # Options: none, kde, niri, cosmic
   videoDriver: "none"               # Options: none, amdgpu, nvidia, intel
 
@@ -43,8 +43,8 @@ variables:
   enableDebug: false
   enablePodman: false
   enableWebmin: false
-  webminListenAll: false
-  enableDinit: true  # false = localhost only, true = all interfaces
+  webminListenAll: false            # true = listen on all interfaces, false = localhost only
+  enableDinit: true                 # true = dinit init system, false = OpenRC
 
   # Extra Packages
   # Adding these will trigger dynamic rules (groups, services, etc.)

@@ -40,10 +40,13 @@ func main() {
 
 	fmt.Printf("[INFO] Loading defaults from template: %s\n", templatePath)
 
-	// 2. Load data (template only, no internal_rules needed)
+	// 2. Load data (template + internal_rules for wizard enum options)
 	conf, err := config.LoadTemplate(templatePath)
 	if err != nil {
 		log.Fatalf("[ERROR] Error loading template: %v", err)
+	}
+	if err := config.LoadInternalRules(conf); err != nil {
+		log.Fatalf("[ERROR] Error loading internal_rules.yaml: %v", err)
 	}
 
 	// 3. Wizard (Defaults taken from just loaded YAML file)

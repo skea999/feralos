@@ -17,9 +17,9 @@ variables:
   locale: "it"
   keymap: "it"
   mirror: "https://dl-cdn.alpinelinux.org/alpine"
-  arch: "x86_64"
-  branch: "latest-stable"
-  diskLayout: "btrfsStandard" # btrfsStandard | btrfsRaid0 | btrfsStandardServer | btrfsUnencrypted
+  arch: "x86_64"                    # x86_64 only (FeralOS custom repo is x86_64)
+  branch: "latest-stable"           # Options: latest-stable, edge, 3.22
+  diskLayout: "btrfsStandard"       # Options: btrfsStandardServer, btrfsStandard, btrfsRaid0, btrfsUnencrypted
   desktopEnvironment: "none"        # none | kde | niri | cosmic
   videoDriver: "none"               # none | amdgpu | nvidia | intel
   sshAuthorizedKey: ""
@@ -31,6 +31,10 @@ variables:
   enableSwap: true
   swapSize: auto # auto = 2×RAM (via utils/swap), or explicit 8G / 4096M / 4096K
   enableDebug: false
+  enablePodman: false
+  enableWebmin: false
+  webminListenAll: false            # true = listen on all interfaces, false = localhost only
+  enableDinit: true                 # true = dinit init system, false = OpenRC
   extraPackages:
     - incus-feature
     - incus-feature-vm
@@ -92,11 +96,12 @@ variables:
 | `enableNix` | `bool` | Nix package manager, `/nix` subvolumes, daemon. Build dir `775` + `chown root:nixbld`, tmp `1777` + `chown root:nixbld`, `trusted-users = root <user>` temp during chroot then cleaned to `root`, `TMPDIR=/nix/var/nix/build/tmp` scoped to daemon via `/etc/conf.d/nix-daemon`. |
 | `enableSwap` | `bool` | `btrfsStandard`/`btrfsUnencrypted`/`btrfsRaid0`: enable swap (file or LUKS partitions). `btrfsStandardServer`: always true (LUKS swap). `swapSize` only matters when true. |
 | `swapSize` | `string` | `auto` (2×RAM) or explicit `8G`/`4096M`/`4096K`. Split `/2` per disk on `btrfsRaid0`. |
-| `enableDebug` | `bool` | Debug logging via `HardeningPackages()`. |
+| `enableDebug` | `bool` | **Test-only flag** — real hardware must stay `false` (unsafe: weakens hardening). `true`: `loglevel=7`, `dmesg_restrict=0`, permissive printk/io_uring/memfd values (via `DebugOverrides`) + `console=ttyS0,115200` appended to kernel cmdline (serial console for harness boot watch + LUKS passphrase automation). `false`: hardened values, no serial console. All harness fixtures run with `true`. |
 | `enablePodman` | `bool` | Podman rootless containers, subuid/subgid, `podman`+`cgroups` services, `btrfs` storage driver (`sed` on `storage.conf`), `iptables`+`podman-compose`+`podman-docker`+`fuse-overlayfs`. |
 | `enableWebmin` | `bool` | Webmin **podman-based** web admin panel (requires podman). Standalone binary `src/firstBoot/webmin/main.go` (verifies podman, seeds config, `podman compose up -d`), image `demosthenesk/webmin:noble` (was `pschatzmann` dead), compose `read_only`+`tmpfs` (`/tmp /run /var/log /var/webmin`)+`cap_drop ALL`, seed `/etc/webmin` via `webmin-seed` container (bind mount shadow), oneshot `webmin-ensure`, `changepass.pl`+`chpasswd`. Modules: firewall, packages, btrfs, smart, proc, cron, logs, custom commands. `---` divider in compose docs. |
 | `flatpakPackages` | `[]string` | Flatpak apps (e.g. `flathub:com.rustdesk.RustDesk`) — set via `internal_rules.yaml:desktopEnvironments.niri.flatpakPackages` or `variables.yaml`. Triggers `flatpak` APK + `SetupFlatpak` (flathub remote + `flatpak install -y`), niri conditional rustdesk autostart + firewall ports `21115-21119/tcp`+`21116/udp` via `firewall-offline-cmd`. `xdg-user-dirs` + `/lib/modules` before apk required. |
 | `webminListenAll` | `bool` | `false`: localhost:10000 only. `true`: 0.0.0.0:10000 (all interfaces). |
+| `enableDinit` | `bool` | `true`: dinit init system (boot.d enablement, `/var/log/dinit/` logging, dinit-shutdown poweroff/reboot wiring). `false`: OpenRC. |
 
 ### Extra Packages
 
@@ -106,7 +111,8 @@ variables:
 
 ## Compilation
 
-1. **Generator** (`src/utils/createConfig/create_values.go`) starts from `src/variables/variables.yaml` template, prompts for `disks` → `diskLayout` → `hostname` → `userName`/`password` → `desktopEnvironment` → flags, writes `variables.yaml`.
+1. **Generator** (`src/utils/createConfig/create_values.go`) starts from `src/variables/variables.yaml` template + `internal_rules.yaml` (enum options). Wizard asks **every** option — general, layout, disks, user, passwords, identity, repo, network/ssh, desktop, all `Enable*` toggles, `swapSize`, `extraPackages` — validates **each answer immediately** (invalid input re-asks the same field with the error), cross-checks disk count vs layout, then prints a summary: `yes` proceeds, `no` restarts the whole loop with the previous answers as defaults. Passwords: min 6 chars, masked input (plain read when stdin is not a tty); LUKS passphrase empty = reuse user password. Writes `variables.yaml` (`0600`).
+   - Per-field validators live in `src/utils/config/validators.go` — single source shared with `LoadConfig` validation (`validateConfig`). Enum options come from `internal_rules.yaml` keys (`diskLayouts`, `desktopEnvironments`, `videoDrivers` + `none`).
 2. **Installer** (`src/main.go`) loads `variables.yaml` + `internal_rules.yaml`, `logic.ApplyRules(conf)` injects groups/services/modules per package, validates `len(disks)`.
 3. **Harness fixtures** (`tests/fixtures/variables/*.yaml`) are curated 19 templates covering minimal/noswap/explicit/full/isolate per layout + 3 new per-layout full_stack (raid0, server, unencrypted) and `btrfs_standard_niri_full_test.yaml`.
 

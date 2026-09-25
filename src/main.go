@@ -38,7 +38,10 @@ func main() {
 		if os.IsNotExist(err) {
 			fmt.Println("[WARN] No configuration file found. Starting with defaults...")
 			conf = &config.Config{}
-		} else {
+			// Rules needed by the wizard (enum options for layout/DE/video)
+			err = config.LoadInternalRules(conf)
+		}
+		if err != nil {
 			log.Fatalf("[ERROR] Configuration loading failed: %v", err)
 		}
 	}
