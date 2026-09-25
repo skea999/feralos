@@ -32,7 +32,7 @@ cache/base-images   overlay+8G    hostfwd 2222, cloud-init    tar -xzf,        d
 
 Phase announcements (`[harness] phase N/9: …`) print to stdout and are written to `harness.log`: 1 boot runner, 2 run installer, 3 reboot (runner), 4 boot target, 5 run sbctl, 6 run tpm, 7 reboot (target), 8 boot target (verification), 9 verify target. Target poweroff is init-aware: OpenRC → `poweroff`, dinit → `dinit-poweroff` (`dinit-shutdown` package).
 
-1. `LoadVariablesFile` parses `variables.yaml` into `RunConfig` (diskLayout, enableTPM/secureboot/hardening/zswap/nix, enableSwap/swapSize, desktopEnvironment, mirror).
+1. `LoadVariablesFile` parses `variables.yaml` into `RunConfig` (diskLayout, enableTPM/secureboot/hardening/zswap/nix, enableSwap/swapSize, desktopEnvironment, mirror). All fixtures set `enableDebug: true` — **required**: `enableDebug` appends `console=ttyS0,115200` to the kernel cmdline, which the harness uses to watch boot output and answer the LUKS passphrase prompt over serial (`waitForTargetSSH`/`sendBootPassphrase`). Real-hardware installs keep `enableDebug: false` (hardened cmdline, no serial console).
 2. `cache.StartHTTPMirrorServer` serves `cache/web/alpine` as cache-first Alpine mirror; `RunConfig.AlpineMirror` set to guest URL (harness rewrites `variables.yaml` Alpine mirror to this).
 3. Create target disks: `qemu.CreateDisk` 16G default (`--disk-size`), 1 disk for `btrfsStandard`, 2 for `btrfsRaid0`/`btrfsStandardServer` under `runs/<timestamp>/`.
 4. Start swtpm **always** (`qemu.StartSoftwareTPM` with `tpm.sock`, `tpm.sock.ctrl`, `tpm-state/`, `tpm.pid`, `tpm.log`) — even if `enableTPM=false` simplifies flow; QEMU 10 uses `--ctrl type=unixio` not `--server` (avoids `CMD_SET_DATAFD` guard).
