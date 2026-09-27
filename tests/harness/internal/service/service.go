@@ -1348,9 +1348,11 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		checks["docker_symlink"] = "docker ps"
 	}
 
-	// Nix build tmp perms — verify /nix/var/nix/build/tmp is world-writable (777/1777)
+	// Nix tmp exec — nix builds use the upstream default build dir (/tmp),
+	// so /tmp must be mounted WITHOUT noexec (old /nix/var/nix/build/tmp
+	// workaround is gone).
 	if cfg.EnableNix {
-		checks["nix_build_tmp_perms"] = "stat -c %a /nix/var/nix/build/tmp 2>/dev/null | grep -q \"777\" && echo \"777 ok\" || echo \"wrong perms\""
+		checks["nix_tmp_exec"] = "mount | grep ' /tmp ' | grep -q noexec && echo 'noexec!' || echo 'exec ok'"
 	}
 
 	// Webmin checks — functional assertions: container running, port mapped,
@@ -1566,8 +1568,8 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 
 	// Nix packages check — verify expected nix profile packages are installed.
 	// Post-processing similar to tpm_devices: compare expected vs actual.
-	// niri no longer defines nix packages (DMS is a native apk) — only
-	// explicit enableNix / nixPackages fixtures are gated here.
+	// Only explicit nixPackages fixtures are gated (enableNix alone means
+	// nix infra present, no profile packages expected).
 	if cfg.EnableNix || len(cfg.NixPackages) > 0 {
 		if nixCheck, ok := result.Checks["nix_packages_missing"]; ok {
 			// SSH warning + \r\n prefix the count — strip \r, then take the
@@ -1582,13 +1584,7 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 				result.Checks["nix_packages_missing"] = nixCheck
 				result.Success = false
 			} else {
-				expected := 0
-				switch {
-				case len(cfg.NixPackages) > 0:
-					expected = len(cfg.NixPackages)
-				case cfg.EnableNix:
-					expected = 1
-				}
+				expected := len(cfg.NixPackages)
 				if count < expected {
 					nixCheck.Pass = false
 					nixCheck.Detail = fmt.Sprintf("only %d/%d nix packages installed (missing %d): count=%d expected=%d (raw output: %q)", count, expected, expected-count, count, expected, nixCheck.Detail)
@@ -1599,12 +1595,12 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		}
 	}
 
-	// Nix build tmp perms — verify 777/1777 (stat + grep fallback handles missing file)
-	if permsCheck, ok := result.Checks["nix_build_tmp_perms"]; ok {
-		if !strings.Contains(permsCheck.Detail, "777 ok") {
-			permsCheck.Pass = false
-			permsCheck.Detail += "\nExpected /nix/var/nix/build/tmp to have 777 or 1777 permissions"
-			result.Checks["nix_build_tmp_perms"] = permsCheck
+	// Nix tmp exec — verify /tmp is NOT mounted noexec (nix builds there now)
+	if execCheck, ok := result.Checks["nix_tmp_exec"]; ok {
+		if !strings.Contains(execCheck.Detail, "exec ok") {
+			execCheck.Pass = false
+			execCheck.Detail += "\nExpected /tmp to be mounted exec (nix upstream build dir)"
+			result.Checks["nix_tmp_exec"] = execCheck
 			result.Success = false
 		}
 	}
