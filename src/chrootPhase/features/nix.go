@@ -60,8 +60,13 @@ trusted-users = root @wheel`
 	}
 
 	// nix-daemon enablement: OpenRC runlevels under OpenRC; under dinit the
-	// converted nix-daemon-dinit service is rules-enabled instead.
-	if !conf.User.EnableDinit {
+	// converted nix-daemon-dinit service is enabled via boot.d symlink
+	// (no rules map entry covers it — the nix feature owns its service).
+	if conf.User.EnableDinit {
+		if _, err := shell.ExecuteCmd(chroot, "mkdir -p /etc/dinit.d/boot.d && test -f /lib/dinit.d/nix-daemon && ln -sf /lib/dinit.d/nix-daemon /etc/dinit.d/boot.d/nix-daemon || true"); err != nil {
+			fmt.Printf("[WARNING] Failed to enable nix-daemon dinit service: %v\n", err)
+		}
+	} else {
 		if _, err := shell.ExecuteCmdArgs(chroot, "rc-update", "add", "nix-daemon", "default"); err != nil {
 			fmt.Printf("[WARNING] Failed to add nix-daemon to default: %v\n", err)
 		}

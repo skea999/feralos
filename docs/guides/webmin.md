@@ -31,7 +31,7 @@ Webmin is installed automatically when `enableWebmin: true` in `variables.yaml`.
    - Generate `docker-compose.yml`
    - Generate module configs
    - Start Webmin container via `podman compose up -d`
-   - Create oneshot service `/etc/init.d/webmin-ensure`
+   - Create oneshot service (dual-init, PID1 via `cat /proc/1/comm`): dinit → `/etc/dinit.d/webmin-ensure` (scripted, `depends-on = local.target`) + `/usr/libexec/dinit-webmin-ensure` script + boot.d link; OpenRC → `/etc/init.d/webmin-ensure`
    - Create `.desktop` file for Firefox PWA
 
 ### Manual Installation

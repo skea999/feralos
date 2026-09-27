@@ -221,7 +221,7 @@ Activatable features (Secure Boot, TPM, Webmin) use standalone binaries in `src/
 
 - `src/firstBoot/secureboot/main.go` — autonomous: installs packages, generates EFI keys, enrolls sbctl, builds+signs UKI, writes hooks
 - `src/firstBoot/tpm/main.go` — autonomous: checks TPM, installs clevis@edge + tpm2-tools, binds LUKS to TPM2, rebuilds initramfs+UKI
-- `src/firstBoot/webmin/main.go` — autonomous: verifies podman, creates `/opt/webmin`, generates compose + module configs, seeds `/etc/webmin` from image (`webmin-seed` container), starts via `podman compose up -d`, creates `webmin-ensure` oneshot, sets root password via `changepass.pl` + `chpasswd`
+- `src/firstBoot/webmin/main.go` — autonomous: verifies podman, creates `/opt/webmin`, generates compose + module configs, seeds `/etc/webmin` from image (`webmin-seed` container), starts via `podman compose up -d`, creates `webmin-ensure` oneshot (dual-init: PID1 via `cat /proc/1/comm` → dinit `/etc/dinit.d/webmin-ensure` + `/usr/libexec/dinit-webmin-ensure` + boot.d link, OpenRC `/etc/init.d/webmin-ensure`), sets root password via `changepass.pl` + `chpasswd`
 
 **Installer flow**:
 
@@ -274,4 +274,4 @@ See `ROADMAP.md` for pipeline priorities. Memory-safe alternatives table → `CO
 
 ## Known Issues
 
-All prior swap/vector/dummy issues resolved. See `CHANGELOG.md` Fixed section. Current: `log_errors` shows QEMU-only noise (`smartd`/`fsck` whitelisted; udevd `/bin/false` module install errors — parport/psmouse/intel_gtt/input_leds/intel_pmc_bxt — from OpenRC udev path, harmless in QEMU, nix pivot fix landed).
+All prior swap/vector/dummy issues resolved. See `CHANGELOG.md` Fixed section. Current: `log_errors` shows QEMU-only noise (`smartd`/`fsck` whitelisted; netns `mount/umount /run/netns ... Invalid argument` QEMU early-chain noise allowlisted; udevd `/bin/false` module install errors — parport/psmouse/intel_gtt/input_leds/intel_pmc_bxt — from OpenRC udev path, harmless in QEMU, nix pivot fix landed).

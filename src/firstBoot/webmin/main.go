@@ -224,6 +224,39 @@ func generateModuleConfigs() {
 }
 
 func createWebminService() {
+	// Dual-init: detect PID1 at runtime (the binary runs on the target at
+	// first boot — no config plumbing needed). Under dinit the oneshot is a
+	// scripted service linked into boot.d; under OpenRC an init.d script.
+	pid1, _ := shell.ExecuteCmd("", "cat /proc/1/comm")
+
+	if strings.TrimSpace(pid1) == "dinit" {
+		dinitService := `# dinit service: webmin-ensure (oneshot ensure webmin container running)
+type = scripted
+command = /usr/libexec/dinit-webmin-ensure
+depends-on = local.target
+`
+		ensureScript := `#!/bin/sh
+# Ensure the webmin container is running (boot oneshot).
+if podman ps --format '{{.Names}}' | grep -q '^webmin$'; then
+    echo "webmin: already running"
+    exit 0
+fi
+cd /opt/webmin && exec podman compose up -d
+`
+		if _, err := shell.ExecuteCmd("", fmt.Sprintf("cat > /etc/dinit.d/webmin-ensure << 'SERVICE'\n%s\nSERVICE", dinitService)); err != nil {
+			fmt.Printf("[WARNING] Failed to install webmin dinit service: %v\n", err)
+		}
+		if _, err := shell.ExecuteCmd("", fmt.Sprintf("cat > /usr/libexec/dinit-webmin-ensure << 'SCRIPT'\n%s\nSCRIPT", ensureScript)); err != nil {
+			fmt.Printf("[WARNING] Failed to install webmin ensure script: %v\n", err)
+		}
+		_, _ = shell.ExecuteCmd("", "chmod 755 /usr/libexec/dinit-webmin-ensure")
+		// /etc/dinit.d services are not auto-started: link into boot's
+		// waits-for dir (same pattern as the rules-driven enablement).
+		_, _ = shell.ExecuteCmd("", "mkdir -p /etc/dinit.d/boot.d")
+		_, _ = shell.ExecuteCmd("", "ln -sf /etc/dinit.d/webmin-ensure /etc/dinit.d/boot.d/webmin-ensure")
+		return
+	}
+
 	serviceScript := `#!/sbin/openrc-run
 
 description="Webmin Podman Container - oneshot ensure running"
