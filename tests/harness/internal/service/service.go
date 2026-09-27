@@ -1333,12 +1333,19 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		// gate/polkit-agent/dms) shipped by *-user-dinit packages + dms-shell
 		checks["dinit_user_services"] = "for s in dbus.user pipewire.user pipewire-pulse.user wireplumber.user wait-wayland.user polkit-agent.user dms.user; do test -f /etc/dinit.d/user/$s || { echo \"missing $s\"; exit 1; }; done; echo 'user services OK'"
 		checks["niri_session_wrapper"] = "grep -q 'dinit -d /etc/dinit.d/user' /usr/local/bin/niri-session && test -x /usr/local/bin/niri-session"
-		checks["firewall_rustdesk"] = "firewall-cmd --permanent --list-ports 2>/dev/null | grep -q 21115 || grep -rq 21115 /etc/firewalld/ 2>/dev/null"
 	}
 
-	// Flatpak checks — verify rustdesk flatpak installed via flathub (niri only)
-	if cfg.DesktopEnvironment == desktopNiri || len(cfg.FlatpakPackages) > 0 {
+	// Flatpak checks — only when explicitly requested via fixture
+	hasRustdesk := false
+	for _, f := range cfg.FlatpakPackages {
+		if strings.Contains(f, "rustdesk") {
+			hasRustdesk = true
+			break
+		}
+	}
+	if hasRustdesk {
 		checks["flatpak_installed"] = "flatpak list 2>/dev/null | grep -q rustdesk"
+		checks["firewall_rustdesk"] = "firewall-cmd --permanent --list-ports 2>/dev/null | grep -q 21115 || grep -rq 21115 /etc/firewalld/ 2>/dev/null"
 	}
 
 	// Podman checks — container runtime
@@ -1440,15 +1447,16 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 	}
 
 	// Security check: chmod 777/1777 in installer.log (read from HOST, not target)
-	// Excludes /nix/var/nix/build/tmp which SHOULD be 1777 (world-writable sticky).
-	// Previous check used "chmod 77" and flagged 775 false positive.
+	// Excludes dirs where world-writable sticky is REQUIRED:
+	//   /nix/var/nix/build/tmp (nix build sandbox), /var/tmp (O_TMPFILE —
+	//   fresh subvolume mounts come up 0755 and break flatpak/podman).
 	if cfg.RunDir != "" {
 		installerLogPath := filepath.Join(cfg.RunDir, "installer.log")
 		chmodCheck := CheckResult{Pass: true, Detail: "no insecure 'chmod 777/1777' found in installer.log"}
 		if data, err := os.ReadFile(installerLogPath); err == nil {
 			count := 0
 			for _, line := range strings.Split(string(data), "\n") {
-				if strings.Contains(line, "/nix/var/nix/build/tmp") {
+				if strings.Contains(line, "/nix/var/nix/build/tmp") || strings.Contains(line, "/var/tmp") {
 					continue
 				}
 				if strings.Contains(line, "chmod 777") || strings.Contains(line, "chmod 1777") {
@@ -1457,7 +1465,7 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 			}
 			if count > 0 {
 				chmodCheck.Pass = false
-				chmodCheck.Detail = fmt.Sprintf("Found %d occurrences of 'chmod 777/1777' in installer.log (excluding /nix/var/nix/build/tmp) — insecure permissions detected", count)
+				chmodCheck.Detail = fmt.Sprintf("Found %d occurrences of 'chmod 777/1777' in installer.log (excluding nix build tmp + /var/tmp) — insecure permissions detected", count)
 				result.Success = false
 			}
 		}
@@ -2395,12 +2403,8 @@ func ensureRunDefaults(cfg *RunConfig) error {
 		return fmt.Errorf("runner image %s: %w", cfg.RunnerImage, err)
 	}
 	// niri DMS is a native apk (dms-shell from feralos-aports) — no nix
-	// packages to inject for the niri desktop environment.
-	if len(cfg.FlatpakPackages) == 0 && cfg.DesktopEnvironment == desktopNiri {
-		cfg.FlatpakPackages = []string{
-			"flathub:com.rustdesk.RustDesk",
-		}
-	}
+	// packages and no flatpak injection for the niri desktop environment
+	// (RustDesk removed; wayvnc is the remote-desktop path).
 	return nil
 }
 
