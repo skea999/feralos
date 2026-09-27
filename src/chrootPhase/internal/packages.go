@@ -269,22 +269,31 @@ func installDinitPackages(conf *config.Config) error {
 		replaced[base] = true
 	}
 
-	// Session-supervised or NM-managed daemons: NO system dinit service.
+	// Daemons managed ELSEWHERE — no system dinit service:
 	//   pipewire/pipewire-pulse/wireplumber — user dinit (niri-session
 	//     wrapper starts the user manager; system instances would run as
 	//     root and fight the session ones)
+	//   alsa-utils (alsasound mixer state) — session audio is pipewire's
+	//   pulseaudio — replaced by pipewire-pulse (user session)
+	//   gnome-keyring — per-login-session daemon, never a system service
 	//   wpa_supplicant — NetworkManager spawns and supervises it itself
 	//   wireguard-tools — wg-quick is per-interface; WireGuard goes through
 	//     NetworkManager (native support) or manual config
+	//   openconnect/vpnc — VPN clients spawned by NetworkManager on demand
 	sessionSkip := map[string]bool{
 		"pipewire":        true,
 		"pipewire-pulse":  true,
 		"wireplumber":     true,
+		"alsa-utils":      true,
+		"pulseaudio":      true,
+		"gnome-keyring":   true,
 		"wpa_supplicant":  true,
 		"wireguard-tools": true,
+		"openconnect":     true,
+		"vpnc":            true,
 	}
 
-	installed, skipped, audioSkipped := 0, 0, 0
+	installed, skipped, managedSkipped := 0, 0, 0
 	var missing, failed []string
 	for _, line := range strings.Split(out, "\n") {
 		line = strings.TrimSpace(line)
@@ -298,7 +307,7 @@ func installDinitPackages(conf *config.Config) error {
 			continue
 		}
 		if sessionSkip[base] {
-			audioSkipped++
+			managedSkipped++
 			continue
 		}
 
@@ -319,8 +328,8 @@ func installDinitPackages(conf *config.Config) error {
 	if skipped > 0 {
 		fmt.Printf("[INFO] Dinit conversion: %d -openrc packages covered by dinit-chimera (not converted)\n", skipped)
 	}
-	if audioSkipped > 0 {
-		fmt.Printf("[INFO] Dinit conversion: %d session/NM-managed services skipped (pipewire stack, wpa_supplicant, wireguard-tools)\n", audioSkipped)
+	if managedSkipped > 0 {
+		fmt.Printf("[INFO] Dinit conversion: %d session/NM-managed services skipped (pipewire stack, wpa_supplicant, wireguard-tools, alsa-utils, pulseaudio, gnome-keyring, openconnect, vpnc)\n", managedSkipped)
 	}
 	if len(missing) > 0 {
 		fmt.Printf("[WARNING] %d -dinit packages missing from repo (create them):\n", len(missing))
