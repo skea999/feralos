@@ -98,8 +98,8 @@ All 4 layouts PASS 35/35 with markers enabled. Markers appended at END of each c
 | `webmin_http` | Webmin HTTP answering | `wget -q -T 5 --no-check-certificate https://localhost:10000/` retry 8×5s |
 | `podman_*` | Podman functional | `podman info`, `podman ps` etc. when `enablePodman=true` |
 | `niri_*` | Niri desktop valid | `niri_config_valid` (validate both kdl), `greetd_config` (greeter files +x), `niri_greeter` (pgrep niri), `dms_installed` (nix profile + binary) |
-| `firewall_rustdesk` | RustDesk firewall ports | `firewall-cmd --permanent --list-ports | grep 21115` OR `grep -rq 21115 /etc/firewalld/` (permanent, not runtime — `firewall-offline-cmd --zone=public` in chroot) |
-| `flatpak_installed` | RustDesk flatpak | `flatpak list | grep rustdesk` when `desktopEnvironment==niri` or `len(FlatpakPackages)>0` |
+| `firewall_rustdesk` | RustDesk firewall ports | Only when a fixture explicitly lists a rustdesk flatpak: `firewall-cmd --permanent --list-ports \| grep 21115` OR `grep -rq 21115 /etc/firewalld/` (niri default: check absent — RustDesk removed) |
+| `flatpak_installed` | RustDesk flatpak | Only when `FlatpakPackages` contains rustdesk: `flatpak list \| grep rustdesk` (niri no longer injects a default) |
 | `dinit_shutdown_commands` | dinit shutdown commands wired | `/usr/bin/{poweroff,halt,shutdown}` symlinks + `/usr/bin/{reboot,soft-reboot}` wrappers all executable when `enableDinit=true` |
 
 **Nix tmp permissions:** `/nix/var/nix/build` is `775` + `chown root:nixbld`; `/nix/var/nix/build/tmp` is `1777` + `chown root:nixbld` (world-writable sticky). Required because `/tmp` is `noexec` + `0755` for security, so nix temp must live on `@nix-var-nix-build` subvolume. `TMPDIR` scoped to daemon only via `/etc/conf.d/nix-daemon` (not global export — leaked into podman and broke `containers-storage`). Nix SSL: `NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt` prefixed to all `su - user` nix client cmds.
@@ -108,11 +108,11 @@ All 4 layouts PASS 35/35 with markers enabled. Markers appended at END of each c
 
 **Webmin (podman-based):** `demosthenesk/webmin:noble` image (pschatzmann dead), config seeded via `webmin-seed` container before first start, `tmpfs` for `/tmp /run /var/log /var/webmin` with `read_only: true`, quoted heredocs, binary exits 1 on compose failure, `podman --version` only (podman already in chrootPhase). Compose: `podman compose up -d`.
 
-**Niri + Flatpak + Firewall:** `regreet.toml` `reboot = ["reboot"]` / `poweroff = ["poweroff"]` (not `systemctl` — Alpine OpenRC); `xdg-user-dirs` in `standardPackages` (flatpak portal); `/lib/modules` mkdir before `apk update` in `chrootPhase/internal/packages.go` (was `features/flatpak.go` after install); `wayvnc` removed; rustdesk `spawn-at-startup flatpak run com.rustdesk.RustDesk --service` conditional + `firewall-offline-cmd --zone=public` for `21115-21119/tcp`+`21116/udp`.
+**Niri + NetworkManager + wayvnc:** `regreet.toml` `reboot = ["reboot"]` / `poweroff = ["poweroff"]` (not `systemctl` — Alpine OpenRC); `xdg-user-dirs` in `standardPackages` (flatpak portal); `/lib/modules` mkdir before `apk update` in `chrootPhase/internal/packages.go`; RustDesk removed (flatpak + spawn + firewall ports) — remote desktop = wayvnc (`wayvnc-user-dinit`, user dinit, loopback 127.0.0.1:5900 default); NetworkManager replaces ifupdown (`/etc/network/interfaces` lo-only, `10-manage.conf managed=true`, plugdev/netdev groups); `/tmp` mounted exec (nosuid kept — OpenTUI/Bun `.so` extraction); `/var/tmp` created `1777` (O_TMPFILE — exempt in chmod-777 log scan); dinit conversion skips session/NM-managed services (pipewire stack, wpa_supplicant, wireguard-tools).
 
 **Log allowlist:** `log_errors` allowRe expanded 2026-09-09 to `commitpartial|bwrap.*pivot_root|To enable access to XDG directories` (flatpak XDG portal noise, was exact `commitpartial: No such file` + `bwrap: pivot_root: Invalid argument`). Base + btrfs `BTRFS error` allowlist retained.
 
-**Harness result:** **51/51 PASS** including `firewall_rustdesk` + `flatpak_installed` + `niri_*` 4, with `demosthenesk` image (was 45/45, +6 checks).
+**Harness result (niri+dinit fixture, run 2026-09-27T14-02-51Z):** **59/59 PASS** — `niri_*` checks, `dinit_user_services`, `niri_session_wrapper`, `dms_installed` (apk check), NM + wayvnc active; rustdesk checks removed.
 
 ## Cache reuse
 

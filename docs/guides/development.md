@@ -50,7 +50,7 @@ src/
     ├── chroot_phase.go              # Run(conf) — 14-step orchestrator (incl. flatpak, desktops)
     ├── internal/ (packages.go, boot.go, storage.go, uki.go, services.go, users.go, ...) # packages.go: /lib/modules before apk, dummy+firmware+feature packages
     ├── features/ (hardening.go, nix.go, zswap.go, zswap_server.go, podman.go, flatpak.go) # flatpak: flathub + install; podman: btrfs driver
-    └── desktops/ (desktops.go, niri.go) # niri: greetd/regreet/niri/rustdesk autostart + firewall-offline-cmd + xdg-su/dms
+    └── desktops/ (desktops.go, niri.go) # niri: greetd/regreet/niri + NetworkManager + wayvnc (user dinit) + xdg-su/dms
 ```
 
 Full tree: `docs/INSTALLER.md#Project Structure`, `docs/architecture/overview.md`.
@@ -96,8 +96,8 @@ Cleanup (before/after) and firstboot (install config, secureboot/tpm compile) ar
 | `EnableZswap` | `chrootPhase/features/zswap.go` + `zswap_server.go` | `packages.go` + `chroot_phase.go` |
 | `EnableDebug` | `chrootPhase/features/hardening.go` | via `HardeningPackages()` |
 | `EnableSwap` | `hostPhase/disks/*` | `host_phase.go` (disk layout) |
-| `DesktopEnvironment` | `chrootPhase/desktops/desktops.go` + `niri.go` | `chroot_phase.go` (niri: rustdesk conditional + firewall-offline-cmd) |
-| `FlatpakPackages` | `chrootPhase/features/flatpak.go` | `packages.go` + `chroot_phase.go` (`flathub:com.rustdesk.RustDesk`, `/lib/modules` before apk) |
+| `DesktopEnvironment` | `chrootPhase/desktops/desktops.go` + `niri.go` | `chroot_phase.go` (niri: NetworkManager wiring + CUPS SystemGroup) |
+| `FlatpakPackages` | `chrootPhase/features/flatpak.go` | `packages.go` + `chroot_phase.go` (flathub + install, `/lib/modules` before apk; no niri default) |
 
 Violations: inline packages in `packages.go`, config in `chroot_phase.go`/`host_phase.go`, logic in `logic.go`. Ref: `docs/architecture/feature_confinement.md`.
 

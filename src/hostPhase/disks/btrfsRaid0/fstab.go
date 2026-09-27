@@ -58,7 +58,7 @@ func GenerateFstab(conf *config.Config) error {
 		{Name: "@opt", Path: "/opt", Options: "compress=zstd:3,autodefrag,ssd,subvol=@opt"},
 		{Name: "@root", Path: "/root", Options: "compress=zstd:3,autodefrag,ssd,subvol=@root"},
 		{Name: "@srv", Path: "/srv", Options: "autodefrag,ssd,nodev,noexec,nosuid,subvol=@srv", NoCoW: true},
-		{Name: "@tmp", Path: "/tmp", Options: "compress=zstd:3,autodefrag,ssd,noexec,nosuid,subvol=@tmp"},
+		{Name: "@tmp", Path: "/tmp", Options: "compress=zstd:3,autodefrag,ssd,nosuid,subvol=@tmp"},
 		{Name: "@var", Path: "/var", Options: "compress=zstd:3,autodefrag,ssd,subvol=@var"},
 		{Name: "@var-lib-ex", Path: "/var/lib/ex", Options: "autodefrag,ssd,nodev,noexec,nosuid,subvol=@var-lib-ex", NoCoW: true},
 		{Name: "@var-lib-libvirt", Path: "/var/lib/libvirt", Options: "compress=zstd:3,autodefrag,ssd,subvol=@var-lib-libvirt"},

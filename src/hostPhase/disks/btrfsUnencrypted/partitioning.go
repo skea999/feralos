@@ -111,7 +111,7 @@ func setupSubvolumesAndMounts(chroot string, rootDevice string, disk string) err
 		{Name: "@opt", Path: "/opt", Options: "compress=zstd:3,autodefrag,ssd"},
 		{Name: "@root", Path: "/root", Options: "compress=zstd:3,autodefrag,ssd"},
 		{Name: "@srv", Path: "/srv", Options: "autodefrag,ssd,nodev,noexec,nosuid", NoCoW: true},
-		{Name: "@tmp", Path: "/tmp", Options: "compress=zstd:3,autodefrag,ssd,noexec,nosuid"},
+		{Name: "@tmp", Path: "/tmp", Options: "compress=zstd:3,autodefrag,ssd,nosuid"},
 		{Name: "@var", Path: "/var", Options: "compress=zstd:3,autodefrag,ssd"},
 		{Name: "@var-lib-ex", Path: "/var/lib/ex", Options: "autodefrag,ssd,nodev,noexec,nosuid", NoCoW: true},
 		{Name: "@var-lib-libvirt", Path: "/var/lib/libvirt", Options: "compress=zstd:3,autodefrag,ssd"},

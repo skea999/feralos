@@ -169,23 +169,9 @@ org.freedesktop.impl.portal.ScreenCast=wlr;
 		return fmt.Errorf("write user portals conf: %w", err)
 	}
 
-	// 7. user session logs dir — DMS/PipeWire spawns redirect here
-	// (gap 5.5, rounds 3/19: missing dir = the spawn's >> redirect dies).
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p /home/%s/.local/log/user", u.UserName)); err != nil {
-		return fmt.Errorf("mkdir user log dir: %w", err)
-	}
-
-	// 8. niri config for the real user — keymap, wayland env, session
-	// services via spawn-at-startup (greetd starts none of them), DMS,
-	// polkit agent (MUST be the Alpine/elogind build — gap 5.9), XWayland
-	// (gap 5.10), portal includes. No software-rendering workarounds.
-	hasRustdesk := false
-	for _, f := range conf.User.FlatpakPackages {
-		if strings.Contains(f, "rustdesk") {
-			hasRustdesk = true
-			break
-		}
-	}
+	// 8. niri config for the real user — keymap, wayland env, XWayland.
+	// Session services live in the user dinit instance (wrapper); RustDesk
+	// removed — remote desktop = wayvnc (user dinit service, round 37/43).
 	userNiri := fmt.Sprintf(`input {
     keyboard {
         xkb {
@@ -212,29 +198,23 @@ xwayland-satellite {
     path "xwayland-satellite"
 }
 
-// Session services (dbus/pipewire/pulse/wireplumber/polkit-agent/dms) are
-// supervised by the USER dinit instance started by the niri-session
+// Session services (dbus/pipewire/pulse/wireplumber/polkit-agent/dms/wayvnc)
+// are supervised by the USER dinit instance started by the niri-session
 // wrapper — not spawned here (crash-restart + ordering handled by dinit).
 
 include "dms/binds.kdl"
 include "dms/layout.kdl"
 include "dms/colors.kdl"
 `, u.Keymap)
-	if hasRustdesk {
-		userNiri += "spawn-at-startup \"flatpak\" \"run\" \"com.rustdesk.RustDesk\" \"--service\"\n"
-		// Firewall for RustDesk direct IP (21115-21119/tcp + 21116/udp) — use offline cmd (firewalld not running in chroot)
-		if _, err := shell.ExecuteCmd(chroot, "firewall-offline-cmd --zone=public --add-port=21115-21119/tcp 2>&1 || true"); err != nil {
-			fmt.Printf("[WARNING] Failed to add rustdesk tcp ports to firewall: %v\n", err)
-		}
-		if _, err := shell.ExecuteCmd(chroot, "firewall-offline-cmd --zone=public --add-port=21116/udp 2>&1 || true"); err != nil {
-			fmt.Printf("[WARNING] Failed to add rustdesk udp ports to firewall: %v\n", err)
-		}
-	}
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p /home/%s/.config/niri", u.UserName)); err != nil {
 		return fmt.Errorf("mkdir user niri config dir: %w", err)
 	}
 	if err := writeFile(chroot, fmt.Sprintf("/home/%s/.config/niri/config.kdl", u.UserName), userNiri); err != nil {
 		return fmt.Errorf("write user niri config: %w", err)
+	}
+	// user dinit log files live under ~/.local/share/dinit (dinit logfile)
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p /home/%s/.local/share/dinit", u.UserName)); err != nil {
+		return fmt.Errorf("mkdir user dinit log dir: %w", err)
 	}
 	// Ownership BEFORE dms setup: the mkdir/writes above ran as root —
 	// without this, `dms setup` (su <user>) cannot create
@@ -259,6 +239,41 @@ include "dms/colors.kdl"
 	awk := `awk '/background-effect[[:space:]]*\{/{skip=1; next} skip{ if (/\}/) skip=0; next } {print}'`
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("%s '%s' > '%s.tmp' && mv '%s.tmp' '%s'", awk, layoutKdl, layoutKdl, layoutKdl, layoutKdl)); err != nil {
 		fmt.Printf("[WARNING] failed to strip background-effect from layout.kdl: %v\n", err)
+	}
+
+	// 7. NetworkManager is the network service for the niri desktop
+	// (rounds 30/44 — DMS network/VPN UI needs the NM backend):
+	//  - NM may manage interfaces configured by ifupdown (managed=true)
+	//  - /etc/network/interfaces reduced to lo (eth0 belongs to NM; the
+	//    stale DHCP ifupdown config caused double default routes)
+	//  - NM polkit rule allows the plugdev group (user added there via
+	//    internal_rules groups)
+	nmManage := `[ifupdown]
+managed=true
+`
+	if err := writeFile(chroot, "/etc/NetworkManager/conf.d/10-manage.conf", nmManage); err != nil {
+		return fmt.Errorf("write NM manage conf: %w", err)
+	}
+	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /etc/NetworkManager/conf.d"); err != nil {
+		return fmt.Errorf("mkdir NM conf.d: %w", err)
+	}
+	interfacesLo := `# NetworkManager manages wired/wireless interfaces (see
+# /etc/NetworkManager/conf.d/10-manage.conf). Keep loopback here only.
+auto lo
+iface lo inet loopback
+`
+	if err := writeFile(chroot, "/etc/network/interfaces", interfacesLo); err != nil {
+		return fmt.Errorf("write interfaces (lo only): %w", err)
+	}
+
+	// 8. CUPS: printer admin requires membership of SystemGroup — Alpine
+	// defaults to lpadmin; our admin user is in wheel (round 24: 403 on
+	// CUPS-Get-Devices otherwise). cups-files.conf owns SystemGroup (>=1.6).
+	cupsFilesCmd := "grep -q '^SystemGroup' /etc/cups/cups-files.conf" +
+		" && sed -i 's/^SystemGroup .*/SystemGroup wheel/' /etc/cups/cups-files.conf" +
+		" || echo 'SystemGroup wheel' >> /etc/cups/cups-files.conf"
+	if _, err := shell.ExecuteCmd(chroot, cupsFilesCmd); err != nil {
+		return fmt.Errorf("configure CUPS SystemGroup: %w", err)
 	}
 
 	// 9. xdg-su wrapper — niri unsupported by xdg-su, use alacritty + su

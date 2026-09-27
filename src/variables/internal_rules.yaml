@@ -173,21 +173,27 @@ desktopEnvironments:
     services: {"sddm": "default", "dbus": "default"}
     groups: ["video", "input"]
   niri:
-    packages: ["niri", "niri-portalsconf", "greetd", "greetd-regreet", "greetd-openrc", "elogind", "elogind-openrc", "dbus", "alacritty", "xdg-desktop-portal-wlr", "xdg-desktop-portal-gtk", "polkit-elogind", "polkit-gnome", "xwayland-satellite", "xwayland", "mesa-dri-gallium", "wayland-libs-server", "dms-shell", "accountsservice", "power-profiles-daemon", "cups-pk-helper", "rclone", "iptables", "ip6tables", "ebtables", "dbus-user-dinit", "pipewire-user-dinit", "pipewire-pulse-user-dinit", "wireplumber-user-dinit", "wayland-wait-user-dinit", "polkit-agent-user-dinit", "cosmic-files", "cosmic-edit", "cosmic-screenshot", "okular", "eog", "cups", "cups-filters", "avahi", "system-config-printer", "cosmic-player", "libreoffice", "galculator", "firefox", "firewalld-gui", "gnome-firmware", "thunderbird", "gnome-disk-utility", "kcron", "cosmic-store", "ksystemlog", "cosmic-settings"]
+    packages: ["niri", "niri-portalsconf", "greetd", "greetd-regreet", "greetd-openrc", "elogind", "elogind-openrc", "dbus", "alacritty", "xdg-desktop-portal-wlr", "xdg-desktop-portal-gtk", "polkit-elogind", "polkit-gnome", "xwayland-satellite", "xwayland", "mesa-dri-gallium", "wayland-libs-server", "dms-shell", "accountsservice", "power-profiles-daemon", "cups-pk-helper", "rclone", "iptables", "ip6tables", "ebtables", "dbus-user-dinit", "pipewire-user-dinit", "pipewire-pulse-user-dinit", "wireplumber-user-dinit", "wayland-wait-user-dinit", "polkit-agent-user-dinit", "wayvnc", "wayvnc-user-dinit", "networkmanager", "networkmanager-cli", "networkmanager-tui", "networkmanager-dinit", "wpa_supplicant", "wireguard-tools", "qt6-qtmultimedia", "i2c-tools", "wtype", "simple-scan", "sane", "sane-backends", "sane-utils", "sane-airscan", "cosmic-files", "cosmic-edit", "cosmic-screenshot", "okular", "eog", "cups", "cups-filters", "avahi", "system-config-printer", "cosmic-player", "libreoffice", "galculator", "firefox", "firewalld-gui", "gnome-firmware", "thunderbird", "gnome-disk-utility", "kcron", "cosmic-store", "ksystemlog", "cosmic-settings"]
     # cava (DMS audio visualizer) NOT on Alpine v3.24 — re-add when packaged
     # iptables/ip6tables/ebtables: firewalld direct-rule backends (runtime)
     # audio stack = user dinit services (pipewire-user-dinit + deps pull
     # pipewire/pipewire-pulse/wireplumber as runtime deps; session-supervised)
-    # turnstile: edge only (not in Alpine 3.24) — include when stable
-    services: {"greetd": "default", "elogind": "default", "firewalld": "default", "polkit": "default", "cupsd": "default"}
+    # NetworkManager replaces ifupdown as the network service (DMS network/VPN
+    # UI needs the NM backend; /etc/network/interfaces reduced to lo by the
+    # desktop setup, NM manages eth0 — FIX-niri-dms.md rounds 30/44)
+    # wayvnc = VNC server (round 37) — RustDesk flatpak REMOVED (round 43
+    # cleanup philosophy: not part of the validated stack)
+    services: {"greetd": "default", "elogind": "default", "firewalld": "default", "polkit": "default", "cupsd": "default", "networkmanager": "default"}
     # render group does not exist on Alpine (video covers DRM access);
-    # audio group: /dev/snd/* for pipewire (real-hardware audio)
-    groups: ["video", "input", "audio"]
+    # audio group: /dev/snd/* for pipewire (real-hardware audio);
+    # plugdev: NM polkit rule allows GUI connection management (round 30)
+    groups: ["video", "input", "audio", "plugdev", "netdev"]
     # DMS 1.6.x + quickshell 0.3.x ship as NATIVE apk packages (feralos-aports)
     # — the nix stack (dms-shell/quickshell/matugen/dgop/nixGL/execfilter) is
     # gone. matugen (dynamic wallpaper theming) and rclone-ui are not on
     # Alpine: DMS degrades gracefully without them.
-    flatpakPackages: ["flathub:com.rustdesk.RustDesk"]
+    # RustDesk removed (round 43 cleanup + user decision): wayvnc is the
+    # remote-desktop path (user dinit service, loopback by default).
   cosmic:
     packages: ["cosmic-session", "cosmic-term", "cosmic-greeter", "cosmic-edit", "cosmic-player", "cosmic-store", "cosmic-settings", "cosmic-screenshot", "cosmic-icons", "cosmic-initial-setup", "adwaita-icon-theme", "desktop-file-utils", "hicolor-icon-theme", "seatd", "seatd-openrc", "dbus", "polkit", "pipewire", "xdg-desktop-portal-cosmic"]
     services: {"cosmic-greeter": "default", "seatd": "default", "dbus": "default"}

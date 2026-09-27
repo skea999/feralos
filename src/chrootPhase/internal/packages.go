@@ -140,6 +140,13 @@ func SetupPackages(conf *config.Config) error {
 		fmt.Printf("[WARNING] Failed to create /lib/modules: %v\n", err)
 	}
 
+	// /var/tmp must be 1777 (sticky world-writable): fresh subvolume mounts
+	// come up 0755, which breaks O_TMPFILE and any unprivileged temp write
+	// (flatpak --user, podman — round 47)
+	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /var/tmp && chmod 1777 /var/tmp"); err != nil {
+		fmt.Printf("[WARNING] Failed to set /var/tmp mode 1777: %v\n", err)
+	}
+
 	// FeralOS repo: bootstrap ALWAYS (not dinit-gated) — desktop packages
 	// (dms-shell, quickshell, cli11) also come from feralos-aports. The
 	// keyring adds the signing key + repositories.d entry; the following
@@ -266,13 +273,19 @@ func installDinitPackages(conf *config.Config) error {
 		replaced[base] = true
 	}
 
-	// Audio stack runs as the SESSION USER (spawned by the niri config:
-	// pipewire, pipewire-pulse, wireplumber) — system dinit services would
-	// run the daemons as root and fight the session instances. Skip them.
-	audioSession := map[string]bool{
-		"pipewire":       true,
-		"pipewire-pulse": true,
-		"wireplumber":    true,
+	// Session-supervised or NM-managed daemons: NO system dinit service.
+	//   pipewire/pipewire-pulse/wireplumber — user dinit (niri-session
+	//     wrapper starts the user manager; system instances would run as
+	//     root and fight the session ones)
+	//   wpa_supplicant — NetworkManager spawns and supervises it itself
+	//   wireguard-tools — wg-quick is per-interface; WireGuard goes through
+	//     NetworkManager (native support) or manual config
+	sessionSkip := map[string]bool{
+		"pipewire":        true,
+		"pipewire-pulse":  true,
+		"wireplumber":     true,
+		"wpa_supplicant":  true,
+		"wireguard-tools": true,
 	}
 
 	installed, skipped, audioSkipped := 0, 0, 0
@@ -288,7 +301,7 @@ func installDinitPackages(conf *config.Config) error {
 			skipped++
 			continue
 		}
-		if audioSession[base] {
+		if sessionSkip[base] {
 			audioSkipped++
 			continue
 		}
@@ -311,7 +324,7 @@ func installDinitPackages(conf *config.Config) error {
 		fmt.Printf("[INFO] Dinit conversion: %d -openrc packages covered by dinit-chimera (not converted)\n", skipped)
 	}
 	if audioSkipped > 0 {
-		fmt.Printf("[INFO] Dinit conversion: %d audio session services skipped (user-spawned by the desktop session)\n", audioSkipped)
+		fmt.Printf("[INFO] Dinit conversion: %d session/NM-managed services skipped (pipewire stack, wpa_supplicant, wireguard-tools)\n", audioSkipped)
 	}
 	if len(missing) > 0 {
 		fmt.Printf("[WARNING] %d -dinit packages missing from repo (create them):\n", len(missing))

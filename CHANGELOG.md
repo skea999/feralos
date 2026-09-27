@@ -2,6 +2,17 @@
 
 All notable changes to FeralOS will be documented in this file.
 
+## 2026-09-27 — niri: NetworkManager switch, wayvnc remote desktop, /tmp exec, session fixes
+
+- NetworkManager replaces ifupdown as the niri network service (DMS network/VPN UI needs the NM backend): `/etc/network/interfaces` reduced to lo-only, `/etc/NetworkManager/conf.d/10-manage.conf` `managed=true`, plugdev+netdev groups, `networkmanager` on default, WireGuard via NM (`wireguard-tools`), wifi via `wpa_supplicant`
+- Remote desktop = wayvnc (`wayvnc` + `wayvnc-user-dinit` from feralos-aports, user dinit service, loopback `127.0.0.1:5900` default, TLS/auth config for LAN) — RustDesk flatpak + `spawn-at-startup` + firewall ports `21115-21119/tcp`/`21116/udp` removed (never in the validated reference stack, round 43 cleanup)
+- Scanner stack (`sane`/`sane-backends`/`sane-utils`/`sane-airscan`/`simple-scan`) + `qt6-qtmultimedia` + `i2c-tools` + `wtype` (DMS optdepends promoted)
+- `/tmp` subvolume mounted exec (`nosuid` kept, all four btrfs layouts) — OpenTUI/Bun `.so` extraction needs it; `/var/tmp` created `1777` — 0755 breaks `O_TMPFILE` (flatpak --user, podman)
+- CUPS `SystemGroup wheel` in `cups-files.conf` (Alpine lpadmin default 403s wheel users)
+- Dinit conversion skips session/NM-managed services (pipewire stack, `wpa_supplicant`, `wireguard-tools`)
+- aports: `+networkmanager-dinit` +`wayvnc-user-dinit`
+- Harness niri+dinit fixture: 59/59 PASS (rustdesk checks removed, `/var/tmp` 1777 exempt in chmod-777 log scan)
+
 ## 2026-09-27 — Dinit user services for the desktop session
 
 - 6 new feralos-aports packages: `dbus-user-dinit`, `pipewire-user-dinit`, `pipewire-pulse-user-dinit`, `wireplumber-user-dinit`, `wayland-wait-user-dinit`, `polkit-agent-user-dinit` (Artix `dinit-userservd-services` model: `.user` suffix, sub-vars, smooth-recovery, dbus readiness `pipefd:3` + `dinitctl setenv`) + `dms.user` shipped by `dms-shell` (wayland-gated, compositor-agnostic)
