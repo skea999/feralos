@@ -24,7 +24,7 @@ All notable changes to FeralOS will be documented in this file.
 
 - 6 new feralos-aports packages: `dbus-user-dinit`, `pipewire-user-dinit`, `pipewire-pulse-user-dinit`, `wireplumber-user-dinit`, `wayland-wait-user-dinit`, `polkit-agent-user-dinit` (Artix `dinit-userservd-services` model: `.user` suffix, sub-vars, smooth-recovery, dbus readiness `pipefd:3` + `dinitctl setenv`) + `dms.user` shipped by `dms-shell` (wayland-gated, compositor-agnostic)
 - niri-session wrapper starts the USER dinit instance (`dinit -d /etc/dinit.d/user`) existence-filtered; idempotent across re-logins via `$XDG_RUNTIME_DIR/dinit.ctl`; config.kdl loses all session spawns (supervision + ordering now native)
-- niri packages list uses the user-dinit packages instead of raw pipewire/pulse/wireplumber; audio group + `~/.local/log/user` dir retained
+- niri packages list uses the user-dinit packages instead of raw pipewire/pulse/wireplumber; audio group + `~/.local/share/dinit` log dir retained
 - Harness niri+dinit fixture: 61/61 PASS (`dinit_user_services` + `niri_session_wrapper` checks)
 
 ## 2026-09-27 — DMS native-apk migration + niri real-hardware fixes

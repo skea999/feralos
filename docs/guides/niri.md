@@ -68,7 +68,7 @@ rc-update add firewalld default
 - **DMS fragments**: pre-created before first niri validation via `su - <user> -c 'dms setup binds|layout|colors'` (packaged CLI). Config ownership fixed BEFORE `dms setup` (installer mkdir/writes run as root — without `chown -R`, `dms setup` cannot create `.config/niri/dms/` and every fragment fails)
 - **background-effect strip**: DMS 1.6 layout template emits `background-effect { xray false }` — niri node added after 25.11 (`ext-background-effect-v1`, unsupported by Alpine 3.24 niri) that breaks the whole include. Installer strips the block via awk (`blur` unsupported on this niri anyway)
 - **User portals conf**: `/home/<user>/.config/xdg-desktop-portal/niri-portals.conf` — `[preferred] org.freedesktop.impl.portal.ScreenCast=wlr;` (system default `gnome;gtk` breaks ScreenCast)
-- **Session logs**: `~/.local/share/dinit/` (user dinit service logs; `~/.local/log/user` dir still pre-created)
+- **Session logs**: `~/.local/share/dinit/` (user dinit service logs — dinit `log-type=file` per service)
 - **Groups**: user `video,input` (rules) + `audio` (`/dev/snd` for PipeWire) via `usermod -aG`; `plugdev`+`netdev` (rules) for NetworkManager GUI management; seat access via elogind D-Bus
 - `xdg-su` wrapper: `/usr/local/bin/xdg-su` — niri unsupported by xdg-su, uses `alacritty -e su -c` for `*niri*` desktops
 
