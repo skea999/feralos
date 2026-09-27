@@ -1454,7 +1454,9 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		if data, err := os.ReadFile(installerLogPath); err == nil {
 			count := 0
 			for _, line := range strings.Split(string(data), "\n") {
-				if strings.Contains(line, "/nix/var/nix/build/tmp") || strings.Contains(line, "/var/tmp") {
+				// legit sticky 1777 on temp dirs (layout-time fix, fresh
+				// subvolume roots come up 0755) + nix build sandbox dir
+				if strings.Contains(line, "/nix/var/nix/build/tmp") || strings.Contains(line, "/var/tmp") || strings.Contains(line, "/tmp") {
 					continue
 				}
 				if strings.Contains(line, "chmod 777") || strings.Contains(line, "chmod 1777") {
