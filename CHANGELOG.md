@@ -2,6 +2,12 @@
 
 All notable changes to FeralOS will be documented in this file.
 
+## 2026-09-27 — dbus readiness for dinit dependents
+
+- `dbus-dinit` r5 (feralos-aports) = `--print-address=3` + ready-notification `pipefd:3`: dinit now gates dependents (elogind, polkit, NM) on the system bus being live, not merely on the dbus process being spawned — the elogind "connect before socket exists" race is gone at the source
+- elogind bus-connect failures eliminated: 0 occurrences across both boots in the harness serial (was: `Failed to connect to system bus` / `Failed to allocate manager object` noise)
+- Harness `log_errors` allowRe no longer masks the elogind bus-error lines — regression would now surface as a failure
+
 ## 2026-09-27 — AppArmor profiles loaded under dinit
 
 - `apparmor-dinit` r4 (feralos-aports) = scripted profile loader: sources Alpine's `rc.apparmor.functions` and runs `parse_profiles` load (openrc logging stubbed) — the `apparmor start()` equivalent under dinit
