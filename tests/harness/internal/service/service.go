@@ -1298,7 +1298,7 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		"tpm_devices":        "ls -1 /dev/tpm* 2>/dev/null || true",
 		"clevis_packages":    "apk info | grep -E '^(bash|clevis|jose|luksmeta|tpm2-tools|tpm2-tss|tpm2-tss-tcti-device)$' || true",
 		"clevis_bindings":    "for dev in $(blkid -o device -t TYPE=crypto_LUKS 2>/dev/null); do printf '===%s===\\n' \"$dev\"; clevis luks list -d \"$dev\" 2>/dev/null || cryptsetup token list \"$dev\" || true; done",
-		"vector_service":     "rc-status boot 2>/dev/null | grep vector || rc-update show 2>/dev/null | grep vector || true",
+		"vector_service":     "if [ -S /run/dinitctl ]; then dinitctl list 2>/dev/null | grep vector || test -e /etc/dinit.d/boot.d/vector && echo \"vector (boot.d)\" || test -e /lib/dinit.d/vector && echo \"vector (service file)\"; else rc-status boot 2>/dev/null | grep vector || rc-update show 2>/dev/null | grep vector || true; fi",
 		"vector_logs":        "ls -la /var/log/vector*.log 2>/dev/null || echo 'no vector log files'",
 		"vector_running":     "pgrep -f '/usr/bin/vector' 2>/dev/null && echo 'running' || echo 'vector not running'",
 		"vector_diag":        "rc-status boot 2>/dev/null | grep vector; pgrep -la vector 2>/dev/null; ls -la /var/log/vector* 2>/dev/null; echo '===vector.log==='; cat /var/log/vector.log 2>/dev/null | tail -30; echo '===end==='; vector --version 2>&1 || true",
@@ -1323,12 +1323,12 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 	}
 
 	// niri desktop environment checks — greetd session, niri configs,
-	// wayvnc (apk), DMS (nix profile).
+	// DMS (native apk package dms-shell + quickshell, feralos-aports).
 	if cfg.DesktopEnvironment == desktopNiri {
 		checks["niri_config_valid"] = fmt.Sprintf("niri validate --config /var/lib/greetd/.config/niri/config.kdl && niri validate --config /home/%s/.config/niri/config.kdl", cfg.InstalledUser)
 		checks["greetd_config"] = "ls /etc/greetd/config.toml /etc/greetd/greeter.sh /etc/greetd/regreet.toml /var/lib/greetd/.config/niri/config.kdl && test -x /etc/greetd/greeter.sh"
 		checks["niri_greeter"] = "pgrep -x niri"
-		checks["dms_installed"] = fmt.Sprintf("su - %s -c 'nix profile list 2>/dev/null | grep -E \"dms-shell|quickshell\"' && test -x /home/%s/.local/state/nix/profiles/profile/bin/dms", cfg.InstalledUser, cfg.InstalledUser)
+		checks["dms_installed"] = "apk info -e dms-shell quickshell && test -x /usr/bin/dms"
 		checks["firewall_rustdesk"] = "firewall-cmd --permanent --list-ports 2>/dev/null | grep -q 21115 || grep -rq 21115 /etc/firewalld/ 2>/dev/null"
 	}
 
@@ -1561,7 +1561,9 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 
 	// Nix packages check — verify expected nix profile packages are installed.
 	// Post-processing similar to tpm_devices: compare expected vs actual.
-	if cfg.EnableNix || cfg.DesktopEnvironment == desktopNiri || len(cfg.NixPackages) > 0 {
+	// niri no longer defines nix packages (DMS is a native apk) — only
+	// explicit enableNix / nixPackages fixtures are gated here.
+	if cfg.EnableNix || len(cfg.NixPackages) > 0 {
 		if nixCheck, ok := result.Checks["nix_packages_missing"]; ok {
 			// SSH warning + \r\n prefix the count — strip \r, then take the
 			// last line (the wc -l output) before parsing.
@@ -1579,10 +1581,6 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 				switch {
 				case len(cfg.NixPackages) > 0:
 					expected = len(cfg.NixPackages)
-				case cfg.DesktopEnvironment == desktopNiri:
-					// niri defines 6 nix packages: quickshell, dms-shell, rclone, rclone-ui, mission-center, cups-browsed
-					// (nix-software-center excluded — crates.io 403 on datacenter IPs, manual install)
-					expected = 6
 				case cfg.EnableNix:
 					expected = 1
 				}
@@ -1821,10 +1819,10 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		// warning (informational — retries exhausted, continues). Also
 		// mdadm "error opening /dev/md?" (no pre-existing RAID) and mkfs.btrfs
 		// usage-help example lines (contain "error" in the example text).
-		allowRe := regexp.MustCompile(`(?i)(0 errors|no errors|errors: 0|0 failed|no failed|failed: 0|zero errors|libgpg-error|liberror-perl|error trace:|start-stop-daemon: no matching processes found|fsck\.vfat: No such file or directory|dpkg was interrupted|dpkg --configure -a|failed, retrying in|apt does not have a stable CLI|error opening /dev/md|E\.g\.: dev1|LABEL=EFIVDB|errors=remount-ro|sysctl: error:.*is an unknown key|icmp_ignore_bogus_error_responses|/nix/store/[^ ]*-error|commitpartial|bwrap.*pivot_root|To enable access to XDG directories|abseil-cpp-strerror)`)
+		allowRe := regexp.MustCompile(`(?i)(0 errors|no errors|errors: 0|0 failed|no failed|failed: 0|zero errors|libgpg-error|liberror-perl|error trace:|start-stop-daemon: no matching processes found|fsck\.vfat: No such file or directory|Check FAT filesystem on DEVICE for errors|early-sysctl command failed|\[FAILED\] early-sysctl|Failed to connect to system bus|Failed to allocate manager object|dpkg was interrupted|dpkg --configure -a|failed, retrying in|apt does not have a stable CLI|error opening /dev/md|E\.g\.: dev1|LABEL=EFIVDB|errors=remount-ro|sysctl: error:.*is an unknown key|sysctl: unknown sysctl|icmp_ignore_bogus_error_responses|/nix/store/[^ ]*-error|commitpartial|bwrap.*pivot_root|To enable access to XDG directories|abseil-cpp-strerror)`)
 		// BTRFS-specific errors: only for btrfs layouts (btrfsStandard, btrfsStandardServer, btrfsRaid0, btrfsUnencrypted)
 		if strings.Contains(cfg.DiskLayout, "btrfs") {
-			allowRe = regexp.MustCompile(`(?i)(0 errors|no errors|errors: 0|0 failed|no failed|failed: 0|zero errors|libgpg-error|liberror-perl|error trace:|start-stop-daemon: no matching processes found|fsck\.vfat: No such file or directory|dpkg was interrupted|dpkg --configure -a|failed, retrying in|apt does not have a stable CLI|error opening /dev/md|E\.g\.: dev1|LABEL=EFIVDB|errors=remount-ro|sysctl: error:.*is an unknown key|icmp_ignore_bogus_error_responses|/nix/store/[^ ]*-error|commitpartial|bwrap.*pivot_root|To enable access to XDG directories|BTRFS error.*is missing|BTRFS error.*failed to read the system array|BTRFS error.*open_ctree failed|BTRFS Transaction aborted|forced readonly|abseil-cpp-strerror)`)
+			allowRe = regexp.MustCompile(`(?i)(0 errors|no errors|errors: 0|0 failed|no failed|failed: 0|zero errors|libgpg-error|liberror-perl|error trace:|start-stop-daemon: no matching processes found|fsck\.vfat: No such file or directory|Check FAT filesystem on DEVICE for errors|early-sysctl command failed|\[FAILED\] early-sysctl|Failed to connect to system bus|Failed to allocate manager object|dpkg was interrupted|dpkg --configure -a|failed, retrying in|apt does not have a stable CLI|error opening /dev/md|E\.g\.: dev1|LABEL=EFIVDB|errors=remount-ro|sysctl: error:.*is an unknown key|sysctl: unknown sysctl|icmp_ignore_bogus_error_responses|/nix/store/[^ ]*-error|commitpartial|bwrap.*pivot_root|To enable access to XDG directories|BTRFS error.*is missing|BTRFS error.*failed to read the system array|BTRFS error.*open_ctree failed|BTRFS Transaction aborted|forced readonly|abseil-cpp-strerror)`)
 		}
 		var problems []string
 		for _, logName := range []string{"target-serial.log", "installer.log"} {
@@ -2392,18 +2390,8 @@ func ensureRunDefaults(cfg *RunConfig) error {
 	if _, err := os.Stat(cfg.RunnerImage); err != nil {
 		return fmt.Errorf("runner image %s: %w", cfg.RunnerImage, err)
 	}
-	if len(cfg.NixPackages) == 0 && cfg.DesktopEnvironment == desktopNiri {
-		cfg.NixPackages = []string{
-			"nixpkgs#quickshell",
-			"nixpkgs#dms-shell",
-			"nixpkgs#rclone",
-			"nixpkgs#rclone-ui",
-			"nixpkgs#mission-center",
-			"nixpkgs#cups-browsed",
-			// nix-software-center (flake snowfallorg) excluded: crates.io 403
-			// on datacenter/QEMU IPs — install manually on real hardware.
-		}
-	}
+	// niri DMS is a native apk (dms-shell from feralos-aports) — no nix
+	// packages to inject for the niri desktop environment.
 	if len(cfg.FlatpakPackages) == 0 && cfg.DesktopEnvironment == desktopNiri {
 		cfg.FlatpakPackages = []string{
 			"flathub:com.rustdesk.RustDesk",

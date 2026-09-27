@@ -540,6 +540,10 @@ func buildTargetArgs(cfg targetArgsInput) []string {
 		"-drive", "if=pflash,format=raw,file=" + cfg.OVMFVars,
 		"-netdev", fmt.Sprintf("user,id=net0,hostfwd=tcp::%d-:22", cfg.SSHPort),
 		"-device", "virtio-net-pci,netdev=net0",
+		// niri (and any DRM compositor) needs a render node: virtio-gpu
+		// provides /dev/dri/renderD128 — std VGA (bochs) does not (parity
+		// with harness service.go buildTargetArgs).
+		"-device", "virtio-gpu-pci",
 		"-drive", "if=none,id=targetdisk1,format=qcow2,file=" + cfg.Disk1Path,
 		"-device", "virtio-blk-pci,drive=targetdisk1,bootindex=1",
 	}

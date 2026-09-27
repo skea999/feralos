@@ -20,7 +20,7 @@ variables:
   enableTPM: false
   enableHardening: false
   enableZswap: false
-  enableNix: true
+  enableNix: false
   enableSwap: true
   swapSize: auto
   enableDebug: true

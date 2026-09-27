@@ -447,21 +447,49 @@ func WriteSerial(socketPath, text string) error {
 }
 
 func WriteSerialChunks(socketPath string, pause time.Duration, chunks ...string) error {
-	conn, err := net.DialTimeout("unix", socketPath, 5*time.Second)
-	if err != nil {
-		return fmt.Errorf("dial serial socket: %w", err)
+	// QEMU chardev sockets can drop the connection between boots or while
+	// the guest resets its serial device — a broken pipe at the LUKS prompt
+	// previously failed the whole passphrase injection. Redial and retry
+	// each chunk instead of failing the call.
+	const attempts = 3
+	var conn net.Conn
+	dial := func() error {
+		c, err := net.DialTimeout("unix", socketPath, 5*time.Second)
+		if err != nil {
+			return fmt.Errorf("dial serial socket: %w", err)
+		}
+		if conn != nil {
+			conn.Close()
+		}
+		conn = c
+		// Let the chardev settle after accepting the connection before sending data.
+		time.Sleep(200 * time.Millisecond)
+		return nil
+	}
+	if err := dial(); err != nil {
+		return err
 	}
 	defer conn.Close()
 
-	// Let the chardev settle after accepting the connection before sending data.
-	time.Sleep(200 * time.Millisecond)
-
 	for index, chunk := range chunks {
-		if err := conn.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
-			return fmt.Errorf("set serial write deadline: %w", err)
+		var lastErr error
+		for attempt := 1; attempt <= attempts; attempt++ {
+			if err := conn.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
+				lastErr = fmt.Errorf("set serial write deadline: %w", err)
+			} else if _, err := conn.Write([]byte(chunk)); err == nil {
+				lastErr = nil
+				break
+			} else {
+				lastErr = fmt.Errorf("write serial data chunk %d: %w", index, err)
+			}
+			// redial before the next attempt
+			if err := dial(); err != nil {
+				lastErr = fmt.Errorf("%w (redial: %w)", lastErr, err)
+			}
+			time.Sleep(500 * time.Millisecond)
 		}
-		if _, err := conn.Write([]byte(chunk)); err != nil {
-			return fmt.Errorf("write serial data chunk %d: %w", index, err)
+		if lastErr != nil {
+			return lastErr
 		}
 		if pause > 0 && index < len(chunks)-1 {
 			time.Sleep(pause)
