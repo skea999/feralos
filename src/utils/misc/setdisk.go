@@ -2,6 +2,7 @@ package misc
 
 import (
 	"alpineInstaller/utils/shell"
+	"fmt"
 	"strings"
 )
 
@@ -27,4 +28,21 @@ func GetBtrfsUUID(device string) string {
 		return ""
 	}
 	return strings.TrimSpace(out)
+}
+
+// SetTempDirModes enforces the FHS modes on freshly-created btrfs subvolume
+// root dirs: a new subvolume comes up 0755 root:root, which breaks O_TMPFILE
+// and any unprivileged temp write (flatpak --user, podman — round 47).
+// 1777 sticky world-writable is the FHS standard; the mode persists in the
+// subvolume inode, so this is a one-time fix at install.
+func SetTempDirModes(chroot string) error {
+	for _, dir := range []string{"/tmp", "/var/tmp"} {
+		if _, err := shell.ExecuteCmdArgs("", "mkdir", "-p", chroot+dir); err != nil {
+			return err
+		}
+		if _, err := shell.ExecuteCmdArgs("", "chmod", "1777", chroot+dir); err != nil {
+			return fmt.Errorf("failed to set mode 1777 on %s: %w", dir, err)
+		}
+	}
+	return nil
 }

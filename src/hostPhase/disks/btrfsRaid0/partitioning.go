@@ -290,6 +290,12 @@ func setupSubvolumesAndMounts(chroot string, luksDevice string, d1 string, d2 st
 		}
 	}
 
+	// FHS modes: fresh subvolume roots come up 0755 — /tmp and /var/tmp
+	// must be 1777 sticky (O_TMPFILE, unprivileged temp writes)
+	if err := misc.SetTempDirModes(chroot); err != nil {
+		return err
+	}
+
 	// EFI Mounts (both disks)
 	partitionSpacer1 := misc.GetPartitionSpacer(d1)
 	partitionSpacer2 := misc.GetPartitionSpacer(d2)

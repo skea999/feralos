@@ -140,15 +140,8 @@ func SetupPackages(conf *config.Config) error {
 		fmt.Printf("[WARNING] Failed to create /lib/modules: %v\n", err)
 	}
 
-	// /var/tmp must be 1777 (sticky world-writable): fresh subvolume mounts
-	// come up 0755, which breaks O_TMPFILE and any unprivileged temp write
-	// (flatpak --user, podman — round 47).
-	// Needed on the OpenRC path only (bootmisc fixes /tmp but not /var/tmp);
-	// under dinit the chimera tmpfiles tmp.conf rule already enforces it at
-	// every boot — the chmod is harmless redundancy there.
-	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /var/tmp && chmod 1777 /var/tmp"); err != nil {
-		fmt.Printf("[WARNING] Failed to set /var/tmp mode 1777: %v\n", err)
-	}
+	// /tmp + /var/tmp FHS modes (1777) are enforced at layout time
+	// (misc.SetTempDirModes — fresh subvolume roots come up 0755).
 
 	// FeralOS repo: bootstrap ALWAYS (not dinit-gated) — desktop packages
 	// (dms-shell, quickshell, cli11) also come from feralos-aports. The
