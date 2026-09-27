@@ -96,7 +96,7 @@ Cleanup (before/after) and firstboot (install config, secureboot/tpm compile) ar
 | `EnableZswap` | `chrootPhase/features/zswap.go` + `zswap_server.go` | `packages.go` + `chroot_phase.go` |
 | `EnableDebug` | `chrootPhase/features/hardening.go` | via `HardeningPackages()` |
 | `EnableSwap` | `hostPhase/disks/*` | `host_phase.go` (disk layout) |
-| `DesktopEnvironment` | `chrootPhase/desktops/desktops.go` + `niri.go` | `chroot_phase.go` (niri: NetworkManager wiring + CUPS SystemGroup) |
+| `DesktopEnvironment` | `chrootPhase/desktops/desktops.go` + `niri.go` | `chroot_phase.go` (niri: NetworkManager wiring + CUPS admin via lpadmin group) |
 | `FlatpakPackages` | `chrootPhase/features/flatpak.go` | `packages.go` + `chroot_phase.go` (flathub + install, `/lib/modules` before apk; no niri default) |
 
 Violations: inline packages in `packages.go`, config in `chroot_phase.go`/`host_phase.go`, logic in `logic.go`. Ref: `docs/architecture/feature_confinement.md`.

@@ -186,8 +186,9 @@ desktopEnvironments:
     services: {"greetd": "default", "elogind": "default", "firewalld": "default", "polkit": "default", "cupsd": "default", "networkmanager": "default"}
     # render group does not exist on Alpine (video covers DRM access);
     # audio group: /dev/snd/* for pipewire (real-hardware audio);
-    # plugdev: NM polkit rule allows GUI connection management (round 30)
-    groups: ["video", "input", "audio", "plugdev", "netdev"]
+    # plugdev: NM polkit rule allows GUI connection management (round 30);
+    # lpadmin: CUPS SystemGroup (printer admin — cups-files.conf default)
+    groups: ["video", "input", "audio", "plugdev", "netdev", "lpadmin"]
     # DMS 1.6.x + quickshell 0.3.x ship as NATIVE apk packages (feralos-aports)
     # — the nix stack (dms-shell/quickshell/matugen/dgop/nixGL/execfilter) is
     # gone. matugen (dynamic wallpaper theming) and rclone-ui are not on

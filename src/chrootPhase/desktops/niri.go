@@ -266,15 +266,10 @@ iface lo inet loopback
 		return fmt.Errorf("write interfaces (lo only): %w", err)
 	}
 
-	// 8. CUPS: printer admin requires membership of SystemGroup — Alpine
-	// defaults to lpadmin; our admin user is in wheel (round 24: 403 on
-	// CUPS-Get-Devices otherwise). cups-files.conf owns SystemGroup (>=1.6).
-	cupsFilesCmd := "grep -q '^SystemGroup' /etc/cups/cups-files.conf" +
-		" && sed -i 's/^SystemGroup .*/SystemGroup wheel/' /etc/cups/cups-files.conf" +
-		" || echo 'SystemGroup wheel' >> /etc/cups/cups-files.conf"
-	if _, err := shell.ExecuteCmd(chroot, cupsFilesCmd); err != nil {
-		return fmt.Errorf("configure CUPS SystemGroup: %w", err)
-	}
+	// 8. CUPS printer admin: SystemGroup stays at the Alpine default
+	// (lpadmin, in cups-files.conf) — the session user is added to the
+	// lpadmin group instead of widening CUPS admin to all of wheel
+	// (round 24: without membership, CUPS answers 403 on CUPS-Get-Devices).
 
 	// 9. xdg-su wrapper — niri unsupported by xdg-su, use alacritty + su
 	xdgSu := `#!/bin/sh

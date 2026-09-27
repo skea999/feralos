@@ -166,7 +166,7 @@ grep -i "error" /var/log/messages | grep -vE "commitpartial|bwrap.*pivot_root|To
 
 ## Code References
 
-- `src/chrootPhase/desktops/niri.go` — greeter/regreet/niri-session wrapper (user dinit)/portals/xdg-su/dms setup + NetworkManager (interfaces lo-only, 10-manage.conf) + CUPS SystemGroup wheel
+- `src/chrootPhase/desktops/niri.go` — greeter/regreet/niri-session wrapper (user dinit)/portals/xdg-su/dms setup + NetworkManager (interfaces lo-only, 10-manage.conf) + CUPS printer admin via `lpadmin` group (SystemGroup resta il default Alpine)
 - `src/chrootPhase/internal/packages.go` — `/lib/modules` before apk + `/var/tmp` 1777 + dinit conversion session/NM-managed skips (pipewire stack, wpa_supplicant, wireguard-tools)
 - `src/variables/internal_rules.yaml:desktopEnvironments.niri` — packages/services/groups (NM, wayvnc-user-dinit, sane/scanner stack, plugdev/netdev)
 - `src/hostPhase/disks/*/fstab.go` + `partitioning.go` — `/tmp` exec (nosuid kept)
