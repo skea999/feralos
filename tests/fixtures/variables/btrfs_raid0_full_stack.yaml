@@ -20,6 +20,7 @@ variables:
   enableSecureboot: true
   enableTPM: true
   enableHardening: true
+  enableDinit: true
   enableZswap: true
   enableNix: true
   enableSwap: true
