@@ -207,7 +207,10 @@ desktopEnvironments:
 # 3. Video Drivers Definitions
 videoDrivers:
   amdgpu:
-    packages: ["xf86-video-amdgpu", "mesa-dri-gallium", "mesa-va-gallium", "vulkan-loader"]
+    # mesa-vulkan-ati = RADV ICD (Alpine renamed from mesa-vulkan-radeon);
+    # vulkan-loader required separately (ICD does not pull it).
+    # VDPAU (mesa-vdpau-gallium) removed upstream in mesa >=25 — VA-API only.
+    packages: ["xf86-video-amdgpu", "mesa-dri-gallium", "mesa-va-gallium", "mesa-vulkan-ati", "vulkan-loader", "linux-firmware-amdgpu"]
     modules: ["amdgpu"]
   nvidia:
     packages: ["nvidia-lts", "nvidia-libs"]

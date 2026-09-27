@@ -173,8 +173,10 @@ backup=yes
 
 func cleanup() {
 	fmt.Println("\nCleaning up...")
+	// sbctl was installed temporarily for enroll-keys (keys live in
+	// /var/lib/sbctl + UEFI db). efi-mkkeys is not used by this flow —
+	// enrollment goes through sbctl, UKI building through efi-mkuki.
 	_, _ = shell.ExecuteCmd("", "apk del sbctl")
-	_, _ = shell.ExecuteCmd("", "apk del efi-mkkeys")
 }
 
 func copyFile(src, dst string) error {
