@@ -124,15 +124,29 @@ hotkey-overlay {
 	}
 
 	// 5. niri-session wrapper (/usr/local/bin wins over /usr/bin): greetd
-	// provides neither the session env nor a D-Bus session bus (gap 5.4);
-	// the wrapper adds both, then hands off to the upstream POSIX script.
+	// provides neither the session env nor a D-Bus session bus (gap 5.4).
+	// The wrapper also starts the USER DINIT instance supervising the
+	// session services (dbus/pipewire/pulse/wireplumber via *-user-dinit
+	// packages; polkit-agent, dms — wayland-gated). Existence-filtered:
+	// a service file exists only if its package is installed, so the same
+	// wrapper works on any desktop. Idempotent across re-logins: if the
+	// user manager control socket is alive, services are already running
+	// (supervised — crashed ones were restarted by dinit).
 	niriSession := `#!/bin/sh
 export XDG_SESSION_TYPE=wayland
 export XDG_CURRENT_DESKTOP=niri
-if [ -n "$XDG_RUNTIME_DIR" ] && [ ! -S "$XDG_RUNTIME_DIR/bus" ]; then
+export DBUS_SESSION_BUS_ADDRESS="unix:path=${XDG_RUNTIME_DIR}/bus"
+if [ ! -S "$XDG_RUNTIME_DIR/dinit.ctl" ]; then
+    svcs=""
+    for s in dbus.user pipewire.user pipewire-pulse.user wireplumber.user \
+             wait-wayland.user polkit-agent.user dms.user; do
+        [ -f "/etc/dinit.d/user/$s" ] && svcs="$svcs $s"
+    done
+    [ -n "$svcs" ] && dinit -d /etc/dinit.d/user $svcs >/dev/null 2>&1 &
+fi
+if [ ! -S "$XDG_RUNTIME_DIR/bus" ]; then
     dbus-daemon --session --fork --address="unix:path=$XDG_RUNTIME_DIR/bus" 2>/dev/null || true
 fi
-export DBUS_SESSION_BUS_ADDRESS="unix:path=${XDG_RUNTIME_DIR}/bus"
 exec /usr/bin/niri-session "$@"
 `
 	if err := writeFile(chroot, "/usr/local/bin/niri-session", niriSession); err != nil {
@@ -193,21 +207,14 @@ environment {
     WINIT_WAYLAND_NO_AVOID_RESIZE "1"
 }
 
-// --- session services (greetd starts none of these) ---
-spawn-at-startup "pipewire"
-spawn-at-startup "pipewire-pulse"
-spawn-at-startup "sh" "-c" "while ! pgrep -x pipewire >/dev/null 2>&1; do sleep 0.5; done; sleep 1; exec wireplumber >>$HOME/.local/log/user/wireplumber.log 2>&1"
-
-// --- DMS: native musl build, no nix/nixGL needed on real hardware ---
-spawn-at-startup "sh" "-c" "mkdir -p $HOME/.local/log/user; exec dms run >>$HOME/.local/log/user/dms.log 2>&1"
-
-// --- polkit agent: MUST be the Alpine (elogind-native) one ---
-spawn-at-startup "/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1"
-
 // --- XWayland for X11 apps ---
 xwayland-satellite {
     path "xwayland-satellite"
 }
+
+// Session services (dbus/pipewire/pulse/wireplumber/polkit-agent/dms) are
+// supervised by the USER dinit instance started by the niri-session
+// wrapper — not spawned here (crash-restart + ordering handled by dinit).
 
 include "dms/binds.kdl"
 include "dms/layout.kdl"

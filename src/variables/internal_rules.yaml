@@ -173,9 +173,11 @@ desktopEnvironments:
     services: {"sddm": "default", "dbus": "default"}
     groups: ["video", "input"]
   niri:
-    packages: ["niri", "niri-portalsconf", "greetd", "greetd-regreet", "greetd-openrc", "elogind", "elogind-openrc", "dbus", "alacritty", "xdg-desktop-portal-wlr", "xdg-desktop-portal-gtk", "pipewire", "pipewire-pulse", "wireplumber", "polkit-elogind", "polkit-gnome", "xwayland-satellite", "xwayland", "mesa-dri-gallium", "wayland-libs-server", "dms-shell", "accountsservice", "power-profiles-daemon", "cups-pk-helper", "rclone", "iptables", "ip6tables", "ebtables", "cosmic-files", "cosmic-edit", "cosmic-screenshot", "okular", "eog", "cups", "cups-filters", "avahi", "system-config-printer", "cosmic-player", "libreoffice", "galculator", "firefox", "firewalld-gui", "gnome-firmware", "thunderbird", "gnome-disk-utility", "kcron", "cosmic-store", "ksystemlog", "cosmic-settings"]
+    packages: ["niri", "niri-portalsconf", "greetd", "greetd-regreet", "greetd-openrc", "elogind", "elogind-openrc", "dbus", "alacritty", "xdg-desktop-portal-wlr", "xdg-desktop-portal-gtk", "polkit-elogind", "polkit-gnome", "xwayland-satellite", "xwayland", "mesa-dri-gallium", "wayland-libs-server", "dms-shell", "accountsservice", "power-profiles-daemon", "cups-pk-helper", "rclone", "iptables", "ip6tables", "ebtables", "dbus-user-dinit", "pipewire-user-dinit", "pipewire-pulse-user-dinit", "wireplumber-user-dinit", "wayland-wait-user-dinit", "polkit-agent-user-dinit", "cosmic-files", "cosmic-edit", "cosmic-screenshot", "okular", "eog", "cups", "cups-filters", "avahi", "system-config-printer", "cosmic-player", "libreoffice", "galculator", "firefox", "firewalld-gui", "gnome-firmware", "thunderbird", "gnome-disk-utility", "kcron", "cosmic-store", "ksystemlog", "cosmic-settings"]
     # cava (DMS audio visualizer) NOT on Alpine v3.24 — re-add when packaged
     # iptables/ip6tables/ebtables: firewalld direct-rule backends (runtime)
+    # audio stack = user dinit services (pipewire-user-dinit + deps pull
+    # pipewire/pipewire-pulse/wireplumber as runtime deps; session-supervised)
     # turnstile: edge only (not in Alpine 3.24) — include when stable
     services: {"greetd": "default", "elogind": "default", "firewalld": "default", "polkit": "default", "cupsd": "default"}
     # render group does not exist on Alpine (video covers DRM access);

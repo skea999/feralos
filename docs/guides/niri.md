@@ -6,13 +6,14 @@
 
 Niri is a scrollable-tiling Wayland compositor. FeralOS installs it via `desktopEnvironment: "niri"` in `variables.yaml`.
 
-**DMS is native**: `dms-shell` 1.6.2 + `quickshell` 0.3.1 ship as musl apks from the `feralos-aports` repo. **No nix, no nixGL, no execfilter** in the desktop stack. The old `/etc/init.d/dms` OpenRC service is gone on purpose — it hung boot and duplicated the shell; DMS is spawned by the niri session (`spawn-at-startup`).
+**DMS is native**: `dms-shell` 1.6.2 + `quickshell` 0.3.1 ship as musl apks from the `feralos-aports` repo. **No nix, no nixGL, no execfilter** in the desktop stack. The old `/etc/init.d/dms` OpenRC service is gone on purpose — it hung boot and duplicated the shell; DMS (`dms.user`) is supervised by the USER dinit instance started by the niri-session wrapper (wayland-gated via `wait-wayland.user`).
 
 Includes (from `internal_rules.yaml:desktopEnvironments.niri`):
 - Compositor: `niri`, `niri-portalsconf`, `xwayland-satellite`, `xwayland`, `mesa-dri-gallium`, `wayland-libs-server`
 - Shell: `dms-shell` (1.6.2, feralos-aports), `quickshell` (0.3.1, feralos-aports)
 - Greeter: `greetd` + `greetd-regreet` + `greetd-openrc` (vt 7, greeter session via `/etc/greetd/greeter.sh`), `accountsservice`
-- Session: `elogind`, `dbus`, `xdg-desktop-portal-wlr/gtk`, `pipewire` + `pipewire-pulse` + `wireplumber`, `polkit-elogind` + `polkit-gnome`, `power-profiles-daemon`, `cups-pk-helper`, `alacritty`
+- Session: `elogind`, `dbus`, `xdg-desktop-portal-wlr/gtk`, `polkit-elogind` + `polkit-gnome`, `power-profiles-daemon`, `cups-pk-helper`, `alacritty`
+- Session services (user dinit): `dbus-user-dinit`, `pipewire-user-dinit`, `pipewire-pulse-user-dinit`, `wireplumber-user-dinit`, `wayland-wait-user-dinit`, `polkit-agent-user-dinit` (feralos-aports; pull pipewire/pipewire-pulse/wireplumber as runtime deps) + `dms.user` (shipped by `dms-shell`)
 - Apps: `cosmic-files/edit/screenshot/player/store/settings`, `okular`, `eog`, `cups/cups-filters/avahi/system-config-printer`, `libreoffice`, `galculator`, `firefox`, `firewalld-gui`, `gnome-firmware`, `thunderbird`, `gnome-disk-utility`, `kcron`, `ksystemlog`, `rclone`
 - Flatpak: `flathub:com.rustdesk.RustDesk` (conditional — only when `flatpakPackages` contains rustdesk)
 - System: `xdg-user-dirs` (portal access), `firewalld` service, `iptables/ip6tables/ebtables` (firewalld direct-rule backends)
@@ -54,20 +55,20 @@ rc-update add firewalld default
 
 ## User Session
 
-- **niri-session wrapper**: `/usr/local/bin/niri-session` (wins over `/usr/bin`) — greetd provides neither the session env nor a D-Bus session bus. POSIX script: exports `XDG_SESSION_TYPE=wayland` + `XDG_CURRENT_DESKTOP=niri`, starts `dbus-daemon --session` on `$XDG_RUNTIME_DIR/bus` if missing, exports `DBUS_SESSION_BUS_ADDRESS`, then hands off to `/usr/bin/niri-session`
-- User niri config: `/home/<user>/.config/niri/config.kdl` — keymap from `variables.yaml`, wayland env (`XDG_SESSION_TYPE wayland`, `QT_QPA_PLATFORM wayland`, `QT_QPA_PLATFORMTHEME gtk3`, `SDL_VIDEO_DRIVER wayland`, etc.), session spawns (greetd starts none of them):
-  - `spawn-at-startup "pipewire"`
-  - `spawn-at-startup "pipewire-pulse"`
-  - `spawn-at-startup` wait-loop: waits for `pipewire` pgrep, then `wireplumber >>$HOME/.local/log/user/wireplumber.log 2>&1`
-  - `spawn-at-startup`: `mkdir -p $HOME/.local/log/user; exec dms run >>$HOME/.local/log/user/dms.log 2>&1`
-  - `spawn-at-startup "/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1"` — MUST be the Alpine/elogind build
+- **niri-session wrapper**: `/usr/local/bin/niri-session` (wins over `/usr/bin`) — greetd provides neither the session env nor a D-Bus session bus. POSIX script: exports `XDG_SESSION_TYPE=wayland` + `XDG_CURRENT_DESKTOP=niri` + `DBUS_SESSION_BUS_ADDRESS`, starts `dbus-daemon --session` on `$XDG_RUNTIME_DIR/bus` if missing, starts the USER dinit instance, then hands off to `/usr/bin/niri-session`
+- **User dinit session services**: wrapper runs `dinit -d /etc/dinit.d/user <services>` (existence-filtered — a service file exists only if its package is installed, so the same wrapper works on any desktop). Idempotent across re-logins: skipped when `$XDG_RUNTIME_DIR/dinit.ctl` is already alive (supervised services survive; crashed ones were restarted by dinit). Services (Artix `dinit-userservd-services` model — `.user` suffix, sub-vars, `smooth-recovery`, dbus readiness via `pipefd:3` + `dinitctl setenv`):
+  - `dbus.user`, `pipewire.user`, `pipewire-pulse.user`, `wireplumber.user`
+  - `wait-wayland.user` — compositor-agnostic gate: resolves `WAYLAND_DISPLAY` from the compositor socket
+  - `polkit-agent.user`, `dms.user` (wayland-gated; `dms.user` shipped by `dms-shell`)
+  - Logs: `~/.local/share/dinit/`
+- User niri config: `/home/<user>/.config/niri/config.kdl` — keymap from `variables.yaml`, wayland env (`XDG_SESSION_TYPE wayland`, `QT_QPA_PLATFORM wayland`, `QT_QPA_PLATFORMTHEME gtk3`, `SDL_VIDEO_DRIVER wayland`, etc.), no session service spawns (supervision + ordering now native dinit):
   - `xwayland-satellite { path "xwayland-satellite" }` block — XWayland for X11 apps
   - `include "dms/binds.kdl"` + `dms/layout.kdl` + `dms/colors.kdl`
   - RustDesk autostart (conditional, see below)
 - **DMS fragments**: pre-created before first niri validation via `su - <user> -c 'dms setup binds|layout|colors'` (packaged CLI). Config ownership fixed BEFORE `dms setup` (installer mkdir/writes run as root — without `chown -R`, `dms setup` cannot create `.config/niri/dms/` and every fragment fails)
 - **background-effect strip**: DMS 1.6 layout template emits `background-effect { xray false }` — niri node added after 25.11 (`ext-background-effect-v1`, unsupported by Alpine 3.24 niri) that breaks the whole include. Installer strips the block via awk (`blur` unsupported on this niri anyway)
 - **User portals conf**: `/home/<user>/.config/xdg-desktop-portal/niri-portals.conf` — `[preferred] org.freedesktop.impl.portal.ScreenCast=wlr;` (system default `gnome;gtk` breaks ScreenCast)
-- **Session logs**: `~/.local/log/user/dms.log` + `~/.local/log/user/wireplumber.log` (dir pre-created — missing dir = spawn redirect dies)
+- **Session logs**: `~/.local/share/dinit/` (user dinit service logs; `~/.local/log/user` dir still pre-created)
 - **Groups**: user `video,input` (rules) + `audio` (`/dev/snd` for PipeWire) via `usermod -aG`; seat access via elogind D-Bus
 - **RustDesk autostart (conditional)**: when `flatpakPackages` contains `rustdesk` (default via `internal_rules.yaml` niri `flatpakPackages: ["flathub:com.rustdesk.RustDesk"]`), user config appends:
   ```
@@ -115,11 +116,15 @@ grep -q "rustdesk" ~/.config/niri/config.kdl && echo "rustdesk autostart enabled
 firewall-cmd --permanent --list-ports 2>/dev/null | grep 21115 || grep -rq 21115 /etc/firewalld/
 flatpak list | grep rustdesk
 
-# DMS (native apk — spawned by the niri session, no OpenRC service)
+# DMS (native apk — supervised by the user dinit instance, no OpenRC service)
 apk info -e dms-shell quickshell
 pgrep -x dms
-tail -50 ~/.local/log/user/dms.log
-tail -50 ~/.local/log/user/wireplumber.log
+tail -50 ~/.local/share/dinit/dms.user.log
+
+# User dinit session services
+ls /etc/dinit.d/user/
+dinitctl -u "$XDG_RUNTIME_DIR/dinit.ctl" status dbus.user
+tail -50 ~/.local/share/dinit/pipewire.user.log
 
 # Session bus
 ls -la $XDG_RUNTIME_DIR/bus
@@ -128,7 +133,7 @@ ls -la $XDG_RUNTIME_DIR/bus
 grep -i "error" /var/log/messages | grep -vE "commitpartial|bwrap.*pivot_root|To enable access to XDG directories"
 ```
 
-> Harness result 59/59 PASS (niri+dinit fixture): `dms_installed` = apk check (`dms-shell`/`quickshell` native), `firewall_rustdesk` + `flatpak_installed`, niri config validation, allowlisted log errors. See `docs/harness/artifacts.md`.
+> Harness result 61/61 PASS (niri+dinit fixture): `dms_installed` = apk check (`dms-shell`/`quickshell` native), `dinit_user_services` = all 7 `.user` service files under `/etc/dinit.d/user/`, `niri_session_wrapper` = wrapper starts the user dinit instance, `firewall_rustdesk` + `flatpak_installed`, niri config validation, allowlisted log errors. See `docs/harness/artifacts.md`.
 
 ## Upstream References
 
@@ -138,7 +143,7 @@ grep -i "error" /var/log/messages | grep -vE "commitpartial|bwrap.*pivot_root|To
 
 ## Code References
 
-- `src/chrootPhase/desktops/niri.go` — greeter/regreet/niri-session wrapper/portals/spawns/xdg-su/dms setup
+- `src/chrootPhase/desktops/niri.go` — greeter/regreet/niri-session wrapper (user dinit)/portals/xdg-su/dms setup
 - `src/chrootPhase/features/flatpak.go` — flathub remote + flatpak install
 - `src/utils/config/config.go:FlatpakPackages` + `src/utils/logic/logic.go:applyRule` — flatpakPackages propagation
 - `src/variables/internal_rules.yaml:desktopEnvironments.niri` — packages/flatpakPackages/services/groups
