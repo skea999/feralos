@@ -11,7 +11,7 @@ Need hardened boot with full-disk encryption, mirrored data, fast initramfs, and
 ## Decision
 
 - **LUKS2** on RAID partitions and swap (btrfsStandardServer always; btrfsStandard/btrfsRaid0 gated `EnableSwap`). Per-device keyfile `/etc/dmcrypt/swap.key` (dd urandom 2K, 0400) + `luksAddKey`, `rd.luks.name=UUID=luks-UUID` cmdline.
-- **Btrfs RAID1** (or RAID0/single per layout, `LABEL=myroot`) with 21–25 subvolumes (`@`, `@home`, `@boot`, `@nix-*`, `@swap`...), per-subvolume `compress=zstd:3` / `nodatacow` + `chattr +C`.
+- **Btrfs RAID1** (or RAID0/single per layout, `LABEL=myroot`) with 21–24 subvolumes (`@`, `@home`, `@boot`, `@nix-*`, `@swap`...), per-subvolume `compress=zstd:3` / `nodatacow` + `chattr +C`.
 - **booster** replaces mkinitfs — builds initramfs with `dm_mod`, `dm_crypt`, `btrfs`, `zstd`, `efivarfs`.
 - **UKI** replaces GRUB — `efi-mkuki` + `sbsign`, kernel cmdline at `/etc/kernel/cmdline`, fallback `BOOTX64.EFI`, mirrored to `/boot/efi2` + EFI boot entries. EFI sync hook rsyncs `/boot/efi`→`/boot/efi2`.
 

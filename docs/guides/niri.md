@@ -110,7 +110,7 @@ Webmin is **podman-based** (not host package):
 - Podman: `btrfs` driver via `sed` on `/etc/containers/storage.conf`, `cgroups` + `podman` services, `iptables`, `fuse-overlayfs` fallback, `podman-compose`+`podman-docker`, `docker→podman` dummy
 - Webmin binary: standalone `src/firstBoot/webmin/main.go` compiled to `/opt/feralos_webmin`
 - Container: `demosthenesk/webmin:noble` image, `read_only: true` + `tmpfs`, seed `/etc/webmin` via `webmin-seed` container, `podman compose up -d`, oneshot `webmin-ensure`, `changepass.pl` + `chpasswd`
-- Nix (only when `enableNix: true` — independent from niri): `/nix/var/nix/build` tmpfs perms workaround, `TMPDIR` scoped to daemon
+- Nix (only when `enableNix: true` — independent from niri): upstream default build dir (`/tmp`, exec)
 - Locale: `it` → `it_IT.UTF-8` — bare `it` crashes `conmon` `setlocale` (musl)
 
 See `docs/guides/podman.md` and `docs/guides/webmin.md`.

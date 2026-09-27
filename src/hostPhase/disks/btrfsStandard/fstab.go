@@ -79,7 +79,6 @@ func GenerateFstab(conf *config.Config) error {
 		{Name: "@nix-store", Path: "/nix/store", Options: "compress=zstd:3,autodefrag,ssd,subvol=@nix-store"},
 		{Name: "@nix-var-nix", Path: "/nix/var/nix", Options: "compress=zstd:3,autodefrag,ssd,subvol=@nix-var-nix"},
 		{Name: "@nix-var-log", Path: "/nix/var/log", Options: "autodefrag,ssd,nodev,noexec,nosuid,subvol=@nix-var-log", NoCoW: true},
-		{Name: "@nix-var-nix-build", Path: "/nix/var/nix/build", Options: "compress=zstd:3,autodefrag,ssd,subvol=@nix-var-nix-build"},
 		// Btrbk backup
 		{Name: "@btrbk", Path: "/btrbk", Options: "compress=zstd:3,autodefrag,ssd,subvol=@btrbk"},
 	}

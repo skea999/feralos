@@ -10,7 +10,7 @@ Selected by `conf.User.DiskLayout` in `hostPhase.Run()` → `hostPhase/disks/*`.
 
 - **Partitioning**: `p1` EFI 512M (vfat, `LABEL=EFI*`), `p2` LUKS2 rest (no swap partition)
 - **Btrfs**: single mode on LUKS (`mkfs.btrfs -f -L myroot /dev/mapper/luks-*`)
-- **Subvolumes**: 25 — `@`, `@home`, `@opt`, `@root`, `@srv`, `@tmp`, `@var*`, `@usr-local`, `@boot`, `@nix-*`, `@btrbk`, `@swap` (+ NoCoW: `@swap`, `@srv`, `@var-log`, `@var-lib-ex`, etc.)
+- **Subvolumes**: 24 — `@`, `@home`, `@opt`, `@root`, `@srv`, `@tmp`, `@var*`, `@usr-local`, `@boot`, `@nix-*`, `@btrbk`, `@swap` (+ NoCoW: `@swap`, `@srv`, `@var-log`, `@var-lib-ex`, etc.)
 - **Swap**: swapfile in `@swap` subvolume (`btrfs filesystem mkswapfile`), gated `EnableSwap`. Subvolume always exists; `swapSize` controls file size. `swap` service added to `boot` runlevel only when enabled.
 - **EFI**: single `/boot/efi`
 

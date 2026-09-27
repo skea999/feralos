@@ -93,7 +93,7 @@ variables:
 | `enableTPM` | `bool` | Compile `feralos_tpm` → `/opt/feralos_tpm`, bind LUKS → TPM2 via clevis. Always passes swtpm to QEMU. |
 | `enableHardening` | `bool` | AppArmor, sysctl, permissions. Includes `enableDebug` false path. |
 | `enableZswap` | `bool` | Zswap compressed swap, `vm.min_free_kbytes` 1% RAM. Server always, others toggle. |
-| `enableNix` | `bool` | Nix package manager, `/nix` subvolumes, daemon. Build dir `775` + `chown root:nixbld`, tmp `1777` + `chown root:nixbld`, `trusted-users = root <user>` temp during chroot then cleaned to `root`, `TMPDIR=/nix/var/nix/build/tmp` scoped to daemon via `/etc/conf.d/nix-daemon`. |
+| `enableNix` | `bool` | Nix package manager, `/nix` subvolumes, daemon. Build sandbox: upstream default (`/tmp`, exec since round 48 — no workaround). `trusted-users = root <user>` appended only when `nixPackages` will be installed in chroot, then cleaned to `root`. |
 | `enableSwap` | `bool` | `btrfsStandard`/`btrfsUnencrypted`/`btrfsRaid0`: enable swap (file or LUKS partitions). `btrfsStandardServer`: always true (LUKS swap). `swapSize` only matters when true. |
 | `swapSize` | `string` | `auto` (2×RAM) or explicit `8G`/`4096M`/`4096K`. Split `/2` per disk on `btrfsRaid0`. |
 | `enableDebug` | `bool` | **Test-only flag** — real hardware must stay `false` (unsafe: weakens hardening). `true`: `loglevel=7`, `dmesg_restrict=0`, permissive printk/io_uring/memfd values (via `DebugOverrides`) + `console=ttyS0,115200` appended to kernel cmdline (serial console for harness boot watch + LUKS passphrase automation). `false`: hardened values, no serial console. All harness fixtures run with `true`. |

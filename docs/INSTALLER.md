@@ -104,7 +104,7 @@ Invoked by `main` after config generation. Order is fixed:
 1. **Disk Partitioning & LUKS Setup** (`hostPhase/disks/`)
    - Selected by `conf.User.DiskLayout` inside `hostPhase.Run()`:
       - **btrfsStandardServer**: 2 disks, RAID1, dual EFI, LUKS swap
-      - **btrfsStandard**: 1 disk, LUKS root, swapfile, 25 subvolumes
+      - **btrfsStandard**: 1 disk, LUKS root, swapfile, 24 subvolumes
       - **btrfsRaid0**: 2 disks, RAID0, dual EFI, LUKS swap
       - **btrfsUnencrypted**: 1 disk, no LUKS, direct btrfs, same subvolumes as btrfsStandard
    - Create partition tables, format filesystems, setup LUKS encryption
@@ -228,7 +228,7 @@ Runs AFTER chrootPhase completes (needs kernel cmdline from chroot).
 - **Partitioning**: EFI (512MB) + LUKS (rest)
 - **Single**: Btrfs single mode (no RAID)
 - **Swap**: Swapfile in @swap subvolume (NoCoW, NOCOMPRESS)
-- **Subvolumes**: 25 subvolumes including @root, @home, @boot, @nix-*
+- **Subvolumes**: 24 subvolumes including @root, @home, @boot, @nix-*
 - **Compression**: Per-subvolume via `btrfs property set` (zstd for data, none for NoCoW)
 
 ### LUKS Encryption

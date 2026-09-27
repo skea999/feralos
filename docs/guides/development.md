@@ -92,7 +92,7 @@ Cleanup (before/after) and firstboot (install config, secureboot/tpm compile) ar
 | `EnableWebmin` | `utils/firstboot/webmin.go` | `main.go` (podman-based, verifies podman) |
 | `EnablePodman` | `chrootPhase/features/podman.go` | `packages.go` + `chroot_phase.go` (btrfs driver, cgroups) |
 | `EnableHardening` | `chrootPhase/features/hardening.go` | `packages.go` + `chroot_phase.go` |
-| `EnableNix` | `chrootPhase/features/nix.go` | `packages.go` + `chroot_phase.go` (tmp 775/1777, TMPDIR scoped) |
+| `EnableNix` | `chrootPhase/features/nix.go` | `packages.go` + `chroot_phase.go` (upstream default build dir /tmp, exec since round 48) |
 | `EnableZswap` | `chrootPhase/features/zswap.go` + `zswap_server.go` | `packages.go` + `chroot_phase.go` |
 | `EnableDebug` | `chrootPhase/features/hardening.go` | via `HardeningPackages()` |
 | `EnableSwap` | `hostPhase/disks/*` | `host_phase.go` (disk layout) |
