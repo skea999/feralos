@@ -82,6 +82,7 @@ standardPackages:
   - btrfs-progs
   - cryptsetup
   - zstd
+  - dosfstools   # real fsck.vfat (busybox stub lacks -C, errors at boot fsck)
   # Services
   - cronie
   - chrony

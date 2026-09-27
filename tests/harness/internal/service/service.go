@@ -1811,7 +1811,18 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 	// immediately instead of being masked by passing service checks.
 	if cfg.RunDir != "" {
 		logCheck := CheckResult{Pass: true, Detail: "no error/failed markers found in logs"}
-		logErrRe := regexp.MustCompile(`(?i)(error|failed|critical|\[ !! \]|in use but fuser finds nothing|invalid argument|cannot set)`)
+		// Aggressive sweep (user request): surface every fail/unrecognized/
+		// missing-file line so issues get fixed one by one. allowRe below
+		// whitelists the known-harmless hits.
+		logErrRe := regexp.MustCompile(`(?i)(error|fail|critical|unrecognized|no such file or directory|\[ !! \]|in use but fuser finds nothing|invalid argument|cannot set)`)
+		// Known-harmless sweep hits:
+		//   - booster finit(button|virtio_gpu|qemu_fw_cfg|padlock_aes|
+		//     aesni_intel...): booster's own defaultModuleList probing —
+		//     built-ins or QEMU-era modules absent from the target kernel,
+		//     load is non-fatal and outside our control
+		//   - `+ set -euo pipefail`: bash xtrace echo of setup.sh itself
+		//   - modprobe: runner-host kernel dir probe (Debian cloud kernel)
+		allowSkip := regexp.MustCompile(`(?i)(booster: finit\(|set -euo pipefail|modprobe: can't change directory)`)
 		// Innocuous lines: counters/negations ("0 errors", "no failed", ...),
 		// package name libgpg-error and Debian git dependency liberror-perl
 		// (apt install git output), efibootmgr "error trace:" on QEMU (no real
@@ -1842,7 +1853,7 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 				continue
 			}
 			for i, line := range strings.Split(string(data), "\n") {
-				if logErrRe.MatchString(line) && !allowRe.MatchString(line) {
+				if logErrRe.MatchString(line) && !allowRe.MatchString(line) && !allowSkip.MatchString(line) {
 					problems = append(problems, fmt.Sprintf("%s:%d: %s", logName, i+1, strings.TrimSpace(line)))
 				}
 			}
