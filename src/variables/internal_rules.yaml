@@ -6,7 +6,7 @@ chrootDir: "/mnt"
 defaultRunlevels:
   sysinit: ["devfs", "dmesg", "sysctl", "sysfs"]
   boot: ["hwclock", "hostname", "bootmisc", "binfmt", "fsck", "root", "procfs", "loadkmap", "localmount"]
-  default: ["cgroups", "networking"]
+  default: ["cgroups", "cpufrequtils", "networking"]
   shutdown: ["mount-ro", "killprocs", "savecache"]
 
 # Dinit base services — enabled via boot.d symlinks when enableDinit is true.
@@ -86,6 +86,8 @@ standardPackages:
   - dosfstools   # real fsck.vfat (busybox stub lacks -C, errors at boot fsck)
   # Services
   - cronie
+  - cpufrequtils       # CPU governor settings (scripted dinit service; skips on VMs)
+  - cpufrequtils-dinit
   - chrony
   - dbus
   - shadow
