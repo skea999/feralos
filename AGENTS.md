@@ -274,4 +274,4 @@ See `ROADMAP.md` for pipeline priorities. Memory-safe alternatives table → `CO
 
 ## Known Issues
 
-All prior swap/vector/dummy issues resolved. See `CHANGELOG.md` Fixed section. Current: none blocking (QEMU-only `smartd`/`fsck` whitelisted).
+All prior swap/vector/dummy issues resolved. See `CHANGELOG.md` Fixed section. Current: `log_errors` shows QEMU-only noise (`smartd`/`fsck` whitelisted; udevd `/bin/false` module install errors — parport/psmouse/intel_gtt/input_leds/intel_pmc_bxt — from OpenRC udev path, harmless in QEMU, nix pivot fix landed).

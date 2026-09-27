@@ -41,15 +41,13 @@ func SetupNix(conf *config.Config) error {
 	// build (unknown setting warnings) — NIXPKGS_ALLOW_* env vars in
 	// /etc/profile.d/nix-daemon.sh (and fish/bash) carry that permanently.
 	nixConf := `extra-experimental-features = nix-command flakes
-ssl-cert-file = /etc/ssl/certs/ca-certificates.crt`
-	// trusted-users: lets the wheel user pass --option sandbox false during
-	// chroot install (the nix build sandbox pivot_root fails inside the
-	// installer chroot). Appended only when chroot package installs will
-	// happen, and cleaned right after — the installed system keeps the
-	// default sandbox.
-	if len(u.NixPackages) > 0 {
-		nixConf += fmt.Sprintf("\ntrusted-users = root %s", u.UserName)
-	}
+ssl-cert-file = /etc/ssl/certs/ca-certificates.crt
+trusted-users = root @wheel`
+	// trusted-users = root @wheel — the NixOS upstream default. Trusted users
+	// can pass trusted settings (--option sandbox false, needed for chroot
+	// installs; --impure; extra cache URLs) and are ~root-equivalent by
+	// definition — wheel already is, so this adds zero escalation.
+	// Daily UX: nix profile add / flakes work for wheel users without sudo.
 	escapedNixConf := strings.ReplaceAll(nixConf, "'", "'\\''")
 	// Append (not overwrite): preserve Alpine's allowed-users=@nix,
 	// build-users-group=nixbld and max-jobs from /etc/nix/nix.conf.
@@ -75,7 +73,11 @@ ssl-cert-file = /etc/ssl/certs/ca-certificates.crt`
 	// Unpack the channel manifest NOW: a freshly added channel is not usable
 	// until updated — the first <nixpkgs> use on the installed system would
 	// fail with "undefined variable 'nixpkgs'" (seen via debug_run).
-	if _, err := shell.ExecuteCmdArgs(chroot, "nix-channel", "--update"); err != nil {
+	// NIX_CONFIG sandbox=false: the unpack derivation uses the build sandbox,
+	// whose pivot_root fails inside the installer chroot (EINVAL — / is not
+	// a mountpoint). Same chroot-only workaround as the profile installs
+	// below; the installed system keeps the default sandbox.
+	if _, err := shell.ExecuteCmd(chroot, "NIX_CONFIG='sandbox = false' nix-channel --update"); err != nil {
 		fmt.Printf("[WARNING] nix-channel --update failed: %v\n", err)
 	}
 
@@ -163,13 +165,6 @@ ssl-cert-file = /etc/ssl/certs/ca-certificates.crt`
 		}
 		if _, err := shell.ExecuteCmdArgs(chroot, "su", "-", u.UserName, "-c", "NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt nix profile list 2>&1 || true"); err != nil {
 			fmt.Printf("[WARNING] nix profile list failed: %v\n", err)
-		}
-
-		if _, err := shell.ExecuteCmd(chroot, "sed -i 's/trusted-users = root .*/trusted-users = root/' /etc/nix/nix.conf"); err != nil {
-			fmt.Printf("[WARNING] Failed to clean trusted-users in nix.conf: %v\n", err)
-		}
-		if _, err := shell.ExecuteCmdArgs(chroot, "rc-service", "nix-daemon", "restart"); err != nil {
-			fmt.Printf("[WARNING] Failed to restart nix-daemon in chroot: %v\n", err)
 		}
 
 		// Stop the daemon again — the target boots its own nix-daemon service.

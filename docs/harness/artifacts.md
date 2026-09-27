@@ -87,7 +87,8 @@ All 4 layouts PASS 35/35 with markers enabled. Markers appended at END of each c
 
 | Check | What it verifies | Pass condition |
 |-------|------------------|----------------|
-| `trusted_users_clean` | Nix `trusted-users` temp injection cleaned | `! grep -q "<user>" /etc/nix/nix.conf` (user added during chroot install, then cleaned via `sed -i 's/trusted-users = root .*/trusted-users = root/'`) |
+| `trusted_users_clean` | No per-user `trusted-users` injection in nix.conf | `! grep -q "<user>" /etc/nix/nix.conf` (trust is group-based: `trusted-users = root @wheel`, NixOS default) |
+| `nix_trusted_wheel` | `trusted-users = root @wheel` present | `grep -q 'trusted-users = root @wheel' /etc/nix/nix.conf` (gated `enableNix`) |
 | `nix_packages_missing` | Expected nix profile packages installed | Unique package-name count (`grep -oE \| sort -u \| wc -l`) >= `len(cfg.NixPackages)` (0 when fixture sets only `enableNix` — no profile packages expected). Post-processing strips `\r` + SSH warning, takes last line before Atoi; FAIL messages embed raw output |
 | `nix_tmp_exec` | `/tmp` mounted exec | `mount \| grep ' /tmp '` has NO `noexec` (nix builds use upstream default build dir `/tmp`; old `/nix/var/nix/build/tmp` workaround removed) |
 | `chmod_77_check` | No insecure chmod in installer.log | Count `chmod 777`/`chmod 1777` excluding `/nix/var/nix/build/tmp` (which SHOULD be 1777) must be 0; previous check flagged `775` false positive |
@@ -102,7 +103,7 @@ All 4 layouts PASS 35/35 with markers enabled. Markers appended at END of each c
 | `flatpak_installed` | RustDesk flatpak | Only when `FlatpakPackages` contains rustdesk: `flatpak list \| grep rustdesk` (niri no longer injects a default) |
 | `dinit_shutdown_commands` | dinit shutdown commands wired | `/usr/bin/{poweroff,halt,shutdown}` symlinks + `/usr/bin/{reboot,soft-reboot}` wrappers all executable when `enableDinit=true` |
 
-**Nix build sandbox:** upstream default build dir (`/tmp`) — `/tmp` is mounted exec (no `noexec`), so the old `@nix-var-nix-build` tmp workaround (777 tmp + scoped temp dir) is gone. `trusted-users = root <user>` is injected into nix.conf ONLY when chroot package installs will happen (`len(NixPackages) > 0`) and cleaned right after; `enableNix` alone never pollutes it. Nix SSL: `NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt` prefixed to all `su - user` nix client cmds.
+**Nix build sandbox:** upstream default build dir (`/tmp`) — `/tmp` is mounted exec (no `noexec`), so the old `@nix-var-nix-build` tmp workaround (777 tmp + scoped temp dir) is gone. `trusted-users = root @wheel` is permanent (NixOS default — wheel is root-equivalent, no escalation). Nix SSL: `NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt` prefixed to all `su - user` nix client cmds.
 
 **Podman storage driver:** `btrfs` via `sed` on `/etc/containers/storage.conf` (keep Alpine's full config, override only `driver` line). `cgroups` service enabled alongside `podman`. `fuse-overlayfs` kept as fallback for rootless overlay. `iptables` added to package set.
 

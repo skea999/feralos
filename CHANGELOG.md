@@ -2,6 +2,13 @@
 
 All notable changes to FeralOS will be documented in this file.
 
+## 2026-09-27 — Nix: permanent trusted-users @wheel + chroot channel unpack fix
+
+- `nix.go` ships permanent `trusted-users = root @wheel` in nix.conf (NixOS upstream default) — wheel users run `nix profile add`/flakes without sudo; per-user injection + post-install `sed` cleanup removed (trusted users are ~root-equivalent by definition, so wheel adds zero escalation)
+- `nix-channel --update` inside the installer chroot now runs with `NIX_CONFIG='sandbox = false'` — the channel unpack derivation uses the build sandbox, whose pivot_root fails EINVAL in a chroot (`/` not a mountpoint); same chroot-only workaround as the profile installs, installed system keeps the default sandbox
+- Harness: new `nix_trusted_wheel` check (grep `@wheel` in nix.conf, enableNix-gated); `trusted_users_clean` still asserts no per-user injection
+- Full-stack harness (btrfsStandard, OpenRC, enableNix): 49/50 — only `log_errors` (QEMU udevd `/bin/false` module noise, pre-existing)
+
 ## 2026-09-27 — niri: NetworkManager switch, wayvnc remote desktop, /tmp exec, session fixes
 
 - NetworkManager replaces ifupdown as the niri network service (DMS network/VPN UI needs the NM backend): `/etc/network/interfaces` reduced to lo-only, `/etc/NetworkManager/conf.d/10-manage.conf` `managed=true`, plugdev+netdev groups, `networkmanager` on default, WireGuard via NM (`wireguard-tools`), wifi via `wpa_supplicant`
