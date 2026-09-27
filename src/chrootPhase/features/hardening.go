@@ -35,7 +35,12 @@ func SetupHardening(conf *config.Config) error {
 
 	fmt.Println("[INFO] Applying kernel hardening...")
 
-	if _, err := shell.ExecuteCmd(chroot, "rc-update add apparmor boot"); err != nil {
+	if conf.User.EnableDinit {
+		// dinit: apparmor loading is not wired yet (apparmor-dinit exists
+		// but policy loading is OpenRC-script driven) — the cmdline
+		// `lsm=lockdown...`/apparmor=1 flags still apply.
+		fmt.Println("[WARNING] dinit: apparmor service enablement not wired — policy loading skipped")
+	} else if _, err := shell.ExecuteCmd(chroot, "rc-update add apparmor boot"); err != nil {
 		fmt.Printf("[WARNING] Failed to add apparmor to boot: %v\n", err)
 	}
 

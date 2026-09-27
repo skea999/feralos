@@ -173,18 +173,18 @@ desktopEnvironments:
     services: {"sddm": "default", "dbus": "default"}
     groups: ["video", "input"]
   niri:
-    packages: ["niri", "niri-portalsconf", "greetd", "greetd-regreet", "greetd-openrc", "elogind", "elogind-openrc", "dbus", "alacritty", "xdg-desktop-portal-wlr", "xdg-desktop-portal-gtk", "pipewire", "polkit-elogind", "polkit-gnome", "xwayland-satellite", "mesa-dri-gallium", "wayland-libs-server", "cosmic-files", "cosmic-edit", "cosmic-screenshot", "okular", "eog", "cups", "cups-filters", "avahi", "system-config-printer", "cosmic-player", "libreoffice", "galculator", "firefox", "firewalld-gui", "gnome-firmware", "thunderbird", "gnome-disk-utility", "kcron", "cosmic-store", "ksystemlog", "cosmic-settings"]
+    packages: ["niri", "niri-portalsconf", "greetd", "greetd-regreet", "greetd-openrc", "elogind", "elogind-openrc", "dbus", "alacritty", "xdg-desktop-portal-wlr", "xdg-desktop-portal-gtk", "pipewire", "pipewire-pulse", "wireplumber", "polkit-elogind", "polkit-gnome", "xwayland-satellite", "xwayland", "mesa-dri-gallium", "wayland-libs-server", "dms-shell", "accountsservice", "power-profiles-daemon", "cups-pk-helper", "rclone", "iptables", "ip6tables", "ebtables", "cosmic-files", "cosmic-edit", "cosmic-screenshot", "okular", "eog", "cups", "cups-filters", "avahi", "system-config-printer", "cosmic-player", "libreoffice", "galculator", "firefox", "firewalld-gui", "gnome-firmware", "thunderbird", "gnome-disk-utility", "kcron", "cosmic-store", "ksystemlog", "cosmic-settings"]
+    # cava (DMS audio visualizer) NOT on Alpine v3.24 — re-add when packaged
+    # iptables/ip6tables/ebtables: firewalld direct-rule backends (runtime)
     # turnstile: edge only (not in Alpine 3.24) — include when stable
-    services: {"greetd": "default", "elogind": "default", "firewalld": "default"}
-    # render group does not exist on Alpine (video covers DRM access)
-    groups: ["video", "input"]
-    # Both from the stable nixpkgs channel (nixos-26.05) — dms-shell is
-    # packaged in nixpkgs (no external flake needed)
-    # nix-software-center (flake, GitHub snowfallorg) disabled: crates.io
-    # returns 403 on datacenter/QEMU IPs (nix-editor crate fetch) — install
-    # manually after first boot on real hardware:
-    #   nix profile add github:snowfallorg/nix-software-center#nix-software-center
-    nixPackages: ["nixpkgs#quickshell", "nixpkgs#dms-shell", "nixpkgs#rclone", "nixpkgs#rclone-ui", "nixpkgs#mission-center", "nixpkgs#cups-browsed"]
+    services: {"greetd": "default", "elogind": "default", "firewalld": "default", "polkit": "default", "cupsd": "default"}
+    # render group does not exist on Alpine (video covers DRM access);
+    # audio group: /dev/snd/* for pipewire (real-hardware audio)
+    groups: ["video", "input", "audio"]
+    # DMS 1.6.x + quickshell 0.3.x ship as NATIVE apk packages (feralos-aports)
+    # — the nix stack (dms-shell/quickshell/matugen/dgop/nixGL/execfilter) is
+    # gone. matugen (dynamic wallpaper theming) and rclone-ui are not on
+    # Alpine: DMS degrades gracefully without them.
     flatpakPackages: ["flathub:com.rustdesk.RustDesk"]
   cosmic:
     packages: ["cosmic-session", "cosmic-term", "cosmic-greeter", "cosmic-edit", "cosmic-player", "cosmic-store", "cosmic-settings", "cosmic-screenshot", "cosmic-icons", "cosmic-initial-setup", "adwaita-icon-theme", "desktop-file-utils", "hicolor-icon-theme", "seatd", "seatd-openrc", "dbus", "polkit", "pipewire", "xdg-desktop-portal-cosmic"]

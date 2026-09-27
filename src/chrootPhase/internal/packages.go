@@ -140,11 +140,12 @@ func SetupPackages(conf *config.Config) error {
 		fmt.Printf("[WARNING] Failed to create /lib/modules: %v\n", err)
 	}
 
-	// Dinit: bootstrap FeralOS repo (keyring adds key + repositories.d entry)
-	if u.EnableDinit {
-		if err := bootstrapFeralosRepo(chroot); err != nil {
-			return fmt.Errorf("feralos repo bootstrap failed: %w", err)
-		}
+	// FeralOS repo: bootstrap ALWAYS (not dinit-gated) — desktop packages
+	// (dms-shell, quickshell, cli11) also come from feralos-aports. The
+	// keyring adds the signing key + repositories.d entry; the following
+	// `apk update` picks the new repo up (apk-tools 3 resolves from cache).
+	if err := bootstrapFeralosRepo(chroot); err != nil {
+		return fmt.Errorf("feralos repo bootstrap failed: %w", err)
 	}
 
 	if _, err := shell.ExecuteCmdArgs(chroot, "apk", "update"); err != nil {
@@ -265,7 +266,16 @@ func installDinitPackages(conf *config.Config) error {
 		replaced[base] = true
 	}
 
-	installed, skipped := 0, 0
+	// Audio stack runs as the SESSION USER (spawned by the niri config:
+	// pipewire, pipewire-pulse, wireplumber) — system dinit services would
+	// run the daemons as root and fight the session instances. Skip them.
+	audioSession := map[string]bool{
+		"pipewire":       true,
+		"pipewire-pulse": true,
+		"wireplumber":    true,
+	}
+
+	installed, skipped, audioSkipped := 0, 0, 0
 	var missing, failed []string
 	for _, line := range strings.Split(out, "\n") {
 		line = strings.TrimSpace(line)
@@ -276,6 +286,10 @@ func installDinitPackages(conf *config.Config) error {
 
 		if replaced[base] {
 			skipped++
+			continue
+		}
+		if audioSession[base] {
+			audioSkipped++
 			continue
 		}
 
@@ -295,6 +309,9 @@ func installDinitPackages(conf *config.Config) error {
 
 	if skipped > 0 {
 		fmt.Printf("[INFO] Dinit conversion: %d -openrc packages covered by dinit-chimera (not converted)\n", skipped)
+	}
+	if audioSkipped > 0 {
+		fmt.Printf("[INFO] Dinit conversion: %d audio session services skipped (user-spawned by the desktop session)\n", audioSkipped)
 	}
 	if len(missing) > 0 {
 		fmt.Printf("[WARNING] %d -dinit packages missing from repo (create them):\n", len(missing))

@@ -65,8 +65,12 @@ ssl-cert-file = /etc/ssl/certs/ca-certificates.crt`, u.UserName)
 		fmt.Printf("[WARNING] Failed to set build dir permissions: %v\n", err)
 	}
 
-	if _, err := shell.ExecuteCmdArgs(chroot, "rc-update", "add", "nix-daemon", "default"); err != nil {
-		fmt.Printf("[WARNING] Failed to add nix-daemon to default: %v\n", err)
+	// nix-daemon enablement: OpenRC runlevels under OpenRC; under dinit the
+	// converted nix-daemon-dinit service is rules-enabled instead.
+	if !conf.User.EnableDinit {
+		if _, err := shell.ExecuteCmdArgs(chroot, "rc-update", "add", "nix-daemon", "default"); err != nil {
+			fmt.Printf("[WARNING] Failed to add nix-daemon to default: %v\n", err)
+		}
 	}
 
 	if _, err := shell.ExecuteCmdArgs(chroot, "nix-channel", "--add", "https://nixos.org/channels/nixos-26.05", "nixpkgs"); err != nil {

@@ -7,24 +7,31 @@ import (
 	"strings"
 )
 
-// SetupServices configures OpenRC service runlevels and Dinit enablement.
+// SetupServices configures service enablement.
+// OpenRC: rc-update runlevels. Dinit: rules-driven boot.d symlinks
+// (packages ship service files, this only enables) + shutdown commands.
 func SetupServices(conf *config.Config) error {
 	shell.SetCaller("services")
 	chroot := conf.Internal.ChrootDir
 
-	fmt.Println("[INFO] Configuring OpenRC services...")
-	for level, services := range conf.User.Runlevels {
-		for _, svc := range services {
-			_, _ = shell.ExecuteCmd(chroot, fmt.Sprintf("rc-update add %s %s", svc, level))
+	// OpenRC runlevels — only when NOT running dinit (under dinit the
+	// enablement below is the real mechanism; rc-update symlinks would be
+	// dead weight for a PID1 that never reads /etc/runlevels).
+	if !conf.User.EnableDinit {
+		fmt.Println("[INFO] Configuring OpenRC services...")
+		for level, services := range conf.User.Runlevels {
+			for _, svc := range services {
+				_, _ = shell.ExecuteCmd(chroot, fmt.Sprintf("rc-update add %s %s", svc, level))
+			}
 		}
-	}
 
-	// swap service: 'before localmount' → 'need localmount'
-	// before = wrong stop order (localmount unmounts /swap while swapfile still active)
-	// need = hard dependency → swapoff runs BEFORE localmount unmounts /swap
-	// NOTE: apk upgrade of openrc overwrites /etc/init.d/swap (sed is lost)
-	if _, err := shell.ExecuteCmd(chroot, "sed -i 's/before localmount/need localmount/' /etc/init.d/swap"); err != nil {
-		return err
+		// swap service: 'before localmount' → 'need localmount'
+		// before = wrong stop order (localmount unmounts /swap while swapfile still active)
+		// need = hard dependency → swapoff runs BEFORE localmount unmounts /swap
+		// NOTE: apk upgrade of openrc overwrites /etc/init.d/swap (sed is lost)
+		if _, err := shell.ExecuteCmd(chroot, "sed -i 's/before localmount/need localmount/' /etc/init.d/swap"); err != nil {
+			return err
+		}
 	}
 
 	// Dinit: enablement is data-driven (Alpine model: packages ship service

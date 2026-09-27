@@ -64,7 +64,8 @@ func Run(conf *config.Config) error {
 	}
 
 	// 7. Setup nix (optional) — must run before desktop setup so nix-installed
-	// binaries (e.g. dms) are available for configuration steps.
+	// binaries are available for configuration steps (DMS is a native apk
+	// since feralos-aports dms-shell; nix is an explicit enableNix feature).
 	if err := features.SetupNix(conf); err != nil {
 		return fmt.Errorf("nix setup failed: %w", err)
 	}

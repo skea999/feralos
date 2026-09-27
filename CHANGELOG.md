@@ -2,6 +2,16 @@
 
 All notable changes to FeralOS will be documented in this file.
 
+## 2026-09-27 — DMS native-apk migration + niri real-hardware fixes
+
+- DMS/quickshell are native musl apks in feralos-aports: `dms-shell` 1.6.2, `quickshell` 0.3.1, `cli11` 2.7.2 — nix/nixGL/execfilter no longer part of the desktop stack
+- `niri.go` session wiring per `references/niri-alpine/installer-gaps.md`: POSIX niri-session wrapper (dbus session bus), session spawns (pipewire/pipewire-pulse/wireplumber wait-loop/dms run/polkit-gnome agent), user portals conf (ScreenCast=wlr), `/var/lib/regreet` 700 greeter:greeter, dms fragments via `dms setup binds/layout/colors` + background-effect strip (niri 25.11 lacks ext-background-effect), audio group
+- No OpenRC dms service (hung boot) — spawns live in the niri session
+- Feralos repo bootstrap unconditional (desktop packages live there too)
+- Dinit: audio session services skipped in conversion; `services.go` rc-update gated to OpenRC; features (hardening/podman/nix) rc-update gated
+- niri `internal_rules.yaml`: +dms-shell/quickshell/xwayland/accountsservice/power-profiles-daemon/cups-pk-helper/pipewire-pulse/wireplumber/polkit/cupsd services, audio group, `nixPackages` removed
+- Harness niri+dinit fixture: 59/59 PASS (dms_installed apk check, vector dinit branch, serial redial, log allowlist)
+
 ## [Unreleased]
 
 ### Added

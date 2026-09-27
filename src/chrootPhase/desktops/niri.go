@@ -8,10 +8,20 @@ import (
 )
 
 // SetupNiri configures the niri desktop environment:
-// greetd (greeter), regreet, niri configs (greeter + user),
-// xdg-su wrapper, and the OpenRC dms service (adapted from the systemd
-// user service shipped by the DankMaterialShell flake).
-// Reference: references/niri/install-niri.sh (openSUSE/systemd → Alpine/OpenRC).
+// greetd (greeter), regreet, niri configs (greeter + user), the POSIX
+// niri-session wrapper (session env + D-Bus session bus), DMS (native apk,
+// spawned by the niri session), PipeWire audio, and the polkit agent.
+//
+// Real hardware only — the VirtualBox/Hyper-V software-rendering workarounds
+// (LIBGL_ALWAYS_SOFTWARE, QT_QUICK_BACKEND=software, WLR_NO_HARDWARE_CURSORS,
+// eglfilter, fixed custom-mode spawns) are intentionally absent. Reference:
+// references/niri-alpine/niri-real-hardware.md + installer-gaps.md.
+//
+// DMS is the feralos-aports native package (dms-shell, musl): no nix, no
+// nixGL, no execfilter. The old /etc/init.d/dms OpenRC service is gone on
+// purpose — DMS must be spawned by the niri session (spawn-at-startup):
+// it needs WAYLAND_DISPLAY and the seat session; an OpenRC service hung
+// boot and duplicated the shell (FIX-niri-dms.md rounds 1-2).
 func SetupNiri(conf *config.Config) error {
 	chroot := conf.Internal.ChrootDir
 	u := conf.User
@@ -30,8 +40,9 @@ user = "greeter"
 		return fmt.Errorf("write greetd config: %w", err)
 	}
 
-	// 2. greeter.sh — XDG_RUNTIME_DIR (fallback to /tmp when turnstile
-	// hasn't created /run/user/<uid> yet), software GL, niri + regreet.
+	// 2. greeter.sh — XDG_RUNTIME_DIR fallback (greetd starts before elogind
+	// creates /run/user/<uid>), then niri + regreet. Real hardware: system
+	// mesa + real GPU, no software-rendering env vars.
 	greeterSh := `#!/bin/sh
 if [ ! -d "/run/user/$(id -u greeter)" ]; then
     mkdir -p /tmp/greetd-runtime
@@ -40,7 +51,6 @@ if [ ! -d "/run/user/$(id -u greeter)" ]; then
 else
     export XDG_RUNTIME_DIR="/run/user/$(id -u greeter)"
 fi
-export LIBGL_ALWAYS_SOFTWARE=true
 exec niri -- regreet
 `
 	if err := writeFile(chroot, "/etc/greetd/greeter.sh", greeterSh); err != nil {
@@ -78,7 +88,9 @@ timezone = "%s"
 		return fmt.Errorf("write regreet config: %w", err)
 	}
 
-	// 4. niri config for the greeter session (keymap from user variables)
+	// 4. greeter user + dirs. greetd apk does not create the 'greeter' user.
+	// The greeter's niri reads its config from its HOME (per-home, not
+	// /etc/xdg — gap 5.7): overlay off at the login screen (round 14).
 	greeterNiri := fmt.Sprintf(`input {
     keyboard {
         xkb {
@@ -87,13 +99,10 @@ timezone = "%s"
     }
 }
 
-environment {
-    WLR_NO_HARDWARE_CURSORS "1"
+hotkey-overlay {
+    skip-at-startup
 }
 `, u.Keymap)
-	// greetd needs a 'greeter' user for the greeter session (greetd apk
-	// does not create one). Home = /var/lib/greetd so niri/regreet pick up
-	// the configs written there.
 	if _, err := shell.ExecuteCmd(chroot, "getent passwd greeter >/dev/null 2>&1 || adduser -D -s /bin/sh -h /var/lib/greetd greeter"); err != nil {
 		return fmt.Errorf("create greeter user: %w", err)
 	}
@@ -103,12 +112,67 @@ environment {
 	if err := writeFile(chroot, "/var/lib/greetd/.config/niri/config.kdl", greeterNiri); err != nil {
 		return fmt.Errorf("write greeter niri config: %w", err)
 	}
-	if _, err := shell.ExecuteCmd(chroot, "chown -R greeter:greeter /var/lib/greetd"); err != nil {
-		return fmt.Errorf("chown /var/lib/greetd: %w", err)
+	// ReGreet state dir must be writable by the greeter user, else last
+	// user/session is never remembered (gap 5.8, round 15). mkdir first:
+	// the dir only exists after greetd-regreet installs, and a missing dir
+	// would make chown -R fail on fresh installs.
+	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /var/lib/regreet"); err != nil {
+		return fmt.Errorf("mkdir /var/lib/regreet: %w", err)
+	}
+	if _, err := shell.ExecuteCmd(chroot, "chown -R greeter:greeter /var/lib/greetd /var/lib/regreet && chmod 700 /var/lib/regreet"); err != nil {
+		return fmt.Errorf("fix greeter/regreet ownership: %w", err)
 	}
 
-	// 5. niri config for the real user — keymap, wayland environment.
-	userNiriBase := fmt.Sprintf(`input {
+	// 5. niri-session wrapper (/usr/local/bin wins over /usr/bin): greetd
+	// provides neither the session env nor a D-Bus session bus (gap 5.4);
+	// the wrapper adds both, then hands off to the upstream POSIX script.
+	niriSession := `#!/bin/sh
+export XDG_SESSION_TYPE=wayland
+export XDG_CURRENT_DESKTOP=niri
+if [ -n "$XDG_RUNTIME_DIR" ] && [ ! -S "$XDG_RUNTIME_DIR/bus" ]; then
+    dbus-daemon --session --fork --address="unix:path=$XDG_RUNTIME_DIR/bus" 2>/dev/null || true
+fi
+export DBUS_SESSION_BUS_ADDRESS="unix:path=${XDG_RUNTIME_DIR}/bus"
+exec /usr/bin/niri-session "$@"
+`
+	if err := writeFile(chroot, "/usr/local/bin/niri-session", niriSession); err != nil {
+		return fmt.Errorf("write niri-session wrapper: %w", err)
+	}
+	if _, err := shell.ExecuteCmd(chroot, "chmod +x /usr/local/bin/niri-session"); err != nil {
+		return fmt.Errorf("chmod niri-session wrapper: %w", err)
+	}
+
+	// 6. xdg-desktop-portal portal backend for the user — niri-portalsconf
+	// ships system default=gnome;gtk but ScreenCast needs the explicit wlr
+	// backend (gap 5.12; round 43 used a patched portal on the reference VM).
+	userPortals := `[preferred]
+org.freedesktop.impl.portal.ScreenCast=wlr;
+`
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p /home/%s/.config/xdg-desktop-portal", u.UserName)); err != nil {
+		return fmt.Errorf("mkdir user portals dir: %w", err)
+	}
+	if err := writeFile(chroot, fmt.Sprintf("/home/%s/.config/xdg-desktop-portal/niri-portals.conf", u.UserName), userPortals); err != nil {
+		return fmt.Errorf("write user portals conf: %w", err)
+	}
+
+	// 7. user session logs dir — DMS/PipeWire spawns redirect here
+	// (gap 5.5, rounds 3/19: missing dir = the spawn's >> redirect dies).
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p /home/%s/.local/log/user", u.UserName)); err != nil {
+		return fmt.Errorf("mkdir user log dir: %w", err)
+	}
+
+	// 8. niri config for the real user — keymap, wayland env, session
+	// services via spawn-at-startup (greetd starts none of them), DMS,
+	// polkit agent (MUST be the Alpine/elogind build — gap 5.9), XWayland
+	// (gap 5.10), portal includes. No software-rendering workarounds.
+	hasRustdesk := false
+	for _, f := range conf.User.FlatpakPackages {
+		if strings.Contains(f, "rustdesk") {
+			hasRustdesk = true
+			break
+		}
+	}
+	userNiri := fmt.Sprintf(`input {
     keyboard {
         xkb {
             rules "evdev"
@@ -122,22 +186,33 @@ environment {
     XDG_SESSION_TYPE "wayland"
     XDG_CURRENT_DESKTOP "niri"
     QT_QPA_PLATFORM "wayland"
+    QT_QPA_PLATFORMTHEME "gtk3"
     SDL_VIDEO_DRIVER "wayland"
     CLUTTER_BACKEND "wayland"
     _JAVA_AWT_WM_NONREPARENTING "1"
-    WLR_NO_HARDWARE_CURSORS "1"
     WINIT_WAYLAND_NO_AVOID_RESIZE "1"
 }
+
+// --- session services (greetd starts none of these) ---
+spawn-at-startup "pipewire"
+spawn-at-startup "pipewire-pulse"
+spawn-at-startup "sh" "-c" "while ! pgrep -x pipewire >/dev/null 2>&1; do sleep 0.5; done; sleep 1; exec wireplumber >>$HOME/.local/log/user/wireplumber.log 2>&1"
+
+// --- DMS: native musl build, no nix/nixGL needed on real hardware ---
+spawn-at-startup "sh" "-c" "mkdir -p $HOME/.local/log/user; exec dms run >>$HOME/.local/log/user/dms.log 2>&1"
+
+// --- polkit agent: MUST be the Alpine (elogind-native) one ---
+spawn-at-startup "/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1"
+
+// --- XWayland for X11 apps ---
+xwayland-satellite {
+    path "xwayland-satellite"
+}
+
+include "dms/binds.kdl"
+include "dms/layout.kdl"
+include "dms/colors.kdl"
 `, u.Keymap)
-	// RustDesk autostart — only if flatpak com.rustdesk.RustDesk is installed
-	hasRustdesk := false
-	for _, f := range conf.User.FlatpakPackages {
-		if strings.Contains(f, "rustdesk") {
-			hasRustdesk = true
-			break
-		}
-	}
-	userNiri := userNiriBase
 	if hasRustdesk {
 		userNiri += "spawn-at-startup \"flatpak\" \"run\" \"com.rustdesk.RustDesk\" \"--service\"\n"
 		// Firewall for RustDesk direct IP (21115-21119/tcp + 21116/udp) — use offline cmd (firewalld not running in chroot)
@@ -145,7 +220,7 @@ environment {
 			fmt.Printf("[WARNING] Failed to add rustdesk tcp ports to firewall: %v\n", err)
 		}
 		if _, err := shell.ExecuteCmd(chroot, "firewall-offline-cmd --zone=public --add-port=21116/udp 2>&1 || true"); err != nil {
-			fmt.Printf("[WARNING] Failed to add rustdesk udp port to firewall: %v\n", err)
+			fmt.Printf("[WARNING] Failed to add rustdesk udp ports to firewall: %v\n", err)
 		}
 	}
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p /home/%s/.config/niri", u.UserName)); err != nil {
@@ -154,11 +229,32 @@ environment {
 	if err := writeFile(chroot, fmt.Sprintf("/home/%s/.config/niri/config.kdl", u.UserName), userNiri); err != nil {
 		return fmt.Errorf("write user niri config: %w", err)
 	}
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("chown -R %s:%s /home/%s/.config/niri", u.UserName, u.UserName, u.UserName)); err != nil {
-		return fmt.Errorf("chown user niri config: %w", err)
+	// Ownership BEFORE dms setup: the mkdir/writes above ran as root —
+	// without this, `dms setup` (su <user>) cannot create
+	// .config/niri/dms/ and every fragment setup fails (run 2026-09-26).
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("chown -R %s:%s /home/%s/.config /home/%s/.local", u.UserName, u.UserName, u.UserName, u.UserName)); err != nil {
+		return fmt.Errorf("chown user config: %w", err)
+	}
+	// dms fragments (binds/layout/colors) must exist before niri validates
+	// the includes — pre-create with the packaged CLI (chroot, root is fine:
+	// fragments land in the invoking user's config only via su; use su).
+	for _, setup := range []string{"binds", "layout", "colors"} {
+		if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("su - %s -c 'dms setup %s'", u.UserName, setup)); err != nil {
+			fmt.Printf("[WARNING] dms setup %s failed: %v\n", setup, err)
+		}
+	}
+	// DMS 1.6 layout template emits `background-effect { xray false }` — a
+	// niri node added after 25.11 (ext-background-effect-v1, unsupported by
+	// Alpine 3.24 niri) that breaks the whole include (run 2026-09-26,
+	// niri_config_valid). Strip the block: blur is unsupported on this niri
+	// anyway (FIX-niri-dms.md round 6).
+	layoutKdl := fmt.Sprintf("/home/%s/.config/niri/dms/layout.kdl", u.UserName)
+	awk := `awk '/background-effect[[:space:]]*\{/{skip=1; next} skip{ if (/\}/) skip=0; next } {print}'`
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("%s '%s' > '%s.tmp' && mv '%s.tmp' '%s'", awk, layoutKdl, layoutKdl, layoutKdl, layoutKdl)); err != nil {
+		fmt.Printf("[WARNING] failed to strip background-effect from layout.kdl: %v\n", err)
 	}
 
-	// 6. xdg-su wrapper — niri unsupported by xdg-su, use alacritty + su
+	// 9. xdg-su wrapper — niri unsupported by xdg-su, use alacritty + su
 	xdgSu := `#!/bin/sh
 # xdg-su wrapper — for niri uses alacritty+su, other DEs call the original
 # Not overwritten by updates (in /usr/local/bin)
@@ -194,84 +290,15 @@ exec /usr/bin/xdg-su "$@"
 		return fmt.Errorf("chmod xdg-su: %w", err)
 	}
 
-	// 7. OpenRC dms service — adapted from the systemd user service shipped
-	// by the DMS flake. dms needs a running wayland session: wait for the
-	// user's wayland socket, then start dms with WAYLAND_DISPLAY set.
-	dmsPath := fmt.Sprintf("/home/%s/.local/state/nix/profiles/profile/bin/dms", u.UserName)
-	dmsInit := fmt.Sprintf(`#!/sbin/openrc-run
-name="dms"
-description="Dank Material Shell (wayland shell)"
-command="%s"
-command_user="%s"
-command_background=true
-pidfile="/run/dms.pid"
-
-depend() {
-    need localmount
-    after bootmisc
-}
-
-start() {
-    ebegin "Starting DMS"
-    # dms needs the real user's wayland session, which only exists after
-    # login — so start asynchronously: wait for the socket in the
-    # background and launch dms when it appears. Never blocks boot.
-    (
-        local sock
-        local i=0
-        while [ $i -lt 60 ]; do
-            sock=$(ls /run/user/$(id -u "$command_user")/wayland-* 2>/dev/null | head -1)
-            [ -n "$sock" ] && break
-            sleep 5
-            i=$((i + 1))
-        done
-        if [ -z "$sock" ]; then
-            ewarn "No wayland session found for user %s after 5 minutes"
-            return 0
-        fi
-        start-stop-daemon --start --background --make-pidfile --pidfile "$pidfile" \
-            --user "$command_user" --env WAYLAND_DISPLAY="$(basename "$sock")" \
-            --exec "$command"
-    ) &
-    eend 0
-}
-
-stop() {
-    ebegin "Stopping DMS"
-    start-stop-daemon --stop --pidfile "$pidfile"
-    eend $?
-}
-`, dmsPath, u.UserName, u.UserName)
-	if err := writeFile(chroot, "/etc/init.d/dms", dmsInit); err != nil {
-		return fmt.Errorf("write dms init script: %w", err)
-	}
-	if _, err := shell.ExecuteCmd(chroot, "chmod +x /etc/init.d/dms"); err != nil {
-		return fmt.Errorf("chmod dms init: %w", err)
-	}
-	if _, err := shell.ExecuteCmd(chroot, "rc-update add dms default"); err != nil {
-		fmt.Printf("[WARNING] Failed to add dms to default runlevel: %v\n", err)
-	}
-
-	// 8. greeter needs video/input groups for the greeter session, plus the
-	// greetd group: greetd's init script re-owns /var/lib/greetd to
-	// greetd:greetd 0750 at every boot, so greeter (home there) must be able
-	// to traverse it to reach its niri config.
-	// 9. greeter needs input/video groups for the greeter session
-	// (render group does not exist on Alpine — video covers DRM access;
-	// seat access is provided by elogind via D-Bus, no group needed)
-	// greetd group: /var/lib/greetd is 750 greetd:greetd — greeter must
-	// traverse it to read its niri config.
+	// 10. groups: session user gets video/input (DRM/seat) + audio
+	// (/dev/snd — PipeWire, round 19); greeter gets video/input/greetd
+	// (greetd re-owns /var/lib/greetd 0750 at boot — traversal needed).
+	// seat access via elogind D-Bus; render group absent on Alpine.
 	if _, err := shell.ExecuteCmd(chroot, "usermod -aG video,input,greetd greeter"); err != nil {
 		fmt.Printf("[WARNING] Failed to add greeter to video/input/greetd: %v\n", err)
 	}
-
-	// 9. Generate DMS user config (binds/layout/colors) — non-fatal.
-	// Use the full path: the nix profile bin dir is not on the login PATH.
-	dmsBin := dmsPath
-	for _, setup := range []string{"binds", "layout", "colors"} {
-		if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("su - %s -c '%s setup %s'", u.UserName, dmsBin, setup)); err != nil {
-			fmt.Printf("[WARNING] dms setup %s failed: %v\n", setup, err)
-		}
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("usermod -aG audio %s", u.UserName)); err != nil {
+		fmt.Printf("[WARNING] Failed to add %s to audio group: %v\n", u.UserName, err)
 	}
 
 	fmt.Println("[INFO] niri desktop environment configured.")
