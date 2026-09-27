@@ -2,6 +2,13 @@
 
 All notable changes to FeralOS will be documented in this file.
 
+## 2026-09-27 — AppArmor profiles loaded under dinit
+
+- `apparmor-dinit` r4 (feralos-aports) = scripted profile loader: sources Alpine's `rc.apparmor.functions` and runs `parse_profiles` load (openrc logging stubbed) — the `apparmor start()` equivalent under dinit
+- `hardening` feature enables the service via boot.d symlink when installed (was: warning "not wired", profiles never loaded — LSM active but unconfined)
+- Harness `chmod_77_check`: excludes `/mnt/tmp` (legit sticky 1777 from layout-time `SetTempDirModes` — false positive)
+- Validated: harness niri+dinit 59/59 with 33 `profile_load` kernel events in serial
+
 ## 2026-09-27 — Nix: permanent trusted-users @wheel + chroot channel unpack fix
 
 - `nix.go` ships permanent `trusted-users = root @wheel` in nix.conf (NixOS upstream default) — wheel users run `nix profile add`/flakes without sudo; per-user injection + post-install `sed` cleanup removed (trusted users are ~root-equivalent by definition, so wheel adds zero escalation)
