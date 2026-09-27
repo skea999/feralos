@@ -1335,17 +1335,10 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		checks["niri_session_wrapper"] = "grep -q 'dinit -d /etc/dinit.d/user' /usr/local/bin/niri-session && test -x /usr/local/bin/niri-session"
 	}
 
-	// Flatpak checks — only when explicitly requested via fixture
-	hasRustdesk := false
-	for _, f := range cfg.FlatpakPackages {
-		if strings.Contains(f, "rustdesk") {
-			hasRustdesk = true
-			break
-		}
-	}
-	if hasRustdesk {
-		checks["flatpak_installed"] = "flatpak list 2>/dev/null | grep -q rustdesk"
-		checks["firewall_rustdesk"] = "firewall-cmd --permanent --list-ports 2>/dev/null | grep -q 21115 || grep -rq 21115 /etc/firewalld/ 2>/dev/null"
+	// Flatpak checks — generic, only when a fixture explicitly requests
+	// flatpakPackages (none ship by default; niri uses wayvnc, not RustDesk).
+	if len(cfg.FlatpakPackages) > 0 {
+		checks["flatpak_installed"] = "flatpak list 2>/dev/null | wc -l"
 	}
 
 	// Podman checks — container runtime

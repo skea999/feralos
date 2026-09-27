@@ -33,7 +33,7 @@ func SetupFlatpak(conf *config.Config) error {
 		// continue — remote may already exist or network transient
 	}
 
-	// Install each flatpak app: entries are "flathub:com.rustdesk.RustDesk" or "com.foo.Bar"
+	// Install each flatpak app: entries are "flathub:com.foo.Bar" or "com.foo.Bar"
 	for _, entry := range conf.User.FlatpakPackages {
 		if strings.TrimSpace(entry) == "" {
 			continue
