@@ -55,6 +55,7 @@ dinitSkipServices:
 dinitReplacedByChimera:
   - agetty
   - busybox
+  - btrfs-progs   # btrfs device scan: covered by chimera early-fs-btrfs
   - cryptsetup
   - eudev
   - kbd
