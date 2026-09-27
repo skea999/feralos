@@ -1329,6 +1329,10 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		checks["greetd_config"] = "ls /etc/greetd/config.toml /etc/greetd/greeter.sh /etc/greetd/regreet.toml /var/lib/greetd/.config/niri/config.kdl && test -x /etc/greetd/greeter.sh"
 		checks["niri_greeter"] = "pgrep -x niri"
 		checks["dms_installed"] = "apk info -e dms-shell quickshell && test -x /usr/bin/dms"
+		// user dinit services: supervised session stack (dbus/audio/wayland
+		// gate/polkit-agent/dms) shipped by *-user-dinit packages + dms-shell
+		checks["dinit_user_services"] = "for s in dbus.user pipewire.user pipewire-pulse.user wireplumber.user wait-wayland.user polkit-agent.user dms.user; do test -f /etc/dinit.d/user/$s || { echo \"missing $s\"; exit 1; }; done; echo 'user services OK'"
+		checks["niri_session_wrapper"] = "grep -q 'dinit -d /etc/dinit.d/user' /usr/local/bin/niri-session && test -x /usr/local/bin/niri-session"
 		checks["firewall_rustdesk"] = "firewall-cmd --permanent --list-ports 2>/dev/null | grep -q 21115 || grep -rq 21115 /etc/firewalld/ 2>/dev/null"
 	}
 
