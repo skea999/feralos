@@ -170,9 +170,10 @@ func RunBtrfsSetup(conf *config.Config) error {
 	if err := common.LuksAddKey(swapPart2, hostSwapKey, u.LuksPassword); err != nil {
 		return fmt.Errorf("failed to add key to swap2: %w", err)
 	}
-	// Encrypted swap unlock: /etc/crypttab (FeralOS dinit contract —
-	// dinit-chimera early-cryptdisks runs our dinit-cryptdisks hook;
-	// OpenRC dmcrypt reads the same file natively).
+	// Encrypted swap unlock — BOTH init systems (dual-init distro):
+	//   /etc/crypttab       → dinit (chimera early-cryptdisks runs our
+	//                         dinit-cryptdisks hook, keyfile in field 3)
+	//   /etc/conf.d/dmcrypt → OpenRC (dmcrypt initd legacy format)
 	// fstab then swapon's /dev/mapper/swap-* (chimera early-swap / OpenRC swap).
 	crypttab := fmt.Sprintf(`swap-%s%s UUID=%s %s luks,discard
 swap-%s%s UUID=%s %s luks,discard
@@ -181,6 +182,21 @@ swap-%s%s UUID=%s %s luks,discard
 	escapedCrypttab := strings.ReplaceAll(crypttab, "'", "'\\''")
 	if _, err := shell.ExecuteCmd("", fmt.Sprintf("echo '%s' > %s/etc/crypttab", escapedCrypttab, i.ChrootDir)); err != nil {
 		return fmt.Errorf("failed to write crypttab: %w", err)
+	}
+	dmcryptConf := fmt.Sprintf(`
+target=swap-%s%s
+source=UUID=%s
+key=%s
+
+target=swap-%s%s
+source=UUID=%s
+key=%s
+
+`, swapSuffix1, misc.GetPartitionSpacer(d1)+"3", swapUUID1, swapKey,
+		swapSuffix2, misc.GetPartitionSpacer(d2)+"3", swapUUID2, swapKey)
+	escapedDmcryptConf := strings.ReplaceAll(dmcryptConf, "'", "'\\''")
+	if _, err := shell.ExecuteCmd("", fmt.Sprintf("echo '%s' > %s/etc/conf.d/dmcrypt", escapedDmcryptConf, i.ChrootDir)); err != nil {
+		return fmt.Errorf("failed to write dmcrypt config: %w", err)
 	}
 
 	// 9. Inject kernel cmdline for booster

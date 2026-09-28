@@ -2,6 +2,10 @@
 
 All notable changes to FeralOS will be documented in this file.
 
+## 2026-09-28 — LUKS swap unlock: dual-init (crypttab + conf.d/dmcrypt)
+
+- `btrfsRaid0` + `btrfsStandardServer` write BOTH unlock configs after subvol mounts: `/etc/crypttab` (dinit — chimera `early-cryptdisks` contract) AND `/etc/conf.d/dmcrypt` (OpenRC — legacy `dmcrypt` initd format), same keyfile `/etc/dmcrypt/swap.key` — LUKS swap unlocks under either init (earlier arc wrote crypttab only, "replacing" conf.d/dmcrypt; both kept for dual-init)
+
 ## 2026-09-27 — dbus readiness for dinit dependents
 
 - `dbus-dinit` r5 (feralos-aports) = `--print-address=3` + ready-notification `pipefd:3`: dinit now gates dependents (elogind, polkit, NM) on the system bus being live, not merely on the dbus process being spawned — the elogind "connect before socket exists" race is gone at the source

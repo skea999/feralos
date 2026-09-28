@@ -31,7 +31,7 @@ Selected by `conf.User.DiskLayout` in `hostPhase.Run()` → `hostPhase/disks/*`.
   - `EnableSwap=false`: `p1` EFI 512M, `p2` LUKS root remainder
 - **Btrfs**: pure RAID0 data+metadata (`mkfs.btrfs -d raid0 -m raid0` on LUKS roots)
 - **Subvolumes**: same set as standard, `chattr +C` on NoCoW
-- **Swap**: 2 LUKS partitions `p2`, keyfile `/etc/dmcrypt/swap.key` + `luksAddKey` + `/etc/conf.d/dmcrypt`, `mkswap -L swap-*`, fstab `/dev/mapper/swap-*` (`pri=2`)
+- **Swap**: 2 LUKS partitions `p2`, keyfile `/etc/dmcrypt/swap.key` + `luksAddKey` + dual-init unlock config (`/etc/crypttab` for dinit + `/etc/conf.d/dmcrypt` for OpenRC), `mkswap -L swap-*`, fstab `/dev/mapper/swap-*` (`pri=2`)
 - **EFI**: dual — `/boot/efi` + `/boot/efi2`
 
 ### btrfsStandardServer (2 disks)
@@ -39,7 +39,7 @@ Selected by `conf.User.DiskLayout` in `hostPhase.Run()` → `hostPhase/disks/*`.
 - **Partitioning**: both disks — `p1` EFI 512M, `p2` LUKS RAID (`firstPartK`), `p3` LUKS swap (`secondPartK`), `p4` btrfs data remainder
 - **Btrfs**: RAID1 data+metadata on LUKS `p2` (`mkfs.btrfs -d raid1 -m raid1`)
 - **Subvolumes**: 21 on RAID1 (`@swap` always present)
-- **Swap**: always LUKS — `p3` on both disks, same keyfile/dmcrypt path as raid0. `swap` service always in `boot` runlevel.
+- **Swap**: always LUKS — `p3` on both disks, same keyfile/dual-init unlock path as raid0 (`/etc/crypttab` + `/etc/conf.d/dmcrypt`). `swap` service always in `boot` runlevel.
 - **Data**: `p4` plain btrfs `LABEL=data-*` mounted `/data/data-*`
 - **EFI**: dual — `/boot/efi` + `/boot/efi2`
 
