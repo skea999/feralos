@@ -134,7 +134,10 @@ hotkey-overlay {
 	// (supervised — crashed ones were restarted by dinit).
 	niriSession := `#!/bin/sh
 export XDG_SESSION_TYPE=wayland
+export XDG_SESSION_DESKTOP=niri
 export XDG_CURRENT_DESKTOP=niri
+# flatpak exports: app .desktop files visible to launchers/portals
+export XDG_DATA_DIRS="${HOME}/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share:/usr/share"
 export DBUS_SESSION_BUS_ADDRESS="unix:path=${XDG_RUNTIME_DIR}/bus"
 if [ ! -S "$XDG_RUNTIME_DIR/dinit.ctl" ]; then
     svcs=""
@@ -153,7 +156,10 @@ if [ ! -S "$XDG_RUNTIME_DIR/dinit.ctl" ]; then
         done
     fi
 fi
-exec /usr/bin/niri-session "$@"
+# niri --session sets XDG_CURRENT_DESKTOP/XDG_SESSION_TYPE itself and
+# imports them into the dbus activation env (upstream niri-session would
+# require user dinit units we do not ship).
+exec niri --session
 `
 	if err := writeFile(chroot, "/usr/local/bin/niri-session", niriSession); err != nil {
 		return fmt.Errorf("write niri-session wrapper: %w", err)
@@ -193,6 +199,7 @@ environment {
     XDG_CURRENT_DESKTOP "niri"
     QT_QPA_PLATFORM "wayland"
     QT_QPA_PLATFORMTHEME "gtk3"
+    ELECTRON_OZONE_PLATFORM_HINT "auto"
     SDL_VIDEO_DRIVER "wayland"
     CLUTTER_BACKEND "wayland"
     _JAVA_AWT_WM_NONREPARENTING "1"
