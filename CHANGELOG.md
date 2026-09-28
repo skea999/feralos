@@ -2,6 +2,13 @@
 
 All notable changes to FeralOS will be documented in this file.
 
+## 2026-09-28 — niri: gnome-keyring (secrets service) + PAM unlock in greetd
+
+- `gnome-keyring` package added to the niri set (closes installer-gaps 4.5: no `org.freedesktop.secrets` provider — gvfs/Thunderbird could not store passwords)
+- `pam_gnome_keyring` in `/etc/pam.d/greetd` (auth + session auto_start): login keyring unlocked with the login password, daemon autostarts at session open
+- Secrets component is D-Bus activated on demand (`org.freedesktop.secrets` ships with the package); session bus provided by the niri-session wrapper
+- Harness `gnome_keyring` check (pkg + dbus service file + PAM line) — niri+dinit run 60/60
+
 ## 2026-09-28 — LUKS swap unlock: dual-init (crypttab + conf.d/dmcrypt)
 
 - `btrfsRaid0` + `btrfsStandardServer` write BOTH unlock configs after subvol mounts: `/etc/crypttab` (dinit — chimera `early-cryptdisks` contract) AND `/etc/conf.d/dmcrypt` (OpenRC — legacy `dmcrypt` initd format), same keyfile `/etc/dmcrypt/swap.key` — LUKS swap unlocks under either init (earlier arc wrote crypttab only, "replacing" conf.d/dmcrypt; both kept for dual-init)

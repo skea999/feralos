@@ -13,6 +13,7 @@ Includes (from `internal_rules.yaml:desktopEnvironments.niri`):
 - Shell: `dms-shell` (1.6.2, feralos-aports), `quickshell` (0.3.1, feralos-aports)
 - Greeter: `greetd` + `greetd-regreet` + `greetd-openrc` (vt 7, greeter session via `/etc/greetd/greeter.sh`), `accountsservice`
 - Session: `elogind`, `dbus`, `xdg-desktop-portal-wlr/gtk`, `polkit-elogind` + `polkit-gnome`, `power-profiles-daemon`, `cups-pk-helper`, `alacritty`
+- Secrets: `gnome-keyring` (login keyring unlocked at greetd PAM — see [Secrets (gnome-keyring)](#secrets-gnome-keyring) below)
 - Session services (user dinit): `dbus-user-dinit`, `pipewire-user-dinit`, `pipewire-pulse-user-dinit`, `wireplumber-user-dinit`, `wayland-wait-user-dinit`, `polkit-agent-user-dinit` (feralos-aports; pull pipewire/pipewire-pulse/wireplumber as runtime deps), `wayvnc-user-dinit` (feralos-aports) + `dms.user` (shipped by `dms-shell`)
 - Network: `networkmanager`, `networkmanager-cli`, `networkmanager-tui`, `networkmanager-dinit` (service `default`), `wpa_supplicant` (spawned/supervised by NM), `wireguard-tools` (WireGuard via NM — see below)
 - Scanner stack: `sane`, `sane-backends`, `sane-utils`, `sane-airscan`, `simple-scan` + `qt6-qtmultimedia` (DMS optdepends), `i2c-tools`, `wtype` (DMS optdepends promoted)
@@ -71,6 +72,12 @@ rc-update add firewalld default
 - **Session logs**: `~/.local/share/dinit/` (user dinit service logs — dinit `log-type=file` per service)
 - **Groups**: user `video,input` (rules) + `audio` (`/dev/snd` for PipeWire) via `usermod -aG`; `plugdev`+`netdev` (rules) for NetworkManager GUI management; seat access via elogind D-Bus
 - `xdg-su` wrapper: `/usr/local/bin/xdg-su` — niri unsupported by xdg-su, uses `alacritty -e su -c` for `*niri*` desktops
+
+## Secrets (gnome-keyring)
+
+- Package: `gnome-keyring` (via `internal_rules.yaml` niri packages) — closes installer-gaps 4.5 (no `org.freedesktop.secrets` provider — gvfs/Thunderbird could not store passwords)
+- **PAM unlock**: `pam_gnome_keyring` appended to `/etc/pam.d/greetd` (`auth optional` + `session optional ... auto_start`, idempotent grep-guard) — the login keyring is unlocked with the login password at greetd login, and the keyring daemon autostarts when the PAM session opens
+- **Secrets service**: D-Bus activated on demand — `org.freedesktop.secrets` service file ships with the package, no user dinit service needed; the session bus is provided by the niri-session wrapper
 
 ## Network (NetworkManager)
 
@@ -156,17 +163,17 @@ ls -la $XDG_RUNTIME_DIR/bus
 grep -i "error" /var/log/messages | grep -vE "commitpartial|bwrap.*pivot_root|To enable access to XDG directories"
 ```
 
-> Harness result 59/59 PASS (niri+dinit fixture): `dms_installed` = apk check (`dms-shell`/`quickshell` native), `dinit_user_services` = all 7 `.user` service files under `/etc/dinit.d/user/`, `niri_session_wrapper` = wrapper starts the user dinit instance, wayvnc user service + NetworkManager active, niri config validation, allowlisted log errors. RustDesk checks removed (`flatpak_installed`/`firewall_rustdesk` only when a fixture explicitly lists a rustdesk flatpak). `/var/tmp` 1777 exempt in the chmod-777 log scan (O_TMPFILE). See `docs/harness/artifacts.md`.
+> Harness result 60/60 PASS (niri+dinit fixture, run 2026-09-28T00-22-50Z): `dms_installed` = apk check (`dms-shell`/`quickshell` native), `dinit_user_services` = all 7 `.user` service files under `/etc/dinit.d/user/`, `niri_session_wrapper` = wrapper starts the user dinit instance, `gnome_keyring` = pkg + `org.freedesktop.secrets` service file + `pam_gnome_keyring` in greetd PAM, wayvnc user service + NetworkManager active, niri config validation, allowlisted log errors. RustDesk checks removed (`flatpak_installed`/`firewall_rustdesk` only when a fixture explicitly lists a rustdesk flatpak). `/var/tmp` 1777 exempt in the chmod-777 log scan (O_TMPFILE). See `docs/harness/artifacts.md`.
 
 ## Upstream References
 
 - `references/niri-alpine/FIX-niri-dms.md` — DMS migration rounds (OpenRC service hang, fragment setup, background-effect, NetworkManager 30/44, wayvnc 37, RustDesk removal 43, /var/tmp 47)
 - `references/niri-alpine/niri-real-hardware.md` — real-hardware session notes
-- `references/niri-alpine/installer-gaps.md` — gap list (session env 5.4, logs 5.5, portals 5.12, greeter user/config, regreet state)
+- `references/niri-alpine/installer-gaps.md` — gap list (secrets 4.5 CLOSED — gnome-keyring; remaining: session env 5.4, logs 5.5, portals 5.12, greeter user/config, regreet state)
 
 ## Code References
 
-- `src/chrootPhase/desktops/niri.go` — greeter/regreet/niri-session wrapper (user dinit)/portals/xdg-su/dms setup + NetworkManager (interfaces lo-only, 10-manage.conf) + CUPS printer admin via `lpadmin` group (SystemGroup resta il default Alpine)
+- `src/chrootPhase/desktops/niri.go` — greeter/regreet/niri-session wrapper (user dinit)/portals/xdg-su/dms setup + gnome-keyring PAM unlock (`pam_gnome_keyring` in `/etc/pam.d/greetd`) + NetworkManager (interfaces lo-only, 10-manage.conf) + CUPS printer admin via `lpadmin` group (SystemGroup resta il default Alpine)
 - `src/chrootPhase/internal/packages.go` — `/lib/modules` before apk + `/var/tmp` 1777 + dinit conversion session/NM-managed skips (pipewire stack, wpa_supplicant, wireguard-tools)
 - `src/variables/internal_rules.yaml:desktopEnvironments.niri` — packages/services/groups (NM, wayvnc-user-dinit, sane/scanner stack, plugdev/netdev)
 - `src/hostPhase/disks/*/fstab.go` + `partitioning.go` — `/tmp` exec (nosuid kept)

@@ -1333,6 +1333,8 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		// gate/polkit-agent/dms) shipped by *-user-dinit packages + dms-shell
 		checks["dinit_user_services"] = "for s in dbus.user pipewire.user pipewire-pulse.user wireplumber.user wait-wayland.user polkit-agent.user dms.user; do test -f /etc/dinit.d/user/$s || { echo \"missing $s\"; exit 1; }; done; echo 'user services OK'"
 		checks["niri_session_wrapper"] = "grep -q 'dinit -d /etc/dinit.d/user' /usr/local/bin/niri-session && test -x /usr/local/bin/niri-session"
+		// gnome-keyring: package + D-Bus secrets service + PAM unlock lines in greetd
+		checks["gnome_keyring"] = "apk info -e gnome-keyring && test -f /usr/share/dbus-1/services/org.freedesktop.secrets.service && grep -q pam_gnome_keyring /etc/pam.d/greetd"
 	}
 
 	// Flatpak checks — generic, only when a fixture explicitly requests

@@ -318,6 +318,15 @@ exec /usr/bin/xdg-su "$@"
 		fmt.Printf("[WARNING] Failed to add %s to audio group: %v\n", u.UserName, err)
 	}
 
+	// 11. gnome-keyring: unlock the login keyring with the login password
+	// and autostart the daemon when the PAM session opens (greetd PAM).
+	// Secrets themselves are D-Bus activated on demand
+	// (org.freedesktop.secrets service ships with the package).
+	pamGreetd := "/etc/pam.d/greetd"
+	if _, err := shell.ExecuteCmd(chroot, "grep -q pam_gnome_keyring "+pamGreetd+" || { echo 'auth       optional pam_gnome_keyring.so' >> "+pamGreetd+"; echo 'session    optional pam_gnome_keyring.so auto_start' >> "+pamGreetd+"; }"); err != nil {
+		fmt.Printf("[WARNING] Failed to add pam_gnome_keyring to greetd PAM: %v\n", err)
+	}
+
 	fmt.Println("[INFO] niri desktop environment configured.")
 	return nil
 }

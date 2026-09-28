@@ -102,6 +102,7 @@ All 4 layouts PASS 35/35 with markers enabled. Markers appended at END of each c
 | `firewall_rustdesk` | RustDesk firewall ports | Only when a fixture explicitly lists a rustdesk flatpak: `firewall-cmd --permanent --list-ports \| grep 21115` OR `grep -rq 21115 /etc/firewalld/` (niri default: check absent — RustDesk removed) |
 | `flatpak_installed` | RustDesk flatpak | Only when `FlatpakPackages` contains rustdesk: `flatpak list \| grep rustdesk` (niri no longer injects a default) |
 | `dinit_shutdown_commands` | dinit shutdown commands wired | `/usr/bin/{poweroff,halt,shutdown}` symlinks + `/usr/bin/{reboot,soft-reboot}` wrappers all executable when `enableDinit=true` |
+| `gnome_keyring` | gnome-keyring secrets service (niri) | `apk info -e gnome-keyring` + `/usr/share/dbus-1/services/org.freedesktop.secrets.service` exists + `pam_gnome_keyring` in `/etc/pam.d/greetd` (gated niri) |
 
 **Nix build sandbox:** upstream default build dir (`/tmp`) — `/tmp` is mounted exec (no `noexec`), so the old `@nix-var-nix-build` tmp workaround (777 tmp + scoped temp dir) is gone. `trusted-users = root @wheel` is permanent (NixOS default — wheel is root-equivalent, no escalation). Nix SSL: `NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt` prefixed to all `su - user` nix client cmds.
 
@@ -113,7 +114,7 @@ All 4 layouts PASS 35/35 with markers enabled. Markers appended at END of each c
 
 **Log allowlist:** `log_errors` allowRe expanded 2026-09-09 to `commitpartial|bwrap.*pivot_root|To enable access to XDG directories` (flatpak XDG portal noise, was exact `commitpartial: No such file` + `bwrap: pivot_root: Invalid argument`). Base + btrfs `BTRFS error` allowlist retained. 2026-09-28: netns QEMU early-chain noise (`mount /run/netns/netns-*: Invalid argument`, matches both bare `mount` and `umount: can't unmount` variants) via `mount /run/netns.*Invalid argument`.
 
-**Harness result (niri+dinit fixture, run 2026-09-27T14-02-51Z):** **59/59 PASS** — `niri_*` checks, `dinit_user_services`, `niri_session_wrapper`, `dms_installed` (apk check), NM + wayvnc active; rustdesk checks removed.
+**Harness result (niri+dinit fixture, run 2026-09-28T00-22-50Z):** **60/60 PASS** — `niri_*` checks, `dinit_user_services`, `niri_session_wrapper`, `gnome_keyring` (pkg + `org.freedesktop.secrets` service file + `pam_gnome_keyring` in greetd PAM), `dms_installed` (apk check), NM + wayvnc active; rustdesk checks removed.
 
 ## Cache reuse
 
