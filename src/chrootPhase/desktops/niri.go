@@ -208,6 +208,9 @@ xwayland-satellite {
 // are supervised by the USER dinit instance started by the niri-session
 // wrapper — not spawned here (crash-restart + ordering handled by dinit).
 
+// XDG user dirs (Documents/Downloads/...) — idempotent, no-op after first run
+spawn-at-startup "sh" "-c" "command -v xdg-user-dirs-update >/dev/null 2>&1 && xdg-user-dirs-update"
+
 include "dms/binds.kdl"
 include "dms/layout.kdl"
 include "dms/colors.kdl"
