@@ -143,9 +143,15 @@ if [ ! -S "$XDG_RUNTIME_DIR/dinit.ctl" ]; then
         [ -f "/etc/dinit.d/user/$s" ] && svcs="$svcs $s"
     done
     [ -n "$svcs" ] && dinit -d /etc/dinit.d/user $svcs >/dev/null 2>&1 &
-fi
-if [ ! -S "$XDG_RUNTIME_DIR/bus" ]; then
-    dbus-daemon --session --fork --address="unix:path=$XDG_RUNTIME_DIR/bus" 2>/dev/null || true
+    # dbus.user creates the bus socket — the session (and every app) needs
+    # it, wait for it before proceeding (supervised by dinit from here on).
+    if echo "$svcs" | grep -q dbus.user; then
+        i=0
+        while [ ! -S "$XDG_RUNTIME_DIR/bus" ] && [ "$i" -lt 30 ]; do
+            sleep 0.5
+            i=$((i + 1))
+        done
+    fi
 fi
 exec /usr/bin/niri-session "$@"
 `

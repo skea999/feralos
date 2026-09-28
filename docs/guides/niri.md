@@ -57,7 +57,7 @@ rc-update add firewalld default
 
 ## User Session
 
-- **niri-session wrapper**: `/usr/local/bin/niri-session` (wins over `/usr/bin`) — greetd provides neither the session env nor a D-Bus session bus. POSIX script: exports `XDG_SESSION_TYPE=wayland` + `XDG_CURRENT_DESKTOP=niri` + `DBUS_SESSION_BUS_ADDRESS`, starts `dbus-daemon --session` on `$XDG_RUNTIME_DIR/bus` if missing, starts the USER dinit instance, then hands off to `/usr/bin/niri-session`
+- **niri-session wrapper**: `/usr/local/bin/niri-session` (wins over `/usr/bin`) — greetd provides neither the session env nor a D-Bus session bus. POSIX script: exports `XDG_SESSION_TYPE=wayland` + `XDG_CURRENT_DESKTOP=niri` + `DBUS_SESSION_BUS_ADDRESS`, starts the USER dinit instance and waits for the bus socket (`dbus.user` service = session bus, supervised), then hands off to `/usr/bin/niri-session`
 - **User dinit session services**: wrapper runs `dinit -d /etc/dinit.d/user <services>` (existence-filtered — a service file exists only if its package is installed, so the same wrapper works on any desktop). Idempotent across re-logins: skipped when `$XDG_RUNTIME_DIR/dinit.ctl` is already alive (supervised services survive; crashed ones were restarted by dinit). Services (Artix `dinit-userservd-services` model — `.user` suffix, sub-vars, `smooth-recovery`, dbus readiness via `pipefd:3` + `dinitctl setenv`):
   - `dbus.user`, `pipewire.user`, `pipewire-pulse.user`, `wireplumber.user`
   - `wait-wayland.user` — compositor-agnostic gate: resolves `WAYLAND_DISPLAY` from the compositor socket
@@ -77,7 +77,7 @@ rc-update add firewalld default
 
 - Package: `gnome-keyring` (via `internal_rules.yaml` niri packages) — closes installer-gaps 4.5 (no `org.freedesktop.secrets` provider — gvfs/Thunderbird could not store passwords)
 - **PAM unlock**: `pam_gnome_keyring` appended to `/etc/pam.d/greetd` (`auth optional` + `session optional ... auto_start`, idempotent grep-guard) — the login keyring is unlocked with the login password at greetd login, and the keyring daemon autostarts when the PAM session opens
-- **Secrets service**: D-Bus activated on demand — `org.freedesktop.secrets` service file ships with the package, no user dinit service needed; the session bus is provided by the niri-session wrapper
+- **Secrets service**: D-Bus activated on demand — `org.freedesktop.secrets` service file ships with the package; the session bus is `dbus.user`, supervised by the user dinit instance
 
 ## Network (NetworkManager)
 
