@@ -203,7 +203,7 @@ Each `Enable*` flag (and `DesktopEnvironment`) is owned by exactly ONE file unde
 | `DesktopEnvironment` | `chrootPhase/desktops/desktops.go` | `chroot_phase.go` |
 
 **Desktop environments supported:**
-- `niri` — custom config (greetd, regreet, niri config, DMS, xdg-su) in `chrootPhase/desktops/niri.go`
+- `niri` — custom config (greetd, regreet, niri config, DMS, xdg-su) in `chrootPhase/desktops/niri.go`; session startup = turnstile (PAM → user dinit) + unmodified Alpine `niri-session` via login-shell trick (`-s /usr/libexec/feralos/login-shell`, not in `/etc/shells`, symlink re-pointed to fish — busybox applet dispatch breaks the package's `/bin/ash` target; user `chsh` skipped) + `niri`/`niri-shutdown` user services (`niri-user-dinit`); installer enables `/etc/dinit.d/boot.d/turnstiled` + user `boot.d` stack in `/usr/lib/dinit.d/user/boot.d/`
 - `kde` — packages only via `internal_rules.yaml`, no custom config
 - `cosmic` — packages only via `internal_rules.yaml` (uses seatd, not elogind), no custom config
 

@@ -35,14 +35,23 @@ Packaging (APKBUILDs, CI, publishing) lives in the separate repo
 4. **Switch via kernel cmdline** `init=/usr/libexec/dinit/init` — OpenRC coexists;
    removing `init=` boots OpenRC again (no point of no return)
 5. **GCC** toolchain (Alpine default) — decision record in aports `TOOLCHAIN.md`
-6. **Phase 4**: turnstile (chimera project, ex `dinit-userservd`) → `dinit --user`,
-   DMS becomes a real user service; requires Chimera's `turnstile.patch` on polkit
-   (versions aligned: 127 = 127-r2)
+6. **Phase 4 (wired)**: turnstile (chimera project, ex `dinit-userservd`) →
+   per-user dinit at login; DMS/pipewire/dbus/etc. are real user services.
+   Requires Chimera's `turnstile.patch` on polkit (versions aligned: 127 = 127-r2).
+   Alpine `niri-session` runs unmodified: the login-shell trick (passwd shell =
+   `/usr/libexec/feralos/login-shell`, not in `/etc/shells`; installer re-points
+   the package symlink from `/bin/ash` to fish — busybox applet dispatch breaks
+   the `/bin/ash` target when invoked as `login-shell`) skips its bash
+   re-exec so its dinit branch starts the `niri` user service. Packages:
+   `turnstile` + `niri-user-dinit` (feralos-aports; published)
 
 ## Installer touchpoints (why this repo cares)
 
 - `internal_rules.yaml` `services:` map → `rc-update` today; with `enableDinit`
   the service applier emits `boot.d` symlinks instead (`logic.go` / services writer)
 - `variables.yaml`: `enableDinit` toggle → repo key + packages + `/etc/kernel/cmdline`
-- `desktops/niri.go` DMS OpenRC service → dinit user-service variant (turnstile)
+- `desktops/niri.go` DMS OpenRC service → user dinit services; session startup =
+  turnstile + unmodified Alpine `niri-session` (login-shell trick) + user `niri`
+  service (`niri-user-dinit`); installer enables `/etc/dinit.d/boot.d/turnstiled`
+  and the user `boot.d` stack under `/usr/lib/dinit.d/user/boot.d/`
 - Harness: `enableDinit` fixture + boot-detection via serial getty (`getty@ttyS0`)

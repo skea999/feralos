@@ -1327,12 +1327,23 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 	if cfg.DesktopEnvironment == desktopNiri {
 		checks["niri_config_valid"] = fmt.Sprintf("niri validate --config /var/lib/greetd/.config/niri/config.kdl && niri validate --config /home/%s/.config/niri/config.kdl", cfg.InstalledUser)
 		checks["greetd_config"] = "ls /etc/greetd/config.toml /etc/greetd/greeter.sh /etc/greetd/regreet.toml /var/lib/greetd/.config/niri/config.kdl && test -x /etc/greetd/greeter.sh"
-		checks["niri_greeter"] = "pgrep -x niri"
+		// greeter compositor: greetd/niri start late on some QEMU boots
+		// (turnstile/user-dinit + apparmor storm delay greetd's dinit start;
+		// observed PID ~1570 vs ~1340 on cold boots) — poll up to 60s, else
+		// the check races boot. Whole Verify budget is 2min; other checks
+		// take ~30s, so 60s worst case still fits.
+		checks["niri_greeter"] = "i=0; while [ $i -lt 60 ]; do pgrep -x niri >/dev/null && { echo 'niri running'; exit 0; }; sleep 1; i=$((i+1)); done; echo 'niri not running'; exit 1"
 		checks["dms_installed"] = "apk info -e dms-shell quickshell && test -x /usr/bin/dms"
 		// user dinit services: supervised session stack (dbus/audio/wayland
 		// gate/polkit-agent/dms) shipped by *-user-dinit packages + dms-shell
 		checks["dinit_user_services"] = "for s in dbus.user pipewire.user pipewire-pulse.user wireplumber.user wait-wayland.user polkit-agent.user dms.user; do test -f /etc/dinit.d/user/$s || { echo \"missing $s\"; exit 1; }; done; echo 'user services OK'"
-		checks["niri_session_wrapper"] = "grep -q 'dinit -d /etc/dinit.d/user' /usr/local/bin/niri-session && test -x /usr/local/bin/niri-session"
+		// niri session wiring: Alpine niri-session unmodified (user service
+		// from niri-user-dinit), login-shell trick (passwd shell NOT in
+		// /etc/shells), turnstile PAM → user dinit, boot.d enables.
+		checks["niri_user_service"] = "test -f /etc/dinit.d/user/niri && grep -q 'niri --session' /etc/dinit.d/user/niri"
+		checks["login_shell_trick"] = fmt.Sprintf("getent passwd %s | cut -d: -f7 | grep -q feralos/login-shell && test -L /usr/libexec/feralos/login-shell", cfg.InstalledUser)
+		checks["turnstile_pkg"] = "test -f /etc/dinit.d/turnstiled && test -e /etc/dinit.d/boot.d/turnstiled && test -f /usr/lib/security/pam_turnstile.so"
+		checks["user_services_enabled"] = "for s in dbus.user pipewire.user pipewire-pulse.user wireplumber.user wait-wayland.user polkit-agent.user dms.user wayvnc.user; do test -e /usr/lib/dinit.d/user/boot.d/$s || { echo \"missing $s\"; exit 1; }; done; echo ok"
 		// gnome-keyring: package + D-Bus secrets service + PAM unlock lines in greetd
 		checks["gnome_keyring"] = "apk info -e gnome-keyring && test -f /usr/share/dbus-1/services/org.freedesktop.secrets.service && grep -q pam_gnome_keyring /etc/pam.d/greetd"
 	}
@@ -1836,12 +1847,15 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		// the installer) — including the retry lines that contain bare "failed",
 		// and the installer's non-interactive "ignoring error and continuing"
 		// warning (informational — retries exhausted, continues). Also
-		// mdadm "error opening /dev/md?" (no pre-existing RAID) and mkfs.btrfs
-		// usage-help example lines (contain "error" in the example text).
-		allowRe := regexp.MustCompile(`(?i)(0 errors|no errors|errors: 0|0 failed|no failed|failed: 0|zero errors|libgpg-error|liberror-perl|error trace:|start-stop-daemon: no matching processes found|fsck\.vfat: No such file or directory|Check FAT filesystem on DEVICE for errors|early-sysctl command failed|\[FAILED\] early-sysctl|install command '/bin/false'|mount /run/netns.*Invalid argument|booster: mount\(/dev/dm-|dpkg was interrupted|dpkg --configure -a|failed, retrying in|apt does not have a stable CLI|error opening /dev/md|E\.g\.: dev1|LABEL=EFIVDB|errors=remount-ro|sysctl: error:.*is an unknown key|sysctl: unknown sysctl|icmp_ignore_bogus_error_responses|/nix/store/[^ ]*-error|commitpartial|bwrap.*pivot_root|To enable access to XDG directories|abseil-cpp-strerror)`)
+		// mdadm "error opening /dev/md?" (no pre-existing RAID), mkfs.btrfs
+		// usage-help example lines (contain "error" in the example text), and
+		// turnstiled's shutdown-only pam_elogind "Failed to connect to system
+		// bus" (turnstiled stops after dbus on poweroff — harmless teardown
+		// noise, no session is being opened).
+		allowRe := regexp.MustCompile(`(?i)(0 errors|no errors|errors: 0|0 failed|no failed|failed: 0|zero errors|libgpg-error|liberror-perl|error trace:|start-stop-daemon: no matching processes found|fsck\.vfat: No such file or directory|Check FAT filesystem on DEVICE for errors|early-sysctl command failed|\[FAILED\] early-sysctl|install command '/bin/false'|mount /run/netns.*Invalid argument|booster: mount\(/dev/dm-|dpkg was interrupted|dpkg --configure -a|failed, retrying in|apt does not have a stable CLI|error opening /dev/md|E\.g\.: dev1|LABEL=EFIVDB|errors=remount-ro|sysctl: error:.*is an unknown key|sysctl: unknown sysctl|icmp_ignore_bogus_error_responses|/nix/store/[^ ]*-error|commitpartial|bwrap.*pivot_root|To enable access to XDG directories|abseil-cpp-strerror|turnstiled: pam_elogind.*Failed to connect to system bus)`)
 		// BTRFS-specific errors: only for btrfs layouts (btrfsStandard, btrfsStandardServer, btrfsRaid0, btrfsUnencrypted)
 		if strings.Contains(cfg.DiskLayout, "btrfs") {
-			allowRe = regexp.MustCompile(`(?i)(0 errors|no errors|errors: 0|0 failed|no failed|failed: 0|zero errors|libgpg-error|liberror-perl|error trace:|start-stop-daemon: no matching processes found|fsck\.vfat: No such file or directory|Check FAT filesystem on DEVICE for errors|early-sysctl command failed|\[FAILED\] early-sysctl|install command '/bin/false'|mount /run/netns.*Invalid argument|booster: mount\(/dev/dm-|dpkg was interrupted|dpkg --configure -a|failed, retrying in|apt does not have a stable CLI|error opening /dev/md|E\.g\.: dev1|LABEL=EFIVDB|errors=remount-ro|sysctl: error:.*is an unknown key|sysctl: unknown sysctl|icmp_ignore_bogus_error_responses|/nix/store/[^ ]*-error|commitpartial|bwrap.*pivot_root|To enable access to XDG directories|BTRFS error.*is missing|BTRFS error.*failed to read the system array|BTRFS error.*open_ctree failed|BTRFS Transaction aborted|forced readonly|abseil-cpp-strerror)`)
+			allowRe = regexp.MustCompile(`(?i)(0 errors|no errors|errors: 0|0 failed|no failed|failed: 0|zero errors|libgpg-error|liberror-perl|error trace:|start-stop-daemon: no matching processes found|fsck\.vfat: No such file or directory|Check FAT filesystem on DEVICE for errors|early-sysctl command failed|\[FAILED\] early-sysctl|install command '/bin/false'|mount /run/netns.*Invalid argument|booster: mount\(/dev/dm-|dpkg was interrupted|dpkg --configure -a|failed, retrying in|apt does not have a stable CLI|error opening /dev/md|E\.g\.: dev1|LABEL=EFIVDB|errors=remount-ro|sysctl: error:.*is an unknown key|sysctl: unknown sysctl|icmp_ignore_bogus_error_responses|/nix/store/[^ ]*-error|commitpartial|bwrap.*pivot_root|To enable access to XDG directories|BTRFS error.*is missing|BTRFS error.*failed to read the system array|BTRFS error.*open_ctree failed|BTRFS Transaction aborted|forced readonly|abseil-cpp-strerror|turnstiled: pam_elogind.*Failed to connect to system bus)`)
 		}
 		var problems []string
 		for _, logName := range []string{"target-serial.log", "installer.log"} {

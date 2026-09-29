@@ -8,9 +8,10 @@ import (
 )
 
 // SetupNiri configures the niri desktop environment:
-// greetd (greeter), regreet, niri configs (greeter + user), the POSIX
-// niri-session wrapper (session env + D-Bus session bus), DMS (native apk,
-// spawned by the niri session), PipeWire audio, and the polkit agent.
+// greetd (greeter), regreet, niri configs (greeter + user), session startup
+// through turnstile + Alpine's unmodified niri-session (user dinit service),
+// DMS (native apk, spawned by the niri session), PipeWire audio, and the
+// polkit agent.
 //
 // Real hardware only — the VirtualBox/Hyper-V software-rendering workarounds
 // (LIBGL_ALWAYS_SOFTWARE, QT_QUICK_BACKEND=software, WLR_NO_HARDWARE_CURSORS,
@@ -123,49 +124,20 @@ hotkey-overlay {
 		return fmt.Errorf("fix greeter/regreet ownership: %w", err)
 	}
 
-	// 5. niri-session wrapper (/usr/local/bin wins over /usr/bin): greetd
-	// provides neither the session env nor a D-Bus session bus (gap 5.4).
-	// The wrapper also starts the USER DINIT instance supervising the
-	// session services (dbus/pipewire/pulse/wireplumber via *-user-dinit
-	// packages; polkit-agent, dms — wayland-gated). Existence-filtered:
-	// a service file exists only if its package is installed, so the same
-	// wrapper works on any desktop. Idempotent across re-logins: if the
-	// user manager control socket is alive, services are already running
-	// (supervised — crashed ones were restarted by dinit).
-	niriSession := `#!/bin/sh
-export XDG_SESSION_TYPE=wayland
-export XDG_SESSION_DESKTOP=niri
-export XDG_CURRENT_DESKTOP=niri
-# flatpak exports: app .desktop files visible to launchers/portals
-export XDG_DATA_DIRS="${HOME}/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share:/usr/share"
-export DBUS_SESSION_BUS_ADDRESS="unix:path=${XDG_RUNTIME_DIR}/bus"
-if [ ! -S "$XDG_RUNTIME_DIR/dinit.ctl" ]; then
-    svcs=""
-    for s in dbus.user pipewire.user pipewire-pulse.user wireplumber.user \
-             wait-wayland.user polkit-agent.user dms.user; do
-        [ -f "/etc/dinit.d/user/$s" ] && svcs="$svcs $s"
-    done
-    [ -n "$svcs" ] && dinit -d /etc/dinit.d/user $svcs >/dev/null 2>&1 &
-    # dbus.user creates the bus socket — the session (and every app) needs
-    # it, wait for it before proceeding (supervised by dinit from here on).
-    if echo "$svcs" | grep -q dbus.user; then
-        i=0
-        while [ ! -S "$XDG_RUNTIME_DIR/bus" ] && [ "$i" -lt 30 ]; do
-            sleep 0.5
-            i=$((i + 1))
-        done
-    fi
-fi
-# niri --session sets XDG_CURRENT_DESKTOP/XDG_SESSION_TYPE itself and
-# imports them into the dbus activation env (upstream niri-session would
-# require user dinit units we do not ship).
-exec niri --session
-`
-	if err := writeFile(chroot, "/usr/local/bin/niri-session", niriSession); err != nil {
-		return fmt.Errorf("write niri-session wrapper: %w", err)
-	}
-	if _, err := shell.ExecuteCmd(chroot, "chmod +x /usr/local/bin/niri-session"); err != nil {
-		return fmt.Errorf("chmod niri-session wrapper: %w", err)
+	// 5. Session startup — no wrapper: Alpine's /usr/bin/niri-session is used
+	// UNMODIFIED. greetd sets SHELL from passwd; the user is created with
+	// /usr/libexec/feralos/login-shell (NOT in /etc/shells), so niri-session
+	// skips its bash re-exec and reaches the dinit branch: turnstile (PAM,
+	// base-session) starts the user dinit at login and `dinitctl --user start
+	// niri` starts the `niri` service (niri-user-dinit); niri-shutdown clears
+	// the session env on exit. XDG session env comes from /etc/environment
+	// (pam_env in the turnstiled PAM stack) + the niri config environment
+	// block below.
+	environmentFile := fmt.Sprintf(`XDG_SESSION_DESKTOP=niri
+XDG_DATA_DIRS=/home/%s/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share:/usr/share
+`, u.UserName)
+	if err := writeFile(chroot, "/etc/environment", environmentFile); err != nil {
+		return fmt.Errorf("write /etc/environment: %w", err)
 	}
 
 	// 6. xdg-desktop-portal portal backend for the user — niri-portalsconf
@@ -182,8 +154,9 @@ org.freedesktop.impl.portal.ScreenCast=wlr;
 	}
 
 	// 8. niri config for the real user — keymap, wayland env, XWayland.
-	// Session services live in the user dinit instance (wrapper); RustDesk
-	// removed — remote desktop = wayvnc (user dinit service, round 37/43).
+	// Session services live in the user dinit instance started by turnstile
+	// at login; RustDesk removed — remote desktop = wayvnc (user dinit
+	// service, round 37/43).
 	userNiri := fmt.Sprintf(`input {
     keyboard {
         xkb {
@@ -196,7 +169,9 @@ org.freedesktop.impl.portal.ScreenCast=wlr;
 
 environment {
     XDG_SESSION_TYPE "wayland"
+    XDG_SESSION_DESKTOP "niri"
     XDG_CURRENT_DESKTOP "niri"
+    XDG_DATA_DIRS "/home/%s/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share:/usr/share"
     QT_QPA_PLATFORM "wayland"
     QT_QPA_PLATFORMTHEME "gtk3"
     ELECTRON_OZONE_PLATFORM_HINT "auto"
@@ -212,8 +187,8 @@ xwayland-satellite {
 }
 
 // Session services (dbus/pipewire/pulse/wireplumber/polkit-agent/dms/wayvnc)
-// are supervised by the USER dinit instance started by the niri-session
-// wrapper — not spawned here (crash-restart + ordering handled by dinit).
+// are supervised by the USER dinit instance turnstile starts at login — not
+// spawned here (crash-restart + ordering handled by dinit).
 
 // XDG user dirs (Documents/Downloads/...) — idempotent, no-op after first run
 spawn-at-startup "sh" "-c" "command -v xdg-user-dirs-update >/dev/null 2>&1 && xdg-user-dirs-update"
@@ -221,7 +196,7 @@ spawn-at-startup "sh" "-c" "command -v xdg-user-dirs-update >/dev/null 2>&1 && x
 include "dms/binds.kdl"
 include "dms/layout.kdl"
 include "dms/colors.kdl"
-`, u.Keymap)
+`, u.Keymap, u.UserName)
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p /home/%s/.config/niri", u.UserName)); err != nil {
 		return fmt.Errorf("mkdir user niri config dir: %w", err)
 	}
@@ -335,12 +310,29 @@ exec /usr/bin/xdg-su "$@"
 	}
 
 	// 11. gnome-keyring: unlock the login keyring with the login password
-	// and autostart the daemon when the PAM session opens (greetd PAM).
-	// Secrets themselves are D-Bus activated on demand
+	// when the PAM session opens (greetd PAM). Only the auth line is added
+	// here — the `session ... auto_start` line already ships in Alpine's
+	// base-session. Secrets themselves are D-Bus activated on demand
 	// (org.freedesktop.secrets service ships with the package).
 	pamGreetd := "/etc/pam.d/greetd"
-	if _, err := shell.ExecuteCmd(chroot, "grep -q pam_gnome_keyring "+pamGreetd+" || { echo 'auth       optional pam_gnome_keyring.so' >> "+pamGreetd+"; echo 'session    optional pam_gnome_keyring.so auto_start' >> "+pamGreetd+"; }"); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, "grep -q 'auth.*pam_gnome_keyring.so' "+pamGreetd+" || echo 'auth       optional pam_gnome_keyring.so' >> "+pamGreetd); err != nil {
 		fmt.Printf("[WARNING] Failed to add pam_gnome_keyring to greetd PAM: %v\n", err)
+	}
+
+	// 12. turnstiled — system service: the PAM module talks to it over its
+	// socket; it spawns the per-user dinit at login. Symlink into boot.d
+	// (admin dir; FeralOS dinit runs as PID1 with enableDinit).
+	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /etc/dinit.d/boot.d && test -f /etc/dinit.d/turnstiled && ln -sf /etc/dinit.d/turnstiled /etc/dinit.d/boot.d/turnstiled || true"); err != nil {
+		fmt.Printf("[WARNING] Failed to enable turnstiled: %v\n", err)
+	}
+
+	// 13. user session services: enable them in boot.d of the primary user
+	// service dir (/usr/lib/dinit.d/user; turnstile's dinit backend also
+	// scans /etc/dinit.d/user, where packages install their files).
+	// Existence-filtered — only installed packages get enabled.
+	userServices := "dbus.user pipewire.user pipewire-pulse.user wireplumber.user wait-wayland.user polkit-agent.user dms.user wayvnc.user"
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p /usr/lib/dinit.d/user/boot.d && for s in %s; do [ -f /etc/dinit.d/user/$s ] && ln -sf /etc/dinit.d/user/$s /usr/lib/dinit.d/user/boot.d/$s; done", userServices)); err != nil {
+		fmt.Printf("[WARNING] Failed to enable user dinit services: %v\n", err)
 	}
 
 	fmt.Println("[INFO] niri desktop environment configured.")

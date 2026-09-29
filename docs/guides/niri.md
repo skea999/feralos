@@ -6,7 +6,7 @@
 
 Niri is a scrollable-tiling Wayland compositor. FeralOS installs it via `desktopEnvironment: "niri"` in `variables.yaml`.
 
-**DMS is native**: `dms-shell` 1.6.2 + `quickshell` 0.3.1 ship as musl apks from the `feralos-aports` repo. **No nix, no nixGL, no execfilter** in the desktop stack. The old `/etc/init.d/dms` OpenRC service is gone on purpose — it hung boot and duplicated the shell; DMS (`dms.user`) is supervised by the USER dinit instance started by the niri-session wrapper (wayland-gated via `wait-wayland.user`).
+**DMS is native**: `dms-shell` 1.6.2 + `quickshell` 0.3.1 ship as musl apks from the `feralos-aports` repo. **No nix, no nixGL, no execfilter** in the desktop stack. The old `/etc/init.d/dms` OpenRC service is gone on purpose — it hung boot and duplicated the shell; DMS (`dms.user`) is supervised by the USER dinit instance turnstile starts at login (wayland-gated via `wait-wayland.user`).
 
 Includes (from `internal_rules.yaml:desktopEnvironments.niri`):
 - Compositor: `niri`, `niri-portalsconf`, `xwayland-satellite`, `xwayland`, `mesa-dri-gallium`, `wayland-libs-server`
@@ -14,7 +14,7 @@ Includes (from `internal_rules.yaml:desktopEnvironments.niri`):
 - Greeter: `greetd` + `greetd-regreet` + `greetd-openrc` (vt 7, greeter session via `/etc/greetd/greeter.sh`), `accountsservice`
 - Session: `elogind`, `dbus`, `xdg-desktop-portal-wlr/gtk`, `polkit-elogind` + `polkit-gnome`, `power-profiles-daemon`, `cups-pk-helper`, `alacritty`
 - Secrets: `gnome-keyring` (login keyring unlocked at greetd PAM — see [Secrets (gnome-keyring)](#secrets-gnome-keyring) below)
-- Session services (user dinit): `dbus-user-dinit`, `pipewire-user-dinit`, `pipewire-pulse-user-dinit`, `wireplumber-user-dinit`, `wayland-wait-user-dinit`, `polkit-agent-user-dinit` (feralos-aports; pull pipewire/pipewire-pulse/wireplumber as runtime deps), `wayvnc-user-dinit` (feralos-aports) + `dms.user` (shipped by `dms-shell`)
+- Session services (user dinit): `turnstile` (feralos-aports, PAM session → user dinit), `niri-user-dinit` (feralos-aports: `niri` + `niri-shutdown` user services + `/usr/libexec/feralos/login-shell`), `dbus-user-dinit`, `pipewire-user-dinit`, `pipewire-pulse-user-dinit`, `wireplumber-user-dinit`, `wayland-wait-user-dinit`, `polkit-agent-user-dinit` (feralos-aports; pull pipewire/pipewire-pulse/wireplumber as runtime deps), `wayvnc-user-dinit` (feralos-aports) + `dms.user` (shipped by `dms-shell`)
 - Network: `networkmanager`, `networkmanager-cli`, `networkmanager-tui`, `networkmanager-dinit` (service `default`), `wpa_supplicant` (spawned/supervised by NM), `wireguard-tools` (WireGuard via NM — see below)
 - Scanner stack: `sane`, `sane-backends`, `sane-utils`, `sane-airscan`, `simple-scan` + `qt6-qtmultimedia` (DMS optdepends), `i2c-tools`, `wtype` (DMS optdepends promoted)
 - Apps: `cosmic-files/edit/screenshot/player/store/settings`, `okular`, `eog`, `cups/cups-filters/avahi/system-config-printer`, `libreoffice`, `galculator`, `firefox`, `firewalld-gui`, `gnome-firmware`, `thunderbird`, `gnome-disk-utility`, `kcron`, `ksystemlog`, `rclone`
@@ -22,7 +22,7 @@ Includes (from `internal_rules.yaml:desktopEnvironments.niri`):
 - Services: `greetd`, `elogind`, `firewalld`, `polkit`, `cupsd`, `networkmanager` (all `default`)
 - Groups: `video`, `input`, `audio`, `plugdev`, `netdev` (plugdev: NM polkit rule allows GUI connection management)
 
-> Notes: `cava` (DMS audio visualizer) not on Alpine 3.24 — re-add when packaged. `turnstile` edge-only. `matugen`/`rclone-ui` not on Alpine — DMS degrades gracefully. `render` group does not exist on Alpine (video covers DRM). No `nixPackages` — `enableNix` is an independent feature.
+> Notes: `cava` (DMS audio visualizer) not on Alpine 3.24 — re-add when packaged. `turnstile` ships via feralos-aports (Alpine stable does not have it). `matugen`/`rclone-ui` not on Alpine — DMS degrades gracefully. `render` group does not exist on Alpine (video covers DRM). No `nixPackages` — `enableNix` is an independent feature.
 
 > RustDesk removed (round 43 cleanup philosophy — never in the validated stack). Remote desktop = **wayvnc** (user dinit service, loopback by default) — see below.
 
@@ -57,13 +57,15 @@ rc-update add firewalld default
 
 ## User Session
 
-- **niri-session wrapper**: `/usr/local/bin/niri-session` (wins over `/usr/bin`) — greetd provides neither the session env nor a D-Bus session bus. POSIX script: exports `XDG_SESSION_TYPE=wayland` + `XDG_SESSION_DESKTOP=niri` + `XDG_CURRENT_DESKTOP=niri` + `XDG_DATA_DIRS` (flatpak exports first: `~/.local/share/flatpak/exports/share`, `/var/lib/flatpak/exports/share`) + `DBUS_SESSION_BUS_ADDRESS`, starts the USER dinit instance and waits for the bus socket (`dbus.user` service = session bus, supervised), then execs `niri --session` directly. The Alpine `niri-session` script is NO LONGER used: on a dinit system it requires user dinit units (`niri.target`/`niri`) that upstream does not package and we do not ship — login would fail/hang in `dinitctl start`. `niri --session` sets `XDG_CURRENT_DESKTOP`/`XDG_SESSION_TYPE` itself and imports them into the dbus activation env. `ELECTRON_OZONE_PLATFORM_HINT=auto` (Electron apps on Wayland, DMS docs recommendation) comes from the niri config `environment` block, not the wrapper
-- **User dinit session services**: wrapper runs `dinit -d /etc/dinit.d/user <services>` (existence-filtered — a service file exists only if its package is installed, so the same wrapper works on any desktop). Idempotent across re-logins: skipped when `$XDG_RUNTIME_DIR/dinit.ctl` is already alive (supervised services survive; crashed ones were restarted by dinit). Services (Artix `dinit-userservd-services` model — `.user` suffix, sub-vars, `smooth-recovery`, dbus readiness via `pipefd:3` + `dinitctl setenv`):
+- **Alpine niri-session, unmodified**: `/usr/bin/niri-session` is used as shipped. greetd sets `SHELL` from the passwd entry; the user is created with `-s /usr/libexec/feralos/login-shell` — a symlink shipped by `niri-user-dinit`, deliberately **not** listed in `/etc/shells`. The package default target is `/bin/ash`, but busybox dispatches applets on `argv[0]`: a `login-shell`-named symlink to `/bin/ash` fails with `login-shell: applet not found` for every passwd-shell consumer (sshd, `su -`, installer's `dms setup`), so the installer re-points it to `/usr/bin/fish` (the pre-turnstile user shell). The script's "re-exec through bash when `$SHELL` is in `/etc/shells`" check therefore fails, the bash re-exec is skipped, and it reaches its dinit branch: `dinitctl --user start niri` starts the `niri` user service (`command = niri --session`, `depends-on = dbus.user`, `chain-to = niri-shutdown`, `restart = false`). The installer does **not** write `/usr/local/bin/niri-session` anymore (old wrapper removed; `user chsh` is also skipped for niri so it cannot clobber the passwd shell)
+- **turnstile (PAM session → user dinit)**: `session optional pam_turnstile.so` already ships in Alpine's `base-session` (3.24-stable). At greetd login `pam_turnstile.so` asks the system `turnstiled` (symlinked into `/etc/dinit.d/boot.d/`) to spawn the per-user dinit instance (`/usr/libexec/turnstile/dinit`, backend `dinit`, `manage_rundir=false` — elogind owns `/run/user/<uid>`). The installer enables the session stack in the user dinit's `boot.d` (`/usr/lib/dinit.d/user/boot.d/`): `dbus.user pipewire.user pipewire-pulse.user wireplumber.user wait-wayland.user polkit-agent.user dms.user wayvnc.user` (existence-filtered)
+- **Session env**: `/etc/environment` (`XDG_SESSION_DESKTOP=niri`, `XDG_DATA_DIRS` with flatpak exports first; read by `pam_env` in `/etc/pam.d/turnstiled`) + the niri config `environment` block. No `DBUS_SESSION_BUS_ADDRESS` export needed: the session bus is the `dbus.user` service of the turnstile-started user dinit
+- **User dinit session services** (Artix `dinit-userservd-services` model — `.user` suffix, sub-vars, `smooth-recovery`, dbus readiness via `pipefd:3` + `dinitctl setenv`):
   - `dbus.user`, `pipewire.user`, `pipewire-pulse.user`, `wireplumber.user`
   - `wait-wayland.user` — compositor-agnostic gate: resolves `WAYLAND_DISPLAY` from the compositor socket
   - `polkit-agent.user`, `wayvnc.user` (remote desktop, wayland-gated), `dms.user` (wayland-gated; `dms.user` shipped by `dms-shell`)
   - Logs: `~/.local/share/dinit/`
-- User niri config: `/home/<user>/.config/niri/config.kdl` — keymap from `variables.yaml`, wayland env (`XDG_SESSION_TYPE wayland`, `QT_QPA_PLATFORM wayland`, `QT_QPA_PLATFORMTHEME gtk3`, `SDL_VIDEO_DRIVER wayland`, etc.), no session service spawns (supervision + ordering now native dinit):
+- User niri config: `/home/<user>/.config/niri/config.kdl` — keymap from `variables.yaml`, wayland env (`XDG_SESSION_TYPE wayland`, `XDG_SESSION_DESKTOP niri`, `XDG_DATA_DIRS` with flatpak exports first, `QT_QPA_PLATFORM wayland`, `QT_QPA_PLATFORMTHEME gtk3`, `SDL_VIDEO_DRIVER wayland`, etc.), no session service spawns (supervision + ordering now native dinit):
   - `xwayland-satellite { path "xwayland-satellite" }` block — XWayland for X11 apps
   - `include "dms/binds.kdl"` + `dms/layout.kdl` + `dms/colors.kdl`
 - **DMS fragments**: pre-created before first niri validation via `su - <user> -c 'dms setup binds|layout|colors'` (packaged CLI). Config ownership fixed BEFORE `dms setup` (installer mkdir/writes run as root — without `chown -R`, `dms setup` cannot create `.config/niri/dms/` and every fragment fails)
@@ -76,7 +78,7 @@ rc-update add firewalld default
 ## Secrets (gnome-keyring)
 
 - Package: `gnome-keyring` (via `internal_rules.yaml` niri packages) — closes installer-gaps 4.5 (no `org.freedesktop.secrets` provider — gvfs/Thunderbird could not store passwords)
-- **PAM unlock**: `pam_gnome_keyring` appended to `/etc/pam.d/greetd` (`auth optional` + `session optional ... auto_start`, idempotent grep-guard) — the login keyring is unlocked with the login password at greetd login, and the keyring daemon autostarts when the PAM session opens
+- **PAM unlock**: `auth optional pam_gnome_keyring.so` appended to `/etc/pam.d/greetd` (idempotent grep-guard); the `session ... auto_start` line is **not** added anymore — it already ships in Alpine's `base-session`. The login keyring is unlocked with the login password at greetd login, and the keyring daemon autostarts when the PAM session opens
 - **Secrets service**: D-Bus activated on demand — `org.freedesktop.secrets` service file ships with the package; the session bus is `dbus.user`, supervised by the user dinit instance
 
 ## Network (NetworkManager)
@@ -156,6 +158,13 @@ ls /etc/dinit.d/user/
 dinitctl -u "$XDG_RUNTIME_DIR/dinit.ctl" status dbus.user
 tail -50 ~/.local/share/dinit/pipewire.user.log
 
+# turnstile + user dinit (PAM session → per-user dinit)
+ls -la /etc/dinit.d/boot.d/turnstiled
+pgrep -x turnstiled
+getent passwd <user> | cut -d: -f7      # → /usr/libexec/feralos/login-shell
+ls -la /usr/lib/dinit.d/user/boot.d/
+ls -la /usr/libexec/feralos/login-shell
+
 # Session bus
 ls -la $XDG_RUNTIME_DIR/bus
 
@@ -163,7 +172,7 @@ ls -la $XDG_RUNTIME_DIR/bus
 grep -i "error" /var/log/messages | grep -vE "commitpartial|bwrap.*pivot_root|To enable access to XDG directories"
 ```
 
-> Harness result 60/60 PASS (niri+dinit fixture, run 2026-09-28T00-22-50Z): `dms_installed` = apk check (`dms-shell`/`quickshell` native), `dinit_user_services` = all 7 `.user` service files under `/etc/dinit.d/user/`, `niri_session_wrapper` = wrapper starts the user dinit instance, `gnome_keyring` = pkg + `org.freedesktop.secrets` service file + `pam_gnome_keyring` in greetd PAM, wayvnc user service + NetworkManager active, niri config validation, allowlisted log errors. RustDesk checks removed (`flatpak_installed`/`firewall_rustdesk` only when a fixture explicitly lists a rustdesk flatpak). `/var/tmp` 1777 exempt in the chmod-777 log scan (O_TMPFILE). See `docs/harness/artifacts.md`.
+> Harness result 63/63 PASS (niri+dinit fixture, run 2026-09-29T22-07-20Z, turnstile wiring): `dms_installed` = apk check (`dms-shell`/`quickshell` native), `dinit_user_services` = all 7 `.user` service files under `/etc/dinit.d/user/`, `niri_user_service` = `/etc/dinit.d/user/niri` runs `niri --session`, `login_shell_trick` = passwd shell `feralos/login-shell` + symlink present, `turnstile_pkg` = `/etc/dinit.d/turnstiled` + `boot.d` link + `pam_turnstile.so`, `user_services_enabled` = all 8 `boot.d` links under `/usr/lib/dinit.d/user/boot.d/` (`turnstiled` running as a dinit system service), `niri_greeter` = `niri -- regreet` running (polled, slow QEMU boots), `gnome_keyring` = pkg + `org.freedesktop.secrets` service file + `pam_gnome_keyring` in greetd PAM, wayvnc user service + NetworkManager active, niri config validation, no ignored errors in installer.log, allowlisted log errors. RustDesk checks removed (`flatpak_installed`/`firewall_rustdesk` only when a fixture explicitly lists a rustdesk flatpak). `/var/tmp` 1777 exempt in the chmod-777 log scan (O_TMPFILE). See `docs/harness/artifacts.md`.
 
 ## Upstream References
 

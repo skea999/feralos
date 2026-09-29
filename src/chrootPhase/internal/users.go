@@ -12,6 +12,7 @@ import (
 func SetupUsers(conf *config.Config) error {
 	chroot := conf.Internal.ChrootDir
 	u := conf.User
+	isNiri := u.DesktopEnvironment == "niri"
 
 	// 1. Root password — uses exec.Command with stdin (no shell, no logging)
 	fmt.Println("[INFO] Setting root password...")
@@ -21,10 +22,33 @@ func SetupUsers(conf *config.Config) error {
 		return fmt.Errorf("failed to set root password: %w\n%s", err, string(output))
 	}
 
-	// 2. Create user — no shell, safe for variable username
+	// 2. Create user — no shell, safe for variable username.
+	// niri: passwd shell = /usr/libexec/feralos/login-shell (shipped by
+	// niri-user-dinit; installer re-points the symlink to fish, see below).
+	// Alpine's niri-session re-execs through bash when $SHELL is listed in
+	// /etc/shells; this path is deliberately NOT listed, so niri-session
+	// skips the re-exec and reaches its dinit branch (turnstile started the
+	// user dinit at login).
 	fmt.Printf("[INFO] Creating user %s...\n", u.UserName)
-	if _, err := shell.ExecuteCmdArgs(chroot, "adduser", "-D", u.UserName); err != nil {
+	adduserArgs := []string{"-D"}
+	if isNiri {
+		adduserArgs = append(adduserArgs, "-s", "/usr/libexec/feralos/login-shell")
+	}
+	adduserArgs = append(adduserArgs, u.UserName)
+	if _, err := shell.ExecuteCmdArgs(chroot, "adduser", adduserArgs...); err != nil {
 		return fmt.Errorf("failed to create user %s: %w", u.UserName, err)
+	}
+	// niri-user-dinit ships /usr/libexec/feralos/login-shell -> /bin/ash, but
+	// /bin/ash is busybox: invoked as `login-shell`, busybox looks up an applet
+	// with that name and fails ("login-shell: applet not found"). Any consumer
+	// of the passwd shell then breaks (sshd, `su -`, the installer's own
+	// `su - <user> -c 'dms setup ...'`). Re-point the symlink at a real shell
+	// binary — fish, the pre-turnstile user shell. The PATH stays out of
+	// /etc/shells, so niri-session still skips its bash re-exec.
+	if isNiri {
+		if _, err := shell.ExecuteCmd(chroot, "ln -sf /usr/bin/fish /usr/libexec/feralos/login-shell"); err != nil {
+			fmt.Printf("[WARNING] Failed to re-point login-shell to fish: %v\n", err)
+		}
 	}
 	passwdCmd = exec.Command("chroot", chroot, "passwd", u.UserName)
 	passwdCmd.Stdin = strings.NewReader(u.Password + "\n" + u.Password + "\n")
@@ -76,13 +100,16 @@ func SetupUsers(conf *config.Config) error {
 		return fmt.Errorf("failed to write subgid: %w", err)
 	}
 
-	// 8. Shell (fish)
+	// 8. Shell (fish) — root only for niri: chsh would clobber the
+	// login-shell trick (step 2) and break niri-session's dinit branch.
 	fmt.Println("[INFO] Setting default shell to fish...")
 	if _, err := shell.ExecuteCmdArgs(chroot, "chsh", "root", "-s", "/usr/bin/fish"); err != nil {
 		fmt.Printf("[WARNING] Failed to set root shell: %v\n", err)
 	}
-	if _, err := shell.ExecuteCmdArgs(chroot, "chsh", u.UserName, "-s", "/usr/bin/fish"); err != nil {
-		fmt.Printf("[WARNING] Failed to set user shell: %v\n", err)
+	if !isNiri {
+		if _, err := shell.ExecuteCmdArgs(chroot, "chsh", u.UserName, "-s", "/usr/bin/fish"); err != nil {
+			fmt.Printf("[WARNING] Failed to set user shell: %v\n", err)
+		}
 	}
 
 	// 9. System limits — uses shell redirection, UserName validated in config
