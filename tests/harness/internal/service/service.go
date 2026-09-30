@@ -1302,6 +1302,10 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		"vector_logs":        "ls -la /var/log/vector*.log 2>/dev/null || echo 'no vector log files'",
 		"vector_running":     "pgrep -f '/usr/bin/vector' 2>/dev/null && echo 'running' || echo 'vector not running'",
 		"vector_diag":        "rc-status boot 2>/dev/null | grep vector; pgrep -la vector 2>/dev/null; ls -la /var/log/vector* 2>/dev/null; echo '===vector.log==='; cat /var/log/vector.log 2>/dev/null | tail -30; echo '===end==='; vector --version 2>&1 || true",
+		"klogd_service":      "if [ -S /run/dinitctl ]; then dinitctl list 2>/dev/null | grep klogd || test -e /etc/dinit.d/boot.d/klogd && echo 'klogd (boot.d)'; else echo 'openrc (klogd not wired)'; fi",
+		"klogd_running":      "pidof klogd >/dev/null 2>&1 && echo 'klogd running' || echo 'klogd not running'",
+		"dmesg_saved":        "test -s /var/log/dmesg && grep -q 'Linux version' /var/log/dmesg && echo 'dmesg saved' || echo 'dmesg dump missing'",
+		"kern_log":           "test -s /var/log/kern.log && echo \"kern.log $(wc -l < /var/log/kern.log) lines\" || echo 'kern.log empty'",
 		"zswap_status":       "cat /sys/kernel/debug/zswap/ 2>/dev/null || cat /sys/module/zswap/parameters/enabled 2>/dev/null || echo 'zswap not available'",
 		"swap_status":        "swapon -s 2>/dev/null || cat /proc/swaps 2>/dev/null || echo 'no swap active'",
 		"apk_packages":       "apk info | sort",
@@ -1770,6 +1774,43 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 			vectorRunningCheck.Detail += "\nExpected vector process to be running"
 			result.Checks["vector_running"] = vectorRunningCheck
 			result.Success = false
+		}
+	}
+
+	// Validate klogd checks (dinit only — OpenRC keeps the vendor klogd
+	// unwired: its depend() needs the `logger` service vector replaced)
+	if cfg.EnableDinit {
+		if klogdServiceCheck, ok := result.Checks["klogd_service"]; ok {
+			if !strings.Contains(klogdServiceCheck.Detail, "klogd") {
+				klogdServiceCheck.Pass = false
+				klogdServiceCheck.Detail += "\nExpected klogd service enabled (boot.d symlink)"
+				result.Checks["klogd_service"] = klogdServiceCheck
+				result.Success = false
+			}
+		}
+		if klogdRunCheck, ok := result.Checks["klogd_running"]; ok {
+			if strings.Contains(klogdRunCheck.Detail, "not running") {
+				klogdRunCheck.Pass = false
+				klogdRunCheck.Detail += "\nExpected klogd process (kernel ring forwarder)"
+				result.Checks["klogd_running"] = klogdRunCheck
+				result.Success = false
+			}
+		}
+		if dmesgCheck, ok := result.Checks["dmesg_saved"]; ok {
+			if strings.Contains(dmesgCheck.Detail, "missing") {
+				dmesgCheck.Pass = false
+				dmesgCheck.Detail += "\nExpected /var/log/dmesg boot dump (kernel ring snapshot)"
+				result.Checks["dmesg_saved"] = dmesgCheck
+				result.Success = false
+			}
+		}
+		if kernCheck, ok := result.Checks["kern_log"]; ok {
+			if strings.Contains(kernCheck.Detail, "empty") {
+				kernCheck.Pass = false
+				kernCheck.Detail += "\nExpected kern.log content (kernel ring via klogd -> vector)"
+				result.Checks["kern_log"] = kernCheck
+				result.Success = false
+			}
 		}
 	}
 

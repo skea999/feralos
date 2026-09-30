@@ -15,8 +15,12 @@ defaultRunlevels:
 #           processed and no services (networking, sshd, etc.) start.
 #   getty@tty1/ttyS0: console login on real hardware + serial (harness).
 #   dinit-boot-log: mirrors PID1 boot trail to /var/log/dinit/boot.log.
+#   klogd: busybox kernel-log forwarder (kernel ring -> /dev/log -> vector
+#          kern.log + /var/log/dmesg one-shot); dinit-only — the Alpine
+#          OpenRC service needs `logger` (busybox syslogd), which vector
+#          replaced (see klogd-dinit package).
 defaultRunlevelsDinit:
-  boot: ["system", "getty@tty1", "getty@ttyS0", "dinit-boot-log"]
+  boot: ["system", "getty@tty1", "getty@ttyS0", "dinit-boot-log", "klogd"]
 
 # OpenRC service names that must NOT be dinitctl-enabled:
 #   - chimera-covered base services (early chain provides them)

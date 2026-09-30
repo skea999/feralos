@@ -245,10 +245,12 @@ func installDinitPackages(conf *config.Config) error {
 	// core packages — always installed first
 	// (networking-dinit: nothing else brings eth0 up under dinit — chimera's
 	// network.target is only an ordering milestone; dinit-boot-log mirrors
-	// the PID1 status trail to /var/log/dinit/boot.log; dinit-shutdown ships
-	// dinit-poweroff/reboot/halt and the finalizer the daemon execs to
+	// the PID1 status trail to /var/log/dinit/boot.log; klogd-dinit forwards
+	// the kernel ring to /dev/log (vector kern.log) — dinit-only, the Alpine
+	// OpenRC klogd needs the `logger` service vector replaced; dinit-shutdown
+	// ships dinit-poweroff/reboot/halt and the finalizer the daemon execs to
 	// complete any shutdown — without it dinit can never power the machine off)
-	corePkgs := []string{"dinit", "dinit-chimera", "getty-dinit", "networking-dinit", "dinit-boot-log", "dinit-shutdown"}
+	corePkgs := []string{"dinit", "dinit-chimera", "getty-dinit", "networking-dinit", "dinit-boot-log", "klogd-dinit", "dinit-shutdown"}
 	if _, err := shell.ExecuteCmdArgs(chroot, "apk", append([]string{"add"}, corePkgs...)...); err != nil {
 		return fmt.Errorf("failed to install core dinit packages %v: %w", corePkgs, err)
 	}

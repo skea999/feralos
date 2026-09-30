@@ -23,12 +23,14 @@ func SetupLogging(conf *config.Config, pkgList string) error {
 	dinitMsgInput := ""
 	dinitLogrotate := ""
 	if conf.User.EnableDinit {
+		// NOTE: live files only — no "*.log.1". logrotate uses copytruncate,
+		// so the rotated copy is a NEW file for vector's file source and would
+		// be re-read from the beginning → duplicate entries (fixed 2026-09-30).
 		dinitSource = `
   dinit_services:
     type: file
     include:
       - "/var/log/dinit/*.log"
-      - "/var/log/dinit/*.log.1"
     ignore_not_found: true
 `
 		dinitMsgInput = "\n      - dinit_services"
@@ -45,6 +47,8 @@ func SetupLogging(conf *config.Config, pkgList string) error {
 `
 	}
 
+	// Sinks use disk buffers (data_dir=/var/lib/vector) so a vector crash or
+	// restart cannot lose the last unflushed log lines (2026-09-30).
 	fmt.Println("[INFO] Writing Vector logging configuration...")
 	vectorConfig := `# Vector configuration for FeralOS
 data_dir: "/var/lib/vector"
@@ -82,6 +86,9 @@ sinks:
     inputs:
       - syslog` + dinitMsgInput + `
     path: "/var/log/messages"
+    buffer:
+      type: disk
+      max_size: 268435488
     encoding:
       codec: text
 
@@ -90,6 +97,9 @@ sinks:
     inputs:
       - auth_logs
     path: "/var/log/auth.log"
+    buffer:
+      type: disk
+      max_size: 268435488
     encoding:
       codec: text
 
@@ -98,6 +108,9 @@ sinks:
     inputs:
       - daemon_logs
     path: "/var/log/daemon.log"
+    buffer:
+      type: disk
+      max_size: 268435488
     encoding:
       codec: text
 
@@ -106,6 +119,9 @@ sinks:
     inputs:
       - kernel_logs
     path: "/var/log/kern.log"
+    buffer:
+      type: disk
+      max_size: 268435488
     encoding:
       codec: text
 `
