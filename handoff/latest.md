@@ -9,6 +9,8 @@
 
 ## Current Focus
 
+**Logging Round 2 (2026-09-30)**: sink split (`sudo.log`, `firewalld.log`), vista JSON `/var/log/feralos.json.log`, `internal_logs` nel flusso centrale, API Vector locale **solo con `enableDebug`** (127.0.0.1:8686), sorgente incus **condizionale** (solo se pacchetto installato; webmin saltato — log in tmpfs), retention logrotate 30/14/7. 3 check nuovi (`json_log`, `vector_api`, `vector_validate`). Harness **70/70** (run 2026-09-30T23-09-27Z, json 523 righe). Config pre-validata in docker (2 fix VRL 0.55 trovati prima del run).
+
 **Logging Round 1 (2026-09-30)**: kernel ring finalmente nei file — nuovo `klogd-dinit` (busybox klogd → /dev/log → vector `kern.log` + snapshot `/var/log/dmesg`), dinit-only (l'OpenRC klogd richiede `logger`, sostituito da vector). Vector: rimossi i duplicati da rotazione (`*.log.1` + copytruncate) e disk buffer sui 4 sink (min 256 MiB). Harness: 4 check nuovi — **67/67** (run 2026-09-30T22-52-14Z, kern.log 56 righe, 0 bus error). feralos-aports `f2842dc` (CI green).
 
 **Artix-parity audit (2026-09-30, round 2)**: 49 servizi dinit confrontati con Artix — 18 pacchetti aggiornati in **un solo push** (feralos-aports `90197ed`, CI green): seatd readiness (`-g seat -n 3` + pipefd:3), nftables stop flush, iptables `-w 3`, sddm+elogind, cosmic-greeter+seatd, avahi/cupsd/dnsmasq+dbus, turnstiled log in `/var/log/dinit/`, `smooth-recovery` dove Artix lo ha; rimossi `pipewire-dinit`/`wireplumber-dinit` (mai installati). Harness niri **63/63** (run 2026-09-30T22-04-51Z).

@@ -90,7 +90,7 @@ Config for both: `/opt/feralos/config.yaml` (disk layout, LUKS UUIDs). Harness r
 | **EFI not booting** | Check UEFI boot order, `efibootmgr -v`; verify `BOOTX64.EFI` on EFI partition (`mount /dev/sdX1 /mnt && ls /mnt/EFI/BOOT/`). Re-run `efibootmgr --create` or copy fallback. See `docs/INSTALLER.md#Boot Process`. |
 | **LUKS passphrase rejected** | Same as user `password` in `variables.yaml`. Check keymap (`loadkeys`). Verify `cryptsetup luksDump /dev/sdX2`. |
 | **Bootstrap/apk fails** | Check network, `mirror` in `variables.yaml` (`https://dl-cdn.alpinelinux.org/alpine`), DNS (`cat /etc/resolv.conf`). |
-| **No logs** | Vector sinks: `/var/log/messages`, `auth.log`, `daemon.log`, `kern.log` (socket `/run/vector/syslog.sock` → `/dev/log`). Service: `rc-service vector status`. Config `/etc/vector/vector.yaml` written after apk (overwrites demo). |
+| **No logs** | Vector sinks: `/var/log/messages`, `auth.log`, `daemon.log`, `kern.log`, `sudo.log`, `firewalld.log`, `feralos.json.log` (socket `/run/vector/syslog.sock` → `/dev/log`; kernel ring via `klogd-dinit` on dinit). Service: `rc-service vector status` (dinit: `dinitctl status vector`). Config `/etc/vector/vector.yaml` written after apk (overwrites demo). Debug-only API (`enableDebug`): `127.0.0.1:8686` (`vector top`). |
 | **QEMU-only noise** | `smartd`/`fsck` warnings whitelisted in harness; ignore on hardware unless persistent. |
 
 Logs: installer stdout = `shell.ExecuteCmd` with CMD/result. Harness artifacts: `tests/artifacts/harness/runs/*/`.

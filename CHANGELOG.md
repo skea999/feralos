@@ -2,6 +2,15 @@
 
 All notable changes to FeralOS will be documented in this file.
 
+## 2026-09-30 — Logging Round 2: split sinks, JSON view, debug API, conditional sources
+
+- New sinks: `sudo.log` (authpriv + sudo), `firewalld.log`, and `/var/log/feralos.json.log` (JSON view of syslog + vector internal + dinit service logs [+ incus], with the dinit service name extracted from the file path); vector `internal_logs` now flows into `messages`/JSON so vector errors join the central timeline
+- Local Vector API (`vector top` / `vector tap`) on `127.0.0.1:8686` — **only with `enableDebug`** (test-only flag); production configs never expose it
+- Extra sources are conditional — never configure software that isn't installed: `/var/log/incus/*.log` only when `incus`/`incus-feature` is installed. Webmin skipped: its logs live in the container tmpfs (no stable host path)
+- Logrotate retention split: auth/sudo 30d (security), messages/daemon/kern 14d, tool logs 7d
+- Harness: 3 new checks — `json_log`, `vector_api` (debug-gated validation), `vector_validate` (`vector validate --skip-healthchecks`)
+- Verified: config pre-validated with `vector validate` in docker (caught 2 VRL 0.55 strictness errors before any harness run), harness niri+dinit **70/70 PASS** (run 2026-09-30T23-09-27Z, json 523 lines, kernel ring OK)
+
 ## 2026-09-30 — Logging Round 1: kernel ring relay (klogd) + vector hardening
 
 - **klogd-dinit** (feralos-aports `f2842dc`, CI green): new dinit core package forwarding the kernel ring (`/sbin/klogd -n`, busybox) to `/dev/log` → vector routes facility `kern` to `/var/log/kern.log`; the wrapper also writes a one-shot `/var/log/dmesg` boot snapshot. Context: after rsyslog was replaced, nothing forwarded the kernel ring (vector has no kmsg source) → kern.log was orphaned (AppArmor denials, OOM, ACPI, hardware errors only on console). dinit-only: Alpine's OpenRC klogd `depend() need logger` (busybox syslogd — replaced by vector)
