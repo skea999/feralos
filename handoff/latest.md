@@ -9,6 +9,8 @@
 
 ## Current Focus
 
+**Artix-parity audit (2026-09-30, round 2)**: 49 servizi dinit confrontati con Artix — 18 pacchetti aggiornati in **un solo push** (feralos-aports `90197ed`, CI green): seatd readiness (`-g seat -n 3` + pipefd:3), nftables stop flush, iptables `-w 3`, sddm+elogind, cosmic-greeter+seatd, avahi/cupsd/dnsmasq+dbus, turnstiled log in `/var/log/dinit/`, `smooth-recovery` dove Artix lo ha; rimossi `pipewire-dinit`/`wireplumber-dinit` (mai installati). Harness niri **63/63** (run 2026-09-30T22-04-51Z).
+
 **dinit shutdown ordering (2026-09-30)**: dependency stop race fixed at the source — dinit releases a dependency when dependents *begin* stopping, so at shutdown `dbus`/`elogind` could die while `turnstiled` was still closing PAM sessions ("Failed to connect to system bus"). feralos-aports `dbus-dinit` r6 + `elogind-dinit` r5 add `stop-command` guards (wait bounded for `turnstiled` via `pidof`, then stop the daemon; `stop-timeout=30` failsafe; no-op without turnstile) — commit `75c566a`, ADR-007. Harness `log_errors` allowlist removed (no masking); niri+dinit **63/63** (run 2026-09-30T00-08-04Z, 0 bus errors, `turnstiled` stops before `dbus`/`elogind` in both shutdowns).
 
 **Dinit — COMPLETE** (47/47 verify, 2026-09-20). Modello Alpine/Artix: pacchetti `-dinit` ship-only, enablement via regole. Servizi: chronyd, sshd, incusd, smartd, nix-daemon, mdev, incus-agent + networking-dinit (ifup -a). Log: `log-type=file` → `/var/log/dinit/<nome>.log`, trail PID1 → `/run/dinit-boot.log` (wrapper legge da `/proc/cmdline`) → `/var/log/dinit/boot.log` (tail -F), vector ingests, logrotate. aports Step 7 COMPLETE. Harness: verify 47/47 su btrfs_standard_dinit.

@@ -2,6 +2,13 @@
 
 All notable changes to FeralOS will be documented in this file.
 
+## 2026-09-30 — Artix-parity audit: dinit services round 2 (18 pkgs) + dead-code cleanup
+
+- Full audit of FeralOS dinit services vs Artix (49 services compared; sources: `packages/<name>-dinit`, base `artix/dinit-rc`, `turnstile-dinit`)
+- Fixes shipped in feralos-aports (`90197ed`, single push, CI green): seatd readiness (`-g seat -n 3` + `ready-notification = pipefd:3` + `before login.target`); nftables `stop-command` flush; iptables `-w 3`; sddm `+= depends-on elogind`; cosmic-greeter `+= depends-on seatd`; avahi/cupsd/dnsmasq `+= depends-on dbus`; turnstiled log → `/var/log/dinit/turnstiled.log`; `smooth-recovery = true` where Artix has it (14 services)
+- Cleanup: removed dead packages `pipewire-dinit` + `wireplumber-dinit` (system services, never installed — Artix ships user-only; rules reference only the `-user-dinit` variants) + stale `_override/` strays
+- Verified: docker rehearsal (18 pkgs — checksum-stable builds + content checks + dinit-check), CI build+deploy+client-test, harness niri+dinit **63/63** (run 2026-09-30T22-04-51Z, 0 bus errors, new pkgrels installed)
+
 ## 2026-09-30 — dinit shutdown ordering: turnstiled stops before bus/elogind
 
 - Root cause (source-verified + reproduced with a local dinit 0.21 build): dinit releases a dependency when its dependents *begin* stopping — at shutdown `dbus-daemon`/`elogind` could die while `turnstiled` was still closing PAM sessions (`pam_elogind(turnstiled:session): Failed to connect to system bus: Connection refused`, run 2026-09-29T22-35-57Z 62/63). `depends-on` cannot express stop-after-dependent-exit
