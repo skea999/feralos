@@ -8,7 +8,7 @@ All notable changes to FeralOS will be documented in this file.
 - Local Vector API (`vector top` / `vector tap`) on `127.0.0.1:8686` — **only with `enableDebug`** (test-only flag); production configs never expose it
 - Extra sources are conditional — never configure software that isn't installed: `/var/log/incus/*.log` only when `incus`/`incus-feature` is installed. Webmin skipped: its logs live in the container tmpfs (no stable host path)
 - Logrotate retention split: auth/sudo 30d (security), messages/daemon/kern 14d, tool logs 7d
-- Harness: 3 new checks — `json_log`, `vector_api` (debug-gated validation), `vector_validate` (`vector validate --skip-healthchecks`)
+- Harness: 3 new checks — `json_log`, `vector_api` (debug-gated validation), `vector_validate` (`vector validate --skip-healthchecks`) — plus `log_coverage` (core sinks must have content; `kern.log`/`dmesg` dinit-gated)
 - Verified: config pre-validated with `vector validate` in docker (caught 2 VRL 0.55 strictness errors before any harness run), harness niri+dinit **70/70 PASS** (run 2026-09-30T23-09-27Z, json 523 lines, kernel ring OK)
 
 ## 2026-09-30 — Logging Round 1: kernel ring relay (klogd) + vector hardening

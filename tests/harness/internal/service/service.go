@@ -1313,6 +1313,7 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		"json_log":           "grep -q '\"timestamp\"' /var/log/feralos.json.log 2>/dev/null && echo \"json log OK ($(wc -l < /var/log/feralos.json.log) lines)\" || echo 'json log missing'",
 		"vector_api":         "wget -qO- --timeout=3 http://127.0.0.1:8686/health 2>/dev/null || echo 'api unreachable'",
 		"vector_validate":    "vector validate --skip-healthchecks /etc/vector/vector.yaml >/dev/null 2>&1 && echo 'vector config valid' || echo 'vector config INVALID'",
+		"log_coverage":       "for f in messages auth.log daemon.log kern.log sudo.log firewalld.log feralos.json.log vector.log dmesg; do if [ -s /var/log/$f ]; then echo \"$f: $(wc -l < /var/log/$f) lines\"; else echo \"$f: MISSING\"; fi; done",
 		"zswap_status":       "cat /sys/kernel/debug/zswap/ 2>/dev/null || cat /sys/module/zswap/parameters/enabled 2>/dev/null || echo 'zswap not available'",
 		"swap_status":        "swapon -s 2>/dev/null || cat /proc/swaps 2>/dev/null || echo 'no swap active'",
 		"apk_packages":       "apk info | sort",
@@ -1847,6 +1848,24 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 				result.Success = false
 			}
 		}
+	}
+
+	// Validate log coverage: core sinks must have content. kern.log + dmesg
+	// are dinit-only (klogd-dinit relay); the rest (sudo/firewalld/daemon)
+	// are informational — they only fill when the matching events occur.
+	if covCheck, ok := result.Checks["log_coverage"]; ok {
+		required := []string{"messages", "auth.log", "feralos.json.log"}
+		if cfg.EnableDinit {
+			required = append(required, "kern.log", "dmesg")
+		}
+		for _, name := range required {
+			if strings.Contains(covCheck.Detail, name+": MISSING") {
+				covCheck.Pass = false
+				covCheck.Detail += "\nExpected /var/log/" + name + " to have content"
+				result.Success = false
+			}
+		}
+		result.Checks["log_coverage"] = covCheck
 	}
 
 	// Validate zswap check
