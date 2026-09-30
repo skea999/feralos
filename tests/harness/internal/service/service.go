@@ -127,6 +127,7 @@ type RunConfig struct {
 	EnablePodman        bool `yaml:"enablePodman"`
 	EnableWebmin        bool `yaml:"enableWebmin"`
 	EnableDinit         bool `yaml:"enableDinit"`
+	EnableDebug         bool `yaml:"enableDebug"`
 	EnableZswap         bool
 	EnableNix           bool
 	EnableSwap          bool
@@ -227,6 +228,7 @@ func LoadVariablesFile(cfg *RunConfig, filePath string) error {
 	cfg.EnablePodman = v.EnablePodman
 	cfg.EnableWebmin = v.EnableWebmin
 	cfg.EnableDinit = v.EnableDinit
+	cfg.EnableDebug = v.EnableDebug
 	if len(v.NixPackages) > 0 {
 		cfg.NixPackages = v.NixPackages
 	}
@@ -274,6 +276,7 @@ type VerifyConfig struct {
 	EnablePodman       bool
 	EnableWebmin       bool
 	EnableDinit        bool
+	EnableDebug        bool
 	EnableNix          bool
 	SwapSize           string
 	DiskLayout         string
@@ -1209,6 +1212,7 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg *RunConfig,
 		EnablePodman:       cfg.EnablePodman,
 		EnableWebmin:       cfg.EnableWebmin,
 		EnableDinit:        cfg.EnableDinit,
+		EnableDebug:        cfg.EnableDebug,
 		EnableNix:          cfg.EnableNix,
 		SwapSize:           cfg.SwapSize,
 		DiskLayout:         cfg.DiskLayout,
@@ -1306,6 +1310,9 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		"klogd_running":      "pidof klogd >/dev/null 2>&1 && echo 'klogd running' || echo 'klogd not running'",
 		"dmesg_saved":        "test -s /var/log/dmesg && grep -q 'Linux version' /var/log/dmesg && echo 'dmesg saved' || echo 'dmesg dump missing'",
 		"kern_log":           "test -s /var/log/kern.log && echo \"kern.log $(wc -l < /var/log/kern.log) lines\" || echo 'kern.log empty'",
+		"json_log":           "grep -q '\"timestamp\"' /var/log/feralos.json.log 2>/dev/null && echo \"json log OK ($(wc -l < /var/log/feralos.json.log) lines)\" || echo 'json log missing'",
+		"vector_api":         "wget -qO- --timeout=3 http://127.0.0.1:8686/health 2>/dev/null || echo 'api unreachable'",
+		"vector_validate":    "vector validate --skip-healthchecks /etc/vector/vector.yaml >/dev/null 2>&1 && echo 'vector config valid' || echo 'vector config INVALID'",
 		"zswap_status":       "cat /sys/kernel/debug/zswap/ 2>/dev/null || cat /sys/module/zswap/parameters/enabled 2>/dev/null || echo 'zswap not available'",
 		"swap_status":        "swapon -s 2>/dev/null || cat /proc/swaps 2>/dev/null || echo 'no swap active'",
 		"apk_packages":       "apk info | sort",
@@ -1809,6 +1816,34 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 				kernCheck.Pass = false
 				kernCheck.Detail += "\nExpected kern.log content (kernel ring via klogd -> vector)"
 				result.Checks["kern_log"] = kernCheck
+				result.Success = false
+			}
+		}
+	}
+
+	// Validate Logging Round 2 checks (vector-side, both inits)
+	if jsonCheck, ok := result.Checks["json_log"]; ok {
+		if strings.Contains(jsonCheck.Detail, "missing") {
+			jsonCheck.Pass = false
+			jsonCheck.Detail += "\nExpected /var/log/feralos.json.log with events"
+			result.Checks["json_log"] = jsonCheck
+			result.Success = false
+		}
+	}
+	if validateCheck, ok := result.Checks["vector_validate"]; ok {
+		if strings.Contains(validateCheck.Detail, "INVALID") {
+			validateCheck.Pass = false
+			validateCheck.Detail += "\nVector rejected /etc/vector/vector.yaml"
+			result.Checks["vector_validate"] = validateCheck
+			result.Success = false
+		}
+	}
+	if cfg.EnableDebug {
+		if apiCheck, ok := result.Checks["vector_api"]; ok {
+			if strings.Contains(apiCheck.Detail, "unreachable") {
+				apiCheck.Pass = false
+				apiCheck.Detail += "\nExpected debug-only Vector API on 127.0.0.1:8686"
+				result.Checks["vector_api"] = apiCheck
 				result.Success = false
 			}
 		}

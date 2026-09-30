@@ -21,6 +21,7 @@ func SetupLogging(conf *config.Config, pkgList string) error {
 	// only when enableDinit, so the config stays valid on OpenRC installs.
 	dinitSource := ""
 	dinitMsgInput := ""
+	dinitJSONInput := ""
 	dinitLogrotate := ""
 	if conf.User.EnableDinit {
 		// NOTE: live files only — no "*.log.1". logrotate uses copytruncate,
@@ -34,6 +35,7 @@ func SetupLogging(conf *config.Config, pkgList string) error {
     ignore_not_found: true
 `
 		dinitMsgInput = "\n      - dinit_services"
+		dinitJSONInput = "\n      - dinit_services"
 		dinitLogrotate = `
 /var/log/dinit/*.log {
     daily
@@ -47,20 +49,52 @@ func SetupLogging(conf *config.Config, pkgList string) error {
 `
 	}
 
+	// Extra file sources: configured ONLY when the owning package/feature is
+	// present (never configure sources for software that is not installed).
+	// Incus writes its own structured daemon log in addition to the
+	// supervised incusd -> /var/log/dinit/incusd.log stream.
+	incusInstalled := strings.Contains(pkgList, "\nincus\n") || strings.Contains(pkgList, "\nincus-feature\n")
+	incusSource := ""
+	incusJSONInput := ""
+	if incusInstalled {
+		incusSource = `
+  incus_logs:
+    type: file
+    include:
+      - "/var/log/incus/*.log"
+    ignore_not_found: true
+`
+		incusJSONInput = "\n      - incus_logs"
+	}
+
+	// Debug-only local Vector API (vector top / tap). enableDebug is the
+	// test-only flag — production configs never expose the API.
+	apiBlock := ""
+	if conf.User.EnableDebug {
+		apiBlock = `api:
+  enabled: true
+  address: "127.0.0.1:8686"
+
+`
+	}
+
 	// Sinks use disk buffers (data_dir=/var/lib/vector) so a vector crash or
 	// restart cannot lose the last unflushed log lines (2026-09-30).
 	fmt.Println("[INFO] Writing Vector logging configuration...")
 	vectorConfig := `# Vector configuration for FeralOS
 data_dir: "/var/lib/vector"
 
-sources:
+` + apiBlock + `sources:
   syslog:
     type: socket
     mode: unix_datagram
     path: /run/vector/syslog.sock
     decoding:
       codec: syslog
-` + dinitSource + `
+
+  internal_logs:
+    type: internal_logs
+` + dinitSource + incusSource + `
 transforms:
   auth_logs:
     type: filter
@@ -80,11 +114,38 @@ transforms:
       - syslog
     condition: '.facility == "kern"'
 
+  sudo_logs:
+    type: filter
+    inputs:
+      - syslog
+    condition: '.facility == "authpriv" && contains(to_string(.message) ?? "", "sudo")'
+
+  firewalld_logs:
+    type: filter
+    inputs:
+      - syslog
+    condition: 'contains(to_string(.message) ?? "", "firewalld")'
+
+  # JSON view of everything (syslog + vector internal logs + dinit service
+  # logs [+ incus when installed]) — the dinit service name is extracted from
+  # the file path; query with jq. Sinks added 2026-09-30 (Logging Round 2).
+  feralos_json:
+    type: remap
+    inputs:
+      - syslog
+      - internal_logs` + dinitJSONInput + incusJSONInput + `
+    source: |
+      if exists(.file) {
+        .service = to_string(.file) ?? ""
+      }
+      .collector = "feralos-vector"
+
 sinks:
   messages:
     type: file
     inputs:
       - syslog` + dinitMsgInput + `
+      - internal_logs
     path: "/var/log/messages"
     buffer:
       type: disk
@@ -124,6 +185,39 @@ sinks:
       max_size: 268435488
     encoding:
       codec: text
+
+  sudo_log:
+    type: file
+    inputs:
+      - sudo_logs
+    path: "/var/log/sudo.log"
+    buffer:
+      type: disk
+      max_size: 268435488
+    encoding:
+      codec: text
+
+  firewalld_log:
+    type: file
+    inputs:
+      - firewalld_logs
+    path: "/var/log/firewalld.log"
+    buffer:
+      type: disk
+      max_size: 268435488
+    encoding:
+      codec: text
+
+  feralos_json_log:
+    type: file
+    inputs:
+      - feralos_json
+    path: "/var/log/feralos.json.log"
+    buffer:
+      type: disk
+      max_size: 268435488
+    encoding:
+      codec: json
 `
 	escapedVectorConfig := strings.ReplaceAll(vectorConfig, "'", "'\\''")
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/vector/vector.yaml", escapedVectorConfig)); err != nil {
@@ -171,8 +265,30 @@ start() {
 	// Logrotate: vector does NOT rotate files — it only tails rotated ones
 	// (copytruncate + delaycompress recommended by vector docs). Covers the
 	// vector sinks AND the dinit service logs; works for OpenRC and dinit.
+	// Retention split (2026-09-30): auth/sudo 30d (security), general logs
+	// 14d, tool logs 7d.
 	fmt.Println("[INFO] Writing logrotate configuration...")
-	logrotateConf := `/var/log/messages /var/log/auth.log /var/log/daemon.log /var/log/kern.log /var/log/vector.log {
+	logrotateConf := `/var/log/messages /var/log/daemon.log /var/log/kern.log {
+    daily
+    rotate 14
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+}
+
+/var/log/auth.log /var/log/sudo.log {
+    daily
+    rotate 30
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+}
+
+/var/log/vector.log /var/log/firewalld.log /var/log/feralos.json.log {
     daily
     rotate 7
     compress
