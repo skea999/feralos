@@ -2,6 +2,13 @@
 
 All notable changes to FeralOS will be documented in this file.
 
+## 2026-09-30 — dinit shutdown ordering: turnstiled stops before bus/elogind
+
+- Root cause (source-verified + reproduced with a local dinit 0.21 build): dinit releases a dependency when its dependents *begin* stopping — at shutdown `dbus-daemon`/`elogind` could die while `turnstiled` was still closing PAM sessions (`pam_elogind(turnstiled:session): Failed to connect to system bus: Connection refused`, run 2026-09-29T22-35-57Z 62/63). `depends-on` cannot express stop-after-dependent-exit
+- Fix in feralos-aports (commit `75c566a`, CI green): `dbus-dinit` r6 + `elogind-dinit` r5 add `stop-command` guards — dinit runs the script INSTEAD of signalling the process: wait (bounded, busybox-safe `pidof`) for `turnstiled` then stop the daemon; `stop-timeout = 30` failsafe; no-op without turnstile
+- Harness `log_errors` allowlist entry for the pam line removed — a regression now fails the run (no masking)
+- Verified: niri+dinit fixture **63/63 PASS** (run 2026-09-30T00-08-04Z, 0 bus errors, `turnstiled` stops before `dbus`/`elogind` in both shutdowns)
+
 ## 2026-09-28 — niri: gnome-keyring (secrets service) + PAM unlock in greetd
 
 - `gnome-keyring` package added to the niri set (closes installer-gaps 4.5: no `org.freedesktop.secrets` provider — gvfs/Thunderbird could not store passwords)
