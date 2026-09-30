@@ -2,6 +2,14 @@
 
 All notable changes to FeralOS will be documented in this file.
 
+## 2026-09-30 — Logging Round 1: kernel ring relay (klogd) + vector hardening
+
+- **klogd-dinit** (feralos-aports `f2842dc`, CI green): new dinit core package forwarding the kernel ring (`/sbin/klogd -n`, busybox) to `/dev/log` → vector routes facility `kern` to `/var/log/kern.log`; the wrapper also writes a one-shot `/var/log/dmesg` boot snapshot. Context: after rsyslog was replaced, nothing forwarded the kernel ring (vector has no kmsg source) → kern.log was orphaned (AppArmor denials, OOM, ACPI, hardware errors only on console). dinit-only: Alpine's OpenRC klogd `depend() need logger` (busybox syslogd — replaced by vector)
+- Installer: `klogd-dinit` added to dinit core packages + enabled via `defaultRunlevelsDinit`
+- **Vector fixes**: removed `*.log.1` from the dinit file source (copytruncate makes the rotated copy a new file → vector re-read it from the start = duplicate entries); disk buffers on all four sinks (`max_size = 268435488`, Vector's 256 MiB minimum) so a crash can't lose unflushed lines
+- Harness: 4 new falsifiable checks — `klogd_service`, `klogd_running`, `dmesg_saved`, `kern_log`
+- Verified: rehearsal green (klogd-dinit), harness niri+dinit **67/67 PASS** (run 2026-09-30T22-52-14Z, kern.log 56 lines, 0 bus errors)
+
 ## 2026-09-30 — Artix-parity audit: dinit services round 2 (18 pkgs) + dead-code cleanup
 
 - Full audit of FeralOS dinit services vs Artix (49 services compared; sources: `packages/<name>-dinit`, base `artix/dinit-rc`, `turnstile-dinit`)

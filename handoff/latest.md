@@ -9,6 +9,8 @@
 
 ## Current Focus
 
+**Logging Round 1 (2026-09-30)**: kernel ring finalmente nei file — nuovo `klogd-dinit` (busybox klogd → /dev/log → vector `kern.log` + snapshot `/var/log/dmesg`), dinit-only (l'OpenRC klogd richiede `logger`, sostituito da vector). Vector: rimossi i duplicati da rotazione (`*.log.1` + copytruncate) e disk buffer sui 4 sink (min 256 MiB). Harness: 4 check nuovi — **67/67** (run 2026-09-30T22-52-14Z, kern.log 56 righe, 0 bus error). feralos-aports `f2842dc` (CI green).
+
 **Artix-parity audit (2026-09-30, round 2)**: 49 servizi dinit confrontati con Artix — 18 pacchetti aggiornati in **un solo push** (feralos-aports `90197ed`, CI green): seatd readiness (`-g seat -n 3` + pipefd:3), nftables stop flush, iptables `-w 3`, sddm+elogind, cosmic-greeter+seatd, avahi/cupsd/dnsmasq+dbus, turnstiled log in `/var/log/dinit/`, `smooth-recovery` dove Artix lo ha; rimossi `pipewire-dinit`/`wireplumber-dinit` (mai installati). Harness niri **63/63** (run 2026-09-30T22-04-51Z).
 
 **dinit shutdown ordering (2026-09-30)**: dependency stop race fixed at the source — dinit releases a dependency when dependents *begin* stopping, so at shutdown `dbus`/`elogind` could die while `turnstiled` was still closing PAM sessions ("Failed to connect to system bus"). feralos-aports `dbus-dinit` r6 + `elogind-dinit` r5 add `stop-command` guards (wait bounded for `turnstiled` via `pidof`, then stop the daemon; `stop-timeout=30` failsafe; no-op without turnstile) — commit `75c566a`, ADR-007. Harness `log_errors` allowlist removed (no masking); niri+dinit **63/63** (run 2026-09-30T00-08-04Z, 0 bus errors, `turnstiled` stops before `dbus`/`elogind` in both shutdowns).
