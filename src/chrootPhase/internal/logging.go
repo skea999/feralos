@@ -256,6 +256,36 @@ start() {
 		fmt.Printf("[WARNING] Failed to make vector-setup executable: %v\n", err)
 	}
 
+	if !conf.User.EnableDinit {
+		// OpenRC klogd: the busybox-openrc script has `depend() need logger`
+		// (busybox syslogd — replaced by vector), so it can never start here.
+		// Override it with the equivalent of the dinit klogd-dinit service:
+		// dmesg snapshot + kernel ring to /dev/log. apk keeps future upstream
+		// updates as klogd.apk-new (same model as the swap sed).
+		fmt.Println("[INFO] Writing OpenRC klogd override (vector path)...")
+		klogdInit := `#!/sbin/openrc-run
+name="klogd (vector)"
+description="kernel ring -> /dev/log (vector)"
+
+start_pre() {
+	/bin/busybox dmesg > /var/log/dmesg 2>/dev/null || true
+}
+
+command="/sbin/klogd"
+command_args="-n"
+command_background="yes"
+pidfile="/run/klogd.pid"
+
+depend() {
+	after localmount vector
+}
+`
+		escapedKlogdInit := strings.ReplaceAll(klogdInit, "'", "'\\''")
+		if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/init.d/klogd && chmod 755 /etc/init.d/klogd", escapedKlogdInit)); err != nil {
+			fmt.Printf("[WARNING] Failed to write klogd override: %v\n", err)
+		}
+	}
+
 	// Dinit: no vector-setup service needed — vector-dinit ships a tmpfiles
 	// file (/run/vector, /dev/log, /var/log, /btrbk) processed by the
 	// dinit-chimera early chain; vector-setup stays OpenRC-only. The
@@ -288,7 +318,7 @@ start() {
     copytruncate
 }
 
-/var/log/vector.log /var/log/firewalld.log /var/log/feralos.json.log {
+/var/log/vector.log /var/log/firewalld.log /var/log/feralos.json.log /var/log/btrfs-scrub.log /var/log/btrfs-trim.log /var/log/btrbk/*.log {
     daily
     rotate 7
     compress

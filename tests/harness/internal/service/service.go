@@ -1306,7 +1306,7 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		"vector_logs":        "ls -la /var/log/vector*.log 2>/dev/null || echo 'no vector log files'",
 		"vector_running":     "pgrep -f '/usr/bin/vector' 2>/dev/null && echo 'running' || echo 'vector not running'",
 		"vector_diag":        "rc-status boot 2>/dev/null | grep vector; pgrep -la vector 2>/dev/null; ls -la /var/log/vector* 2>/dev/null; echo '===vector.log==='; cat /var/log/vector.log 2>/dev/null | tail -30; echo '===end==='; vector --version 2>&1 || true",
-		"klogd_service":      "if [ -S /run/dinitctl ]; then dinitctl list 2>/dev/null | grep klogd || test -e /etc/dinit.d/boot.d/klogd && echo 'klogd (boot.d)'; else echo 'openrc (klogd not wired)'; fi",
+		"klogd_service":      "if [ -S /run/dinitctl ]; then dinitctl list 2>/dev/null | grep klogd || test -e /etc/dinit.d/boot.d/klogd && echo 'klogd (boot.d)'; else rc-status boot 2>/dev/null | grep klogd || rc-update show 2>/dev/null | grep klogd || echo 'klogd not wired'; fi",
 		"klogd_running":      "pidof klogd >/dev/null 2>&1 && echo 'klogd running' || echo 'klogd not running'",
 		"dmesg_saved":        "test -s /var/log/dmesg && grep -q 'Linux version' /var/log/dmesg && echo 'dmesg saved' || echo 'dmesg dump missing'",
 		"kern_log":           "test -s /var/log/kern.log && echo \"kern.log $(wc -l < /var/log/kern.log) lines\" || echo 'kern.log empty'",
@@ -1314,6 +1314,7 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		"vector_api":         "wget -qO- --timeout=3 http://127.0.0.1:8686/health 2>/dev/null || echo 'api unreachable'",
 		"vector_validate":    "vector validate --skip-healthchecks /etc/vector/vector.yaml >/dev/null 2>&1 && echo 'vector config valid' || echo 'vector config INVALID'",
 		"log_coverage":       "for f in messages auth.log daemon.log kern.log sudo.log firewalld.log feralos.json.log vector.log dmesg; do if [ -s /var/log/$f ]; then echo \"$f: $(wc -l < /var/log/$f) lines\"; else echo \"$f: MISSING\"; fi; done",
+		"disk_schedule":      "test -x /usr/libexec/feralos-weekly-trim && echo 'trim script OK' || echo 'trim script MISSING'; for pat in 'feralos-weekly-trim' 'scrub start' 'btrbk run'; do n=$(grep -c \"$pat\" /etc/crontabs/root 2>/dev/null); echo \"cron [$pat]: ${n:-0}\"; done",
 		"zswap_status":       "cat /sys/kernel/debug/zswap/ 2>/dev/null || cat /sys/module/zswap/parameters/enabled 2>/dev/null || echo 'zswap not available'",
 		"swap_status":        "swapon -s 2>/dev/null || cat /proc/swaps 2>/dev/null || echo 'no swap active'",
 		"apk_packages":       "apk info | sort",
@@ -1785,40 +1786,40 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		}
 	}
 
-	// Validate klogd checks (dinit only — OpenRC keeps the vendor klogd
-	// unwired: its depend() needs the `logger` service vector replaced)
-	if cfg.EnableDinit {
-		if klogdServiceCheck, ok := result.Checks["klogd_service"]; ok {
-			if !strings.Contains(klogdServiceCheck.Detail, "klogd") {
-				klogdServiceCheck.Pass = false
-				klogdServiceCheck.Detail += "\nExpected klogd service enabled (boot.d symlink)"
-				result.Checks["klogd_service"] = klogdServiceCheck
-				result.Success = false
-			}
+	// Validate klogd checks — wired on BOTH inits now: dinit via the
+	// klogd-dinit package (boot.d link), OpenRC via the installer-written
+	// /etc/init.d/klogd override (the vendor script needs `logger`, which
+	// vector replaced).
+	if klogdServiceCheck, ok := result.Checks["klogd_service"]; ok {
+		if !strings.Contains(klogdServiceCheck.Detail, "klogd") {
+			klogdServiceCheck.Pass = false
+			klogdServiceCheck.Detail += "\nExpected klogd service enabled (boot.d symlink or boot runlevel)"
+			result.Checks["klogd_service"] = klogdServiceCheck
+			result.Success = false
 		}
-		if klogdRunCheck, ok := result.Checks["klogd_running"]; ok {
-			if strings.Contains(klogdRunCheck.Detail, "not running") {
-				klogdRunCheck.Pass = false
-				klogdRunCheck.Detail += "\nExpected klogd process (kernel ring forwarder)"
-				result.Checks["klogd_running"] = klogdRunCheck
-				result.Success = false
-			}
+	}
+	if klogdRunCheck, ok := result.Checks["klogd_running"]; ok {
+		if strings.Contains(klogdRunCheck.Detail, "not running") {
+			klogdRunCheck.Pass = false
+			klogdRunCheck.Detail += "\nExpected klogd process (kernel ring forwarder)"
+			result.Checks["klogd_running"] = klogdRunCheck
+			result.Success = false
 		}
-		if dmesgCheck, ok := result.Checks["dmesg_saved"]; ok {
-			if strings.Contains(dmesgCheck.Detail, "missing") {
-				dmesgCheck.Pass = false
-				dmesgCheck.Detail += "\nExpected /var/log/dmesg boot dump (kernel ring snapshot)"
-				result.Checks["dmesg_saved"] = dmesgCheck
-				result.Success = false
-			}
+	}
+	if dmesgCheck, ok := result.Checks["dmesg_saved"]; ok {
+		if strings.Contains(dmesgCheck.Detail, "missing") {
+			dmesgCheck.Pass = false
+			dmesgCheck.Detail += "\nExpected /var/log/dmesg boot dump (kernel ring snapshot)"
+			result.Checks["dmesg_saved"] = dmesgCheck
+			result.Success = false
 		}
-		if kernCheck, ok := result.Checks["kern_log"]; ok {
-			if strings.Contains(kernCheck.Detail, "empty") {
-				kernCheck.Pass = false
-				kernCheck.Detail += "\nExpected kern.log content (kernel ring via klogd -> vector)"
-				result.Checks["kern_log"] = kernCheck
-				result.Success = false
-			}
+	}
+	if kernCheck, ok := result.Checks["kern_log"]; ok {
+		if strings.Contains(kernCheck.Detail, "empty") {
+			kernCheck.Pass = false
+			kernCheck.Detail += "\nExpected kern.log content (kernel ring via klogd -> vector)"
+			result.Checks["kern_log"] = kernCheck
+			result.Success = false
 		}
 	}
 
@@ -1851,13 +1852,11 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 	}
 
 	// Validate log coverage: core sinks must have content. kern.log + dmesg
-	// are dinit-only (klogd-dinit relay); the rest (sudo/firewalld/daemon)
-	// are informational — they only fill when the matching events occur.
+	// are dinit-gated no more — both init paths wire klogd (dinit package /
+	// OpenRC installer override). sudo/firewalld/daemon are informational —
+	// they only fill when the matching events occur.
 	if covCheck, ok := result.Checks["log_coverage"]; ok {
-		required := []string{"messages", "auth.log", "feralos.json.log"}
-		if cfg.EnableDinit {
-			required = append(required, "kern.log", "dmesg")
-		}
+		required := []string{"messages", "auth.log", "feralos.json.log", "kern.log", "dmesg"}
 		for _, name := range required {
 			if strings.Contains(covCheck.Detail, name+": MISSING") {
 				covCheck.Pass = false
@@ -1866,6 +1865,19 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 			}
 		}
 		result.Checks["log_coverage"] = covCheck
+	}
+
+	// Validate disk maintenance schedule (btrfs layouts): weekly trim script
+	// + scrub/trim/btrbk cron entries must exist.
+	if diskCheck, ok := result.Checks["disk_schedule"]; ok {
+		if strings.Contains(cfg.DiskLayout, "btrfs") {
+			if strings.Contains(diskCheck.Detail, "MISSING") || strings.Contains(diskCheck.Detail, "]: 0") {
+				diskCheck.Pass = false
+				diskCheck.Detail += "\nExpected trim script + scrub/trim/btrbk cron entries"
+				result.Checks["disk_schedule"] = diskCheck
+				result.Success = false
+			}
+		}
 	}
 
 	// Validate zswap check
