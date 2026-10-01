@@ -2,6 +2,14 @@
 
 All notable changes to FeralOS will be documented in this file.
 
+## 2026-10-01 — klogd-openrc package (989 series): no more runtime file writes
+
+- OpenRC klogd now ships as **klogd-openrc 989.0.1.0** in feralos-aports (commit `2d5e05f`, CI green): dependency-free `/etc/init.d/klogd` (dmesg snapshot + `klogd -n` → `/dev/log`), `replaces="busybox-openrc"` (apk refuses the file overwrite without it — found by rehearsal)
+- Installer: removed the runtime initd write from `logging.go`; the OpenRC path installs the package (`packages.go`); enablement unchanged (boot runlevel via `internal_rules`)
+- Harness: `klogd_service` now also asserts the package file marker (`klogd (vector)`) on OpenRC
+- Verified: OpenRC minimal **48/48** (run 2026-10-01T18-14-18Z — `Installing klogd-openrc (989.0.1.0-r0)`, klogd `[ started ]`) + dinit niri **72/72** regression (18-17-10Z)
+- Note: **earlyoom** verified as already configured — defaults `-m 10 -s 10` (SIGTERM at 10%, SIGKILL at 5%), `-r 60` (memory report interval 60s vs default 1s), `earlyoom-dinit` service enabled/running; Alpine's `conf.d/earlyoom` is OpenRC-only and intentionally ignored
+
 ## 2026-10-01 — Disk maintenance schedule (scrub/TRIM/btrbk) + OpenRC klogd override
 
 - Weekly disk maintenance via cronie (binary paths resolved at install; output in dedicated logs, logrotate 7d): **btrfs scrub** (`btrfs scrub start -B /`, Sun 03:30), **weekly TRIM** (Sun 03:00, dedicated script), **daily btrbk** snapshots (02:00; retention already in `btrbk.conf`: 7 daily / 4 weekly / 3 monthly)
