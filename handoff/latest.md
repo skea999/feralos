@@ -9,6 +9,8 @@
 
 ## Current Focus
 
+**Disk maintenance + OpenRC klogd (2026-10-01)**: schedule disco via cron — **scrub settimanale** (Dom 03:30), **TRIM settimanale** (Dom 03:00, script con passthrough dm-crypt temporaneo via `cryptsetup refresh --allow-discards`, nessuna modifica a luksFormat/booster), **btrbk giornaliero** 02:00 (retention 7/4/3 già in btrbk.conf); path risolti all'install; log dedicati ruotati 7g. **OpenRC klogd risolto**: override `/etc/init.d/klogd` scritto dall'installer (il vendor richiede `logger` sostituito da vector) → kern.log su entrambe le init. Harness: check `disk_schedule` + validazioni klogd/coverage ora incondizionate. Verificato: dinit niri **72/72** + OpenRC minimal **48/48** (run 2026-10-01T17-44-16Z / 17-48-47Z).
+
 **Logging Round 2 (2026-09-30)**: sink split (`sudo.log`, `firewalld.log`), vista JSON `/var/log/feralos.json.log`, `internal_logs` nel flusso centrale, API Vector locale **solo con `enableDebug`** (127.0.0.1:8686), sorgente incus **condizionale** (solo se pacchetto installato; webmin saltato — log in tmpfs), retention logrotate 30/14/7. 3 check nuovi (`json_log`, `vector_api`, `vector_validate`). Harness **70/70** (run 2026-09-30T23-09-27Z, json 523 righe). Config pre-validata in docker (2 fix VRL 0.55 trovati prima del run).
 
 **Logging Round 1 (2026-09-30)**: kernel ring finalmente nei file — nuovo `klogd-dinit` (busybox klogd → /dev/log → vector `kern.log` + snapshot `/var/log/dmesg`), dinit-only (l'OpenRC klogd richiede `logger`, sostituito da vector). Vector: rimossi i duplicati da rotazione (`*.log.1` + copytruncate) e disk buffer sui 4 sink (min 256 MiB). Harness: 4 check nuovi — **67/67** (run 2026-09-30T22-52-14Z, kern.log 56 righe, 0 bus error). feralos-aports `f2842dc` (CI green).

@@ -2,6 +2,14 @@
 
 All notable changes to FeralOS will be documented in this file.
 
+## 2026-10-01 — Disk maintenance schedule (scrub/TRIM/btrbk) + OpenRC klogd override
+
+- Weekly disk maintenance via cronie (binary paths resolved at install; output in dedicated logs, logrotate 7d): **btrfs scrub** (`btrfs scrub start -B /`, Sun 03:30), **weekly TRIM** (Sun 03:00, dedicated script), **daily btrbk** snapshots (02:00; retention already in `btrbk.conf`: 7 daily / 4 weekly / 3 monthly)
+- TRIM on encrypted volumes without touching luksFormat/booster: the script enables discard passthrough on active dm-crypt mappings (`cryptsetup refresh --allow-discards`), trims, then clears it again (minimal exposure window). Effective only when the underlying device supports TRIM (no-op in QEMU)
+- **OpenRC klogd fixed** ("non c'è un modo?" → yes): the vendor script needs `logger` (busybox syslogd, replaced by vector); the installer now overrides `/etc/init.d/klogd` (dmesg snapshot + `klogd -n` → `/dev/log`, `after localmount vector`), enabled in the boot runlevel — kernel ring → `kern.log` works on BOTH inits
+- Harness: new `disk_schedule` check (trim script + 3 cron entries); `klogd_*` and `log_coverage` validations now unconditional (both inits)
+- Verified: dinit niri **72/72** + OpenRC minimal **48/48** (runs 2026-10-01T17-44-16Z / 17-48-47Z); OpenRC serial shows `Starting klogd (vector) ... [ ok ]`
+
 ## 2026-09-30 — Logging Round 2: split sinks, JSON view, debug API, conditional sources
 
 - New sinks: `sudo.log` (authpriv + sudo), `firewalld.log`, and `/var/log/feralos.json.log` (JSON view of syslog + vector internal + dinit service logs [+ incus], with the dinit service name extracted from the file path); vector `internal_logs` now flows into `messages`/JSON so vector errors join the central timeline

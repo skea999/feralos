@@ -56,6 +56,24 @@ Selected by `conf.User.DiskLayout` in `hostPhase.Run()` → `hostPhase/disks/*`.
 - `swapSize` (string): `auto` = 2×RAM via `utils/swap.ResolveSwapSizeMiB` (`src/utils/swap/swap.go`), or explicit `8G`/`4096M`/`K`/`T`/`P`. `btrfsRaid0` splits total across 2 partitions.
 - `utils/swap` handles parsing, whitespace, unit conversion. `fstab_vs_mount` harness check validates result.
 
+## Maintenance schedule (cronie)
+
+Written by `chrootPhase/internal/storage.go` (binary paths resolved in the
+chroot at install time; output appended to dedicated logs, rotated by
+logrotate 7d):
+
+- **Daily btrbk** `02:00` — `btrbk run` (retention in `/etc/btrbk/btrbk.conf`:
+  keep 7 daily / 4 weekly / 3 monthly) → `/var/log/btrbk/cron.log`
+- **Weekly TRIM** `Sun 03:00` — `/usr/libexec/feralos-weekly-trim`: enables
+  discard passthrough on active dm-crypt volumes (`cryptsetup refresh
+  --allow-discards`), `btrfs filesystem trim -a /`, then clears the
+  passthrough again (minimal exposure window). No luksFormat/booster changes;
+  effective only when the device supports TRIM (no-op in QEMU)
+- **Weekly scrub** `Sun 03:30` — `btrfs scrub start -B /` →
+  `/var/log/btrfs-scrub.log`
+
+Harness: `disk_schedule` check (trim script + the 3 cron entries).
+
 ## fstab
 
 Written by `hostPhase/disks/*/fstab.go` via `shell.ExecuteCmd`:
