@@ -96,7 +96,8 @@
     "Logging Round 1 (2026-09-30): klogd-dinit (new core pkg, kernel ring -> /dev/log -> vector kern.log + /var/log/dmesg snapshot; dinit-only — OpenRC klogd depend() needs `logger` (busybox syslogd) replaced by vector) — aports f2842dc single push CI green; installer: vector config fixes (drop *.log.1 include: copytruncate = duplicates; disk buffers max_size 268435488 = Vector 256MiB min) + 4 new harness checks (klogd_service/klogd_running/dmesg_saved/kern_log). Harness 67/67 (run 2026-09-30T22-52-14Z), kern.log 56 lines, 0 bus errors.",
     "Logging Round 2 (2026-09-30): split sinks (sudo.log, firewalld.log), JSON view /var/log/feralos.json.log (service field from dinit path), vector internal_logs into messages+JSON, debug-only API 127.0.0.1:8686 (enableDebug), conditional incus source (pkg-gated; webmin skipped — tmpfs logs, no host path), logrotate retention split (auth/sudo 30d, general 14d, tool 7d), 3 new harness checks (json_log/vector_api/vector_validate). Config PRE-VALIDATED in docker with vector validate (caught 2 VRL 0.55 fallible errors: E630 contains(to_string()??''), E103 to_string()??''), then harness 70/70 (run 2026-09-30T23-09-27Z, json 523 lines).",
     "Disk maintenance + OpenRC klogd (2026-10-01): weekly btrfs scrub (Sun 03:30) + weekly TRIM via /usr/libexec/feralos-weekly-trim (cryptsetup refresh --allow-discards su luks-* -> btrfs filesystem trim -a / -> clear; nessuna modifica luksFormat/booster) + btrbk giornaliero 02:00 (retention 7/4/3 gia' in btrbk.conf); cron con path risolti all'install; logrotate aggiunge btrfs-scrub/btrfs-trim/btrbk (7g). OpenRC klogd FIXED: override /etc/init.d/klogd scritto dall'installer (vendor richiede logger=syslogd sostituito da vector): dmesg snapshot + klogd -n, after localmount vector; defaultRunlevels.boot += klogd. Harness: disk_schedule check + klogd/coverage validation ora incondizionate (entrambe le init). Verificato: dinit niri 72/72 + OpenRC minimal 48/48 (run 2026-10-01T17-44-16Z / 17-48-47Z); serial OpenRC: Starting klogd (vector) [ ok ].",
-    "klogd-openrc package (2026-10-01): OpenRC klogd ships from feralos-aports now (989.0.1.0, commit 2d5e05f, CI green; replaces=\"busybox-openrc\" — apk refuses the file overwrite without it, found by rehearsal). Installer: removed runtime initd write from logging.go; packages.go installs the package on OpenRC; enablement unchanged (boot runlevel). Harness klogd_service asserts the package marker on OpenRC. Verified: OpenRC minimal 48/48 (2026-10-01T18-14-18Z, Installing klogd-openrc 989.0.1.0-r0) + dinit niri 72/72 regression (18-17-10Z). earlyoom confirmed configured (defaults -m10/-s10, -r 60; earlyoom-dinit enabled/running; Alpine conf.d ignored by design)."
+    "klogd-openrc package (2026-10-01): OpenRC klogd ships from feralos-aports now (989.0.1.0, commit 2d5e05f, CI green; replaces=\"busybox-openrc\" — apk refuses the file overwrite without it, found by rehearsal). Installer: removed runtime initd write from logging.go; packages.go installs the package on OpenRC; enablement unchanged (boot runlevel). Harness klogd_service asserts the package marker on OpenRC. Verified: OpenRC minimal 48/48 (2026-10-01T18-14-18Z, Installing klogd-openrc 989.0.1.0-r0) + dinit niri 72/72 regression (18-17-10Z). earlyoom confirmed configured (defaults -m10/-s10, -r 60; earlyoom-dinit enabled/running; Alpine conf.d ignored by design).",
+    "conf.d->config round (2026-10-01): 22 -dinit packages converted to Artix pattern — service file -> /usr/lib/dinit/<svc> wrapper -> [ -r ] && . /etc/dinit.d/config/<svc>.conf -> exec daemon ${VARS}; user-editable apk-protected configs (644, edits survive upgrades, new version = .apk-new), defaults match Alpine conf.d. dnsmasq DNSMASQ_CFGFILE default /etc/dnsmasq.conf (empty = no config at all); cpufrequtils gained stop-command consuming CPUFREQ_STOP_OPTS. aports cc107a1 pushed, CI green (client-test Pages propagation race = transient, re-run passed). Harness dinit_config check added (EnableDinit only: config dir + >=10 .conf + wiring spot-checks). Verified: dinit niri full 74/74 (run 2026-10-01T22-19-23Z), OpenRC minimal 46/46 (run 2026-10-01T22-27-05Z, check correctly absent). ADR-008."
   ],
   "decisions": [
     {
@@ -358,6 +359,11 @@
       "date": "2026-09-30",
       "decision": "dinit shutdown ordering enforced via stop-command guards: dbus/elogind wait (bounded) for turnstiled exit before stopping",
       "rationale": "dinit 0.21 releases a dependency when dependents begin stopping (release_dependencies on prop_release) — depends-on cannot express stop-after-dependent-exit (source-verified + local repro: dependency TERM'd 3.7s before dependent finished). stop-command runs INSTEAD of the process signal: scripts wait bounded for turnstiled (pidof — Alpine busybox pgrep has no -x) then stop the daemon (TERM->KILL); stop-timeout=30 failsafe; no-op without turnstile. Rejected: allowlist (masks regressions), log-type=file (hides), wrappers (partial coverage). ADR-007."
+    },
+    {
+      "date": "2026-10-01",
+      "decision": "All -dinit services ship /etc/dinit.d/config/<svc>.conf via the Artix wrapper pattern (service -> /usr/lib/dinit/<svc> wrapper -> source config -> exec daemon ${VARS})",
+      "rationale": "OpenRC services shipped /etc/conf.d/<svc> sourced by init scripts (52 conf.d files inventoried via confd_dump); the dinit conversion hardcoded flags in service files — no user customization point, edits lost on apk upgrade. Wrapper+config restores the convention: 644 apk-protected config (edits survive, new version lands as .apk-new), defaults match Alpine conf.d, empty placeholder still shipped as customization point. Scripted services (cpufrequtils, iptables, nftables, klogd) use the same pattern. dnsmasq DNSMASQ_CFGFILE defaults to /etc/dnsmasq.conf (empty would mean no config at all). ADR-008."
     }
   ],
   "risks": [
@@ -401,9 +407,9 @@
     }
   ],
   "next_actions": [
-    "dinit follow-ups: upstream issue for dinitctl --offline assert (Alpine 0.21); propose our sd-tools tmpfiles patch as PR to chimera-linux/sd-tools#5",
-    "btrfsStandardUnencrypted layout (planned)",
-    "Test on real hardware with 2x NVMe",
+    "earlyoom --avoid protection (exclude critical processes from earlyoom kills)",
+    "Test on real hardware with 2x NVMe (Phase 1)",
+    "Pages race hardening: harness installs feralos repo packages from CI artifact, not live Pages URL (client-test propagation race)",
     "Test with partial features (Secure Boot only, TPM only)",
     "Add more unit tests for verify checks"
   ]

@@ -1315,6 +1315,7 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		"vector_validate":    "vector validate --skip-healthchecks /etc/vector/vector.yaml >/dev/null 2>&1 && echo 'vector config valid' || echo 'vector config INVALID'",
 		"log_coverage":       "for f in messages auth.log daemon.log kern.log sudo.log firewalld.log feralos.json.log vector.log dmesg; do if [ -s /var/log/$f ]; then echo \"$f: $(wc -l < /var/log/$f) lines\"; else echo \"$f: MISSING\"; fi; done",
 		"disk_schedule":      "test -x /usr/libexec/feralos-weekly-trim && echo 'trim script OK' || echo 'trim script MISSING'; for pat in 'feralos-weekly-trim' 'scrub start' 'btrbk run'; do n=$(grep -c \"$pat\" /etc/crontabs/root 2>/dev/null); echo \"cron [$pat]: ${n:-0}\"; done",
+		"confd_dump":         "for f in /etc/conf.d/*; do echo \"===$f===\"; cat \"$f\" 2>/dev/null; done; echo '===END==='",
 		"zswap_status":       "cat /sys/kernel/debug/zswap/ 2>/dev/null || cat /sys/module/zswap/parameters/enabled 2>/dev/null || echo 'zswap not available'",
 		"swap_status":        "swapon -s 2>/dev/null || cat /proc/swaps 2>/dev/null || echo 'no swap active'",
 		"apk_packages":       "apk info | sort",
@@ -1421,6 +1422,14 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		// Conventional shutdown commands wired to dinit helpers by the
 		// installer (busybox poweroff/reboot do not work under dinit).
 		checks["dinit_shutdown_commands"] = "test -x /usr/bin/poweroff -a -x /usr/bin/reboot -a -x /usr/bin/halt -a -x /usr/bin/shutdown -a -x /usr/bin/soft-reboot && echo 'shutdown commands OK' || { echo 'shutdown commands MISSING'; exit 1; }"
+		// conf.d-equivalent config files (Artix pattern): every -dinit
+		// package ships /etc/dinit.d/config/<svc>.conf sourced by its
+		// wrapper. Core set on any dinstall: dbus chronyd cronie acpid sshd
+		// vector klogd earlyoom + feature-gated (nftables, iptables, cups,
+		// greetd, ...) — 10 is the conservative floor. Spot-check that a
+		// service file actually points at its wrapper (the wiring this
+		// round exists to establish).
+		checks["dinit_config"] = "test -d /etc/dinit.d/config && c=$(ls /etc/dinit.d/config/*.conf 2>/dev/null | wc -l) && [ \"$c\" -ge 10 ] && grep -q 'usr/lib/dinit/dbus' /lib/dinit.d/dbus && grep -q 'KLOGD_OPTS' /etc/dinit.d/config/klogd.conf || { echo \"config files: $c (need >=10) or wiring broken\"; exit 1; }"
 	}
 
 	result := VerifyResult{RunDir: cfg.RunDir, Success: true, Checks: map[string]CheckResult{}}

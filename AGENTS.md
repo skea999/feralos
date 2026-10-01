@@ -6,6 +6,16 @@
 
 > **Primary context for AI agents.** This file keeps full project info. Detailed copies live in `docs/` (double documentation). Read this file first, then follow `→` pointers for deep dives.
 
+## Recent Rounds (latest first)
+
+### 2026-10-01 23:59 - conf.d-equivalent config files (Artix pattern)
+**Agent:** codebase
+**Summary:** 22 -dinit packages converted to wrapper+config-file pattern (Artix); aports `cc107a1` pushed, CI green; harness `dinit_config` check added; 74/74 dinit niri + 46/46 OpenRC minimal.
+- Every `-dinit` service now: service file → `/usr/lib/dinit/<svc>` wrapper → `[ -r ] && . /etc/dinit.d/config/<svc>.conf` → exec daemon `${VARS}` — user-editable, apk-protected (OpenRC `/etc/conf.d` convention restored; defaults match Alpine conf.d).
+- `dnsmasq` `DNSMASQ_CFGFILE` defaults to `/etc/dnsmasq.conf` (empty would mean no config); `cpufrequtils` gained a `stop-command` consuming `CPUFREQ_STOP_OPTS`.
+- Harness: permanent `dinit_config` check in `tests/harness/internal/service/service.go` (EnableDinit only: config dir + ≥10 `.conf` + wiring spot-checks).
+- Verified: dinit niri full **74/74** (run `2026-10-01T22-19-23Z`), OpenRC minimal **46/46** (run `2026-10-01T22-27-05Z`, check correctly absent). ADR-008.
+
 ## Workflow
 
 **Chain (complex)**: `context/recall` → `interview/refine` → `@planner` → *approve* → `@codebase` → PARALLEL(`@review`+`@code-reviewer`+`@vulnerability-scan`+`@information-scan`) → `@debugger/tests` → `@docs/docs` → save
@@ -206,6 +216,8 @@ Each `Enable*` flag (and `DesktopEnvironment`) is owned by exactly ONE file unde
 - `niri` — custom config (greetd, regreet, niri config, DMS, xdg-su) in `chrootPhase/desktops/niri.go`; session startup = turnstile (PAM → user dinit) + unmodified Alpine `niri-session` via login-shell trick (`-s /usr/libexec/feralos/login-shell`, not in `/etc/shells`, symlink re-pointed to fish — busybox applet dispatch breaks the package's `/bin/ash` target; user `chsh` skipped) + `niri`/`niri-shutdown` user services (`niri-user-dinit`); installer enables `/etc/dinit.d/boot.d/turnstiled` + user `boot.d` stack in `/usr/lib/dinit.d/user/boot.d/`
 - `kde` — packages only via `internal_rules.yaml`, no custom config
 - `cosmic` — packages only via `internal_rules.yaml` (uses seatd, not elogind), no custom config
+
+**Dinit services** ship `/etc/dinit.d/config/<svc>.conf` (Artix pattern, ADR-008): service → `/usr/lib/dinit/<svc>` wrapper → sources config → exec daemon. User-editable, apk-protected.
 
 → Details: `docs/architecture/feature_confinement.md`, `docs/guides/development.md` (how to add feature)
 

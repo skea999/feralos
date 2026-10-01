@@ -9,6 +9,8 @@
 
 ## Current Focus
 
+**conf.d-equivalent config files (2026-10-01, Artix pattern)**: 22 `-dinit` packages converted — service file → `/usr/lib/dinit/<svc>` wrapper → `[ -r ] && . /etc/dinit.d/config/<svc>.conf` → exec daemon `${VARS}`. OpenRC `/etc/conf.d` convention restored: user-editable, apk-protected (644, edits survive upgrades, new version = `.apk-new`), defaults match Alpine conf.d. `dnsmasq` `DNSMASQ_CFGFILE` defaults `/etc/dnsmasq.conf` (empty = no config); `cpufrequtils` gained a `stop-command` consuming `CPUFREQ_STOP_OPTS`. aports `cc107a1` pushed, CI green (client-test Pages propagation race = transient, re-run passed). Harness: permanent `dinit_config` check (`tests/harness/internal/service/service.go`, EnableDinit only: config dir + ≥10 `.conf` + wiring spot-checks). Verified: dinit niri full **74/74** (run 2026-10-01T22-19-23Z), OpenRC minimal **46/46** (run 2026-10-01T22-27-05Z, check correctly absent). ADR-008. **Next**: earlyoom `--avoid` protection, real-hardware NVMe test, Pages race hardening (harness installs repo packages from CI artifact, not live Pages URL).
+
 **klogd-openrc package (2026-10-01)**: l'OpenRC klogd ora arriva dal repo — **klogd-openrc 989.0.1.0** (feralos-aports `2d5e05f`, CI green; `replaces="busybox-openrc"` — senza, apk rifiuta l'overwrite del file, scoperto dal rehearsal). Installer: rimossa la scrittura runtime (`logging.go`), il path OpenRC installa il package (`packages.go`); abilitazione invariata (boot runlevel). Harness: `klogd_service` verifica anche il marker del package su OpenRC. Verificato: OpenRC minimal **48/48** (run 18-14-18Z, `Installing klogd-openrc (989.0.1.0-r0)`) + dinit niri **72/72** regression (18-17-10Z). **earlyoom**: confermato già configurato (default `-m 10 -s 10`, `-r 60`; `earlyoom-dinit` enabled/running).
 
 **Disk maintenance + OpenRC klogd (2026-10-01)**: schedule disco via cron — **scrub settimanale** (Dom 03:30), **TRIM settimanale** (Dom 03:00, script con passthrough dm-crypt temporaneo via `cryptsetup refresh --allow-discards`, nessuna modifica a luksFormat/booster), **btrbk giornaliero** 02:00 (retention 7/4/3 già in btrbk.conf); path risolti all'install; log dedicati ruotati 7g. **OpenRC klogd risolto**: override `/etc/init.d/klogd` scritto dall'installer (il vendor richiede `logger` sostituito da vector) → kern.log su entrambe le init. Harness: check `disk_schedule` + validazioni klogd/coverage ora incondizionate. Verificato: dinit niri **72/72** + OpenRC minimal **48/48** (run 2026-10-01T17-44-16Z / 17-48-47Z).
@@ -84,10 +86,12 @@ Phase 1: Go installer complete + fixtures library + AGENTS compress + githooks v
 ## What's Next
 
 ### Phase 1 (Installer)
-1. btrfsStandardUnencrypted layout (planned)
+1. earlyoom `--avoid` protection (exclude critical processes from earlyoom kills)
 2. Test on real hardware with 2x NVMe
-3. Test with partial features (Secure Boot only, TPM only)
-4. Add more unit tests for verify checks
+3. Pages race hardening: harness installs feralos repo packages from CI artifact, not live Pages URL (client-test propagation race)
+4. btrfsStandardUnencrypted layout (planned)
+5. Test with partial features (Secure Boot only, TPM only)
+6. Add more unit tests for verify checks
 
 ### Phase 2 (Distribution)
 1. ~~Dinit init system (replace OpenRC)~~ ✅ DONE
