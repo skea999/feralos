@@ -256,35 +256,12 @@ start() {
 		fmt.Printf("[WARNING] Failed to make vector-setup executable: %v\n", err)
 	}
 
-	if !conf.User.EnableDinit {
-		// OpenRC klogd: the busybox-openrc script has `depend() need logger`
-		// (busybox syslogd — replaced by vector), so it can never start here.
-		// Override it with the equivalent of the dinit klogd-dinit service:
-		// dmesg snapshot + kernel ring to /dev/log. apk keeps future upstream
-		// updates as klogd.apk-new (same model as the swap sed).
-		fmt.Println("[INFO] Writing OpenRC klogd override (vector path)...")
-		klogdInit := `#!/sbin/openrc-run
-name="klogd (vector)"
-description="kernel ring -> /dev/log (vector)"
-
-start_pre() {
-	/bin/busybox dmesg > /var/log/dmesg 2>/dev/null || true
-}
-
-command="/sbin/klogd"
-command_args="-n"
-command_background="yes"
-pidfile="/run/klogd.pid"
-
-depend() {
-	after localmount vector
-}
-`
-		escapedKlogdInit := strings.ReplaceAll(klogdInit, "'", "'\\''")
-		if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/init.d/klogd && chmod 755 /etc/init.d/klogd", escapedKlogdInit)); err != nil {
-			fmt.Printf("[WARNING] Failed to write klogd override: %v\n", err)
-		}
-	}
+	// OpenRC klogd is shipped as the klogd-openrc package (989 series,
+	// feralos-aports): the vendor busybox-openrc script can never start here
+	// (`depend() need logger` — busybox syslogd was replaced by vector). The
+	// package installs /etc/init.d/klogd (dmesg snapshot + klogd -n after
+	// vector); enablement via the boot runlevel (internal_rules). No runtime
+	// file writes.
 
 	// Dinit: no vector-setup service needed — vector-dinit ships a tmpfiles
 	// file (/run/vector, /dev/log, /var/log, /btrbk) processed by the

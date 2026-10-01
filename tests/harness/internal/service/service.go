@@ -1306,7 +1306,7 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		"vector_logs":        "ls -la /var/log/vector*.log 2>/dev/null || echo 'no vector log files'",
 		"vector_running":     "pgrep -f '/usr/bin/vector' 2>/dev/null && echo 'running' || echo 'vector not running'",
 		"vector_diag":        "rc-status boot 2>/dev/null | grep vector; pgrep -la vector 2>/dev/null; ls -la /var/log/vector* 2>/dev/null; echo '===vector.log==='; cat /var/log/vector.log 2>/dev/null | tail -30; echo '===end==='; vector --version 2>&1 || true",
-		"klogd_service":      "if [ -S /run/dinitctl ]; then dinitctl list 2>/dev/null | grep klogd || test -e /etc/dinit.d/boot.d/klogd && echo 'klogd (boot.d)'; else rc-status boot 2>/dev/null | grep klogd || rc-update show 2>/dev/null | grep klogd || echo 'klogd not wired'; fi",
+		"klogd_service":      "if [ -S /run/dinitctl ]; then dinitctl list 2>/dev/null | grep klogd || test -e /etc/dinit.d/boot.d/klogd && echo 'klogd (boot.d)'; else rc-status boot 2>/dev/null | grep klogd || rc-update show 2>/dev/null | grep klogd || echo 'klogd not wired'; grep -q 'klogd (vector)' /etc/init.d/klogd && echo 'klogd vector override file' || echo 'klogd override file MISSING'; fi",
 		"klogd_running":      "pidof klogd >/dev/null 2>&1 && echo 'klogd running' || echo 'klogd not running'",
 		"dmesg_saved":        "test -s /var/log/dmesg && grep -q 'Linux version' /var/log/dmesg && echo 'dmesg saved' || echo 'dmesg dump missing'",
 		"kern_log":           "test -s /var/log/kern.log && echo \"kern.log $(wc -l < /var/log/kern.log) lines\" || echo 'kern.log empty'",
@@ -1791,6 +1791,12 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 	// /etc/init.d/klogd override (the vendor script needs `logger`, which
 	// vector replaced).
 	if klogdServiceCheck, ok := result.Checks["klogd_service"]; ok {
+		if strings.Contains(klogdServiceCheck.Detail, "override file MISSING") {
+			klogdServiceCheck.Pass = false
+			klogdServiceCheck.Detail += "\nExpected /etc/init.d/klogd from the klogd-openrc package (989 series)"
+			result.Checks["klogd_service"] = klogdServiceCheck
+			result.Success = false
+		}
 		if !strings.Contains(klogdServiceCheck.Detail, "klogd") {
 			klogdServiceCheck.Pass = false
 			klogdServiceCheck.Detail += "\nExpected klogd service enabled (boot.d symlink or boot runlevel)"

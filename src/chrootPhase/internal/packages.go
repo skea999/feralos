@@ -203,6 +203,13 @@ func SetupPackages(conf *config.Config) error {
 		if err := installDinitPackages(conf); err != nil {
 			return fmt.Errorf("dinit package installation failed: %w", err)
 		}
+	} else {
+		// OpenRC: klogd is shipped as the klogd-openrc package (989 series) —
+		// the vendor busybox-openrc script needs `logger` (busybox syslogd),
+		// which vector replaced. No runtime file writes.
+		if out, err := shell.ExecuteCmdArgs(chroot, "apk", "add", "klogd-openrc"); err != nil {
+			fmt.Printf("[WARNING] klogd-openrc install failed: %v (%s)\n", err, strings.TrimSpace(out))
+		}
 	}
 
 	// Final APK upgrade
