@@ -9,7 +9,9 @@
 
 ## Current Focus
 
-**conf.d-equivalent config files (2026-10-01, Artix pattern)**: 22 `-dinit` packages converted — service file → `/usr/lib/dinit/<svc>` wrapper → `[ -r ] && . /etc/dinit.d/config/<svc>.conf` → exec daemon `${VARS}`. OpenRC `/etc/conf.d` convention restored: user-editable, apk-protected (644, edits survive upgrades, new version = `.apk-new`), defaults match Alpine conf.d. `dnsmasq` `DNSMASQ_CFGFILE` defaults `/etc/dnsmasq.conf` (empty = no config); `cpufrequtils` gained a `stop-command` consuming `CPUFREQ_STOP_OPTS`. aports `cc107a1` pushed, CI green (client-test Pages propagation race = transient, re-run passed). Harness: permanent `dinit_config` check (`tests/harness/internal/service/service.go`, EnableDinit only: config dir + ≥10 `.conf` + wiring spot-checks). Verified: dinit niri full **74/74** (run 2026-10-01T22-19-23Z), OpenRC minimal **46/46** (run 2026-10-01T22-27-05Z, check correctly absent). ADR-008. **Next**: earlyoom `--avoid` protection, real-hardware NVMe test, Pages race hardening (harness installs repo packages from CI artifact, not live Pages URL).
+**dinit services aligned to Artix/Chimera (2026-10-02, ADR-009)**: exhaustive audit (Artix gitea 7370 repos + 18768-pkg binary repo, Chimera cports + dinit-chimera) → 48 `-dinit` pkgs aligned (aports `b69a573`, CI green first try, 103 files +861/−163). `restart=true` removed from ALL daemons (smooth-recovery only; getty keeps `restart=true` + `termsignal=HUP` + config-driven baud/term via `/usr/lib/dinit/getty` + `/etc/dinit.d/config/getty.conf`, Artix agetty-default pattern, 115200 serial); scripted one-shots explicit `restart=false`; `before=login.target` ×33; network ordering (firewalld/nftables/iptables before `pre-network.target`, NM depends pre-network + before `network.target`, avahi/rsync depend networking, apparmor before `local.target`, fuse after `early-root-rw.target`); `dnsmasq` privilege drop `-u dnsmasq -g dnsmasq --enable-dbus`; `dbus` `smooth-recovery=no` (ADR-007 stop guard kept, clean shutdown verified); bluez/elogind bus readiness via NEW `dbus-wait-for-dinit` pkg (BSD-2-Clause, from dinit-rc, pipefd:4); `lxc` process+restart bug → scripted start/stop (restart-loop fixed); `sshd` `ssh-keygen` prereq. Audit facts: Artix dbus-activates polkit/udisks2/fwupd; irqbalance/rasdaemon/incus/nix/vector/klogd/cosmic-greeter not packaged there; ADR-008 wrapper+config retained as FeralOS extension. Verified: dinit niri **74/74** (run 2026-10-02T00-15-22Z — getty serial alive, dbus clean shutdown, elogind bus readiness, NM ordering), OpenRC minimal **49/49** (run 2026-10-02T00-27-53Z, +3 checks = harness growth). **Next**: earlyoom `--avoid` protection, real-hardware NVMe test, Pages race hardening (structural), xdg-portals as user services someday (Chimera model).
+
+**conf.d-equivalent config files (2026-10-01, Artix pattern)**: 22 `-dinit` packages converted — service file → `/usr/lib/dinit/<svc>` wrapper → `[ -r ] && . /etc/dinit.d/config/<svc>.conf` → exec daemon `${VARS}`. OpenRC `/etc/conf.d` convention restored: user-editable, apk-protected (644, edits survive upgrades, new version = `.apk-new`), defaults match Alpine conf.d. `dnsmasq` `DNSMASQ_CFGFILE` defaults `/etc/dnsmasq.conf` (empty = no config); `cpufrequtils` gained a `stop-command` consuming `CPUFREQ_STOP_OPTS`. aports `cc107a1` pushed, CI green (client-test Pages propagation race = transient, re-run passed). Harness: permanent `dinit_config` check (`tests/harness/internal/service/service.go`, EnableDinit only: config dir + ≥10 `.conf` + wiring spot-checks). Verified: dinit niri full **74/74** (run 2026-10-01T22-19-23Z), OpenRC minimal **46/46** (run 2026-10-01T22-27-05Z, check correctly absent). ADR-008.
 
 **klogd-openrc package (2026-10-01)**: l'OpenRC klogd ora arriva dal repo — **klogd-openrc 989.0.1.0** (feralos-aports `2d5e05f`, CI green; `replaces="busybox-openrc"` — senza, apk rifiuta l'overwrite del file, scoperto dal rehearsal). Installer: rimossa la scrittura runtime (`logging.go`), il path OpenRC installa il package (`packages.go`); abilitazione invariata (boot runlevel). Harness: `klogd_service` verifica anche il marker del package su OpenRC. Verificato: OpenRC minimal **48/48** (run 18-14-18Z, `Installing klogd-openrc (989.0.1.0-r0)`) + dinit niri **72/72** regression (18-17-10Z). **earlyoom**: confermato già configurato (default `-m 10 -s 10`, `-r 60`; `earlyoom-dinit` enabled/running).
 
@@ -86,12 +88,13 @@ Phase 1: Go installer complete + fixtures library + AGENTS compress + githooks v
 ## What's Next
 
 ### Phase 1 (Installer)
-1. earlyoom `--avoid` protection (exclude critical processes from earlyoom kills)
+1. earlyoom `--avoid` protection (exclude critical processes from earlyoom kills, esp. niri)
 2. Test on real hardware with 2x NVMe
-3. Pages race hardening: harness installs feralos repo packages from CI artifact, not live Pages URL (client-test propagation race)
-4. btrfsStandardUnencrypted layout (planned)
-5. Test with partial features (Secure Boot only, TPM only)
-6. Add more unit tests for verify checks
+3. Pages race hardening (structural): harness installs feralos repo packages from CI artifact, not live Pages URL (client-test propagation race)
+4. xdg-portals could become user services someday (Chimera model)
+5. btrfsStandardUnencrypted layout (planned)
+6. Test with partial features (Secure Boot only, TPM only)
+7. Add more unit tests for verify checks
 
 ### Phase 2 (Distribution)
 1. ~~Dinit init system (replace OpenRC)~~ ✅ DONE

@@ -8,6 +8,16 @@
 
 ## Recent Rounds (latest first)
 
+### 2026-10-02 00:45 - dinit services aligned to Artix/Chimera (ADR-009)
+**Agent:** codebase
+**Summary:** 48 -dinit pkgs aligned after full Artix/Chimera audit; aports `b69a573` pushed, CI green; 74/74 dinit niri + 49/49 OpenRC minimal.
+- `restart=true` removed from ALL daemons (Artix/Chimera never restart — smooth-recovery only); scripted one-shots explicit `restart=false`; getty keeps `restart=true` + gained `termsignal=HUP` + config-driven baud/term (wrapper `/usr/lib/dinit/getty` + `/etc/dinit.d/config/getty.conf`, Artix agetty-default pattern, 115200 serial default).
+- `before=login.target` added to 33 services (Artix+Chimera universal convention); network ordering: firewalld/nftables/iptables before `pre-network.target`, NetworkManager depends pre-network + before `network.target`, avahi/rsync depend networking, apparmor before `local.target` (profiles load BEFORE local services), fuse after `early-root-rw.target`.
+- `dnsmasq` privilege drop `-u dnsmasq -g dnsmasq --enable-dbus` (Artix exact; was running as root); `dbus` `smooth-recovery=no` (nobody restarts the bus; ADR-007 stop guard kept, verified clean shutdown elogind→dbus→power down).
+- bluez/elogind bus-name readiness via NEW package `dbus-wait-for-dinit` (BSD-2-Clause helper from Artix dinit-rc, libdbus, `/usr/lib/dinit/dbus-wait-for`, pipefd:4).
+- `lxc` FIXED latent restart-loop bug — process+restart=true on one-shot lxc-autostart → scripted start/stop + stop-command; `sshd` gained scripted `ssh-keygen` prereq service (keys baked at install, Artix/Chimera pattern).
+- Audit facts: Artix dbus-activates polkit/udisks2/fwupd (no init service by design); irqbalance/rasdaemon/incus/nix/vector/klogd/cosmic-greeter NOT packaged on Artix; turnstile-dinit on Artix = split subpackage (we already match its 2 seds); ADR-008 wrapper+config pattern retained as FeralOS extension (NOT in Artix/Chimera).
+
 ### 2026-10-01 23:59 - conf.d-equivalent config files (Artix pattern)
 **Agent:** codebase
 **Summary:** 22 -dinit packages converted to wrapper+config-file pattern (Artix); aports `cc107a1` pushed, CI green; harness `dinit_config` check added; 74/74 dinit niri + 46/46 OpenRC minimal.
@@ -217,7 +227,7 @@ Each `Enable*` flag (and `DesktopEnvironment`) is owned by exactly ONE file unde
 - `kde` — packages only via `internal_rules.yaml`, no custom config
 - `cosmic` — packages only via `internal_rules.yaml` (uses seatd, not elogind), no custom config
 
-**Dinit services** ship `/etc/dinit.d/config/<svc>.conf` (Artix pattern, ADR-008): service → `/usr/lib/dinit/<svc>` wrapper → sources config → exec daemon. User-editable, apk-protected.
+**Dinit services** ship `/etc/dinit.d/config/<svc>.conf` (Artix pattern, ADR-008): service → `/usr/lib/dinit/<svc>` wrapper → sources config → exec daemon. User-editable, apk-protected; service conventions per ADR-009 (no restart, before=login.target, pre-network ordering, dbus-wait-for readiness).
 
 → Details: `docs/architecture/feature_confinement.md`, `docs/guides/development.md` (how to add feature)
 
