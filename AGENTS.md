@@ -8,6 +8,14 @@
 
 ## Recent Rounds (latest first)
 
+### 2026-10-02 02:30 - earlyoom tiered victim selection
+**Agent:** codebase
+**Summary:** earlyoom-dinit tiered (prefer user apps 172 / ignore system core 48 / desktop session natural); aports `ce86d69` CI green first try.
+- Tier 1 user apps killed FIRST via `--prefer` (+300): 172 apps (browsers, chat/mail, office/PDF, KDE/GNOME/XFCE, media, images, games/emu, torrents, dev tools, installer apps); flatpak apps keep comm names = same regex; truncation-correct 15-BYTE comms.
+- Tier 3 system core NEVER chosen: `--ignore` (hard skip) not `--avoid` — key insight: `--avoid` only subtracts 300 oom_score (soft, can be outbid — manpage-verified) while `--ignore` = hard skip. Covers PID1 (dinit + init for OpenRC path), session mgr, bus, polkitd, network, logging, time, cron, ssh, login path, seat/hw daemons, printers, bt/modem/store, flatpak infra, kthreadd.
+- Tier 2 desktop session (niri, pipewire, portals, terminals) absent from both lists = natural oom_score order.
+- Wrapper POSIX sh (busybox-clean); config `/etc/dinit.d/config/earlyoom.conf` (ADR-008 pattern); regex values glob-safe (no `[ ] * ?`), case via repeated names (discord|Discord).
+
 ### 2026-10-02 00:45 - dinit services aligned to Artix/Chimera (ADR-009)
 **Agent:** codebase
 **Summary:** 48 -dinit pkgs aligned after full Artix/Chimera audit; aports `b69a573` pushed, CI green; 74/74 dinit niri + 49/49 OpenRC minimal.
