@@ -271,8 +271,20 @@ func StartSoftwareTPM(cfg *SoftwareTPMConfig) error {
 		"--log", "level=5,file=" + cfg.LogPath,
 		"--flags", "not-need-init,startup-clear",
 	}
-	cmd := exec.Command("swtpm", args...)
-	if output, err := cmd.CombinedOutput(); err != nil {
+	// nix swtpm 0.11 releases the NVRAM flock asynchronously after QEMU
+	// disconnect — wait for exit + retry start (race seen on Mint/Nix host,
+	// run 02-11-18Z)
+	var output []byte
+	var err error
+	for attempt := 0; attempt < 5; attempt++ {
+		cmd := exec.Command("swtpm", args...)
+		output, err = cmd.CombinedOutput()
+		if err == nil {
+			break
+		}
+		time.Sleep(300 * time.Millisecond)
+	}
+	if err != nil {
 		return fmt.Errorf("start swtpm: %w: %s", err, string(output))
 	}
 
@@ -306,6 +318,16 @@ func StopSoftwareTPM(pidFile string) error {
 	}
 	if err := syscall.Kill(pid, syscall.SIGTERM); err != nil && !errors.Is(err, syscall.ESRCH) {
 		return fmt.Errorf("signal swtpm pid %d: %w", pid, err)
+	}
+	// Wait for the old process to exit before removing the pidfile: nix
+	// swtpm 0.11 releases the NVRAM flock asynchronously after QEMU
+	// disconnect — wait for exit + retry start (race seen on Mint/Nix host,
+	// run 02-11-18Z)
+	for i := 0; i < 30; i++ {
+		if err := syscall.Kill(pid, 0); errors.Is(err, syscall.ESRCH) {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
 	}
 	_ = os.Remove(pidFile)
 	return nil

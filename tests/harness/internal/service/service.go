@@ -136,6 +136,7 @@ type RunConfig struct {
 	DiskSize            string
 	DiskLayout          string
 	DesktopEnvironment  string
+	VideoDriver         string
 	AlpineMirror        string
 	InstalledUser       string
 	InstalledPassword   string
@@ -211,6 +212,9 @@ func LoadVariablesFile(cfg *RunConfig, filePath string) error {
 	if v.DesktopEnvironment != "" {
 		cfg.DesktopEnvironment = v.DesktopEnvironment
 	}
+	// VideoDriver: empty is meaningful (auto — no extra GPU packages), so
+	// copy unconditionally.
+	cfg.VideoDriver = v.VideoDriver
 	if v.Mirror != "" {
 		cfg.AlpineMirror = v.Mirror
 	}
@@ -270,6 +274,7 @@ type VerifyConfig struct {
 	PrivateKey         string
 	InstalledUser      string
 	DesktopEnvironment string
+	VideoDriver        string
 	EnableSwap         bool
 	EnableSecureboot   bool
 	EnableTPM          bool
@@ -971,7 +976,24 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg *RunConfig,
 			"-machine", "q35,smm=on",
 			"-m", fmt.Sprintf("%d", cfg.TargetMemoryMiB),
 			"-smp", fmt.Sprintf("%d", cfg.CPUs),
-			"-nographic",
+			// 3D-accelerated GPU on EVERY boot (unconditional): virtio-gpu-gl
+			// (niri/wlroots GL, kde/cosmic too). virgl was REMOVED from mesa
+			// 26.x (Alpine 3.24 guest) — the 3D path is now venus (VirtIO
+			// Vulkan) + guest zink, so venus=on is mandatory. QEMU 11
+			// requires blob=true+hostmem with venus (venus alone rejected:
+			// "blob" must be enabled). The GL device requires a GL display
+			// backend: -display none/-nographic fail with "opengl is not
+			// available" — egl-headless provides it headless (no window, no X).
+			// HOST REQUIREMENTS (Nix QEMU 11.1.1 + nixpkgs virglrenderer
+			// 1.3.0 verified): host needs virglrenderer >= 1.1 with venus;
+			// system qemu on old distros won't do venus — Nix install
+			// documented. Plus ~/.local/bin/qemu-system-x86_64 wrapper
+			// exporting the 3 GL env vars pointing at the mesa inside the
+			// Nix QEMU closure. If the host lacks them, QEMU fails AT
+			// STARTUP (fail loud by design — install the host packages
+			// instead of removing this).
+			"-display", "egl-headless",
+			"-device", "virtio-gpu-gl-pci,venus=on,blob=true,hostmem=1G",
 			"-chardev", "socket,id=targetserial,path=" + targetSerialSocketPath + ",server=on,wait=off,logfile=" + targetSerialLog + ",logappend=on",
 			"-serial", "chardev:targetserial",
 			"-qmp", "unix:" + targetQMPPath + ",server=on,wait=off",
@@ -995,11 +1017,6 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg *RunConfig,
 				"-drive", "if=none,id=targetdisk2,format=qcow2,file="+disk2Path,
 				"-device", "virtio-blk-pci,drive=targetdisk2,bootindex=2",
 			)
-		}
-		if cfg.DesktopEnvironment == desktopNiri {
-			// niri needs a DRM render node (/dev/dri/renderD128) — virtio-gpu
-			// provides it headless (like VMSVGA+3D on VirtualBox).
-			args = append(args, "-device", "virtio-gpu-pci")
 		}
 		if includeTPM {
 			// QEMU 10 tpmdev emulator connects to the swtpm --ctrl socket (not
@@ -1130,6 +1147,22 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg *RunConfig,
 		return RunResult{}, diagErr
 	}
 
+	// TEST-ONLY (niri): inject greetd autologin so the verification boot
+	// starts the real user niri session — required by the niri runtime
+	// checks (niri_session_user, niri_wayland_socket, niri_ipc, ...). The
+	// VM disk is discarded after the run; the installer never writes this.
+	if cfg.DesktopEnvironment == desktopNiri {
+		err = enableNiriTestAutologin(ctx, targetGuest, cfg.InstalledUser)
+		if err != nil {
+			_ = targetInstance.Kill()
+			active.Status = statusFailed
+			active.Error = err.Error()
+			_ = stateStore.Save(active)
+			return RunResult{}, err
+		}
+		logHarness("harness: test-only greetd autologin enabled for niri runtime verification (VM discarded after run)\n")
+	}
+
 	// Power off and restart swtpm for verification boot
 	phase(7, "reboot (target)")
 	if poweroffErr := powerOffTarget(ctx, targetGuest, targetInstance, cfg, targetQMPPath); poweroffErr != nil {
@@ -1206,6 +1239,7 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg *RunConfig,
 		PrivateKey:         keyPair.PrivateKeyPath,
 		InstalledUser:      cfg.InstalledUser,
 		DesktopEnvironment: cfg.DesktopEnvironment,
+		VideoDriver:        cfg.VideoDriver,
 		EnableSwap:         cfg.EnableSwap,
 		EnableSecureboot:   cfg.EnableSecureboot,
 		EnableTPM:          cfg.EnableTPM,
@@ -1278,6 +1312,12 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg *RunConfig,
 func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyResult, error) {
 	if cfg.Timeout <= 0 {
 		cfg.Timeout = 2 * time.Minute
+	}
+	// niri runtime checks (test-only greetd autologin session) poll up to
+	// 90s each for the session to come up; six of them in the worst case
+	// (session never starts) far exceed the 2min default verify budget.
+	if cfg.DesktopEnvironment == desktopNiri && cfg.Timeout < 10*time.Minute {
+		cfg.Timeout = 10 * time.Minute
 	}
 
 	verifyCtx, cancel := context.WithTimeout(ctx, cfg.Timeout)
@@ -1360,6 +1400,50 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		checks["user_services_enabled"] = "for s in dbus.user pipewire.user pipewire-pulse.user wireplumber.user wait-wayland.user polkit-agent.user dms.user wayvnc.user; do test -e /usr/lib/dinit.d/user/boot.d/$s || { echo \"missing $s\"; exit 1; }; done; echo ok"
 		// gnome-keyring: package + D-Bus secrets service + PAM unlock lines in greetd
 		checks["gnome_keyring"] = "apk info -e gnome-keyring && test -f /usr/share/dbus-1/services/org.freedesktop.secrets.service && grep -q pam_gnome_keyring /etc/pam.d/greetd"
+		// Runtime checks — the verification boot runs the REAL user session:
+		// the harness injected a test-only greetd [initial_session]
+		// (enableNiriTestAutologin, VM discarded after run) because nobody
+		// logs in manually. The session comes up late (greetd + turnstile +
+		// user dinit), so every check polls like niri_greeter (90s).
+		checks["niri_session_user"] = fmt.Sprintf("i=0; while [ $i -lt 90 ]; do pgrep -u %s -x niri >/dev/null && { echo 'niri user session running'; exit 0; }; sleep 1; i=$((i+1)); done; echo 'no niri session for user'; exit 1", cfg.InstalledUser)
+		checks["niri_wayland_socket"] = fmt.Sprintf("uid=$(id -u %s); i=0; while [ $i -lt 90 ]; do ls /run/user/$uid/wayland-1 >/dev/null 2>&1 && { echo 'wayland-1 socket OK'; exit 0; }; sleep 1; i=$((i+1)); done; echo 'no wayland socket'; exit 1", cfg.InstalledUser)
+		// IPC proves the compositor actually responds — the socket must
+		// exist AND `niri msg outputs` must answer. NIRI_SOCKET alone may
+		// not be enough: XDG_RUNTIME_DIR + WAYLAND_DISPLAY passed too.
+		checks["niri_ipc"] = fmt.Sprintf("uid=$(id -u %s); i=0; while [ $i -lt 90 ]; do s=$(ls /run/user/$uid/niri*.sock 2>/dev/null | head -1); if [ -n \"$s\" ]; then if XDG_RUNTIME_DIR=/run/user/$uid WAYLAND_DISPLAY=wayland-1 NIRI_SOCKET=\"$s\" niri msg outputs >/dev/null 2>&1; then echo 'niri IPC OK'; exit 0; fi; fi; sleep 1; i=$((i+1)); done; echo 'niri IPC failed'; exit 1", cfg.InstalledUser)
+		// User dinit session stack (dinit only): every boot.d user service
+		// must show the started marker. dinitctl list renders started
+		// services as `[{+}] name (pid: ...)` — '{+' appears only when
+		// running. ERE anchors the name so '] niri' cannot match
+		// '] niri-shutdown'; VERIFY the exact format on the first real
+		// harness run (dinitctl list output) and adjust if needed.
+		if cfg.EnableDinit {
+			// dinitctl list marks DEPENDENCY-started services `[{+}]` and
+			// EXPLICITLY-started ones `[[+]]` — niri is started via
+			// `dinitctl --user start niri`, so it renders `[[+]] niri`.
+			// Accept both bracket styles; both mean running.
+			checks["niri_user_dinit_runtime"] = fmt.Sprintf("uid=$(id -u %s); export XDG_RUNTIME_DIR=/run/user/$uid; i=0; while [ $i -lt 90 ]; do out=$(dinitctl --user list 2>/dev/null) || { sleep 1; i=$((i+1)); continue; }; missing=''; for s in niri dbus.user pipewire.user pipewire-pulse.user wireplumber.user polkit-agent.user dms.user wayvnc.user; do echo \"$out\" | grep -Eq '(\\{\\+|\\[\\+).*\\] '\"$s\"'( |$)' || missing=\"$missing $s\"; done; if [ -z \"$missing\" ]; then echo 'user dinit stack running'; exit 0; fi; sleep 1; i=$((i+1)); done; echo \"user services not running:$missing\"; exit 1", cfg.InstalledUser)
+			// dms_runtime: process-level check (deeper than the dms.user
+			// service-list entry above). dms-session wrapper execs `dms run`;
+			// quickshell is the actual shell process — match both; adjust the
+			// pattern after run 1 if the cmdline differs.
+			checks["dms_runtime"] = fmt.Sprintf("i=0; while [ $i -lt 90 ]; do pgrep -u %s -f 'dms run|quickshell' >/dev/null && { echo 'dms shell running'; exit 0; }; sleep 1; i=$((i+1)); done; echo 'dms not running'; exit 1", cfg.InstalledUser)
+		}
+		// GPU userspace drivers (videoDriver: virtio) — packages must be
+		// installed AND the gallium megadriver must exist under /usr/lib/dri
+		// (virtio_gpu_dri.so; verify the exact filename on run 1 and adjust
+		// the ls grep if needed — apk info stays strict).
+		if cfg.VideoDriver == "virtio" {
+			checks["video_driver"] = "apk info -e mesa-dri-gallium mesa-vulkan-virtio && ls /usr/lib/dri/ | grep -q virtio && echo 'virtio GPU userspace OK' || { echo 'virtio GPU userspace missing'; exit 1; }"
+		}
+		checks["niri_wayvnc_port"] = "i=0; while [ $i -lt 90 ]; do netstat -tln 2>/dev/null | grep -q ':5900' && { echo 'wayvnc listening on 5900'; exit 0; }; sleep 1; i=$((i+1)); done; echo 'wayvnc not listening'; exit 1"
+		// Real-rendering proof: ask the compositor for a screenshot and
+		// require a non-empty PNG. niri takes NO path argument on
+		// screenshot-screen (rejects it: "unexpected argument") and writes
+		// to its default ~/Pictures/Screenshots — the dir the autologin
+		// setup below pre-creates with correct ownership (silent no-write
+		// otherwise).
+		checks["niri_screenshot"] = fmt.Sprintf("uid=$(id -u %s); i=0; while [ $i -lt 90 ]; do s=$(ls /run/user/$uid/niri*.sock 2>/dev/null | head -1); if [ -n \"$s\" ]; then f=$(ls -t /home/%s/Pictures/Screenshots/*.png 2>/dev/null | head -1); XDG_RUNTIME_DIR=/run/user/$uid WAYLAND_DISPLAY=wayland-1 NIRI_SOCKET=\"$s\" niri msg action screenshot-screen >/dev/null 2>&1; n=$(ls -t /home/%s/Pictures/Screenshots/*.png 2>/dev/null | head -1); if [ -n \"$n\" ] && [ \"$n\" != \"$f\" ] && [ -s \"$n\" ]; then echo \"screenshot OK: $n ($(wc -c < \"$n\") bytes)\"; exit 0; fi; fi; sleep 1; i=$((i+1)); done; echo 'screenshot failed'; exit 1", cfg.InstalledUser, cfg.InstalledUser, cfg.InstalledUser)
 	}
 
 	// Flatpak checks — generic, only when a fixture explicitly requests
@@ -2641,7 +2725,7 @@ func writeHarnessVariables(cfg *RunConfig, keyPair guest.KeyPair, outputPath, al
 
   diskLayout: "%s"
   desktopEnvironment: "%s"
-  videoDriver: "none"
+  videoDriver: "%s"
 
   sshAuthorizedKey: "%s"
   defaultNetworkInterface: "eth0"
@@ -2675,6 +2759,7 @@ func writeHarnessVariables(cfg *RunConfig, keyPair guest.KeyPair, outputPath, al
 		alpineMirror,
 		cfg.DiskLayout,
 		deOrDefault(cfg.DesktopEnvironment),
+		cfg.VideoDriver,
 		sshKey,
 		yn(cfg.EnableSecureboot),
 		yn(cfg.EnableTPM),
@@ -3230,6 +3315,46 @@ for cryptroot in $cryptroots; do
 done
 `
 	return runScriptOnTarget(ctx, targetGuest, script)
+}
+
+// enableNiriTestAutologin appends a greetd [initial_session] stanza so the
+// verification boot logs straight into the niri user session — the runtime
+// checks (niri_session_user, niri_wayland_socket, niri_ipc, ...) need a real
+// session and nobody is present to log in.
+//
+// POLICY: harness = test + autologin config only; if niri-session does not
+// hold the greetd initial_session (async user-dinit spawn, dinitctl start
+// returns early), the fix belongs in the installer or aports, never here.
+//
+// TEST-ONLY: the target disk is discarded after the harness run; the
+// installer itself never writes this stanza (the stock greetd config from
+// hostPhase stays untouched).
+func enableNiriTestAutologin(ctx context.Context, targetGuest guest.Options, installedUser string) error {
+	script := fmt.Sprintf(`set -eu
+f=/etc/greetd/config.toml
+if ! grep -q 'initial_session' "$f"; then
+	printf '\n[initial_session]\ncommand = "niri-session"\nuser = "%%s"\n' %s >> "$f"
+fi
+grep -q 'initial_session' "$f" || { echo 'initial_session marker missing after append'; exit 1; }
+if ! grep -Fq %s "$f"; then
+	echo 'autologin user missing after append'
+	exit 1
+fi
+# niri saves screenshots under $HOME/Pictures/Screenshots (default
+# screenshot-path) and does NOT create the directory — the IPC action then
+# returns success but silently writes nothing. Create BOTH levels owned by
+# the test user (root mkdir -p leaves the parent root-owned mode 2700 —
+# setgid home inheritance + root umask — and the user then cannot write).
+install -d -o %s -g %s -m 2700 /home/%s/Pictures
+install -d -o %s -g %s -m 2700 /home/%s/Pictures/Screenshots
+echo 'test-only greetd autologin enabled'
+`, shellQuote(installedUser), shellQuote(`user = "`+installedUser+`"`), installedUser, installedUser, installedUser, installedUser, installedUser, installedUser)
+	diag, err := runScriptOnTarget(ctx, targetGuest, script)
+	if err != nil {
+		return fmt.Errorf("niri test autologin: %w", err)
+	}
+	logHarness("harness: niri test autologin: %s\n", strings.TrimSpace(diag))
+	return nil
 }
 
 func getSerialLogSize(path string) int64 {

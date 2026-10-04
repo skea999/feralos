@@ -38,7 +38,9 @@ Packaging (APKBUILDs, CI, publishing) lives in the separate repo
 6. **Phase 4 (wired)**: turnstile (chimera project, ex `dinit-userservd`) →
    per-user dinit at login; DMS/pipewire/dbus/etc. are real user services.
    Requires Chimera's `turnstile.patch` on polkit (versions aligned: 127 = 127-r2).
-   Alpine `niri-session` runs unmodified: the login-shell trick (passwd shell =
+   `niri-session` runs FIXED (shipped by `niri-user-dinit`, `replaces="niri"` —
+   upstream post-25.11 dinit mechanism: full login-env setenv + dinit-monitor
+   wait): the login-shell trick (passwd shell =
    `/usr/libexec/feralos/login-shell`, not in `/etc/shells`; installer re-points
    the package symlink from `/bin/ash` to fish — busybox applet dispatch breaks
    the `/bin/ash` target when invoked as `login-shell`) skips its bash
@@ -51,7 +53,8 @@ Packaging (APKBUILDs, CI, publishing) lives in the separate repo
   the service applier emits `boot.d` symlinks instead (`logic.go` / services writer)
 - `variables.yaml`: `enableDinit` toggle → repo key + packages + `/etc/kernel/cmdline`
 - `desktops/niri.go` DMS OpenRC service → user dinit services; session startup =
-  turnstile + unmodified Alpine `niri-session` (login-shell trick) + user `niri`
+  turnstile + fixed `niri-session` (`niri-user-dinit`, `replaces="niri"`;
+  login-shell trick) + user `niri`
   service (`niri-user-dinit`); installer enables `/etc/dinit.d/boot.d/turnstiled`
   and the user `boot.d` stack under `/usr/lib/dinit.d/user/boot.d/`
 - Harness: `enableDinit` fixture + boot-detection via serial getty (`getty@ttyS0`)

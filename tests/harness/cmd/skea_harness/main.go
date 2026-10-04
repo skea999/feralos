@@ -271,6 +271,14 @@ func parseRunArgs(args []string, repoRoot, artifactsRoot string) (service.RunCon
 	if variablesFile == "" {
 		return service.RunConfig{}, fmt.Errorf("usage: skea-harness run -f <path-to-variables.yaml>")
 	}
+	// CWD-independent resolution: documented commands ("run -f
+	// ../tests/fixtures/...") must work from the repository root,
+	// tests/harness, or anywhere inside a fresh clone.
+	resolvedVariables, resolveErr := resolveVariablesFile(variablesFile)
+	if resolveErr != nil {
+		return service.RunConfig{}, resolveErr
+	}
+	variablesFile = resolvedVariables
 	if err := service.LoadVariablesFile(&defaults, variablesFile); err != nil {
 		return service.RunConfig{}, fmt.Errorf("load variables file: %w", err)
 	}
@@ -359,6 +367,40 @@ func printJSON(value any) error {
 	encoder := json.NewEncoder(os.Stdout)
 	encoder.SetIndent("", "  ")
 	return encoder.Encode(value)
+}
+
+// resolveVariablesFile makes the run -f path CWD-independent so documented
+// commands work from any directory (non-expert users clone the repository
+// and paste commands verbatim). Candidates, first existing wins:
+//  1. the path as given (absolute, or relative to the current directory)
+//  2. the path relative to the repository root with any leading "../"
+//     segments stripped — the documented "../tests/fixtures/..." form
+//     resolves from the repository root, tests/harness, or any subdirectory
+func resolveVariablesFile(path string) (string, error) {
+	if filepath.IsAbs(path) {
+		if _, err := os.Stat(path); err != nil {
+			return "", fmt.Errorf("variables file not found: %s", path)
+		}
+		return path, nil
+	}
+	candidates := []string{path}
+	if repoRoot, rootErr := detectRepoRoot(); rootErr == nil {
+		cleaned := filepath.Clean(path)
+		for strings.HasPrefix(cleaned, ".."+string(filepath.Separator)) {
+			cleaned = cleaned[3:]
+		}
+		candidates = append(candidates, filepath.Join(repoRoot, cleaned))
+	}
+	for _, candidate := range candidates {
+		if _, err := os.Stat(candidate); err == nil {
+			absolute, absErr := filepath.Abs(candidate)
+			if absErr != nil {
+				absolute = candidate
+			}
+			return absolute, nil
+		}
+	}
+	return "", fmt.Errorf("variables file not found: %s (tried: %s)", path, strings.Join(candidates, ", "))
 }
 
 func detectRepoRoot() (string, error) {

@@ -62,12 +62,16 @@ else
     installDir="/tmp/feralos-installer"
     if [ -d "$installDir/.git" ]; then
         echo "Updating repository..."
-        cd "$installDir" && git pull --ff-only 2>/dev/null || true
+        cd "$installDir" || { echo "ERROR: cannot enter $installDir"; exit 1; }
+        git pull --ff-only 2>/dev/null || true
     else
         echo "Cloning repository..."
         rm -rf "$installDir"
         git clone --branch "$repoBranch" "$repoUrl" "$installDir"
-        cd "$installDir"
+        # Always enter the cloned repository: every later step (go build,
+        # installer run) uses relative expectations from here. Fail loud —
+        # non-expert users must see WHY, not a confusing error later.
+        cd "$installDir" || { echo "ERROR: cannot enter $installDir"; exit 1; }
     fi
 fi
 

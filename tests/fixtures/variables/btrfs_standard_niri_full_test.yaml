@@ -13,7 +13,7 @@ variables:
   branch: "latest-stable"
   diskLayout: "btrfsStandard"
   desktopEnvironment: "niri"
-  videoDriver: "amdgpu"
+  videoDriver: virtio
   sshAuthorizedKey: ""
   defaultNetworkInterface: "eth0"
   enableSecureboot: true

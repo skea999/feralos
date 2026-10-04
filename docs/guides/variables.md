@@ -21,7 +21,7 @@ variables:
   branch: "latest-stable"           # Options: latest-stable, edge, 3.22
   diskLayout: "btrfsStandard"       # Options: btrfsStandardServer, btrfsStandard, btrfsRaid0, btrfsUnencrypted
   desktopEnvironment: "none"        # none | kde | niri | cosmic
-  videoDriver: "none"               # none | amdgpu | nvidia | intel
+  videoDriver: "none"               # none | amdgpu | nvidia | intel | virtio (QEMU: mesa-dri-gallium + mesa-vulkan-virtio)
   sshAuthorizedKey: ""
   enableSecureboot: false
   enableTPM: false
@@ -83,7 +83,7 @@ variables:
 | Key | Type | Description |
 |-----|------|-------------|
 | `desktopEnvironment` | `string` | `none` (server), `kde`, `niri`, `cosmic`. `niri` pulls `greetd`+`elogind`+`xdg-user-dirs`/`firewalld` plus 20 APK packages (cosmic-files/edit/screenshot/player/store/settings, okular, eog, cups, cups-filters, avahi, system-config-printer, libreoffice, galculator, firefox, firewalld-gui, gnome-firmware, thunderbird, gnome-disk-utility, kcron, ksystemlog, cosmic-settings) niri pulls dms-shell+quickshell+session stack as APK (feralos-aports); **NetworkManager** network service (`networkmanager`+`-cli`+`-tui`+`networkmanager-dinit`, `/etc/network/interfaces` lo-only, `10-manage.conf managed=true`, plugdev/netdev groups, WireGuard via NM, wpa_supplicant); **wayvnc** remote desktop (`wayvnc`+`wayvnc-user-dinit`, user dinit, loopback 127.0.0.1:5900 default — RustDesk/flatpak removed); scanner stack (`sane`/`sane-backends`/`sane-utils`/`sane-airscan`/`simple-scan`) + `qt6-qtmultimedia`/`i2c-tools`/`wtype` (DMS optdepends); polkit+cupsd+networkmanager services; audio+plugdev+netdev groups; no nix dependency (`enableNix` is now an independent feature). `cosmic` uses `seatd` (not elogind) + 19 APK packages (cosmic-session/term/greeter/edit/player/store/settings/screenshot/icons/initial-setup + elogind dependencies replaced with seatd). See `internal_rules.yaml:desktopEnvironments.niri`, `docs/guides/niri.md`. |
-| `videoDriver` | `string` | `none`, `amdgpu`, `nvidia`, `intel` — adds `mesa`, `vulkan`, `xf86-*`. |
+| `videoDriver` | `string` | `none`, `amdgpu`, `nvidia`, `intel`, `virtio` (QEMU: `mesa-dri-gallium` + `mesa-vulkan-virtio`) — adds `mesa`, `vulkan`, `xf86-*` (rules-driven via `internal_rules.yaml:videoDrivers`). |
 
 ### Feature Toggles
 

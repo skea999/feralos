@@ -14,7 +14,7 @@ Includes (from `internal_rules.yaml:desktopEnvironments.niri`):
 - Greeter: `greetd` + `greetd-regreet` + `greetd-openrc` (vt 7, greeter session via `/etc/greetd/greeter.sh`), `accountsservice`
 - Session: `elogind`, `dbus`, `xdg-desktop-portal-wlr/gtk`, `polkit-elogind` + `polkit-gnome`, `power-profiles-daemon`, `cups-pk-helper`, `alacritty`
 - Secrets: `gnome-keyring` (login keyring unlocked at greetd PAM — see [Secrets (gnome-keyring)](#secrets-gnome-keyring) below)
-- Session services (user dinit): `turnstile` (feralos-aports, PAM session → user dinit), `niri-user-dinit` (feralos-aports: `niri` + `niri-shutdown` user services + `/usr/libexec/feralos/login-shell`), `dbus-user-dinit`, `pipewire-user-dinit`, `pipewire-pulse-user-dinit`, `wireplumber-user-dinit`, `wayland-wait-user-dinit`, `polkit-agent-user-dinit` (feralos-aports; pull pipewire/pipewire-pulse/wireplumber as runtime deps), `wayvnc-user-dinit` (feralos-aports) + `dms.user` (shipped by `dms-shell`)
+- Session services (user dinit): `turnstile` (feralos-aports, PAM session → user dinit), `niri-user-dinit` (feralos-aports: `niri` + `niri-shutdown` user services + `/usr/libexec/feralos/login-shell` + FIXED `/usr/bin/niri-session`, `replaces="niri"`), `dbus-user-dinit`, `pipewire-user-dinit`, `pipewire-pulse-user-dinit`, `wireplumber-user-dinit`, `wayland-wait-user-dinit`, `polkit-agent-user-dinit` (feralos-aports; pull pipewire/pipewire-pulse/wireplumber as runtime deps), `wayvnc-user-dinit` (feralos-aports) + `dms.user` (shipped by `dms-shell`)
 - Network: `networkmanager`, `networkmanager-cli`, `networkmanager-tui`, `networkmanager-dinit` (service `default`), `wpa_supplicant` (spawned/supervised by NM), `wireguard-tools` (WireGuard via NM — see below)
 - Scanner stack: `sane`, `sane-backends`, `sane-utils`, `sane-airscan`, `simple-scan` + `qt6-qtmultimedia` (DMS optdepends), `i2c-tools`, `wtype` (DMS optdepends promoted)
 - Apps: `cosmic-files/edit/screenshot/player/store/settings`, `okular`, `eog`, `cups/cups-filters/avahi/system-config-printer`, `libreoffice`, `galculator`, `firefox`, `firewalld-gui`, `gnome-firmware`, `thunderbird`, `gnome-disk-utility`, `kcron`, `ksystemlog`, `rclone`
@@ -25,6 +25,26 @@ Includes (from `internal_rules.yaml:desktopEnvironments.niri`):
 > Notes: `cava` (DMS audio visualizer) not on Alpine 3.24 — re-add when packaged. `turnstile` ships via feralos-aports (Alpine stable does not have it). `matugen`/`rclone-ui` not on Alpine — DMS degrades gracefully. `render` group does not exist on Alpine (video covers DRM). No `nixPackages` — `enableNix` is an independent feature.
 
 > RustDesk removed (round 43 cleanup philosophy — never in the validated stack). Remote desktop = **wayvnc** (user dinit service, loopback by default) — see below.
+
+## Session Startup and Verification
+
+> **"The installer is the product; the harness simulates real life."** The installer must produce a system that works on real hardware with zero test-only crutches; the harness verifies that behavior by simulating real usage in a VM. Any fix discovered via the harness belongs in the installer or `feralos-aports` — never in the harness.
+
+**Real-life path** (all shipped by the installer + `feralos-aports`, no test-only crutches):
+
+`greetd` → regreet login (`niri.desktop`, `Exec=niri-session`) → `/usr/bin/niri-session` (shipped FIXED by `niri-user-dinit`, `replaces="niri"` — upstream post-25.11 dinit mechanism) → `pam_turnstile.so` → per-user dinit instance → `niri` user service (`niri --session`, `chain-to = niri-shutdown`). The script imports the FULL login env into the user dinit (`dinitctl --user setenv`), starts the `niri` user service, then holds itself open for the whole session (`dinit-monitor` wait, fallback `is-started` poll) — script lifetime = greetd session lifetime.
+
+**Why fixed** (maintainer note): upstream's script (niri ≤ 25.11, our base) started the user service and exited immediately → greetd tore the session down in ~300 ms (no session lifetime); and it never imported the login session env → niri died on `TakeControl` over turnstiled's seatless pseudo-session (ENOSYS). `niri-user-dinit` carries both upstream fixes, adapted to FeralOS; launch paths: greetd autologin, regreet, manual tty.
+
+**Harness (QEMU)**: the autologin fixture (`enableNiriTestAutologin`) SIMULATES that login — greetd `[initial_session] command = "niri-session"` runs the exact same `/usr/bin/niri-session` a real login runs. The installer NEVER writes `[initial_session]` — real installs log in manually through regreet. Runtime checks verify the session REALLY runs: `niri_session_user`, `niri_wayland_socket`, `niri_ipc`, `niri_user_dinit_runtime`, `niri_wayvnc_port`, `niri_screenshot` (IPC screenshot → non-empty PNG = real-rendering proof). Details → `docs/harness/workflow.md`.
+
+**Real hardware**: log in graphically (regreet), then run as root on the target:
+
+```bash
+sh tests/harness/niri_realhw_check.sh [username]
+```
+
+`tests/harness/niri_realhw_check.sh` (POSIX sh, busybox-clean) — same session checks + pre-session system checks (DRM card0/renderD128 + driver, greetd/elogind/turnstiled, wayland logind session type).
 
 ## Installation
 
@@ -57,7 +77,7 @@ rc-update add firewalld default
 
 ## User Session
 
-- **Alpine niri-session, unmodified**: `/usr/bin/niri-session` is used as shipped. greetd sets `SHELL` from the passwd entry; the user is created with `-s /usr/libexec/feralos/login-shell` — a symlink shipped by `niri-user-dinit`, deliberately **not** listed in `/etc/shells`. The package default target is `/bin/ash`, but busybox dispatches applets on `argv[0]`: a `login-shell`-named symlink to `/bin/ash` fails with `login-shell: applet not found` for every passwd-shell consumer (sshd, `su -`, installer's `dms setup`), so the installer re-points it to `/usr/bin/fish` (the pre-turnstile user shell). The script's "re-exec through bash when `$SHELL` is in `/etc/shells`" check therefore fails, the bash re-exec is skipped, and it reaches its dinit branch: `dinitctl --user start niri` starts the `niri` user service (`command = niri --session`, `depends-on = dbus.user`, `chain-to = niri-shutdown`, `restart = false`). The installer does **not** write `/usr/local/bin/niri-session` anymore (old wrapper removed; `user chsh` is also skipped for niri so it cannot clobber the passwd shell)
+- **`niri-session` — FIXED, shipped by `niri-user-dinit`**: `/usr/bin/niri-session` comes from `niri-user-dinit` (`replaces="niri"`; upstream post-25.11 dinit mechanism — see [Session Startup and Verification](#session-startup-and-verification)). greetd sets `SHELL` from the passwd entry; the user is created with `-s /usr/libexec/feralos/login-shell` — a symlink shipped by `niri-user-dinit`, deliberately **not** listed in `/etc/shells`. The package default target is `/bin/ash`, but busybox dispatches applets on `argv[0]`: a `login-shell`-named symlink to `/bin/ash` fails with `login-shell: applet not found` for every passwd-shell consumer (sshd, `su -`, installer's `dms setup`), so the installer re-points it to `/usr/bin/fish` (the pre-turnstile user shell). The script's "re-exec through bash when `$SHELL` is in `/etc/shells`" check therefore fails, the bash re-exec is skipped, and it reaches its dinit branch: full login-env `setenv` + `dinitctl --user start niri` starts the `niri` user service (`command = niri --session`, `depends-on = dbus.user`, `chain-to = niri-shutdown`, `restart = false`), then `dinit-monitor` holds the script open as the session lifetime. The installer does **not** write `/usr/local/bin/niri-session` anymore (old wrapper removed; `user chsh` is also skipped for niri so it cannot clobber the passwd shell)
 - **turnstile (PAM session → user dinit)**: `session optional pam_turnstile.so` already ships in Alpine's `base-session` (3.24-stable). At greetd login `pam_turnstile.so` asks the system `turnstiled` (symlinked into `/etc/dinit.d/boot.d/`) to spawn the per-user dinit instance (`/usr/libexec/turnstile/dinit`, backend `dinit`, `manage_rundir=false` — elogind owns `/run/user/<uid>`). The installer enables the session stack in the user dinit's `boot.d` (`/usr/lib/dinit.d/user/boot.d/`): `dbus.user pipewire.user pipewire-pulse.user wireplumber.user wait-wayland.user polkit-agent.user dms.user wayvnc.user` (existence-filtered)
 - **Session env**: `/etc/environment` (`XDG_SESSION_DESKTOP=niri`, `XDG_DATA_DIRS` with flatpak exports first; read by `pam_env` in `/etc/pam.d/turnstiled`) + the niri config `environment` block. No `DBUS_SESSION_BUS_ADDRESS` export needed: the session bus is the `dbus.user` service of the turnstile-started user dinit
 - **User dinit session services** (Artix `dinit-userservd-services` model — `.user` suffix, sub-vars, `smooth-recovery`, dbus readiness via `pipefd:3` + `dinitctl setenv`):

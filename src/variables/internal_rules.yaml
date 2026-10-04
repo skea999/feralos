@@ -225,6 +225,10 @@ videoDrivers:
     modules: ["nvidia", "nvidia-modeset"]
   intel:
     packages: ["mesa-dri-gallium", "mesa-va-gallium", "mesa-vulkan-intel", "intel-media-driver", "libva-intel-driver", "linux-firmware-i915"]
+  virtio:
+    # QEMU virtio-gpu userspace (virgl/venus pipe for virtio-gpu-gl)
+    packages: ["mesa-dri-gallium", "mesa-vulkan-virtio"]
+    modules: ["virtio_gpu"]
 
 # Dummy packages: if key is installed, creates symlink for replaced package
 # Symlink goes from /usr/bin/<replaced> → /usr/bin/<replacement>
