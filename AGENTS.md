@@ -8,6 +8,23 @@
 
 ## Recent Rounds (latest first)
 
+### 2026-10-05 19:35 - check mechanics fixes validated on LIVE target (standalone verify 85/85)
+**Agent:** codebase
+**Summary:** Harness-only round. 5 output-dependent niri checks re-guarded with DMI product_name+sys_vendor concat; `dms_ipc` syntax fixed to an empirically-verified call. Re-verified against the LIVE debug_run boot of run `2026-10-05T00-42-34Z` — **85/85 PASS** (standalone `./skea_harness verify -run-dir ...`; writes JSON to stdout only, does NOT touch verify.md — the run-dir verify.md stays the install-time snapshot).
+- **DMI QEMU detection (service.go, 5 checks)**: `niri_outputs_count`, `niri_wayvnc_port`, `niri_screenshot`, `niri_user_dinit_runtime` (wayvnc.user dropped from REQUIRED list under QEMU — output-starved crash-loop cascade, NOT a product bug), all now read BOTH `product_name` AND `sys_vendor` and match the concat `case "$p$v" in *QEMU*)` (q35: product_name `Standard PC (Q35 + ICH9, 2009)`, sys_vendor `QEMU` — verified verbatim on the live target). Guards exit 0 informational under QEMU; real hw unchanged (hard).
+- **dms_ipc REAL syntax (service.go)**: `dms ipc call outputs status` — empirically verified on the live target: answers `auto: off / active: none / outputs: []` rc 0 (empty list = QEMU zero-output reality, call still proves IPC). GOTCHA: dms answers UNKNOWN targets rc 0 too (`widget list` also rc 0 despite no `widget` target in help) — only real target/function pairs are valid proof. dms REFUSES root → `su - <user> -s /bin/sh`; NIRI_SOCKET exported for symmetry; 60s poll, `timeout 10`.
+- **Working read-only dms calls found live**: `audio status`, `lock status` (JSON), `outputs status`, `notifications getDoNotDisturb`.
+- **Note**: run `2026-10-05T01-00-52Z` (later run in state) failed "context canceled" and its teardown killed all VMs; target for this round re-booted from run `00-42-34Z` disk via `tests/debug_run` (port 2223). Host key change on reconnect = fresh install, expected (ssh-keygen -R the stale entry).
+
+### 2026-10-05 00:40 - greeter dinit log dir; 4 new niri/dms runtime checks; OpenRC minimal 49/49
+**Agent:** codebase
+**Summary:** Installer + harness round, OpenRC minimal regression green (`btrfs_standard_minimal`, run `2026-10-05T00-33-48Z`, **49/49 PASS**, verify.md in run dir).
+- **Greeter user-dinit log dir (niri.go)**: greeter user services (dbus-session etc.) log under `$HOME/.local/share/dinit` — dir was missing for `/var/lib/greetd` → "opening log file" failures. Added `mkdir -p /var/lib/greetd/.local/share/dinit` in the greeter section, covered by the existing `chown -R greeter:greeter`.
+- **Dead eth0 write (network.go)**: `setupInterfaces` eth0-dhcp write is dead ONLY in the niri flow (overwritten by niri.go lo-only write; NM manages eth0). NOT removed — function shared by all non-niri flows (their only network config). Both spots now carry DEAD-in-niri-flow comments (network.go func doc + niri.go step 7).
+- **Harness runtime checks (service.go, gated niri)**: `niri_msg_version` (rc 0 + head -2 detail), `niri_windows` (state query, pass on rc 0), `niri_outputs_count` (THE ONE QEMU skip: `*QEMU*` product_name → exit 0 informational — venus/virgl upstream limitation gives niri ZERO outputs, bug-3; real hw enforces ≥1 `^Output`), `dms_ipc` (`dms ipc call widget list` — DankLinux docs syntax `dms ipc call <target> <function>`, NO `output list` target; client finds shell socket via XDG_RUNTIME_DIR; VERIFY EMPIRICALLY next niri run). All use the same socket discovery (`ls /run/user/$uid/niri*.sock | head -1`).
+- **Realhw script** (`tests/harness/niri_realhw_check.sh`): same 4 checks added; `niri_outputs_count` HARD there (real hw MUST have ≥1), no QEMU skip.
+- Builds green: harness gofmt/vet/golangci-lint/build OK; installer go vet + build OK. niri fixture run = next step (not this round).
+
 ### 2026-10-03 21:45 - caef07b fixes VALIDATED; bug-3 root cause = zero wl_outputs in QEMU (77/80 ×2)
 **Agent:** codebase
 **Summary:** Runs 2026-10-03T18-56-40Z + 2026-10-03T19-27-59Z, both 77/80. **All 3 aports caef07b fixes work**; 3 remaining FAILs share ONE root cause: niri boots with ZERO outputs under QEMU.

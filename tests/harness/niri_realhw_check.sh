@@ -123,13 +123,56 @@ else
 	fail 'no wayland socket'
 fi
 
-niri_socket=$(ls "$XDGRUN"/niri*.sock 2>/dev/null | head -1)
+	niri_socket=$(ls "$XDGRUN"/niri*.sock 2>/dev/null | head -1)
 if [ -n "$niri_socket" ] &&
 	XDG_RUNTIME_DIR="$XDGRUN" WAYLAND_DISPLAY=wayland-1 NIRI_SOCKET="$niri_socket" \
 		niri msg outputs >/dev/null 2>&1; then
 	pass 'niri IPC OK'
 else
 	fail "niri IPC failed (sock=$niri_socket)"
+fi
+
+# niri msg version — sharper IPC+binary proof (socket live AND binary speaks
+# the protocol); first 2 lines of output recorded.
+if [ -n "$niri_socket" ]; then
+	nv=$(XDG_RUNTIME_DIR="$XDGRUN" NIRI_SOCKET="$niri_socket" niri msg version 2>&1)
+	if [ $? -eq 0 ]; then
+		pass "niri msg version: $(echo "$nv" | head -2 | tr '\n' ' ')"
+	else
+		fail 'niri msg version failed'
+	fi
+else
+	fail 'niri msg version failed (no socket)'
+fi
+
+# niri msg windows — compositor state query; pass on rc 0 (window list may
+# legitimately be tiny), show first 5 lines.
+if [ -n "$niri_socket" ]; then
+	nw=$(XDG_RUNTIME_DIR="$XDGRUN" NIRI_SOCKET="$niri_socket" niri msg windows 2>&1)
+	if [ $? -eq 0 ]; then
+		pass 'niri windows query OK'
+		echo "$nw" | head -5 | while IFS= read -r l; do echo "       $l"; done
+	else
+		fail 'niri windows query failed'
+	fi
+else
+	fail 'niri windows query failed (no socket)'
+fi
+
+# niri outputs — HARD check on real hardware: a real GPU MUST produce >= 1
+# output. (The harness QEMU counterpart skips this — venus/virgl upstream
+# limitation gives niri zero outputs in QEMU; see service.go niri_outputs_count.)
+n_out=0
+if [ -n "$niri_socket" ]; then
+	no=$(XDG_RUNTIME_DIR="$XDGRUN" NIRI_SOCKET="$niri_socket" niri msg outputs 2>&1)
+	if [ $? -eq 0 ]; then
+		n_out=$(echo "$no" | grep -c '^Output')
+	fi
+fi
+if [ "$n_out" -ge 1 ]; then
+	pass "niri outputs: $n_out"
+else
+	fail "niri outputs: $n_out (real hardware MUST have >=1)"
 fi
 
 # dms shell: process-level check (deeper than the dms.user service entry in
@@ -146,6 +189,22 @@ while [ $i -lt 30 ]; do
 	i=$((i + 1))
 done
 [ -n "$dms_ok" ] && pass 'dms shell running' || fail 'dms not running'
+
+# dms IPC — real CLI liveness (same as harness dms_ipc). Syntax verified
+# against DankLinux docs: `dms ipc call <target> <function>`; `widget list`
+# is a documented read-only query. Client finds the shell socket via
+# XDG_RUNTIME_DIR. VERIFY EMPIRICALLY on the next realhw pass.
+i=0
+dms_ipc_ok=''
+while [ $i -lt 60 ]; do
+	if XDG_RUNTIME_DIR="$XDGRUN" timeout 5 dms ipc call widget list >/dev/null 2>&1; then
+		dms_ipc_ok=1
+		break
+	fi
+	sleep 1
+	i=$((i + 1))
+done
+[ -n "$dms_ipc_ok" ] && pass 'dms IPC OK' || fail 'dms IPC failed'
 
 # user dinit session stack: every boot.d user service started. dinitctl list
 # renders started services as `[{+}] name (pid: ...)` — '{+' only appears

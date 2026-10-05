@@ -59,6 +59,15 @@ func detectNetworkInterface(chroot string) (string, error) {
 	return "", fmt.Errorf("no non-loopback network interface found")
 }
 
+// setupInterfaces writes the ifupdown /etc/network/interfaces (loopback +
+// DHCP on the primary interface).
+//
+// DEAD in the niri desktop flow: desktops.SetupNiri overwrites this file
+// later in the same chroot run with a loopback-only version (NetworkManager
+// manages eth0; the stale DHCP ifupdown config caused double default
+// routes). Intentionally KEPT: every non-niri flow (OpenRC minimal, server
+// layouts, desktopEnvironment=none) has no other network configuration and
+// boots with this file.
 func setupInterfaces(chroot, iface string) error {
 	interfacesContent := fmt.Sprintf(`auto lo
 iface lo inet loopback

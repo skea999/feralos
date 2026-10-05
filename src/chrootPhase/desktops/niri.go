@@ -120,6 +120,13 @@ hotkey-overlay {
 	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /var/lib/regreet"); err != nil {
 		return fmt.Errorf("mkdir /var/lib/regreet: %w", err)
 	}
+	// Greeter user-dinit log dir: the greeter's user dinit services
+	// (dbus-session etc.) log under $HOME/.local/share/dinit (dinit logfile),
+	// same layout as the session user below — without it they fail with
+	// "opening log file". Covered by the chown -R greeter:greeter below.
+	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /var/lib/greetd/.local/share/dinit"); err != nil {
+		return fmt.Errorf("mkdir greeter dinit log dir: %w", err)
+	}
 	if _, err := shell.ExecuteCmd(chroot, "chown -R greeter:greeter /var/lib/greetd /var/lib/regreet && chmod 700 /var/lib/regreet"); err != nil {
 		return fmt.Errorf("fix greeter/regreet ownership: %w", err)
 	}
@@ -236,7 +243,10 @@ include "dms/colors.kdl"
 	// (rounds 30/44 — DMS network/VPN UI needs the NM backend):
 	//  - NM may manage interfaces configured by ifupdown (managed=true)
 	//  - /etc/network/interfaces reduced to lo (eth0 belongs to NM; the
-	//    stale DHCP ifupdown config caused double default routes)
+	//    stale DHCP ifupdown config caused double default routes).
+	//    This OVERWRITES the eth0-dhcp file written by internal.setupInterfaces
+	//    earlier in the chroot run — that write is dead in the niri flow
+	//    (kept there for non-niri flows; see network.go setupInterfaces).
 	//  - NM polkit rule allows the plugdev group (user added there via
 	//    internal_rules groups)
 	nmManage := `[ifupdown]
