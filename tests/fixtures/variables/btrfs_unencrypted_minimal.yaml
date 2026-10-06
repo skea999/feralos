@@ -1,5 +1,6 @@
 variables:
   unattended: true
+  ignoreErrors: true
   # Disk Configuration
   disks:
     - "/dev/sda"

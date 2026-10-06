@@ -122,6 +122,7 @@ type RunConfig struct {
 	TargetMemoryMiB     int
 	CPUs                int
 	EnableTPM           bool
+	IgnoreErrors        bool
 	EnableSecureboot    bool
 	EnableHardening     bool
 	EnablePodman        bool `yaml:"enablePodman"`
@@ -153,6 +154,7 @@ type RunConfig struct {
 type VariablesYAML struct {
 	Variables struct {
 		Unattended              bool     `yaml:"unattended"`
+		IgnoreErrors            bool     `yaml:"ignoreErrors"`
 		Disks                   []string `yaml:"disks"`
 		UserName                string   `yaml:"userName"`
 		Password                string   `yaml:"password"`
@@ -198,6 +200,12 @@ func LoadVariablesFile(cfg *RunConfig, filePath string) error {
 	}
 
 	v := vars.Variables
+
+	// Harness runs are ALWAYS best-effort: a failing optional step must not
+	// abort the run — the verification phase judges what actually works.
+	// Force IgnoreErrors regardless of what the fixture says.
+	cfg.IgnoreErrors = v.IgnoreErrors
+	cfg.IgnoreErrors = true
 
 	// Apply values from YAML
 	if v.UserName != "" {
@@ -2758,6 +2766,7 @@ func writeHarnessVariables(cfg *RunConfig, keyPair guest.KeyPair, outputPath, al
 	sshKey := escapeDoubleQuotes(keyPair.PublicKey)
 	content := fmt.Sprintf(`variables:
   unattended: true
+  ignoreErrors: true
 
 %s
 

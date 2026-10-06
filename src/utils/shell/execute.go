@@ -139,6 +139,11 @@ func ExecuteCmdWithAllowFail(chroot string, cmd string, allowFail bool, critical
 		}
 
 		// After 3 failures
+		if os.Getenv("SKEA_IGNORE_ERRORS") == "1" {
+			fmt.Printf("[ERROR][IGNORED] command failed (ignoreErrors=true): %s: %v\n", cmd, lastErr)
+			return lastStdout, nil
+		}
+
 		if os.Getenv("SKEA_NONINTERACTIVE") == "1" && !critical {
 			decision := strings.ToLower(os.Getenv("SKEA_NONINTERACTIVE_DECISION"))
 			switch decision {
@@ -260,6 +265,10 @@ func ExecuteCmdArgsWithAllowFail(chroot, name string, args []string, allowFail, 
 			fmt.Printf("[%s][RETRY] Attempt %d/%d failed, retrying in 3s...\n", prefix, attempt, MaxRetries)
 			time.Sleep(3 * time.Second)
 			continue
+		}
+		if os.Getenv("SKEA_IGNORE_ERRORS") == "1" {
+			fmt.Printf("[ERROR][IGNORED] command failed (ignoreErrors=true): %s: %v\n", logCmd, lastErr)
+			return lastStdout, nil
 		}
 		if os.Getenv("SKEA_NONINTERACTIVE") == "1" && !critical {
 			decision := strings.ToLower(os.Getenv("SKEA_NONINTERACTIVE_DECISION"))

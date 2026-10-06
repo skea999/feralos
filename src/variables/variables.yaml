@@ -1,5 +1,6 @@
 variables:
   unattended: false
+  ignoreErrors: false               # true = log errors and continue (harness mode); false = abort on first error
   # Disk Configuration
   disks:
     - "/dev/sda"

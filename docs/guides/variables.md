@@ -7,6 +7,7 @@ Full example (current template):
 ```yaml
 variables:
   unattended: true
+  ignoreErrors: false               # true = log errors and continue (harness mode); false = abort on first error
   disks:
     - "/dev/sda"
     - "/dev/sdb"
@@ -76,7 +77,8 @@ variables:
 | `mirror` | `string` | Alpine mirror `https://dl-cdn.alpinelinux.org/alpine`. |
 | `arch` | `string` | `x86_64` (only tested). |
 | `branch` | `string` | `latest-stable`, `v3.19`, `edge`, etc. |
-| `unattended` | `bool` | `true` skips wizard, uses file as-is. `false` runs interactive `createConfig`. |
+| `unattended` | `bool` | `true` skips wizard, uses file as-is. `false` runs interactive `createConfig`. Skips manual input ONLY — does not affect error handling. |
+| `ignoreErrors` | `bool` | `true` = best-effort install: command failures are logged (`[ERROR][IGNORED]` in `shell.ExecuteCmd`/`ExecuteCmdArgs`) and installation CONTINUES (sets `SKEA_IGNORE_ERRORS=1` at config load). `false` (default) = abort on first error. Used by the test harness (always forced `true` — the verification phase judges what actually works). |
 
 ### Desktop and Video
 

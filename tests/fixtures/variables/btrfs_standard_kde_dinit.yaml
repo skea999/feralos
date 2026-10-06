@@ -1,5 +1,6 @@
 variables:
   unattended: true
+  ignoreErrors: true
   disks:
     - "/dev/sda"
   userName: "skea999"

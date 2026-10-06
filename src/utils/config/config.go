@@ -14,6 +14,7 @@ type Config struct {
 
 type UserVariables struct {
 	Unattended         bool     `yaml:"unattended"`
+	IgnoreErrors       bool     `yaml:"ignoreErrors"`
 	Disks              []string `yaml:"disks"`
 	UserName           string   `yaml:"userName"`
 	Password           string   `yaml:"password"`
@@ -126,6 +127,13 @@ func LoadConfig(userPath string) (*Config, error) {
 	// LuksPassword fallback: use Login password if LUKS passphrase not set
 	if conf.User.LuksPassword == "" {
 		conf.User.LuksPassword = conf.User.Password
+	}
+
+	// ignoreErrors: best-effort mode — command failures are logged and the
+	// installation continues (SKEA_IGNORE_ERRORS is honored by shell.ExecuteCmd).
+	// unattended only skips manual input; this flag governs error handling.
+	if conf.User.IgnoreErrors {
+		os.Setenv("SKEA_IGNORE_ERRORS", "1")
 	}
 
 	return conf, nil
