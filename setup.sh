@@ -48,6 +48,13 @@ fi
 # Harness: .skea_harness-bin shims take precedence on PATH; apt is fallback.
 echo "Installing host dependencies..."
 export DEBIAN_FRONTEND=noninteractive
+# Mint/Ubuntu systems installed from an ISO keep a 'deb cdrom:...' apt source:
+# with no medium in the (virtual) drive 'apt update' fails and, under set -e,
+# the script aborts before installing anything. Disable it first.
+if grep -qs '^deb cdrom:' /etc/apt/sources.list; then
+    echo "[INFO] Disabling cdrom apt source (install media)"
+    sed -i '/^deb cdrom:/s/^/# /' /etc/apt/sources.list
+fi
 apt update -y
 apt install -y git golang-go btrfs-progs cryptsetup curl tar dosfstools rsync efitools sbsigntool ca-certificates
 
