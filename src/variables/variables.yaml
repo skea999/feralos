@@ -1,5 +1,5 @@
 variables:
-  unattended: true
+  unattended: false
   # Disk Configuration
   disks:
     - "/dev/sda"
