@@ -105,7 +105,10 @@ cd "$installDir"
 if [ -n "$configFile" ]; then
     ./feralos_installer -config "$configFile"
 else
-    ./feralos_installer
+    # Default: the config shipped with the repo. Edit
+    # src/variables/variables.yaml with your own defaults (disks, user,
+    # password, features) before running without -config.
+    ./feralos_installer -config "$installDir/src/variables/variables.yaml"
 fi
 
 echo
