@@ -19,11 +19,18 @@ defaultRunlevels:
 #          kern.log + /var/log/dmesg one-shot); dinit-only — the Alpine
 #          OpenRC service needs `logger` (busybox syslogd), which vector
 #          replaced (see klogd-dinit package).
+#   loadkmap: console keyboard layout — busybox-loadkmap-dinit ships
+#          /lib/dinit.d/loadkmap (consumes /etc/conf.d/loadkmap written by
+#          misc.go); the chimera early-console hook reads /etc/conf.d/keymaps
+#          whose /usr/share/keymaps paths don't exist with kbd-bkeymaps.
 defaultRunlevelsDinit:
-  boot: ["system", "getty@tty1", "getty@ttyS0", "dinit-boot-log", "klogd"]
+  boot: ["system", "getty@tty1", "getty@ttyS0", "dinit-boot-log", "klogd", "loadkmap"]
 
 # OpenRC service names that must NOT be dinitctl-enabled:
 #   - chimera-covered base services (early chain provides them)
+#   - loadkmap: provided dinit-natively (busybox-loadkmap-dinit) and enabled
+#     via defaultRunlevelsDinit — skipping here prevents a duplicate boot.d
+#     link from the OpenRC boot list (same service name, both lists)
 #   - vector-setup: replaced under dinit by vector-dinit's tmpfiles file
 dinitSkipServices:
   - hwclock

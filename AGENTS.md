@@ -8,6 +8,15 @@
 
 ## Recent Rounds (latest first)
 
+### 2026-10-07 - console keymap (loadkmap) restored under dinit
+**Agent:** codebase
+**Summary:** Console keymap regression fixed (OpenRC→dinit migration lost the busybox-initscripts loadkmap service). New aports package `busybox-loadkmap-dinit` 0.1.0-r0 (docker abuild green): scripted service `/lib/dinit.d/loadkmap` (depends-on local.target, before login.target) → `/usr/lib/dinit/loadkmap` wrapper (sources `/etc/conf.d/loadkmap`, default `us`, pipes `.bmap.gz` via `zcat | busybox loadkmap`) → conf default `/etc/conf.d/loadkmap` (apk-protected; installer rewrites KEYMAP= from user variables).
+- **Installer**: `misc.go` keymap no longer hardcoded `it` — `keymapPath = /usr/share/bkeymaps/<keymap>/<keymap>.bmap.gz` from `u.Keymap` (kbd-bkeymaps layout: keymap == layout dir; `%q` quoting). `packages.go` dinit corePkgs += `busybox-loadkmap-dinit` (hard-verified install). `kbd-bkeymaps` was ALREADY in `standardPackages` (no change).
+- **Enablement**: `internal_rules.yaml` `defaultRunlevelsDinit.boot` += `loadkmap` (boot.d symlink via services.go first loop); `dinitSkipServices` keeps `loadkmap` (prevents duplicate enable from the OpenRC boot list — same name in both lists). OpenRC `defaultRunlevels.boot` already had `loadkmap` (busybox-initscripts) — untouched.
+- **Why not chimera early-console**: `dinit-console` reads `/etc/conf.d/keymaps` (short name) under `/usr/share/keymaps/...` — paths don't exist with kbd-bkeymaps; always no-op for keymaps. Font half still applies. Note in `docs/dinit/BOOT.md` step 24.
+- **Harness**: `console_keymap` check (niri block, service.go): `grep -q 'bkeymaps' /etc/conf.d/loadkmap && dinitctl list | grep -E '\[.\] *loadkmap'` — conf + started marker, no polling (boot-time scripted).
+- Builds green: installer gofmt/vet/golangci-lint/build; harness gofmt/vet/build. NEXT: harness dinit niri fixture run to validate check + keymap live.
+
 ### 2026-10-05 19:35 - check mechanics fixes validated on LIVE target (standalone verify 85/85)
 **Agent:** codebase
 **Summary:** Harness-only round. 5 output-dependent niri checks re-guarded with DMI product_name+sys_vendor concat; `dms_ipc` syntax fixed to an empirically-verified call. Re-verified against the LIVE debug_run boot of run `2026-10-05T00-42-34Z` — **85/85 PASS** (standalone `./skea_harness verify -run-dir ...`; writes JSON to stdout only, does NOT touch verify.md — the run-dir verify.md stays the install-time snapshot).

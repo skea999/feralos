@@ -44,9 +44,12 @@ fi' > /etc/profile.d/console.sh`
 		return fmt.Errorf("failed to write locale config: %w", err)
 	}
 
-	// 6. Keymap
-	fmt.Println("[INFO] Setting keyboard layout...")
-	if _, err := shell.ExecuteCmd(chroot, "echo 'KEYMAP=\"/usr/share/bkeymaps/it/it.bmap.gz\"' > /etc/conf.d/loadkmap"); err != nil {
+	// 6. Keymap — consumed by the loadkmap service (busybox-loadkmap-dinit
+	// under dinit, busybox-initscripts under OpenRC). kbd-bkeymaps layout:
+	// /usr/share/bkeymaps/<code>/<code>.bmap.gz (keymap == layout dir).
+	keymapPath := fmt.Sprintf("/usr/share/bkeymaps/%s/%s.bmap.gz", u.Keymap, u.Keymap)
+	fmt.Printf("[INFO] Setting keyboard layout to %s...\n", keymapPath)
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo 'KEYMAP=%q' > /etc/conf.d/loadkmap", keymapPath)); err != nil {
 		return fmt.Errorf("failed to write keymap config: %w", err)
 	}
 

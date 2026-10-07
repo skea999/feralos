@@ -1396,6 +1396,11 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		// take ~30s, so 60s worst case still fits.
 		checks["niri_greeter"] = "i=0; while [ $i -lt 60 ]; do pgrep -x niri >/dev/null && { echo 'niri running'; exit 0; }; sleep 1; i=$((i+1)); done; echo 'niri not running'; exit 1"
 		checks["dms_installed"] = "apk info -e dms-shell quickshell && test -x /usr/bin/dms"
+		// console_keymap: busybox-loadkmap-dinit loaded the layout at boot —
+		// conf must point at a kbd-bkeymaps path AND the service must hold a
+		// started marker in dinitctl list (boot-time scripted service, no
+		// polling needed).
+		checks["console_keymap"] = "grep -q 'bkeymaps' /etc/conf.d/loadkmap && dinitctl list | grep -E '\\[.\\] *loadkmap' && echo 'console keymap loaded'"
 		// user dinit services: supervised session stack (dbus/audio/wayland
 		// gate/polkit-agent/dms) shipped by *-user-dinit packages + dms-shell
 		checks["dinit_user_services"] = "for s in dbus.user pipewire.user pipewire-pulse.user wireplumber.user wait-wayland.user polkit-agent.user dms.user; do test -f /etc/dinit.d/user/$s || { echo \"missing $s\"; exit 1; }; done; echo 'user services OK'"

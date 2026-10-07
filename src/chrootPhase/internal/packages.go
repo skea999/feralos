@@ -256,8 +256,11 @@ func installDinitPackages(conf *config.Config) error {
 	// the kernel ring to /dev/log (vector kern.log) — dinit-only, the Alpine
 	// OpenRC klogd needs the `logger` service vector replaced; dinit-shutdown
 	// ships dinit-poweroff/reboot/halt and the finalizer the daemon execs to
-	// complete any shutdown — without it dinit can never power the machine off)
-	corePkgs := []string{"dinit", "dinit-chimera", "getty-dinit", "networking-dinit", "dinit-boot-log", "klogd-dinit", "dinit-shutdown"}
+	// complete any shutdown — without it dinit can never power the machine off;
+	// busybox-loadkmap-dinit: console keymap at boot — the chimera
+	// early-console hook reads /etc/conf.d/keymaps (paths that don't exist
+	// with kbd-bkeymaps), this service consumes /etc/conf.d/loadkmap)
+	corePkgs := []string{"dinit", "dinit-chimera", "getty-dinit", "networking-dinit", "dinit-boot-log", "klogd-dinit", "dinit-shutdown", "busybox-loadkmap-dinit"}
 	if _, err := shell.ExecuteCmdArgs(chroot, "apk", append([]string{"add"}, corePkgs...)...); err != nil {
 		return fmt.Errorf("failed to install core dinit packages %v: %w", corePkgs, err)
 	}

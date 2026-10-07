@@ -76,6 +76,16 @@ Note the two `boot.d` directories — both are upstream conventions:
 
 Everything above is **upstream code** — FeralOS only fills the 2 hook scripts (8, 13).
 
+> **Keymap note**: `dinit-console` reads `/etc/conf.d/keymaps` (short name) and
+> looks under `/usr/share/keymaps/` — paths that do not exist with
+> `kbd-bkeymaps` (`/usr/share/bkeymaps/<code>/<code>.bmap.gz`). The REAL
+> console keymap load is `busybox-loadkmap-dinit`'s `loadkmap` scripted
+> service (boot.d-enabled, `depends-on = local.target`): it sources
+> `/etc/conf.d/loadkmap` (`KEYMAP=` full path, written by the installer from
+> the user `keymap` variable) and pipes the `.bmap.gz` through busybox
+> loadkmap. `early-keyboard.target` stays a no-op on FeralOS; the font half
+> of `dinit-console` (consolefont) still applies.
+
 ## Target Chain
 
 ```
