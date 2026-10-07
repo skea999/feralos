@@ -319,6 +319,14 @@ providePackages:
 baseModules:
   - r8169
   - binfmt_misc
+  - sd_mod
+  - sr_mod
+  - ata_piix
+  - ahci
+  - nvme
   - virtio
   - virtio_pci
   - virtio_net
+  - virtio_blk
+  - virtio_scsi
+
