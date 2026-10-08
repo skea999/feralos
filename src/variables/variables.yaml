@@ -1,6 +1,7 @@
 variables:
   unattended: false
   ignoreErrors: false               # true = log errors and continue (harness mode); false = abort on first error
+  enableEdgeRepos: false            # @edge tagged repos (main/community/testing) — for installing packages from Alpine edge via extraPackages (e.g. pkg@edge)
   # Disk Configuration
   disks:
     - "/dev/sda"
@@ -50,3 +51,10 @@ variables:
   # Adding these will trigger dynamic rules (groups, services, etc.)
   extraPackages:
     - okular
+    - mesa@edge 
+    - mesa-gl@edge
+    - mesa-egl@edge
+    - mesa-gles@edge
+    - mesa-gbm@edge
+    - mesa-dri-gallium@edge
+    - mesa-vulkan-virtio@edge

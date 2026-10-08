@@ -21,7 +21,7 @@ var (
 	userRe    = regexp.MustCompile(`^[a-z_][a-z0-9_-]{0,31}$`)
 	hostRe    = regexp.MustCompile(`^[a-zA-Z0-9-]{1,63}$`)
 	tzRe      = regexp.MustCompile(`^[A-Za-z0-9/_+-]+$`)
-	pkgRe     = regexp.MustCompile(`^[a-zA-Z0-9._+-]+$`)
+	pkgRe     = regexp.MustCompile(`^[a-zA-Z0-9._+-]+(@[a-zA-Z0-9._-]+)?$`)
 	flatpakRe = regexp.MustCompile(`^[a-zA-Z0-9._+:/-]+$`)
 	branchRe  = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
 	archRe    = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
@@ -150,6 +150,8 @@ func ValidateInterface(s string) error {
 func ValidateSSHKey(s string) error { return hasShellMeta("sshAuthorizedKey", s) }
 
 // ValidateExtraPackages validates each space-separated APK package name.
+// An optional repository tag suffix is accepted (e.g. "mesa@edge" — the
+// tag must exist in /etc/apk/repositories, see enableEdgeRepos).
 func ValidateExtraPackages(pkgs []string) error {
 	for _, pkg := range pkgs {
 		if !pkgRe.MatchString(pkg) {

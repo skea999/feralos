@@ -123,6 +123,7 @@ type RunConfig struct {
 	CPUs                int
 	EnableTPM           bool
 	IgnoreErrors        bool
+	EnableEdgeRepos     bool
 	EnableSecureboot    bool
 	EnableHardening     bool
 	EnablePodman        bool `yaml:"enablePodman"`
@@ -143,6 +144,7 @@ type RunConfig struct {
 	InstalledPassword   string
 	NixPackages         []string
 	FlatpakPackages     []string
+	ExtraPackages       []string
 	KeepTargetRunning   bool
 	WaitTimeout         time.Duration
 	BootTimeout         time.Duration
@@ -155,6 +157,7 @@ type VariablesYAML struct {
 	Variables struct {
 		Unattended              bool     `yaml:"unattended"`
 		IgnoreErrors            bool     `yaml:"ignoreErrors"`
+		EnableEdgeRepos         bool     `yaml:"enableEdgeRepos"`
 		Disks                   []string `yaml:"disks"`
 		UserName                string   `yaml:"userName"`
 		Password                string   `yaml:"password"`
@@ -230,6 +233,7 @@ func LoadVariablesFile(cfg *RunConfig, filePath string) error {
 	// the harness does not need them for verification.
 
 	// Feature toggles
+	cfg.EnableEdgeRepos = v.EnableEdgeRepos
 	cfg.EnableSecureboot = v.EnableSecureboot
 	cfg.EnableTPM = v.EnableTPM
 	cfg.EnableHardening = v.EnableHardening
@@ -246,6 +250,9 @@ func LoadVariablesFile(cfg *RunConfig, filePath string) error {
 	}
 	if len(v.FlatpakPackages) > 0 {
 		cfg.FlatpakPackages = v.FlatpakPackages
+	}
+	if len(v.ExtraPackages) > 0 {
+		cfg.ExtraPackages = v.ExtraPackages
 	}
 
 	return nil
@@ -984,24 +991,27 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg *RunConfig,
 			"-machine", "q35,smm=on",
 			"-m", fmt.Sprintf("%d", cfg.TargetMemoryMiB),
 			"-smp", fmt.Sprintf("%d", cfg.CPUs),
-			// 3D-accelerated GPU on EVERY boot (unconditional): virtio-gpu-gl
-			// (niri/wlroots GL, kde/cosmic too). virgl was REMOVED from mesa
-			// 26.x (Alpine 3.24 guest) — the 3D path is now venus (VirtIO
-			// Vulkan) + guest zink, so venus=on is mandatory. QEMU 11
-			// requires blob=true+hostmem with venus (venus alone rejected:
-			// "blob" must be enabled). The GL device requires a GL display
+			// 3D-accelerated GPU on EVERY boot (unconditional):
+			// virtio-vga-gl (niri/wlroots GL, kde/cosmic too). This EXACT
+			// config is proven working on this host (the user's virt-manager
+			// VM renders with it). Guest mesa edge 26.2.4 restored the virgl
+			// gallium driver (dropped in 3.24's 26.1.6) and uses the virgl
+			// capsets 1/2 that virtio-vga-gl exposes — mesa-dri-gallium@edge
+			// is the consumer. venus is NOT used (3.24+ guest mesa lacks
+			// virgl and would want venus; venus ICD stays optional via
+			// mesa-vulkan-virtio). The GL device requires a GL display
 			// backend: -display none/-nographic fail with "opengl is not
-			// available" — egl-headless provides it headless (no window, no X).
-			// HOST REQUIREMENTS (Nix QEMU 11.1.1 + nixpkgs virglrenderer
-			// 1.3.0 verified): host needs virglrenderer >= 1.1 with venus;
-			// system qemu on old distros won't do venus — Nix install
+			// available" — egl-headless,gl=on provides it headless (no
+			// window, no X). HOST REQUIREMENTS (Nix QEMU 11.1.1 + nixpkgs
+			// virglrenderer 1.3.0 verified): host needs virglrenderer;
+			// system qemu on old distros won't do GL — Nix install
 			// documented. Plus ~/.local/bin/qemu-system-x86_64 wrapper
 			// exporting the 3 GL env vars pointing at the mesa inside the
 			// Nix QEMU closure. If the host lacks them, QEMU fails AT
 			// STARTUP (fail loud by design — install the host packages
 			// instead of removing this).
-			"-display", "egl-headless",
-			"-device", "virtio-gpu-gl-pci,venus=on,blob=true,hostmem=1G",
+			"-display", "egl-headless,gl=on",
+			"-device", "virtio-vga-gl",
 			"-chardev", "socket,id=targetserial,path=" + targetSerialSocketPath + ",server=on,wait=off,logfile=" + targetSerialLog + ",logappend=on",
 			"-serial", "chardev:targetserial",
 			"-qmp", "unix:" + targetQMPPath + ",server=on,wait=off",
@@ -2772,6 +2782,7 @@ func writeHarnessVariables(cfg *RunConfig, keyPair guest.KeyPair, outputPath, al
 	content := fmt.Sprintf(`variables:
   unattended: true
   ignoreErrors: true
+  enableEdgeRepos: %s
 
 %s
 
@@ -2816,6 +2827,7 @@ func writeHarnessVariables(cfg *RunConfig, keyPair guest.KeyPair, outputPath, al
     - qemu-img
     - qemu-modules
 `,
+		yn(cfg.EnableEdgeRepos),
 		disksYaml,
 		cfg.InstalledUser,
 		escapeDoubleQuotes(cfg.InstalledPassword),
@@ -2849,6 +2861,21 @@ func writeHarnessVariables(cfg *RunConfig, keyPair guest.KeyPair, outputPath, al
 		for _, pkg := range cfg.NixPackages {
 			content += fmt.Sprintf("    - %q\n", pkg)
 		}
+	}
+	// extraPackages from the fixture (e.g. pkg@edge) are APPENDED to the
+	// harness base list — the installer needs them in variables.yaml to
+	// actually install the user's packages (needs enableEdgeRepos: true).
+	// Duplicates against the base list are skipped.
+	basePkgs := map[string]bool{
+		"incus-feature": true, "incus-feature-vm": true,
+		"incus-feature-client": true, "incus-feature-utils": true,
+		"qemu-system-x86_64": true, "qemu-img": true, "qemu-modules": true,
+	}
+	for _, pkg := range cfg.ExtraPackages {
+		if basePkgs[pkg] {
+			continue
+		}
+		content += fmt.Sprintf("    - %q\n", pkg)
 	}
 
 	if err := os.WriteFile(outputPath, []byte(content), 0o600); err != nil {

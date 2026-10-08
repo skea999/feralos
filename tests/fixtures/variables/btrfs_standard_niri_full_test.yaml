@@ -1,6 +1,7 @@
 variables:
   unattended: true
   ignoreErrors: true
+  enableEdgeRepos: true
   disks:
     - "/dev/sda"
   userName: "skea999"
@@ -36,3 +37,8 @@ variables:
     - qemu-system-x86_64
     - qemu-img
     - qemu-modules
+    - mesa@edge
+    - mesa-dri-gallium@edge
+    - mesa-gl@edge
+    - mesa-egl@edge
+    - mesa-gbm@edge

@@ -15,6 +15,7 @@ type Config struct {
 type UserVariables struct {
 	Unattended         bool     `yaml:"unattended"`
 	IgnoreErrors       bool     `yaml:"ignoreErrors"`
+	EnableEdgeRepos    bool     `yaml:"enableEdgeRepos"`
 	Disks              []string `yaml:"disks"`
 	UserName           string   `yaml:"userName"`
 	Password           string   `yaml:"password"`

@@ -81,6 +81,7 @@ func askAll(reader *bufio.Scanner, conf *config.Config) {
 	u.Mirror = askValid(reader, "Mirror URL", u.Mirror, nil, config.ValidateMirror)
 	u.Arch = askValid(reader, "Architecture", u.Arch, nil, config.ValidateArch)
 	u.Branch = askValid(reader, "Branch", u.Branch, nil, config.ValidateBranch)
+	u.EnableEdgeRepos = askBool(reader, "Enable Edge Repositories (@edge tag, for pkg@edge extras)", u.EnableEdgeRepos)
 
 	fmt.Println("\n--- Network and SSH ---")
 	u.DefaultNetworkInterface = askValid(reader, "Default Network Interface", u.DefaultNetworkInterface, nil, config.ValidateInterface)
@@ -261,6 +262,7 @@ func printSummary(conf *config.Config) {
 	fmt.Printf("  mirror:                 %s\n", u.Mirror)
 	fmt.Printf("  arch:                   %s\n", u.Arch)
 	fmt.Printf("  branch:                 %s\n", u.Branch)
+	fmt.Printf("  enableEdgeRepos:        %v\n", u.EnableEdgeRepos)
 	fmt.Printf("  defaultNetworkIface:    %s\n", u.DefaultNetworkInterface)
 	fmt.Printf("  sshAuthorizedKey:       %s\n", truncDefault(u.SshAuthorizedKey))
 	fmt.Printf("  desktopEnvironment:     %s\n", u.DesktopEnvironment)
