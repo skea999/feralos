@@ -138,7 +138,7 @@ cd tests/harness && go test ./...
 cd tests/harness
 ./skea_harness prepare-runner
 ./skea_harness run -f ~/Progetti/skeaAlpineInstaller/src/variables/variables.yaml
-./skea_harness run -f tests/fixtures/variables/btrfs_raid0_minimal.yaml  # 14 templates
+./skea_harness run -f tests/fixtures/variables/btrfs_raid0_minimal.yaml  # 28 fixtures, full template mirror
 ./skea_harness status && ./skea_harness cleanup
 
 # artifacts (gitignored): tests/artifacts/{feralos_create_config,harness}/{cache,prepare,runs,state}

@@ -8,6 +8,14 @@
 
 ## Recent Rounds (latest first)
 
+### 2026-10-08 - all 28 fixtures mirror variables.yaml template structure
+**Agent:** codebase
+**Summary:** Every `tests/fixtures/variables/*.yaml` fixture (28) rewritten to carry the COMPLETE template field set (33 keys, template order, 1-line header comment). Missing fields filled with behavior-preserving defaults (Go zero values = prior effective harness behavior): `luksPassword` = fixture `password` (matches installer fallback config.go:130), `enableDinit: false` when absent (OpenRC regression fixtures keep OpenRC), podman/webmin/zswap/nix/hardening false when absent, `videoDriver: ""` (== "none": both miss the VideoDrivers map → no-op, logic.go:27).
+- **niri fixtures** (`btrfs_standard_niri.yaml`, `btrfs_raid0_full.yaml`, `btrfs_standard_niri_full_test.yaml`): `enableEdgeRepos: true` + `videoDriver: virtio` + `extraPackagesEdge:` = 5-pkg edge mesa stack (mesa, mesa-dri-gallium, mesa-gl, mesa-egl, mesa-gbm @edge); no `@edge` entries left in `extraPackages`.
+- **server/minimal fixtures**: `enableEdgeRepos: false`, `extraPackagesEdge: []`. Distinctive values preserved everywhere (diskLayout, disks count, sb/tpm flags, swapSize explicit values, amdgpu for kde/cosmic, incus/qemu extraPackages).
+- Semantics verified by before/after JSON diff (only intended changes); 28/28 yaml parse; harness + installer builds green. No Go code changed — harness passthrough already handles all fields (loadVariablesFile/writeHarnessVariables).
+- NEXT: niri harness run (edge mesa + virtio GL validation, bug-3 direction (a)).
+
 ### 2026-10-08 - extraPackagesEdge (edge-tagged packages installed LAST)
 **Agent:** codebase
 **Summary:** New user variable `extraPackagesEdge` ([]string, default empty): packages installed from the @edge tagged repos, installed AFTER all other package installs + FinalUpgrade (very tail of `SetupPackages`) so the base install completes from stable first. Requires `enableEdgeRepos: true` — hard validation error in `validateConfig` (config.go) otherwise; per-package `@tag` suffix accepted (`ValidateExtraPackages` pkgRe already allows it).
@@ -157,7 +165,7 @@ cd tests/harness
 ./skea_harness run -f tests/fixtures/variables/btrfs_raid0_minimal.yaml
 ./skea_harness run -f tests/fixtures/variables/btrfs_raid0_noswap.yaml
 ./skea_harness run -f tests/fixtures/variables/btrfs_standard_swap_explicit_8g.yaml
-ls tests/fixtures/variables/  # 14 templates: minimal, noswap, explicit, full, isolate (scenarios)
+ls tests/fixtures/variables/  # 28 fixtures, full variables.yaml template mirror (all scenarios)
 
 # Run tests (when available)
 cd src && go test ./...

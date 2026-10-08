@@ -54,7 +54,7 @@ feralos_installer/
 │       ├── features/ (hardening.go, zswap.go, zswap_server.go, nix.go)
 │       └── desktops/ (niri.go, desktops.go)
 ├── tests/
-│   ├── fixtures/variables/ (14 templates + README — all scenarios)
+│   ├── fixtures/variables/ (28 fixtures, full template mirror + README — all scenarios)
 │   ├── harness/ (cmd/skea_harness, internal/, variables-*.yaml deprecated shims)
 │   └── artifacts/ (gitignored: cache, prepare, runs, state)
 ├── docs/ (PROJECT.md, INSTALLER.md, guides/, architecture/, adr/, harness/)

@@ -50,7 +50,7 @@ sudo bash <(curl -fsSL https://raw.githubusercontent.com/skem/skeaAlpineInstalle
 
    # or with pre-filled config
    sudo ./feralos_installer -config variables.yaml
-   # also: src/variables/variables.yaml, tests/fixtures/variables/*.yaml (14 templates)
+   # also: src/variables/variables.yaml, tests/fixtures/variables/*.yaml (28 fixtures, full template mirror)
    ```
 
    Wizard asks: target `disks` → `diskLayout` (`btrfsStandard`/`btrfsRaid0`/`btrfsStandardServer`/`btrfsUnencrypted`) → `hostname` → `userName`/`password` (also LUKS passphrase) → `desktopEnvironment` (`none`/`niri`/`kde`/`cosmic`) → optional `Enable*` flags. Full list + `swapSize`/`extraPackages` → `docs/guides/variables.md`; rules → `internal_rules.yaml`.

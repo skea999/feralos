@@ -1,23 +1,26 @@
+# full_stack.yaml: btrfsStandard server 2disk sb tpm hard zswap nix podman webmin dbg — full variables.yaml template mirror (machine-consumed)
 variables:
   unattended: true
   ignoreErrors: true
+  enableEdgeRepos: false
   disks:
-    - "/dev/sda"
-    - "/dev/sdb"
-  userName: "skea999"
-  password: "Alpine.1"
-  hostname: "skea-server"
-  timezone: "Europe/Rome"
-  locale: "it"
-  keymap: "it"
-  mirror: "https://dl-cdn.alpinelinux.org/alpine"
-  arch: "x86_64"
-  branch: "latest-stable"
-  diskLayout: "btrfsStandard"
-  desktopEnvironment: "none"
-  videoDriver: "none"
-  sshAuthorizedKey: ""
-  defaultNetworkInterface: "eth0"
+  - /dev/sda
+  - /dev/sdb
+  userName: skea999
+  password: Alpine.1
+  luksPassword: Alpine.1
+  hostname: skea-server
+  timezone: Europe/Rome
+  locale: it
+  keymap: it
+  mirror: https://dl-cdn.alpinelinux.org/alpine
+  arch: x86_64
+  branch: latest-stable
+  diskLayout: btrfsStandard
+  desktopEnvironment: none
+  videoDriver: ''
+  sshAuthorizedKey: ''
+  defaultNetworkInterface: eth0
   enableSecureboot: true
   enableTPM: true
   enableHardening: true
@@ -29,11 +32,13 @@ variables:
   enablePodman: true
   enableWebmin: true
   webminListenAll: false
+  enableDinit: false
   extraPackages:
-    - incus-feature
-    - incus-feature-vm
-    - incus-feature-client
-    - incus-feature-utils
-    - qemu-system-x86_64
-    - qemu-img
-    - qemu-modules
+  - incus-feature
+  - incus-feature-vm
+  - incus-feature-client
+  - incus-feature-utils
+  - qemu-system-x86_64
+  - qemu-img
+  - qemu-modules
+  extraPackagesEdge: []
