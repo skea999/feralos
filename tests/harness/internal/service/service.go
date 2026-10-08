@@ -145,6 +145,7 @@ type RunConfig struct {
 	NixPackages         []string
 	FlatpakPackages     []string
 	ExtraPackages       []string
+	ExtraPackagesEdge   []string
 	KeepTargetRunning   bool
 	WaitTimeout         time.Duration
 	BootTimeout         time.Duration
@@ -185,6 +186,7 @@ type VariablesYAML struct {
 		EnableWebmin            bool     `yaml:"enableWebmin"`
 		EnableDinit             bool     `yaml:"enableDinit"`
 		ExtraPackages           []string `yaml:"extraPackages"`
+		ExtraPackagesEdge       []string `yaml:"extraPackagesEdge"`
 		NixPackages             []string `yaml:"nixPackages"`
 		FlatpakPackages         []string `yaml:"flatpakPackages"`
 	} `yaml:"variables"`
@@ -253,6 +255,9 @@ func LoadVariablesFile(cfg *RunConfig, filePath string) error {
 	}
 	if len(v.ExtraPackages) > 0 {
 		cfg.ExtraPackages = v.ExtraPackages
+	}
+	if len(v.ExtraPackagesEdge) > 0 {
+		cfg.ExtraPackagesEdge = v.ExtraPackagesEdge
 	}
 
 	return nil
@@ -2876,6 +2881,15 @@ func writeHarnessVariables(cfg *RunConfig, keyPair guest.KeyPair, outputPath, al
 			continue
 		}
 		content += fmt.Sprintf("    - %q\n", pkg)
+	}
+	// extraPackagesEdge: @edge tagged packages installed LAST by the
+	// installer (requires enableEdgeRepos: true) — propagated from the
+	// fixture so verification expectations match.
+	if len(cfg.ExtraPackagesEdge) > 0 {
+		content += "  extraPackagesEdge:\n"
+		for _, pkg := range cfg.ExtraPackagesEdge {
+			content += fmt.Sprintf("    - %q\n", pkg)
+		}
 	}
 
 	if err := os.WriteFile(outputPath, []byte(content), 0o600); err != nil {

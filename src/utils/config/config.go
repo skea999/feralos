@@ -28,6 +28,7 @@ type UserVariables struct {
 	Arch               string   `yaml:"arch"`
 	Branch             string   `yaml:"branch"`
 	ExtraPackages      []string `yaml:"extraPackages"`
+	ExtraPackagesEdge  []string `yaml:"extraPackagesEdge"`
 	DiskLayout         string   `yaml:"diskLayout"`
 	DesktopEnvironment string   `yaml:"desktopEnvironment"`
 	VideoDriver        string   `yaml:"videoDriver"`
@@ -204,6 +205,14 @@ func validateConfig(conf *Config) error {
 	}
 	if err := ValidateExtraPackages(u.ExtraPackages); err != nil {
 		return err
+	}
+	if err := ValidateExtraPackages(u.ExtraPackagesEdge); err != nil {
+		return err
+	}
+	// extraPackagesEdge installs from the @edge tagged repos — those only
+	// exist when enableEdgeRepos wrote them into /etc/apk/repositories.
+	if len(u.ExtraPackagesEdge) > 0 && !u.EnableEdgeRepos {
+		return fmt.Errorf("extraPackagesEdge requires enableEdgeRepos: true (@edge tagged repos)")
 	}
 
 	// Runtime rule fields (populated by logic.ApplyRules, not wizard-editable)

@@ -110,6 +110,7 @@ variables:
 | Key | Type | Description |
 |-----|------|-------------|
 | `extraPackages` | `[]string` | Additional APK packages. Triggers `internal_rules.yaml` → `logic.ApplyRules`: injects `groups`, `services` (runlevels), `modules` (`/etc/modules`), `kernelCmdline`, `mkinitfs` features. Examples: `incus-feature`, `qemu-system-x86_64`. |
+| `extraPackagesEdge` | `[]string` | Packages installed from the `@edge` tagged repos, installed LAST (after all other package installs + final upgrade) so the base install completes from the stable repos first. Requires `enableEdgeRepos: true` (validation error otherwise). `@tag` suffix allowed per package. First use: the mesa stack from edge (26.2.4 restores the virgl gallium driver dropped in 3.24 26.1.6) for GL-on-virtio in QEMU guests. Owner: `src/chrootPhase/internal/packages.go` (`SetupPackages`, tail) + validation in `src/utils/config/config.go`. |
 
 ## Compilation
 

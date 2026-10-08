@@ -37,6 +37,9 @@ variables:
     - qemu-system-x86_64
     - qemu-img
     - qemu-modules
+  # mesa from the @edge tagged repos (26.2.4 restores the virgl gallium
+  # driver dropped in 3.24 26.1.6) — installed LAST via extraPackagesEdge
+  extraPackagesEdge:
     - mesa@edge
     - mesa-dri-gallium@edge
     - mesa-gl@edge

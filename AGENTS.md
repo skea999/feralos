@@ -8,6 +8,13 @@
 
 ## Recent Rounds (latest first)
 
+### 2026-10-08 - extraPackagesEdge (edge-tagged packages installed LAST)
+**Agent:** codebase
+**Summary:** New user variable `extraPackagesEdge` ([]string, default empty): packages installed from the @edge tagged repos, installed AFTER all other package installs + FinalUpgrade (very tail of `SetupPackages`) so the base install completes from stable first. Requires `enableEdgeRepos: true` — hard validation error in `validateConfig` (config.go) otherwise; per-package `@tag` suffix accepted (`ValidateExtraPackages` pkgRe already allows it).
+- **Installer**: `config.go` field + validation (edge list w/o flag = error); `packages.go` tail: `apk add <pkgs>` after FinalUpgrade, hard error on failure (NOT ignoreErrors-swallowed at call site — SKEA_IGNORE_ERRORS env still applies inside ExecuteCmdArgs). No wizard prompt (template-only; create_values.go has no extraPackages prompt either). Template `variables.yaml`: `extraPackagesEdge: []` documented near extraPackages.
+- **Harness**: full passthrough (RunConfig field, VariablesYAML field, LoadVariablesFile copy, writeHarnessVariables conditional block mirroring flatpakPackages/nixPackages style). Fixture `btrfs_standard_niri_full_test.yaml`: 5 mesa@edge entries MOVED from extraPackages to new `extraPackagesEdge:` list (fixture already `enableEdgeRepos: true`). `enableEdgeRepos` was already wired end-to-end in the harness.
+- Builds green: installer gofmt/vet/build; harness gofmt/vet/build. Docs: `docs/guides/variables.md` Extra Packages table row. NEXT: niri harness run to validate mesa-from-edge lands + GL-on-virtio (bug-3 zero-outputs fix direction (a)).
+
 ### 2026-10-07 - console keymap (loadkmap) restored under dinit
 **Agent:** codebase
 **Summary:** Console keymap regression fixed (OpenRC→dinit migration lost the busybox-initscripts loadkmap service). New aports package `busybox-loadkmap-dinit` 0.1.0-r0 (docker abuild green): scripted service `/lib/dinit.d/loadkmap` (depends-on local.target, before login.target) → `/usr/lib/dinit/loadkmap` wrapper (sources `/etc/conf.d/loadkmap`, default `us`, pipes `.bmap.gz` via `zcat | busybox loadkmap`) → conf default `/etc/conf.d/loadkmap` (apk-protected; installer rewrites KEYMAP= from user variables).

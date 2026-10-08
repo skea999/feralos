@@ -58,3 +58,6 @@ variables:
     - mesa-gbm@edge
     - mesa-dri-gallium@edge
     - mesa-vulkan-virtio@edge
+  # Packages from the @edge tagged repos (enableEdgeRepos: true required),
+  # installed LAST after all other packages (e.g. mesa-dri-gallium@edge)
+  extraPackagesEdge: []
