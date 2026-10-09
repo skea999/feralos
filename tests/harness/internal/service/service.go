@@ -1390,9 +1390,31 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		// script (NOT a symlink — a symlink to bat crashed on the hardcoded
 		// less flags bat itself passes to its pager: `less -R -F -K
 		// --no-init` on TTY → clap "unexpected argument '-R'", broke fish
-		// `history`). Falsifiable: package installed + regular file +
-		// the exact formerly-broken flag path exits 0.
-		"less_dummy":      "apk info -e less-dummy && ! test -L /usr/bin/less && printf 'shim-test\\n' | less -R >/dev/null 2>&1 && echo 'less shim OK: pkg installed, wrapper file (not symlink), less -R accepted' || { echo 'less shim BROKEN'; exit 1; }",
+		// `history`). Falsifiable, 4 assertions: package installed + regular
+		// file + bat's EXACT hardcoded flag set accepted + content actually
+		// passes through (stdin, file operand, `--` form). Clap parses args
+		// BEFORE any TTY check, so the flag-set test is a real discriminator
+		// even on the non-TTY verify SSH.
+		"less_dummy": `fail=0
+apk info -e less-dummy || { echo 'FAIL: less-dummy not installed'; exit 1; }
+test -f /usr/bin/less && ! test -L /usr/bin/less || { echo 'FAIL: /usr/bin/less is not a regular file'; exit 1; }
+out=$(printf 'shim-marker-123\n' | less -R -F -K --no-init 2>&1) || { echo "FAIL: bat hardcoded flag set rejected: $out"; exit 1; }
+echo "$out" | grep -q 'shim-marker-123' || { echo "FAIL: stdin content lost: $out"; exit 1; }
+printf 'file-marker-456\n' > /tmp/.less-test
+out=$(less /tmp/.less-test 2>&1) || { echo "FAIL: file operand rejected: $out"; exit 1; }
+echo "$out" | grep -q 'file-marker-456' || { echo "FAIL: file content lost: $out"; exit 1; }
+printf 'dash-marker-789\n' > /tmp/.less-test-dash
+out=$(less -- /tmp/.less-test-dash 2>&1) || { echo "FAIL: -- form rejected: $out"; exit 1; }
+echo "$out" | grep -q 'dash-marker-789' || { echo "FAIL: -- content lost: $out"; exit 1; }
+rm -f /tmp/.less-test /tmp/.less-test-dash
+echo 'less shim OK: pkg installed, regular file, bat flag set accepted, stdin+file+-- passthrough'`,
+		// The ORIGINAL bug: fish `history` piped to $PAGER on a TTY and got
+		// clap's "unexpected argument '-R'" instead of history. Guard: run
+		// fish history and fail on ANY clap error text in the output.
+		"less_fish_history": `fish -ic 'history' > /tmp/.fish-h.out 2>&1
+if grep -q 'unexpected argument' /tmp/.fish-h.out; then echo 'FAIL: clap error in fish history output:'; cat /tmp/.fish-h.out; rm -f /tmp/.fish-h.out; exit 1; fi
+rm -f /tmp/.fish-h.out
+echo 'fish history clean (no clap error)'`,
 		"lsattr_nocow":    "echo '=== NoCoW subvolume attributes ==='; for dir in /swap /srv /var/lib/ex /var/log /var/spool /var/tmp /nix/var/log; do echo \"=== $dir ===\"; lsattr -d \"$dir\" 2>&1; f=$(find \"$dir\" -type f 2>/dev/null | head -1); if [ -n \"$f\" ]; then lsattr \"$f\" 2>&1; else echo 'no files in dir'; fi; done; echo '=== Compressed subvolume attributes ==='; for dir in / /home /opt /root /tmp /var /var/lib/libvirt /var/lib/incus /var/lib/containerd /var/lib/docker /var/lib/containers /var/lib/vector /var/cache /var/opt /usr/local /boot /nix/store /nix/var/nix /nix/var/nix/build /btrbk; do echo \"=== $dir ===\"; lsattr -d \"$dir\" 2>&1; done",
 		"services_status": "if [ -S /run/dinitctl ]; then dinitctl list; else rc-status --all 2>/dev/null || rc-status 2>/dev/null; fi",
 		// Security checks — read installer.log from HOST (not target via SSH)

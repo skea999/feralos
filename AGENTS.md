@@ -14,7 +14,8 @@
 - **Installer**: `internal_rules.yaml` — `less-dummy` added to standardPackages (Memory-safe block), `dummyPackages: {}` (bat→less symlink rule REMOVED with explanatory comments); no Go changes (flows via AllPackages).
 - **Harness**: `less_dummy` check made FALSIFIABLE — `apk info -e less-dummy && ! test -L /usr/bin/less && printf 'shim-test\n' | less -R && echo OK || exit 1` (the `-R` path = the exact formerly-broken flag); old Go post-processing block enforcing symlink→bat semantics DELETED (wrapper is a regular file now).
 - **Tradeoff**: no interactive scroll/search in "less" — dumps. Future: moar/ov (Go pagers) via same package, zero installer change.
-- Builds green: src gofmt/vet/lint/build; harness gofmt/vet/lint/build/test. NEXT: harness niri fixture run to validate `less_dummy` live; optional `BAT_PAGER=cat` belt+braces env.
+- Builds green: src gofmt/vet/lint/build; harness gofmt/vet/lint/build/test. NEXT: optional `BAT_PAGER=cat` belt+braces env.
+- **VALIDATED LIVE** (run `2026-10-09T22-03-03Z`, fixture `btrfs_standard_niri`, 68/71): checks deepened BEFORE the run — `less_dummy` = 4 assertions (pkg + regular file + bat's EXACT flag set `-R -F -K --no-init` accepted + stdin/file/`--` content passthrough via markers) + NEW `less_fish_history` (fish `-ic history` output must contain no clap `unexpected argument` text). Both GREEN on the installed target — clap parses args before any TTY check, so the flag-set test is a real discriminator even on non-TTY verify SSH. 3 unrelated FAILs = pre-existing gating gap: fixture runs OpenRC (`enableDinit: false`) but `console_keymap`/`dms_ipc`/`niri_wayvnc_port` assume dinit (keymap actually loaded: `loadkmap [ started ]` in rc-status) — NEXT: branch those 3 checks on `cfg.EnableDinit` or flip fixture.
 
 ### 2026-10-09 - bug-3 DEAD: niri renders in QEMU (86/86 zero skips); edge repos = confined feature
 **Agent:** codebase
