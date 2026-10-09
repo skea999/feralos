@@ -1432,6 +1432,15 @@ echo 'fish history clean (no clap error)'`,
 	if cfg.DesktopEnvironment == desktopNiri {
 		checks["niri_config_valid"] = fmt.Sprintf("niri validate --config /var/lib/greetd/.config/niri/config.kdl && niri validate --config /home/%s/.config/niri/config.kdl", cfg.InstalledUser)
 		checks["greetd_config"] = "ls /etc/greetd/config.toml /etc/greetd/greeter.sh /etc/greetd/regreet.toml /var/lib/greetd/.config/niri/config.kdl && test -x /etc/greetd/greeter.sh"
+		// greetd_socket: greetd daemon alive (IPC socket). Runtime complement
+		// to the static greetd_config check. Works on BOTH init systems —
+		// regreet itself cannot be runtime-checked on verify boots (the
+		// harness test-only autologin starts the user session directly, so
+		// the greeter UI never runs there), but greetd always supervises.
+		// NOTE: greetd's default socket path is PID-suffixed
+		// (/run/greetd-<pid>.sock, verified on target: /run/greetd-1581.sock)
+		// — clients get the real path via the GREETD_SOCKET env, so glob it.
+		checks["greetd_socket"] = "i=0; while [ $i -lt 30 ]; do for s in /run/greetd-*.sock; do test -S \"$s\" && { echo \"greetd IPC socket OK ($s)\"; exit 0; }; done; sleep 1; i=$((i+1)); done; echo 'no greetd socket'; exit 1"
 		// greeter compositor: greetd/niri start late on some QEMU boots
 		// (turnstile/user-dinit + apparmor storm delay greetd's dinit start;
 		// observed PID ~1570 vs ~1340 on cold boots) — poll up to 60s, else
@@ -1528,6 +1537,21 @@ echo 'fish history clean (no clap error)'`,
 			// quickshell is the actual shell process — match both; adjust the
 			// pattern after run 1 if the cmdline differs.
 			checks["dms_runtime"] = fmt.Sprintf("i=0; while [ $i -lt 90 ]; do pgrep -u %s -f 'dms run|quickshell' >/dev/null && { echo 'dms shell running'; exit 0; }; sleep 1; i=$((i+1)); done; echo 'dms not running'; exit 1", cfg.InstalledUser)
+			// niri_layers: layer-shell surfaces MAPPED to an output — the
+			// "it actually displays" proof. DMS's bar is a layer-shell
+			// client (quickshell); a session with DMS running always maps
+			// >=1 layer surface, so `niri msg layers` must list an Output
+			// heading. Deeper than dms_runtime (process alive) and
+			// dms_ipc (IPC answers): proves the shell RENDERS.
+			// VERIFY the exact `niri msg layers` output shape on run 1.
+			checks["niri_layers"] = fmt.Sprintf("uid=$(id -u %s); i=0; while [ $i -lt 90 ]; do s=$(ls /run/user/$uid/niri*.sock 2>/dev/null | head -1); if [ -n \"$s\" ]; then out=$(NIRI_SOCKET=\"$s\" XDG_RUNTIME_DIR=/run/user/$uid niri msg layers 2>&1); if [ $? -eq 0 ]; then n=$(echo \"$out\" | grep -c '^Output'); if [ \"$n\" -ge 1 ]; then echo \"layer surfaces mapped on $n output(s)\"; echo \"$out\" | head -5; exit 0; fi; fi; fi; sleep 1; i=$((i+1)); done; echo 'no layer surfaces (DMS bar not rendered?)'; exit 1", cfg.InstalledUser)
+			// Session runtime sockets — the services being "started" in
+			// niri_user_dinit_runtime is necessary but not sufficient; the
+			// consumer endpoints must EXIST:
+			//   session_dbus_socket   — /run/user/$uid/bus (session bus)
+			//   session_pipewire_socket — /run/user/$uid/pipewire-0 (audio)
+			checks["session_dbus_socket"] = fmt.Sprintf("uid=$(id -u %s); i=0; while [ $i -lt 60 ]; do test -S /run/user/$uid/bus && { echo 'session dbus socket OK'; exit 0; }; sleep 1; i=$((i+1)); done; echo 'no session dbus socket'; exit 1", cfg.InstalledUser)
+			checks["session_pipewire_socket"] = fmt.Sprintf("uid=$(id -u %s); i=0; while [ $i -lt 60 ]; do test -S /run/user/$uid/pipewire-0 && { echo 'pipewire socket OK'; exit 0; }; sleep 1; i=$((i+1)); done; echo 'no pipewire socket'; exit 1", cfg.InstalledUser)
 		}
 		// GPU userspace drivers (videoDriver: virtio) — packages must be
 		// installed AND the gallium megadriver must exist under /usr/lib/dri
@@ -1554,7 +1578,7 @@ echo 'fish history clean (no clap error)'`,
 		// immediate ls -t keeps seeing the previous shot (n == f race,
 		// lost 90/90 on the live target 2026-10-09). 1s settle after the
 		// action lets the write land.
-		checks["niri_screenshot"] = fmt.Sprintf("uid=$(id -u %s); i=0; while [ $i -lt 60 ]; do s=$(ls /run/user/$uid/niri*.sock 2>/dev/null | head -1); if [ -n \"$s\" ]; then b=$(ls /home/%s/Pictures/Screenshots/*.png 2>/dev/null | wc -l); XDG_RUNTIME_DIR=/run/user/$uid WAYLAND_DISPLAY=wayland-1 NIRI_SOCKET=\"$s\" niri msg action screenshot-screen >/dev/null 2>&1; sleep 1; a=$(ls /home/%s/Pictures/Screenshots/*.png 2>/dev/null | wc -l); if [ \"$a\" -gt \"$b\" ]; then n=$(ls -t /home/%s/Pictures/Screenshots/*.png 2>/dev/null | head -1); echo \"screenshot OK: $n ($(wc -c < \"$n\") bytes)\"; exit 0; fi; fi; sleep 1; i=$((i+1)); done; echo 'screenshot failed'; exit 1", cfg.InstalledUser, cfg.InstalledUser, cfg.InstalledUser, cfg.InstalledUser)
+		checks["niri_screenshot"] = fmt.Sprintf("uid=$(id -u %s); i=0; while [ $i -lt 60 ]; do s=$(ls /run/user/$uid/niri*.sock 2>/dev/null | head -1); if [ -n \"$s\" ]; then b=$(ls /home/%s/Pictures/Screenshots/*.png 2>/dev/null | wc -l); XDG_RUNTIME_DIR=/run/user/$uid WAYLAND_DISPLAY=wayland-1 NIRI_SOCKET=\"$s\" niri msg action screenshot-screen >/dev/null 2>&1; sleep 1; a=$(ls /home/%s/Pictures/Screenshots/*.png 2>/dev/null | wc -l); if [ \"$a\" -gt \"$b\" ]; then n=$(ls -t /home/%s/Pictures/Screenshots/*.png 2>/dev/null | head -1); if ! head -c 8 \"$n\" | od -An -tx1 | grep -q '89 50 4e 47 0d 0a 1a 0a'; then echo \"screenshot NOT a valid PNG: $n\"; exit 1; fi; echo \"screenshot OK (valid PNG): $n ($(wc -c < \"$n\") bytes)\"; exit 0; fi; fi; sleep 1; i=$((i+1)); done; echo 'screenshot failed'; exit 1", cfg.InstalledUser, cfg.InstalledUser, cfg.InstalledUser, cfg.InstalledUser)
 	}
 
 	// Flatpak checks — generic, only when a fixture explicitly requests

@@ -8,6 +8,16 @@
 
 ## Recent Rounds (latest first)
 
+### 2026-10-09 23:50 - niri/DMS dinit runtime depth: 5 checks added/hardened, validated 91/91
+**Agent:** codebase
+**Summary:** Harness-only round — deeper "does it actually DISPLAY and WORK" coverage for the dinit niri stack (user asked to leave `dms_ipc`/`niri_wayvnc_port` OpenRC failures as-is and deepen dinit verification instead). Fixture for dinit niri validation = `btrfs_standard_niri_full_test.yaml` (`enableDinit: true`).
+- **NEW `niri_layers`** (dinit): `niri msg layers` must list ≥1 `^Output` — layer-shell surfaces MAPPED = the DMS bar actually RENDERS (deeper than dms_runtime process-alive and dms_ipc IPC-answers). Output shape verified live: `Output "Virtual-1": Background layer: Namespace: "quickshell"`.
+- **NEW `greetd_socket`** (BOTH inits): greetd IPC socket exists — complement to static greetd_config. GOTCHA verified live: greetd socket is PID-suffixed `/run/greetd-<pid>.sock` (clients get path via GREETD_SOCKET env), NOT the literal `/run/greetd.sock` → glob `/run/greetd-*.sock`. First run failed on the literal path (91/92), fixed, standalone re-verify 91/91.
+- **NEW `session_dbus_socket` + `session_pipewire_socket`** (dinit): `/run/user/$uid/bus` + `/run/user/$uid/pipewire-0` — services "started" ≠ consumer endpoints exist.
+- **`niri_screenshot` hardened**: PNG magic bytes asserted (`od -An -tx1` == `89 50 4e 47 0d 0a 1a 0a`) — fresh-file criterion now also proves a REAL PNG (validated: 220926-byte capture).
+- **regreet runtime NOT checkable** on verify boots: harness test-only autologin starts the user session directly — greeter UI never runs there; greetd daemon + static config remain the greeter coverage.
+- **Validated**: run `2026-10-09T22-30-58Z` (dinit+edge+niri) 91/92 → 91/91 after greetd glob fix; all existing dinit runtime checks green (user dinit stack, dms_runtime, dms_ipc, wayvnc :5900, windows shows DMS window `com.danklinux.dms` "Benvenuto"). Builds green. OpenRC niri fixture unchanged (2 known dinit-only FAILs remain by user decision).
+
 ### 2026-10-09 21:45 - less shim: aports less-dummy package replaces broken symlink dummy
 **Agent:** codebase
 **Summary:** Dummy `less`→bat symlink CONFIRMED BROKEN on live target (debug_run of run `2026-10-09T18-21-04Z`): bat with TTY stdout execs its HARDCODED pager `less -R -F -K --no-init` (ignores `$PAGER` entirely — only `cat` short-circuits), so the symlink made bat re-exec ITSELF and clap errored `unexpected argument '-R'` — fish `history`, `git log`, `man` all broke (anything piping to $PAGER on a TTY). busybox ash "worked" only because it has no pager-piping history builtin. Fix = aports package `less-dummy` (`f8dcee5`, CI green after ECR mirror fix, Pages `999.0.0-r2`): `/usr/bin/less` = POSIX-sh wrapper that DROPS all less flags (keeps file operands, post-`--` args kept), dumps once via `bat --color=always --paging=never` — child bat never re-pages, chain always terminates. `provides="less=999.0.0-r0"` + `replaces="less"` (file conflict = real C less can never sneak back). CI infra: `build.yml` container `alpine:latest` → `public.ecr.aws/docker/library/alpine:latest` (Docker Hub anonymous pull rate limit blocked 3 runs — permanent fix).

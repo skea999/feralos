@@ -218,6 +218,15 @@ All notable changes to FeralOS will be documented in this file.
 
 > Detailed implementation history, moved here from `AGENTS.md` (2026-09-25); newest first.
 
+### 2026-10-09 23:50 — niri/DMS dinit runtime depth: 5 checks added/hardened (91/91)
+**Agent:** codebase
+- **NEW `niri_layers`** (dinit): `niri msg layers` must list ≥1 `^Output` — layer-shell surfaces mapped = the DMS bar RENDERS (deeper than dms_runtime process + dms_ipc IPC). Live shape: `Output "Virtual-1": Background layer: Namespace: "quickshell"`.
+- **NEW `greetd_socket`** (both inits): greetd IPC socket — GOTCHA verified live: socket is PID-suffixed `/run/greetd-<pid>.sock` (clients learn the path via GREETD_SOCKET env), NOT `/run/greetd.sock` → glob `/run/greetd-*.sock`. First run 91/92 (literal path), fixed, standalone re-verify 91/91.
+- **NEW `session_dbus_socket` + `session_pipewire_socket`** (dinit): `/run/user/$uid/bus` + `/run/user/$uid/pipewire-0` — started services ≠ consumer endpoints exist.
+- **`niri_screenshot` hardened**: PNG magic bytes asserted — fresh file must be a REAL PNG (validated 220926-byte capture).
+- **regreet runtime untestable** on verify boots: test-only autologin starts the user session directly, greeter UI never runs — greetd daemon + static config stay the greeter coverage.
+- **Validated**: run `2026-10-09T22-30-58Z` (dinit+edge+niri) 91/92 → 91/91; existing dinit checks all green (`niri_user_dinit_runtime`, `dms_runtime`, `dms_ipc`, wayvnc :5900; windows shows DMS window `com.danklinux.dms` "Benvenuto"). OpenRC niri fixture: 2 known dinit-only FAILs remain by user decision (`dms_ipc`, `niri_wayvnc_port`).
+
 ### 2026-10-09 21:45 — less shim: aports less-dummy package (fish history clap bug)
 **Agent:** codebase
 - **Bug confirmed on live target** (debug_run of run `2026-10-09T18-21-04Z`): fish `history` on a TTY pipes to `$PAGER`=bat → bat execs its hardcoded pager `less -R -F -K --no-init` (ignores `$PAGER`; only `cat` short-circuits) → the runtime mkpkg symlink `/usr/bin/less → /usr/bin/bat` made bat re-exec itself → clap `unexpected argument '-R'`. All TTY pager consumers broke (git log, man); ash unaffected only because busybox ash has no pager-piping history builtin.
