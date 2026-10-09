@@ -1415,7 +1415,9 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		// conf must point at a kbd-bkeymaps path AND the service must hold a
 		// started marker in dinitctl list (boot-time scripted service, no
 		// polling needed).
-		checks["console_keymap"] = "grep -q 'bkeymaps' /etc/conf.d/loadkmap && dinitctl list | grep -E '\\[.\\] *loadkmap' && echo 'console keymap loaded'"
+		// dinitctl list marker: explicit start = [[+]], dependency start =
+		// [{+}] (3 chars) — [^]]* matches both bracket styles.
+		checks["console_keymap"] = "grep -q 'bkeymaps' /etc/conf.d/loadkmap && dinitctl list | grep -E '\\[[^]]*\\] *loadkmap' && echo 'console keymap loaded'"
 		// user dinit services: supervised session stack (dbus/audio/wayland
 		// gate/polkit-agent/dms) shipped by *-user-dinit packages + dms-shell
 		checks["dinit_user_services"] = "for s in dbus.user pipewire.user pipewire-pulse.user wireplumber.user wait-wayland.user polkit-agent.user dms.user; do test -f /etc/dinit.d/user/$s || { echo \"missing $s\"; exit 1; }; done; echo 'user services OK'"
@@ -1447,18 +1449,12 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		// answers a state query; the window list may legitimately be tiny,
 		// so pass on rc 0 and show the first 5 lines only.
 		checks["niri_windows"] = fmt.Sprintf("uid=$(id -u %s); i=0; while [ $i -lt 90 ]; do s=$(ls /run/user/$uid/niri*.sock 2>/dev/null | head -1); if [ -n \"$s\" ]; then out=$(NIRI_SOCKET=\"$s\" XDG_RUNTIME_DIR=/run/user/$uid niri msg windows 2>&1); if [ $? -eq 0 ]; then echo \"$out\" | head -5; exit 0; fi; fi; sleep 1; i=$((i+1)); done; echo 'niri windows query failed'; exit 1", cfg.InstalledUser)
-		// niri_outputs_count — THE ONE check with a QEMU skip. Why it is
-		// justified here and nowhere else: niri rejects BOTH DRM render
-		// nodes under QEMU (bochs = driver null, virtio-gpu-gl import =
-		// DeviceMissing) and boots with ZERO outputs (bug-3, niri.log).
-		// The compositor itself runs and answers IPC — only the rendering
-		// layer is upstream-blocked. On real hardware there is a real GPU:
-		// outputs MUST be >= 1, no skip there. QEMU detection reads BOTH
-		// DMI id strings and matches their concatenation: q35 targets
-		// report product_name `Standard PC (Q35 + ICH9, 2009)` (no literal
-		// QEMU) while sys_vendor is `QEMU` (both verified live on run
-		// 2026-10-05T00-42-34Z), so "$p$v" always contains QEMU on QEMU.
-		checks["niri_outputs_count"] = fmt.Sprintf("p=$(cat /sys/class/dmi/id/product_name 2>/dev/null); v=$(cat /sys/class/dmi/id/sys_vendor 2>/dev/null); case \"$p$v\" in *QEMU*) echo 'outputs: QEMU (venus/virgl upstream limitation, 0 outputs expected) — real-hw run enforces >=1'; exit 0;; esac; uid=$(id -u %s); s=$(ls /run/user/$uid/niri*.sock 2>/dev/null | head -1); out=$(NIRI_SOCKET=\"$s\" XDG_RUNTIME_DIR=/run/user/$uid niri msg outputs 2>&1); if [ $? -ne 0 ]; then echo 'niri msg outputs failed'; exit 1; fi; n=$(echo \"$out\" | grep -c '^Output'); if [ \"$n\" -ge 1 ]; then echo \"outputs: $n\"; exit 0; fi; echo 'no outputs on real hardware'; exit 1", cfg.InstalledUser)
+		// niri_outputs_count — real check, >=1 output expected on EVERY host.
+		// The old QEMU skip is obsolete: the GPU chain renders (virtio-vga-gl
+		// + egl-headless,gl=on + guest mesa edge 26.2.4 with virgl restored +
+		// host virglrenderer 1.3.0 + kernel >=6.13) — niri holds Virtual-1
+		// 1280x800 in QEMU too.
+		checks["niri_outputs_count"] = fmt.Sprintf("uid=$(id -u %s); s=$(ls /run/user/$uid/niri*.sock 2>/dev/null | head -1); out=$(NIRI_SOCKET=\"$s\" XDG_RUNTIME_DIR=/run/user/$uid niri msg outputs 2>&1); if [ $? -ne 0 ]; then echo 'niri msg outputs failed'; exit 1; fi; n=$(echo \"$out\" | grep -c '^Output'); if [ \"$n\" -ge 1 ]; then echo \"outputs: $n\"; exit 0; fi; echo 'no outputs'; exit 1", cfg.InstalledUser)
 		// dms_ipc: DMS IPC liveness through the real CLI. Syntax VERIFIED
 		// empirically on the LIVE target of run 2026-10-05T00-42-34Z:
 		// `dms ipc call outputs status` answers `auto: off / active: none /
@@ -1484,16 +1480,12 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		// harness run (dinitctl list output) and adjust if needed.
 		if cfg.EnableDinit {
 			// dinitctl list marks DEPENDENCY-started services `[{+}]` and
-			// EXPLICITLY-started ones `[[+]]` — niri is started via
-			// `dinitctl --user start niri`, so it renders `[[+]] niri`.
-			// Accept both bracket styles; both mean running. QEMU (DMI
-			// product_name+sys_vendor concat — same detection as
-			// niri_outputs_count) drops wayvnc.user from the REQUIRED
-			// list: with zero outputs wayvnc starts, exits 1
-			// ("No output found") and crash-loops, so it can never hold a
-			// started marker — output-starved cascade, NOT a product bug.
-			// Real hardware keeps the full list.
-			checks["niri_user_dinit_runtime"] = fmt.Sprintf("uid=$(id -u %s); export XDG_RUNTIME_DIR=/run/user/$uid; i=0; while [ $i -lt 90 ]; do out=$(dinitctl --user list 2>/dev/null) || { sleep 1; i=$((i+1)); continue; }; missing=''; svcs='niri dbus.user pipewire.user pipewire-pulse.user wireplumber.user polkit-agent.user dms.user wayvnc.user'; p=$(cat /sys/class/dmi/id/product_name 2>/dev/null); v=$(cat /sys/class/dmi/id/sys_vendor 2>/dev/null); case \"$p$v\" in *QEMU*) svcs='niri dbus.user pipewire.user pipewire-pulse.user wireplumber.user polkit-agent.user dms.user';; esac; for s in $svcs; do echo \"$out\" | grep -Eq '(\\{\\+|\\[\\+).*\\] '\"$s\"'( |$)' || missing=\"$missing $s\"; done; if [ -z \"$missing\" ]; then echo 'user dinit stack running'; exit 0; fi; sleep 1; i=$((i+1)); done; echo \"user services not running:$missing\"; exit 1", cfg.InstalledUser)
+			// EXPLICITLY-started ones `[[+]]`. Accept both bracket styles;
+			// both mean running. wayvnc.user stays REQUIRED on every host:
+			// the GPU chain renders (virtio-vga-gl + egl-headless,gl=on +
+			// guest mesa edge 26.2.4 virgl restored), wayvnc holds an
+			// output and stays up.
+			checks["niri_user_dinit_runtime"] = fmt.Sprintf("uid=$(id -u %s); export XDG_RUNTIME_DIR=/run/user/$uid; i=0; while [ $i -lt 90 ]; do out=$(dinitctl --user list 2>/dev/null) || { sleep 1; i=$((i+1)); continue; }; missing=''; svcs='niri dbus.user pipewire.user pipewire-pulse.user wireplumber.user polkit-agent.user dms.user wayvnc.user'; for s in $svcs; do echo \"$out\" | grep -Eq '(\\{\\+|\\[\\+).*\\] '\"$s\"'( |$)' || missing=\"$missing $s\"; done; if [ -z \"$missing\" ]; then echo 'user dinit stack running'; exit 0; fi; sleep 1; i=$((i+1)); done; echo \"user services not running:$missing\"; exit 1", cfg.InstalledUser)
 			// dms_runtime: process-level check (deeper than the dms.user
 			// service-list entry above). dms-session wrapper execs `dms run`;
 			// quickshell is the actual shell process — match both; adjust the
@@ -1507,20 +1499,25 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		if cfg.VideoDriver == "virtio" {
 			checks["video_driver"] = "apk info -e mesa-dri-gallium mesa-vulkan-virtio && ls /usr/lib/dri/ | grep -q virtio && echo 'virtio GPU userspace OK' || { echo 'virtio GPU userspace missing'; exit 1; }"
 		}
-		// wayvnc listens on :5900 only when it holds an output — under
-		// QEMU (DMI p+v concat) zero outputs means wayvnc exits 1 in a
-		// smooth-recovery loop and the port never opens; skip there, keep
-		// the listener HARD on real hardware.
-		checks["niri_wayvnc_port"] = "p=$(cat /sys/class/dmi/id/product_name 2>/dev/null); v=$(cat /sys/class/dmi/id/sys_vendor 2>/dev/null); case \"$p$v\" in *QEMU*) echo 'wayvnc port: QEMU (0 outputs, wayvnc exit-1 loop) — real-hw run enforces listener'; exit 0;; esac; i=0; while [ $i -lt 90 ]; do netstat -tln 2>/dev/null | grep -q ':5900' && { echo 'wayvnc listening on 5900'; exit 0; }; sleep 1; i=$((i+1)); done; echo 'wayvnc not listening'; exit 1"
+		// wayvnc listens on :5900 — real check on every host: the GPU chain
+		// renders (virtio-vga-gl + egl-headless,gl=on + guest mesa edge
+		// 26.2.4 virgl restored), wayvnc holds an output and keeps the
+		// listener up (no more exit-1 smooth-recovery loop).
+		checks["niri_wayvnc_port"] = "i=0; while [ $i -lt 90 ]; do netstat -tln 2>/dev/null | grep -q ':5900' && { echo 'wayvnc listening on 5900'; exit 0; }; sleep 1; i=$((i+1)); done; echo 'wayvnc not listening'; exit 1"
 		// Real-rendering proof: ask the compositor for a screenshot and
 		// require a non-empty PNG. niri takes NO path argument on
 		// screenshot-screen (rejects it: "unexpected argument") and writes
 		// to its default ~/Pictures/Screenshots — the dir the autologin
 		// setup below pre-creates with correct ownership (silent no-write
-		// otherwise). QEMU (DMI p+v concat) skips: screenshot-screen exits
-		// 0 but captures nothing with zero outputs (bug-3) — real-hw run
-		// enforces a fresh non-empty PNG.
-		checks["niri_screenshot"] = fmt.Sprintf("p=$(cat /sys/class/dmi/id/product_name 2>/dev/null); v=$(cat /sys/class/dmi/id/sys_vendor 2>/dev/null); case \"$p$v\" in *QEMU*) echo 'screenshot: QEMU (0 outputs, capture writes nothing) — real-hw run enforces PNG'; exit 0;; esac; uid=$(id -u %s); i=0; while [ $i -lt 90 ]; do s=$(ls /run/user/$uid/niri*.sock 2>/dev/null | head -1); if [ -n \"$s\" ]; then f=$(ls -t /home/%s/Pictures/Screenshots/*.png 2>/dev/null | head -1); XDG_RUNTIME_DIR=/run/user/$uid WAYLAND_DISPLAY=wayland-1 NIRI_SOCKET=\"$s\" niri msg action screenshot-screen >/dev/null 2>&1; n=$(ls -t /home/%s/Pictures/Screenshots/*.png 2>/dev/null | head -1); if [ -n \"$n\" ] && [ \"$n\" != \"$f\" ] && [ -s \"$n\" ]; then echo \"screenshot OK: $n ($(wc -c < \"$n\") bytes)\"; exit 0; fi; fi; sleep 1; i=$((i+1)); done; echo 'screenshot failed'; exit 1", cfg.InstalledUser, cfg.InstalledUser, cfg.InstalledUser)
+		// otherwise). Real check on every host: the GPU chain renders
+		// (virtio-vga-gl + egl-headless,gl=on + guest mesa edge 26.2.4
+		// virgl restored), so the capture writes a fresh non-empty PNG.
+		// Compare PNG COUNTS before/after the action (not ls -t newest):
+		// the action returns rc 0 BEFORE the file write lands, so the
+		// immediate ls -t keeps seeing the previous shot (n == f race,
+		// lost 90/90 on the live target 2026-10-09). 1s settle after the
+		// action lets the write land.
+		checks["niri_screenshot"] = fmt.Sprintf("uid=$(id -u %s); i=0; while [ $i -lt 60 ]; do s=$(ls /run/user/$uid/niri*.sock 2>/dev/null | head -1); if [ -n \"$s\" ]; then b=$(ls /home/%s/Pictures/Screenshots/*.png 2>/dev/null | wc -l); XDG_RUNTIME_DIR=/run/user/$uid WAYLAND_DISPLAY=wayland-1 NIRI_SOCKET=\"$s\" niri msg action screenshot-screen >/dev/null 2>&1; sleep 1; a=$(ls /home/%s/Pictures/Screenshots/*.png 2>/dev/null | wc -l); if [ \"$a\" -gt \"$b\" ]; then n=$(ls -t /home/%s/Pictures/Screenshots/*.png 2>/dev/null | head -1); echo \"screenshot OK: $n ($(wc -c < \"$n\") bytes)\"; exit 0; fi; fi; sleep 1; i=$((i+1)); done; echo 'screenshot failed'; exit 1", cfg.InstalledUser, cfg.InstalledUser, cfg.InstalledUser, cfg.InstalledUser)
 	}
 
 	// Flatpak checks — generic, only when a fixture explicitly requests
