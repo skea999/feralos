@@ -104,13 +104,14 @@ variables:
 | `flatpakPackages` | `[]string` | Flatpak apps — set via `variables.yaml` only (niri no longer sets a default; RustDesk removed). Triggers `flatpak` APK + `SetupFlatpak` (flathub remote + `flatpak install -y`). `xdg-user-dirs` + `/lib/modules` before apk required. |
 | `webminListenAll` | `bool` | `false`: localhost:10000 only. `true`: 0.0.0.0:10000 (all interfaces). |
 | `enableDinit` | `bool` | `true`: dinit init system (boot.d enablement, `/var/log/dinit/` logging, dinit-shutdown poweroff/reboot wiring). `false`: OpenRC. |
+| `enableEdgeRepos` | `bool` | Enables the `@edge` tagged repositories (main/community/testing) for `extraPackagesEdge` installs. Without it, `extraPackagesEdge` is a validation error. Repos are NOT left enabled: they are added, used, and commented out per-install (see `extraPackagesEdge`). |
 
 ### Extra Packages
 
 | Key | Type | Description |
 |-----|------|-------------|
 | `extraPackages` | `[]string` | Additional APK packages. Triggers `internal_rules.yaml` → `logic.ApplyRules`: injects `groups`, `services` (runlevels), `modules` (`/etc/modules`), `kernelCmdline`, `mkinitfs` features. Examples: `incus-feature`, `qemu-system-x86_64`. |
-| `extraPackagesEdge` | `[]string` | Packages installed from the `@edge` tagged repos, installed LAST (after all other package installs + final upgrade) so the base install completes from the stable repos first. Requires `enableEdgeRepos: true` (validation error otherwise). `@tag` suffix allowed per package. First use: the mesa stack from edge (26.2.4 restores the virgl gallium driver dropped in 3.24 26.1.6) for GL-on-virtio in QEMU guests. Owner: `src/chrootPhase/internal/packages.go` (`SetupPackages`, tail) + validation in `src/utils/config/config.go`. |
+| `extraPackagesEdge` | `[]string` | Packages installed from the `@edge` tagged repos, installed LAST (after all other package installs + final upgrade) so the base install completes from the stable repos first. Requires `enableEdgeRepos: true` (validation error otherwise). `@tag` suffix allowed per package. First use: the mesa stack from edge (26.2.4 restores the virgl gallium driver dropped in 3.24 26.1.6) for GL-on-virtio in QEMU guests. Owner: `src/chrootPhase/features/edgerepos.go` (`SetupEdgeRepos`, called from the tail of `SetupPackages`) + validation in `src/utils/config/config.go`. 3-step sequence: append tagged `@edge` repos → install the packages → comment the repos back out (apk v3 masks tagged-repo packages from dependency resolution — edge repos must not exist during the main stable batch install). |
 
 ## Compilation
 

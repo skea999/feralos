@@ -217,16 +217,12 @@ func SetupPackages(conf *config.Config) error {
 		fmt.Printf("[WARNING] Final upgrade failed: %v\n", err)
 	}
 
-	// extraPackagesEdge: packages from the @edge tagged repos, installed
+	// extraPackagesEdge (owned by features/edgerepos.go): adds the tagged
+	// @edge repos, installs the edge packages, comments the repos back out.
 	// LAST so the base install completes from the stable repos first
 	// (e.g. the mesa stack from edge: virgl gallium driver restored).
-	// Requires enableEdgeRepos: true (validated in config.LoadConfig).
-	if len(u.ExtraPackagesEdge) > 0 {
-		fmt.Println("[INFO] Installing edge packages (extraPackagesEdge)...")
-		args := append([]string{"add"}, u.ExtraPackagesEdge...)
-		if _, err := shell.ExecuteCmdArgs(chroot, "apk", args...); err != nil {
-			return fmt.Errorf("failed to install edge packages: %w", err)
-		}
+	if err := features.SetupEdgeRepos(conf); err != nil {
+		return err
 	}
 
 	return nil

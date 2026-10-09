@@ -37,6 +37,7 @@ Violation = feature logic leaked outside owner.
 | `EnableHardening` | `chrootPhase/features/hardening.go` | `packages.go` + `chroot_phase.go` |
 | `EnableNix` | `chrootPhase/features/nix.go` | `packages.go` + `chroot_phase.go` |
 | `EnableZswap` | `chrootPhase/features/zswap.go` + `zswap_server.go` | `packages.go` + `chroot_phase.go` |
+| `EnableEdgeRepos` | `chrootPhase/features/edgerepos.go` | `packages.go` (tail of `SetupPackages`) |
 | `EnableDebug` | `chrootPhase/features/hardening.go` | via `HardeningPackages()` |
 | `EnableSwap` | `hostPhase/disks/*` | `host_phase.go` (disk layout layer) |
 | `DesktopEnvironment` | `chrootPhase/desktops/desktops.go` | `chroot_phase.go` |
