@@ -8,6 +8,14 @@
 
 ## Recent Rounds (latest first)
 
+### 2026-10-09 - bug-3 DEAD: niri renders in QEMU (86/86 zero skips); edge repos = confined feature
+**Agent:** codebase
+**Summary:** Host + installer + harness round. **bug-3 (zero wl_outputs) RESOLVED**: host Nix QEMU 11.1.1 full build via dynamic `/usr/local/bin` wrappers (qemu-system-x86_64 + qemu-img exec the nix profile binaries — no dead copies, libvirt/virt-manager compatible; libvirt AppArmor local override for `/home/skem`) + `-device virtio-vga-gl,venus=on,blob=true,hostmem=1G` + `-display egl-headless,gl=on` + host kernel 7.0 HWE (venus-gpu module) + guest mesa 26.2.4 @edge (virgl gallium driver restored upstream) ⇒ niri has a REAL output (`Virtual-1` 1280x800), wayvnc listens :5900, screenshot writes a real PNG. Run `2026-10-09T18-21-04Z`: **86/86 PASS, zero skips** (first fully-real niri run in QEMU).
+- **Installer**: `enableEdgeRepos` + `extraPackagesEdge` confined feature `chrootPhase/features/edgerepos.go` — 3-step at the tail of SetupPackages: append @edge repos → `apk add` the list → comment the repos out (apk v3 tagged-repo masking kills mid-install edge mixing — "masked in @edge" solver cascade verified live; the early chroot_env writer removed). Console keymap: aports `busybox-loadkmap-dinit` r1 (NO /etc/conf.d file — OpenRC owns it) + `misc.go` KEYMAP= from user variables (bkeymaps layout: keymap == layout dir) + internal_rules boot-list enablement. setup.sh: config path = repo `src/variables/variables.yaml` + cdrom apt-source fix for the live host.
+- **Harness**: QEMU DMI skip-gates (niri_outputs_count/niri_wayvnc_port/niri_screenshot + wayvnc.user required-list) REMOVED — all checks real on every host; console_keymap regex fixed for the `[{+}]` dependency-started dinitctl marker; screenshot check = count-based fresh-PNG (newest-compare loses the rc-0-before-write race); GPU line: `virtio-vga-gl` + `egl-headless,gl=on` in service.go target args.
+- **Fixtures**: 28/28 = full 33-key template mirror (niri fixtures carry the 5-pkg edge mesa stack in `extraPackagesEdge`).
+- NEXT: user's real-hw validation (keymap + rendering on real GPU); dms windows depth; booster initramfs module policy parked (booster = host-specific by default; user force_load list sufficient — no universal mode).
+
 ### 2026-10-08 - all 28 fixtures mirror variables.yaml template structure
 **Agent:** codebase
 **Summary:** Every `tests/fixtures/variables/*.yaml` fixture (28) rewritten to carry the COMPLETE template field set (33 keys, template order, 1-line header comment). Missing fields filled with behavior-preserving defaults (Go zero values = prior effective harness behavior): `luksPassword` = fixture `password` (matches installer fallback config.go:130), `enableDinit: false` when absent (OpenRC regression fixtures keep OpenRC), podman/webmin/zswap/nix/hardening false when absent, `videoDriver: ""` (== "none": both miss the VideoDrivers map → no-op, logic.go:27).
