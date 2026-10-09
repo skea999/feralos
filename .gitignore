@@ -61,5 +61,5 @@ feralos_tpm
 feralos_webmin
 references/*
 !references/.gitkeep
-references/skeaSimpleServer/
+references/skeaSimpleServer
 
