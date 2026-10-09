@@ -164,29 +164,46 @@ func askDisks(reader *bufio.Scanner, layout string, current []string) []string {
 	}
 }
 
-// askSecret reads a password with masked terminal input; falls back to
-// plain line reading when stdin is not a terminal (pipes, automation).
-// Empty input is only accepted when allowEmpty is set (LUKS fallback).
+// askSecret reads a password TWICE (entry + confirmation) with masked
+// terminal input; the two entries must match or BOTH are re-asked.
+// Falls back to plain line reading when stdin is not a terminal (pipes,
+// automation — confirmation still enforced). Empty input is only accepted
+// when allowEmpty is set (LUKS fallback: empty = reuse the user password)
+// and skips confirmation (nothing to mistype).
 func askSecret(reader *bufio.Scanner, label string, allowEmpty bool, validate func(string) error) string {
-	for {
-		fmt.Printf("%s: ", label)
-		var s string
+	readOnce := func() (string, error) {
 		if term.IsTerminal(int(os.Stdin.Fd())) {
 			pwd, err := term.ReadPassword(int(os.Stdin.Fd()))
 			fmt.Println()
 			if err != nil {
-				fmt.Println("[ERROR] failed to read input — try again.")
-				continue
+				return "", err
 			}
-			s = string(pwd)
-		} else {
-			s = readLine(reader)
+			return string(pwd), nil
+		}
+		return readLine(reader), nil
+	}
+	for {
+		fmt.Printf("%s: ", label)
+		s, err := readOnce()
+		if err != nil {
+			fmt.Println("[ERROR] failed to read input — try again.")
+			continue
 		}
 		if s == "" && allowEmpty {
 			return ""
 		}
-		if err := validate(s); err != nil {
+		if err = validate(s); err != nil {
 			fmt.Printf("[ERROR] %v — try again.\n", err)
+			continue
+		}
+		fmt.Printf("Confirm %s: ", label)
+		c, err := readOnce()
+		if err != nil {
+			fmt.Println("[ERROR] failed to read input — try again.")
+			continue
+		}
+		if c != s {
+			fmt.Println("[ERROR] passwords do not match — try again.")
 			continue
 		}
 		return s

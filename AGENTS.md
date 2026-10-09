@@ -8,6 +8,10 @@
 
 ## Recent Rounds (latest first)
 
+### 2026-10-10 00:20 - wizard password double-entry confirmation
+**Agent:** codebase
+**Summary:** Generator UX hardening (`create_values.go` askSecret): password + LUKS passphrase now asked TWICE (entry + `Confirm` prompt, masked both); mismatch = BOTH re-asked from the first entry. Empty LUKS (reuse user password) skips confirmation (nothing to mistype). Non-tty path (pipes/automation) keeps plain readLine but confirmation still enforced. Min length UNCHANGED at `MinPasswordLen = 6` (validators.go single source, shared with validateConfig) — already stricter than the requested ">4". Lint: one govet shadow fix in the same function (mechanical, zero behavior change). Builds green: installer + createValues, vet/lint/test. Docs: `docs/guides/variables.md` wizard paragraph.
+
 ### 2026-10-09 23:50 - niri/DMS dinit runtime depth: 5 checks added/hardened, validated 91/91
 **Agent:** codebase
 **Summary:** Harness-only round — deeper "does it actually DISPLAY and WORK" coverage for the dinit niri stack (user asked to leave `dms_ipc`/`niri_wayvnc_port` OpenRC failures as-is and deepen dinit verification instead). Fixture for dinit niri validation = `btrfs_standard_niri_full_test.yaml` (`enableDinit: true`).
