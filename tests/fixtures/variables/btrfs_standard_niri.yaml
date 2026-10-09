@@ -33,16 +33,12 @@ variables:
   webminListenAll: false
   enableDinit: false
   extraPackages:
-  - incus-feature
-  - incus-feature-vm
-  - incus-feature-client
-  - incus-feature-utils
-  - qemu-system-x86_64
-  - qemu-img
-  - qemu-modules
+  - okular
   extraPackagesEdge:
   - mesa@edge
-  - mesa-dri-gallium@edge
   - mesa-gl@edge
   - mesa-egl@edge
+  - mesa-gles@edge
   - mesa-gbm@edge
+  - mesa-dri-gallium@edge
+  - mesa-vulkan-virtio@edge

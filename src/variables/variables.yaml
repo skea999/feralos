@@ -51,6 +51,9 @@ variables:
   # Adding these will trigger dynamic rules (groups, services, etc.)
   extraPackages:
     - okular
+  # Packages from the @edge tagged repos (enableEdgeRepos: true required),
+  # installed LAST after all other packages (e.g. mesa-dri-gallium@edge)
+  extraPackagesEdge: 
     - mesa@edge 
     - mesa-gl@edge
     - mesa-egl@edge
@@ -58,6 +61,3 @@ variables:
     - mesa-gbm@edge
     - mesa-dri-gallium@edge
     - mesa-vulkan-virtio@edge
-  # Packages from the @edge tagged repos (enableEdgeRepos: true required),
-  # installed LAST after all other packages (e.g. mesa-dri-gallium@edge)
-  extraPackagesEdge: []
