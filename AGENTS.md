@@ -8,6 +8,14 @@
 
 ## Recent Rounds (latest first)
 
+### 2026-10-09 21:45 - less shim: aports less-dummy package replaces broken symlink dummy
+**Agent:** codebase
+**Summary:** Dummy `less`→bat symlink CONFIRMED BROKEN on live target (debug_run of run `2026-10-09T18-21-04Z`): bat with TTY stdout execs its HARDCODED pager `less -R -F -K --no-init` (ignores `$PAGER` entirely — only `cat` short-circuits), so the symlink made bat re-exec ITSELF and clap errored `unexpected argument '-R'` — fish `history`, `git log`, `man` all broke (anything piping to $PAGER on a TTY). busybox ash "worked" only because it has no pager-piping history builtin. Fix = aports package `less-dummy` (`f8dcee5`, CI green after ECR mirror fix, Pages `999.0.0-r2`): `/usr/bin/less` = POSIX-sh wrapper that DROPS all less flags (keeps file operands, post-`--` args kept), dumps once via `bat --color=always --paging=never` — child bat never re-pages, chain always terminates. `provides="less=999.0.0-r0"` + `replaces="less"` (file conflict = real C less can never sneak back). CI infra: `build.yml` container `alpine:latest` → `public.ecr.aws/docker/library/alpine:latest` (Docker Hub anonymous pull rate limit blocked 3 runs — permanent fix).
+- **Installer**: `internal_rules.yaml` — `less-dummy` added to standardPackages (Memory-safe block), `dummyPackages: {}` (bat→less symlink rule REMOVED with explanatory comments); no Go changes (flows via AllPackages).
+- **Harness**: `less_dummy` check made FALSIFIABLE — `apk info -e less-dummy && ! test -L /usr/bin/less && printf 'shim-test\n' | less -R && echo OK || exit 1` (the `-R` path = the exact formerly-broken flag); old Go post-processing block enforcing symlink→bat semantics DELETED (wrapper is a regular file now).
+- **Tradeoff**: no interactive scroll/search in "less" — dumps. Future: moar/ov (Go pagers) via same package, zero installer change.
+- Builds green: src gofmt/vet/lint/build; harness gofmt/vet/lint/build/test. NEXT: harness niri fixture run to validate `less_dummy` live; optional `BAT_PAGER=cat` belt+braces env.
+
 ### 2026-10-09 - bug-3 DEAD: niri renders in QEMU (86/86 zero skips); edge repos = confined feature
 **Agent:** codebase
 **Summary:** Host + installer + harness round. **bug-3 (zero wl_outputs) RESOLVED**: host Nix QEMU 11.1.1 full build via dynamic `/usr/local/bin` wrappers (qemu-system-x86_64 + qemu-img exec the nix profile binaries — no dead copies, libvirt/virt-manager compatible; libvirt AppArmor local override for `/home/skem`) + `-device virtio-vga-gl,venus=on,blob=true,hostmem=1G` + `-display egl-headless,gl=on` + host kernel 7.0 HWE (venus-gpu module) + guest mesa 26.2.4 @edge (virgl gallium driver restored upstream) ⇒ niri has a REAL output (`Virtual-1` 1280x800), wayvnc listens :5900, screenshot writes a real PNG. Run `2026-10-09T18-21-04Z`: **86/86 PASS, zero skips** (first fully-real niri run in QEMU).

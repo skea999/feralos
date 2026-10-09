@@ -218,6 +218,14 @@ All notable changes to FeralOS will be documented in this file.
 
 > Detailed implementation history, moved here from `AGENTS.md` (2026-09-25); newest first.
 
+### 2026-10-09 21:45 — less shim: aports less-dummy package (fish history clap bug)
+**Agent:** codebase
+- **Bug confirmed on live target** (debug_run of run `2026-10-09T18-21-04Z`): fish `history` on a TTY pipes to `$PAGER`=bat → bat execs its hardcoded pager `less -R -F -K --no-init` (ignores `$PAGER`; only `cat` short-circuits) → the runtime mkpkg symlink `/usr/bin/less → /usr/bin/bat` made bat re-exec itself → clap `unexpected argument '-R'`. All TTY pager consumers broke (git log, man); ash unaffected only because busybox ash has no pager-piping history builtin.
+- **Fix (feralos-aports `f8dcee5`)**: new package `less-dummy` 999.0.0-r2 — `/usr/bin/less` = POSIX-sh wrapper: drops all less flags (keeps file operands, post-`--` args kept via nodash loop), execs `bat --color=always --paging=never` (child never re-pages → chain terminates). `provides="less=999.0.0-r0"` + `replaces="less"` (file conflict blocks real C less). CI infra: workflow `container:` moved to `public.ecr.aws/docker/library/alpine:latest` (Docker Hub anonymous pull rate limit had blocked 3 runs).
+- **Installer**: `internal_rules.yaml` — `less-dummy` in standardPackages; `dummyPackages: {}` (bat→less symlink rule removed, comments explain why). No Go changes.
+- **Harness**: `less_dummy` check now falsifiable (package installed + not a symlink + `printf 'shim-test\n' | less -R` exits 0); symlink-enforcing Go post-processing block deleted. src + harness gofmt/vet/golangci-lint/build green.
+- **Tradeoff**: "less" no longer interactive (no scroll/search — dumps). Upgrade path: package moar/ov in aports, re-point wrapper — zero installer change. NEXT: niri fixture harness run; optional `BAT_PAGER=cat` env belt+braces.
+
 ### 2026-09-26 — hardware-readiness pass: setup.sh, wizard rewrite, enableDebug serial gate (39/39)
 **Agent:** codebase
 - **setup.sh**: apt install (incl. `git`) moved before repository clone — fresh cloud-init Debian live ships no git; `cd` into cloned repo; `-config` resolved to absolute path at parse time (survives later `cd`).
