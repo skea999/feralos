@@ -1439,13 +1439,22 @@ echo 'fish history clean (no clap error)'`,
 		// take ~30s, so 60s worst case still fits.
 		checks["niri_greeter"] = "i=0; while [ $i -lt 60 ]; do pgrep -x niri >/dev/null && { echo 'niri running'; exit 0; }; sleep 1; i=$((i+1)); done; echo 'niri not running'; exit 1"
 		checks["dms_installed"] = "apk info -e dms-shell quickshell && test -x /usr/bin/dms"
-		// console_keymap: busybox-loadkmap-dinit loaded the layout at boot —
-		// conf must point at a kbd-bkeymaps path AND the service must hold a
-		// started marker in dinitctl list (boot-time scripted service, no
-		// polling needed).
-		// dinitctl list marker: explicit start = [[+]], dependency start =
-		// [{+}] (3 chars) — [^]]* matches both bracket styles.
-		checks["console_keymap"] = "grep -q 'bkeymaps' /etc/conf.d/loadkmap && dinitctl list | grep -E '\\[[^]]*\\] *loadkmap' && echo 'console keymap loaded'"
+		// console_keymap: init-conditional — the layout is loaded at boot in
+		// BOTH init systems, but the started-marker source differs.
+		// dinit (busybox-loadkmap-dinit): conf must point at a kbd-bkeymaps
+		// path AND the service must hold a started marker in dinitctl list
+		// (boot-time scripted service, no polling needed). dinitctl list
+		// marker: explicit start = [[+]], dependency start = [{+}] (3 chars)
+		// — [^]]* matches both bracket styles.
+		// OpenRC (busybox-initscripts loadkmap): same conf check + started
+		// marker in rc-status --all (format: `loadkmap [ started ]`) — the
+		// dinitctl call would fail with "No such file or directory" on the
+		// /run/dinitctl socket (btrfs_standard_niri fixture runs OpenRC).
+		if cfg.EnableDinit {
+			checks["console_keymap"] = "grep -q 'bkeymaps' /etc/conf.d/loadkmap && dinitctl list | grep -E '\\[[^]]*\\] *loadkmap' && echo 'console keymap loaded'"
+		} else {
+			checks["console_keymap"] = "grep -q 'bkeymaps' /etc/conf.d/loadkmap && rc-status --all 2>/dev/null | grep -E 'loadkmap[^[]*\\[ *started' && echo 'console keymap loaded (openrc)'"
+		}
 		// user dinit services: supervised session stack (dbus/audio/wayland
 		// gate/polkit-agent/dms) shipped by *-user-dinit packages + dms-shell
 		checks["dinit_user_services"] = "for s in dbus.user pipewire.user pipewire-pulse.user wireplumber.user wait-wayland.user polkit-agent.user dms.user; do test -f /etc/dinit.d/user/$s || { echo \"missing $s\"; exit 1; }; done; echo 'user services OK'"
