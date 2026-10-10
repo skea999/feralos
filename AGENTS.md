@@ -8,6 +8,15 @@
 
 ## Recent Rounds (latest first)
 
+### 2026-10-10 23:30 - branches: developDinit → develop → main merged; work continues on develop
+**Agent:** codebase
+**Summary:** User-requested merge chain. developDinit → develop = **fast-forward** (`b50e04f` → `c3ef811`). develop → main = **merge commit `8568df0`** with 9 conflicts resolved — develop side everywhere.
+- **Conflict cause**: main tip carried 2 dinit reverts (`148ef31` installer integration, `2393c6a` harness checks) + net-zero resolv pair (`73f9066` + its revert `cdee03a`). develop (146 ahead) carries the complete validated dinit work → resolution = reverts cancelled intentionally (take-develop on all 8 content conflicts + keep `btrfs_standard_dinit.yaml` on the modify/delete).
+- **main now = develop content**: bootstrap URL fix (`51269f5` content) ON main → the pending cherry-pick item is RESOLVED by this merge; dinit integration + harness checks live on main; setup.sh repoUrl / README wget / `module feralos/src` all verified on main.
+- **Note**: main `variables.yaml` template now defaults `enablePodman: true` + `enableDinit: true` (develop's tested template) — no-backward-compat rule, single-run installer.
+- All 3 branches pushed, SHA match local == github. Work continues on **develop** (clean tree).
+- Pre-commit govulncheck warnings = pre-existing stdlib findings (Go 1.22.2), non-blocking.
+
 ### 2026-10-10 22:45 - validation: tests + harness dinit/niri 94/94 + debug_run live; debug_run QEMU flag fix
 **Agent:** codebase
 **Summary:** Post-rename validation round (user request: memory recall → go test → harness dinit+niri → debug_run).
