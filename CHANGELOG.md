@@ -218,6 +218,13 @@ All notable changes to FeralOS will be documented in this file.
 
 > Detailed implementation history, moved here from `AGENTS.md` (2026-09-25); newest first.
 
+### 2026-10-10 12:15 — DMS wifi/BT harness checks: 2 real bugs found+fixed, 94/94
+**Agent:** codebase
+- **NEW `bluetooth_service`** (init-conditional): started marker + `pgrep bluetoothd` + org.bluez registered on the system bus (dbus-send ListNames) — what the DMS BT widget talks to. **NEW `nm_wifi_support`** (init-agnostic): wifi plugin subpackage + regdb + wpa_supplicant + regulatory.db + `nmcli radio wifi` live answer.
+- **BUG 1 — aports `bluez-dinit`**: service `command` used the Debian path `/usr/libexec/bluetooth/bluetoothd`; Alpine installs `/usr/lib/bluetooth/bluetoothd` → bluetoothd never started, service STOPPED-failed, `log_errors` cascaded. Fixed `fb64d77` r3 (CI green, Pages live).
+- **BUG 2 — harness**: check tested `/usr/sbin/wpa_supplicant`; Alpine installs `/sbin/wpa_supplicant`. Check fixed; the wifi stack itself was healthy.
+- **Validated**: run `2026-10-10T12-12-01Z` **94/94 PASS, zero failures** — `bluetooth (pid: 1562)` + `org.bluez on bus`, `radio: enabled`, all regression sentinels green. The checks caught two real bugs on their first run — falsifiable verification works.
+
 ### 2026-10-10 01:40 — bluetooth service unified + niri-only enablement
 **Agent:** codebase
 - **User review corrections** on the previous round: `defaultRunlevelsDinit.boot += bluez` was BASE-list scope (bluetooth would be enabled on every dinit install — wrong, niri-only wanted); and since feralos owns `bluez-dinit`, the name split was pointless.

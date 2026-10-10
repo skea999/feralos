@@ -8,6 +8,15 @@
 
 ## Recent Rounds (latest first)
 
+### 2026-10-10 12:15 - DMS wifi/BT harness checks: 2 found+fixed real bugs, 94/94
+**Agent:** codebase
+**Summary:** Two new niri-block checks (`bluetooth_service` init-conditional, `nm_wifi_support` init-agnostic) — first run (94 checks, run `2026-10-10T11-37-52Z`) caught TWO real bugs; fixed; re-run `2026-10-10T12-12-01Z` = **94/94 PASS, zero failures**.
+- **NEW `bluetooth_service`** (dinit/OpenRC conditional like console_keymap): started marker (dinitctl/rc-status) + `pgrep bluetoothd` + **org.bluez registered on the system bus** via `dbus-send ListNames` — the endpoint DMS BT widget actually talks to. No BT adapter in QEMU: org.bluez registers anyway; adapters = real-hw.
+- **NEW `nm_wifi_support`**: `networkmanager-wifi` + `wireless-regdb` + `wpa_supplicant` packages + `regulatory.db` + `nmcli radio wifi` answers (NM daemon + radio subsystem live). Scan/connect = real hardware.
+- **BUG 1 (aports, found by check)**: bluez-dinit service `command` = `/usr/libexec/bluetooth/bluetoothd` — Debian path; Alpine installs `/usr/lib/bluetooth/bluetoothd` → bluetoothd never ran, service STOPPED-failed, `log_errors` cascaded on the serial `[FAILED] bluetooth`. Fix aports `fb64d77` r3 (Pages live, CI green, docker abuild green).
+- **BUG 2 (harness, found by check)**: my check tested `/usr/sbin/wpa_supplicant` — Alpine installs `/sbin/wpa_supplicant`. Path fixed; wifi stack itself was healthy (`nmcli radio wifi` = enabled).
+- **Validated**: run `2026-10-10T12-12-01Z` 94/94 — `bluetooth_service` `[ {+} ] bluetooth (pid: 1562) ... org.bluez on bus`, `nm_wifi_support` `radio: enabled`, all sentinels green (niri_layers/greetd_socket/dms_ipc/wayvnc/less checks). Installer.log proves bluez/bluez-openrc/bluez-dinit r2(→r3 next run)/networkmanager-wifi/wireless-regdb all installed from rules.
+
 ### 2026-10-10 01:40 - bluetooth service unified + niri-only enablement
 **Agent:** codebase
 **Summary:** Correction round on the previous bluetooth wiring (user review): (a) the dinit service must NOT live in `defaultRunlevelsDinit.boot` — that's the BASE list, bluetooth would be enabled on every dinit install, not just niri; (b) since feralos OWNS `bluez-dinit`, the service name can be unified instead of hacked around.

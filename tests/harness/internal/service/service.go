@@ -1448,6 +1448,26 @@ echo 'fish history clean (no clap error)'`,
 		// take ~30s, so 60s worst case still fits.
 		checks["niri_greeter"] = "i=0; while [ $i -lt 60 ]; do pgrep -x niri >/dev/null && { echo 'niri running'; exit 0; }; sleep 1; i=$((i+1)); done; echo 'niri not running'; exit 1"
 		checks["dms_installed"] = "apk info -e dms-shell quickshell && test -x /usr/bin/dms"
+		// bluetooth_service: DMS BT widget speaks org.bluez dbus — the stack
+		// must be alive. Name UNIFIED at "bluetooth" on both inits (feralos
+		// bluez-dinit r2 ships /lib/dinit.d/bluetooth). Three assertions:
+		// started marker (init-specific) + bluetoothd process + org.bluez
+		// actually REGISTERED on the system bus (what the DMS widget talks
+		// to). No BT adapter exists in QEMU — org.bluez registers anyway,
+		// adapter presence is real-hardware territory.
+		if cfg.EnableDinit {
+			checks["bluetooth_service"] = "dinitctl list | grep -E '\\[[^]]*\\] *bluetooth' && pgrep bluetoothd >/dev/null && dbus-send --system --print-reply --dest=org.freedesktop.DBus / org.freedesktop.DBus.ListNames 2>/dev/null | grep -q org.bluez && echo 'bluetooth stack OK (started, bluetoothd, org.bluez on bus)' || { echo 'bluetooth stack BROKEN'; exit 1; }"
+		} else {
+			checks["bluetooth_service"] = "rc-status --all 2>/dev/null | grep -E 'bluetooth[^[]*\\[ *started' && pgrep bluetoothd >/dev/null && dbus-send --system --print-reply --dest=org.freedesktop.DBus / org.freedesktop.DBus.ListNames 2>/dev/null | grep -q org.bluez && echo 'bluetooth stack OK (started, bluetoothd, org.bluez on bus)' || { echo 'bluetooth stack BROKEN'; exit 1; }"
+		}
+		// nm_wifi_support: DMS network widget gets wifi from NetworkManager —
+		// Alpine splits the wifi PLUGIN subpackage (networkmanager-wifi), so
+		// its presence is the actual discriminator (NM without it has NO
+		// wifi support at all). Init-agnostic (NM is a daemon either way):
+		// plugin + regdb + wpa_supplicant + regulatory.db + `nmcli radio
+		// wifi` answers (proves the NM daemon + radio subsystem respond).
+		// Real wifi runtime (scan/connect) needs real hardware.
+		checks["nm_wifi_support"] = "apk info -e networkmanager-wifi wireless-regdb wpa_supplicant && test -s /lib/firmware/regulatory.db && test -x /sbin/wpa_supplicant && r=$(nmcli radio wifi 2>&1) && echo \"nm wifi OK (radio: $r)\" || { echo \"nm wifi BROKEN (radio: ${r:-n/a})\"; exit 1; }"
 		// console_keymap: init-conditional — the layout is loaded at boot in
 		// BOTH init systems, but the started-marker source differs.
 		// dinit (busybox-loadkmap-dinit): conf must point at a kbd-bkeymaps
