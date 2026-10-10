@@ -1007,14 +1007,14 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg *RunConfig,
 			// mesa-vulkan-virtio). The GL device requires a GL display
 			// backend: -display none/-nographic fail with "opengl is not
 			// available" — egl-headless,gl=on provides it headless (no
-			// window, no X). HOST REQUIREMENTS (Nix QEMU 11.1.1 + nixpkgs
-			// virglrenderer 1.3.0 verified): host needs virglrenderer;
-			// system qemu on old distros won't do GL — Nix install
-			// documented. Plus ~/.local/bin/qemu-system-x86_64 wrapper
-			// exporting the 3 GL env vars pointing at the mesa inside the
-			// Nix QEMU closure. If the host lacks them, QEMU fails AT
-			// STARTUP (fail loud by design — install the host packages
-			// instead of removing this).
+			// window, no X). HOST REQUIREMENTS (apt QEMU 8.2.2 + libvirglrenderer1
+			// 1.0.0 validated 94/94, run 2026-10-10T14-04-38Z — the former
+			// Nix QEMU 11.1.1 stack with its GL-env wrappers and libvirt
+			// AppArmor nix overrides was REMOVED; any qemu >= ~7 with
+			// virtio-vga-gl + egl-headless works). The guest does the GL
+			// work via mesa virgl (edge) — the host only needs libvirglrenderer.
+			// If the host lacks the packages, QEMU fails AT STARTUP
+			// (fail loud by design — install them instead of removing this).
 			"-display", "egl-headless,gl=on",
 			"-device", "virtio-vga-gl",
 			"-chardev", "socket,id=targetserial,path=" + targetSerialSocketPath + ",server=on,wait=off,logfile=" + targetSerialLog + ",logappend=on",

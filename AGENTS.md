@@ -8,6 +8,14 @@
 
 ## Recent Rounds (latest first)
 
+### 2026-10-10 14:30 - host: Nix QEMU stack removed, apt QEMU 8.2.2 validated 94/94
+**Agent:** codebase
+**Summary:** User request: swap the bug-3-era Nix QEMU for apt QEMU. Validated BEFORE believing the theory — full harness run on the apt stack.
+- **Removed**: all 5 wrapper locations (`/usr/local/bin` + dpkg-unowned `/usr/bin`+`/bin` symlinks + `~/.local/bin` — the one actually resolving in PATH), nix profile `qemu` (11.1.1; swtpm/OVMF/virt-manager/mesa KEPT in profile), AppArmor nix overrides (4 local files: abstractions/libvirt-qemu, usr.sbin.libvirtd, virt-aa-helper, virtqemud — all `/nix/store/**` + `~/.local/bin/qemu*` lines deleted, `.pre-aptqemu-backup` backups kept, apparmor reloaded). Backup: `/tmp/qemu-nix-backup.txt`.
+- **Installed**: apt `qemu-system-x86` + `qemu-system-gui` **8.2.2** + `libvirglrenderer1` **1.0.0** (Ubuntu noble — no CLI virglrenderer pkg needed, QEMU links the lib). Capability greps: `virtio-vga-gl` ✓ `egl-headless` ✓.
+- **Insight recorded**: the GL path niri actually uses = guest mesa virgl (edge) ↔ host libvirglrenderer; QEMU version is NOT the discriminator (any ≥~7 with virtio-vga-gl + egl-headless works) — the bug-3 fix was the GUEST mesa virgl driver, not Nix QEMU. `venus=on,blob,hostmem` flags harmless leftovers (harness doesn't pass them anymore).
+- **Validated**: run `2026-10-10T14-04-38Z` (apt QEMU) **94/94 PASS** — niri_layers/outputs/screenshot/wayvnc all green, zero GL regressions. Stale comments updated (service.go host requirements + debug_run: virgl is the path, venus optional).
+
 ### 2026-10-10 12:15 - DMS wifi/BT harness checks: 2 found+fixed real bugs, 94/94
 **Agent:** codebase
 **Summary:** Two new niri-block checks (`bluetooth_service` init-conditional, `nm_wifi_support` init-agnostic) — first run (94 checks, run `2026-10-10T11-37-52Z`) caught TWO real bugs; fixed; re-run `2026-10-10T12-12-01Z` = **94/94 PASS, zero failures**.

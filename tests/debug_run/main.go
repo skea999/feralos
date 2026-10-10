@@ -545,16 +545,16 @@ func buildTargetArgs(cfg targetArgsInput) []string {
 		"-device", "virtio-net-pci,netdev=net0",
 		// niri (and any DRM compositor) needs a render node: virtio-gpu
 		// provides /dev/dri/renderD128 — std VGA (bochs) does not (parity
-		// with harness service.go buildTargetArgs). virtio-gpu-gl-pci adds
-		// 3D accel — niri/wlroots GL needs it; without it only the pixman
-		// fallback works. virgl removed from mesa 26.x (Alpine 3.24 guest):
-		// 3D path = venus (VirtIO Vulkan) + guest zink, so venus=on is
-		// mandatory; QEMU 11 requires blob=true+hostmem with venus.
-		// NOTE: requires host virglrenderer >= 1.1 with venus (Nix QEMU
-		// 11.1.1 + nixpkgs virglrenderer 1.3.0 verified; system qemu on
-		// old distros won't do venus — Nix install documented) + the
-		// ~/.local/bin GL-env wrapper — if the host lacks them, QEMU
-		// fails at startup (fail loud, intended).
+		// with harness service.go buildTargetArgs). virtio-vga-gl adds 3D
+		// accel — niri/wlroots GL needs it; without it only the pixman
+		// fallback works. venus=on+blob+hostmem kept (harmless; QEMU >= 7.2
+		// supports it) but the GL path actually used is VIRGL: guest mesa
+		// edge restored the virgl gallium driver, host libvirglrenderer
+		// serves it. HOST REQUIREMENTS (apt qemu-system-x86/gui 8.2.2 +
+		// libvirglrenderer1 1.0.0 validated 94/94, run 2026-10-10T14-04-38Z
+		// — the Nix QEMU 11.1.1 stack and its GL-env wrappers were removed):
+		// any qemu >= ~7 with virtio-vga-gl + egl-headless. If the host
+		// lacks the packages, QEMU fails at startup (fail loud, intended).
 		"-device", "virtio-vga-gl,venus=on,blob=true,hostmem=1G",
 		"-drive", "if=none,id=targetdisk1,format=qcow2,file=" + cfg.Disk1Path,
 		"-device", "virtio-blk-pci,drive=targetdisk1,bootindex=1",
