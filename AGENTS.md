@@ -8,6 +8,15 @@
 
 ## Recent Rounds (latest first)
 
+### 2026-10-10 17:00 - src: Go module alpineInstaller → feralos/src (completes the rename)
+**Agent:** codebase
+**Summary:** User request: rename the src module too (it carried the older `alpineInstaller` name — never `skeaAlpineInstaller`, hence untouched by the 16:30 round).
+- **Module + imports**: `src/go.mod` → `module feralos/src`; ~50 `.go` files' imports `"alpineInstaller/..."` → `"feralos/src/..."`; createValues Fatalf template-path hint updated. Pure rename: 121 insertions / 121 deletions.
+- **Docs**: CONTEXT.md + `docs/intent/vocabulary.md` (`Go module`), ADR-001 (`go.mod:`), ADR-003 + `docs/architecture/isolation.md` (internal-rule import examples).
+- **KEPT**: git branch name `alpineInstallerGolang` (docs/audit.md + AGENTS.md migration history) — it's a branch, not a module ref.
+- **Validated**: 5 binaries build (installer, createValues, secureboot, tpm, webmin), go vet + gofmt + golangci-lint clean, `go test ./...` green (config + swap), grep zero `alpineInstaller` left in src/. Pre-commit govulncheck warnings = pre-existing stdlib findings (Go 1.22.2 toolchain), non-blocking.
+- Commit `5d3a7a8` pushed to `developDinit` (SHA match local == github).
+
 ### 2026-10-10 16:30 - repo: Go modules + paths renamed skeaAlpineInstaller → feralos
 **Agent:** codebase
 **Summary:** Follow-up to the GitHub migration + folder rename (`~/Progetti/feralos`): in-repo `skeaAlpineInstaller` identifiers renamed to `feralos` for coherence.
