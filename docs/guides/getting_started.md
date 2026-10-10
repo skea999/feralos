@@ -16,7 +16,7 @@ FeralOS installer — Go 1.22 + YAML, Alpine-based, LUKS2 + Btrfs + booster + UK
 **Option A — Automated (curl, recommended for hardware):**
 
 ```bash
-sudo bash <(curl -fsSL https://raw.githubusercontent.com/skem/skeaAlpineInstaller/latest-stable/setup.sh)
+sudo bash <(curl -fsSL https://raw.githubusercontent.com/skea999/feralos/main/setup.sh)
 # follows wizard, builds feralos_installer, runs install
 ```
 
@@ -37,8 +37,8 @@ sudo bash <(curl -fsSL https://raw.githubusercontent.com/skem/skeaAlpineInstalle
 3. **Clone + build**:
 
    ```bash
-   git clone https://github.com/skem/skeaAlpineInstaller.git
-   cd skeaAlpineInstaller
+   git clone https://github.com/skea999/feralos.git
+   cd feralos
    cd src && go build -o ../feralos_installer . && cd ..
    ```
 
@@ -50,7 +50,7 @@ sudo bash <(curl -fsSL https://raw.githubusercontent.com/skem/skeaAlpineInstalle
 
    # or with pre-filled config
    sudo ./feralos_installer -config variables.yaml
-   # also: src/variables/variables.yaml, tests/fixtures/variables/*.yaml (14 templates)
+   # also: src/variables/variables.yaml, tests/fixtures/variables/*.yaml (28 fixtures, full template mirror)
    ```
 
    Wizard asks: target `disks` → `diskLayout` (`btrfsStandard`/`btrfsRaid0`/`btrfsStandardServer`/`btrfsUnencrypted`) → `hostname` → `userName`/`password` (also LUKS passphrase) → `desktopEnvironment` (`none`/`niri`/`kde`/`cosmic`) → optional `Enable*` flags. Full list + `swapSize`/`extraPackages` → `docs/guides/variables.md`; rules → `internal_rules.yaml`.
@@ -90,7 +90,7 @@ Config for both: `/opt/feralos/config.yaml` (disk layout, LUKS UUIDs). Harness r
 | **EFI not booting** | Check UEFI boot order, `efibootmgr -v`; verify `BOOTX64.EFI` on EFI partition (`mount /dev/sdX1 /mnt && ls /mnt/EFI/BOOT/`). Re-run `efibootmgr --create` or copy fallback. See `docs/INSTALLER.md#Boot Process`. |
 | **LUKS passphrase rejected** | Same as user `password` in `variables.yaml`. Check keymap (`loadkeys`). Verify `cryptsetup luksDump /dev/sdX2`. |
 | **Bootstrap/apk fails** | Check network, `mirror` in `variables.yaml` (`https://dl-cdn.alpinelinux.org/alpine`), DNS (`cat /etc/resolv.conf`). |
-| **No logs** | Vector sinks: `/var/log/messages`, `auth.log`, `daemon.log`, `kern.log` (socket `/run/vector/syslog.sock` → `/dev/log`). Service: `rc-service vector status`. Config `/etc/vector/vector.yaml` written after apk (overwrites demo). |
+| **No logs** | Vector sinks: `/var/log/messages`, `auth.log`, `daemon.log`, `kern.log`, `sudo.log`, `firewalld.log`, `feralos.json.log` (socket `/run/vector/syslog.sock` → `/dev/log`; kernel ring via `klogd-dinit` on dinit). Service: `rc-service vector status` (dinit: `dinitctl status vector`). Config `/etc/vector/vector.yaml` written after apk (overwrites demo). Debug-only API (`enableDebug`): `127.0.0.1:8686` (`vector top`). |
 | **QEMU-only noise** | `smartd`/`fsck` warnings whitelisted in harness; ignore on hardware unless persistent. |
 
 Logs: installer stdout = `shell.ExecuteCmd` with CMD/result. Harness artifacts: `tests/artifacts/harness/runs/*/`.

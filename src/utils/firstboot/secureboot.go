@@ -1,6 +1,6 @@
 package firstboot
 
-import "alpineInstaller/utils/config"
+import "feralos/src/utils/config"
 
 // SetupSecureboot compiles the firstBoot secureboot binary and copies it to
 // /mnt/opt/feralos_secureboot. Called after chrootPhase so /mnt is still

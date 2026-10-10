@@ -19,6 +19,17 @@ func ResolveSwapSizeMiB(swapSize string) (int, error) {
 	return parseSwapSizeMiB(size)
 }
 
+// ValidSwapSize reports whether swapSize is "auto"/empty or a valid explicit
+// size (8G, 4096M, ...). Does NOT read /proc/meminfo — safe for validation.
+func ValidSwapSize(swapSize string) error {
+	size := strings.TrimSpace(swapSize)
+	if size == "" || strings.EqualFold(size, "auto") {
+		return nil
+	}
+	_, err := parseSwapSizeMiB(size)
+	return err
+}
+
 // autoSwapSizeMiB reads MemTotal from /proc/meminfo and returns 2x RAM in MiB.
 func autoSwapSizeMiB() (int, error) {
 	data, err := os.ReadFile("/proc/meminfo")

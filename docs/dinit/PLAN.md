@@ -52,7 +52,7 @@ step 6). Installer-side impact is small:
    - appends `init=/usr/libexec/dinit/init` to `/etc/kernel/cmdline` (UKI regen)
 3. Services applier mode switch (the one code change in `logic.go`/services writer):
    - OpenRC mode (today): `rc-update add <svc> <runlevel>`
-   - Dinit mode: symlink `/usr/lib/dinit.d/boot.d/<svc>`;
+   - Dinit mode: symlink `/lib/dinit.d/boot.d/<svc>`;
      `boot`/`sysinit`-level entries are **dropped** (upstream early chain replaces)
 4. Harness: fixture `btrfs_standard_dinit.yaml` + full variants; matrix after green
 5. OpenRC stays installed (coexistence). Removing it: separate future decision.

@@ -1,11 +1,11 @@
 package btrfsUnencrypted
 
 import (
-	"alpineInstaller/hostPhase/disks/common"
-	"alpineInstaller/utils/config"
-	"alpineInstaller/utils/misc"
-	"alpineInstaller/utils/shell"
-	"alpineInstaller/utils/swap"
+	"feralos/src/hostPhase/disks/common"
+	"feralos/src/utils/config"
+	"feralos/src/utils/misc"
+	"feralos/src/utils/shell"
+	"feralos/src/utils/swap"
 	"fmt"
 	"strings"
 )
@@ -82,7 +82,7 @@ func RunBtrfsSetup(conf *config.Config) error {
 	rootUUID, _ := getRootUUID(rootPart)
 
 	kernelCmdline := fmt.Sprintf(
-		"root=UUID=%s rootfstype=btrfs rootflags=subvol=@ rootdelay=30 rootwait console=ttyS0,115200",
+		"root=UUID=%s rootfstype=btrfs rootflags=subvol=@ rootdelay=30 rootwait",
 		rootUUID,
 	)
 	u.KernelCmdline = append(u.KernelCmdline, kernelCmdline)
@@ -111,7 +111,7 @@ func setupSubvolumesAndMounts(chroot string, rootDevice string, disk string) err
 		{Name: "@opt", Path: "/opt", Options: "compress=zstd:3,autodefrag,ssd"},
 		{Name: "@root", Path: "/root", Options: "compress=zstd:3,autodefrag,ssd"},
 		{Name: "@srv", Path: "/srv", Options: "autodefrag,ssd,nodev,noexec,nosuid", NoCoW: true},
-		{Name: "@tmp", Path: "/tmp", Options: "compress=zstd:3,autodefrag,ssd,noexec,nosuid"},
+		{Name: "@tmp", Path: "/tmp", Options: "compress=zstd:3,autodefrag,ssd,nosuid"},
 		{Name: "@var", Path: "/var", Options: "compress=zstd:3,autodefrag,ssd"},
 		{Name: "@var-lib-ex", Path: "/var/lib/ex", Options: "autodefrag,ssd,nodev,noexec,nosuid", NoCoW: true},
 		{Name: "@var-lib-libvirt", Path: "/var/lib/libvirt", Options: "compress=zstd:3,autodefrag,ssd"},
@@ -130,7 +130,6 @@ func setupSubvolumesAndMounts(chroot string, rootDevice string, disk string) err
 		{Name: "@nix-store", Path: "/nix/store", Options: "compress=zstd:3,autodefrag,ssd"},
 		{Name: "@nix-var-nix", Path: "/nix/var/nix", Options: "compress=zstd:3,autodefrag,ssd"},
 		{Name: "@nix-var-log", Path: "/nix/var/log", Options: "autodefrag,ssd,nodev,noexec,nosuid", NoCoW: true},
-		{Name: "@nix-var-nix-build", Path: "/nix/var/nix/build", Options: "compress=zstd:3,autodefrag,ssd"},
 		{Name: "@btrbk", Path: "/btrbk", Options: "compress=zstd:3,autodefrag,ssd"},
 	}
 
@@ -177,6 +176,12 @@ func setupSubvolumesAndMounts(chroot string, rootDevice string, disk string) err
 		if _, err := shell.ExecuteCmdArgs("", "mount", "-t", "btrfs", "-o", opts, rootDevice, target); err != nil {
 			return fmt.Errorf("failed to mount subvolume %s: %w", s.Name, err)
 		}
+	}
+
+	// FHS modes: fresh subvolume roots come up 0755 — /tmp and /var/tmp
+	// must be 1777 sticky (O_TMPFILE, unprivileged temp writes)
+	if err := misc.SetTempDirModes(chroot); err != nil {
+		return err
 	}
 
 	// EFI Mount

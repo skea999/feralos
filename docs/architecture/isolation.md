@@ -57,13 +57,13 @@ main.go (installer entry)
 
 `hostPhase/internal/*` is importable ONLY by `hostPhase` (and its subpackages). `main` cannot import it.
 
-Go `internal` visibility enforces this at compile time — any `import "alpineInstaller/hostPhase/internal"` outside `hostPhase` fails to compile.
+Go `internal` visibility enforces this at compile time — any `import "feralos/src/hostPhase/internal"` outside `hostPhase` fails to compile.
 
 ## hostPhase.Run() Fixed Order
 
 1. **Disk layout switch** (`hostPhase/disks/*`) by `conf.User.DiskLayout`:
    - `btrfsStandardServer` — 2 disks, RAID1, dual EFI, LUKS swap
-   - `btrfsStandard` — 1 disk, LUKS root, swapfile, 25 subvolumes
+   - `btrfsStandard` — 1 disk, LUKS root, swapfile, 24 subvolumes
    - `btrfsRaid0` — 2 disks, RAID0, dual EFI, 2 LUKS swap p2 gated `EnableSwap`
 2. **Mount virtual FS** (`internal/bind_mounts.go`) — mount /dev, /proc, /sys to chroot, slave propagation.
 3. **Alpine bootstrap** (`internal/bootstrap.go`) — download apk-tools-static, init base system, configure APK repos.

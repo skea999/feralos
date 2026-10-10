@@ -1,9 +1,10 @@
 variables:
-  unattended: true
+  unattended: false
+  ignoreErrors: false               # true = log errors and continue (harness mode); false = abort on first error
+  enableEdgeRepos: true            # @edge tagged repos (main/community/testing) — for installing packages from Alpine edge via extraPackages (e.g. pkg@edge)
   # Disk Configuration
   disks:
     - "/dev/sda"
-    - "/dev/sdb"
 
   # User and Security
   userName: "skea999"
@@ -11,20 +12,20 @@ variables:
   luksPassword: "CHANGEME"
 
   # System Identity
-  hostname: "skea-server"
+  hostname: "feralos"
   timezone: "Europe/Rome"
   locale: "it"
   keymap: "it"
 
   # Repository and Architecture
   mirror: "https://dl-cdn.alpinelinux.org/alpine"
-  arch: "x86_64"
-  branch: "latest-stable"
+  arch: "x86_64"                    # x86_64 only (FeralOS custom repo is x86_64)
+  branch: "latest-stable"           # Options: latest-stable, edge, 3.22
 
   # Layout
-  diskLayout: "btrfsStandard" # Options defined in internal_rules
-  desktopEnvironment: "none"        # Options: none, kde, niri, cosmic
-  videoDriver: "none"               # Options: none, amdgpu, nvidia, intel
+  diskLayout: "btrfsStandard"       # Options: btrfsStandardServer, btrfsStandard, btrfsRaid0, btrfsUnencrypted
+  desktopEnvironment: "niri"        # Options: none, kde, niri, cosmic
+  videoDriver: "virtio"               # Options: none, amdgpu, nvidia, intel, virtio (QEMU)
 
   # SSH (optional)
   sshAuthorizedKey: ""
@@ -36,22 +37,27 @@ variables:
   enableSecureboot: false
   enableTPM: false
   enableHardening: false
-  enableZswap: false
-  enableNix: false
+  enableZswap: true
+  enableNix: true
   enableSwap: true
   swapSize: auto # auto = 2x RAM, or explicit like 8G / 4096M
   enableDebug: false
-  enablePodman: false
+  enablePodman: true
   enableWebmin: false
-  webminListenAll: false  # false = localhost only, true = all interfaces
+  webminListenAll: false            # true = listen on all interfaces, false = localhost only
+  enableDinit: true                 # true = dinit init system, false = OpenRC
 
   # Extra Packages
   # Adding these will trigger dynamic rules (groups, services, etc.)
   extraPackages:
-    - incus-feature
-    - incus-feature-vm
-    - incus-feature-client
-    - incus-feature-utils
-    - qemu-system-x86_64
-    - qemu-img
-    - qemu-modules
+    - okular
+  # Packages from the @edge tagged repos (enableEdgeRepos: true required),
+  # installed LAST after all other packages (e.g. mesa-dri-gallium@edge)
+  extraPackagesEdge: 
+    - mesa@edge 
+    - mesa-gl@edge
+    - mesa-egl@edge
+    - mesa-gles@edge
+    - mesa-gbm@edge
+    - mesa-dri-gallium@edge
+    - mesa-vulkan-virtio@edge

@@ -54,7 +54,7 @@ feralos_installer/
 │       ├── features/ (hardening.go, zswap.go, zswap_server.go, nix.go)
 │       └── desktops/ (niri.go, desktops.go)
 ├── tests/
-│   ├── fixtures/variables/ (14 templates + README — all scenarios)
+│   ├── fixtures/variables/ (28 fixtures, full template mirror + README — all scenarios)
 │   ├── harness/ (cmd/skea_harness, internal/, variables-*.yaml deprecated shims)
 │   └── artifacts/ (gitignored: cache, prepare, runs, state)
 ├── docs/ (PROJECT.md, INSTALLER.md, guides/, architecture/, adr/, harness/)
@@ -104,7 +104,7 @@ Invoked by `main` after config generation. Order is fixed:
 1. **Disk Partitioning & LUKS Setup** (`hostPhase/disks/`)
    - Selected by `conf.User.DiskLayout` inside `hostPhase.Run()`:
       - **btrfsStandardServer**: 2 disks, RAID1, dual EFI, LUKS swap
-      - **btrfsStandard**: 1 disk, LUKS root, swapfile, 25 subvolumes
+      - **btrfsStandard**: 1 disk, LUKS root, swapfile, 24 subvolumes
       - **btrfsRaid0**: 2 disks, RAID0, dual EFI, LUKS swap
       - **btrfsUnencrypted**: 1 disk, no LUKS, direct btrfs, same subvolumes as btrfsStandard
    - Create partition tables, format filesystems, setup LUKS encryption
@@ -228,7 +228,7 @@ Runs AFTER chrootPhase completes (needs kernel cmdline from chroot).
 - **Partitioning**: EFI (512MB) + LUKS (rest)
 - **Single**: Btrfs single mode (no RAID)
 - **Swap**: Swapfile in @swap subvolume (NoCoW, NOCOMPRESS)
-- **Subvolumes**: 25 subvolumes including @root, @home, @boot, @nix-*
+- **Subvolumes**: 24 subvolumes including @root, @home, @boot, @nix-*
 - **Compression**: Per-subvolume via `btrfs property set` (zstd for data, none for NoCoW)
 
 ### LUKS Encryption

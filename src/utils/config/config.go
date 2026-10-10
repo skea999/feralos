@@ -3,8 +3,6 @@ package config
 import (
 	"fmt"
 	"os"
-	"regexp"
-	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -16,6 +14,8 @@ type Config struct {
 
 type UserVariables struct {
 	Unattended         bool     `yaml:"unattended"`
+	IgnoreErrors       bool     `yaml:"ignoreErrors"`
+	EnableEdgeRepos    bool     `yaml:"enableEdgeRepos"`
 	Disks              []string `yaml:"disks"`
 	UserName           string   `yaml:"userName"`
 	Password           string   `yaml:"password"`
@@ -28,6 +28,7 @@ type UserVariables struct {
 	Arch               string   `yaml:"arch"`
 	Branch             string   `yaml:"branch"`
 	ExtraPackages      []string `yaml:"extraPackages"`
+	ExtraPackagesEdge  []string `yaml:"extraPackagesEdge"`
 	DiskLayout         string   `yaml:"diskLayout"`
 	DesktopEnvironment string   `yaml:"desktopEnvironment"`
 	VideoDriver        string   `yaml:"videoDriver"`
@@ -45,6 +46,7 @@ type UserVariables struct {
 	EnablePodman     bool   `yaml:"enablePodman"`
 	EnableWebmin     bool   `yaml:"enableWebmin"`
 	WebminListenAll  bool   `yaml:"webminListenAll"`
+	EnableDinit      bool   `yaml:"enableDinit"`
 
 	// Network
 	DefaultNetworkInterface string `yaml:"defaultNetworkInterface"`
@@ -52,6 +54,7 @@ type UserVariables struct {
 	// Runtime fields
 	UserGroups      []string
 	Runlevels       map[string][]string
+	RunlevelsDinit  map[string][]string
 	AllPackages     []string
 	NixPackages     []string
 	FlatpakPackages []string `yaml:"flatpakPackages"`
@@ -60,16 +63,19 @@ type UserVariables struct {
 }
 
 type InternalRules struct {
-	ChrootDir           string                         `yaml:"chrootDir"`
-	StandardPackages    []string                       `yaml:"standardPackages"`
-	DefaultRunlevels    map[string][]string            `yaml:"defaultRunlevels"`
-	DiskLayouts         map[string]DynamicPackageRules `yaml:"diskLayouts"`
-	DesktopEnvironments map[string]DynamicPackageRules `yaml:"desktopEnvironments"`
-	VideoDrivers        map[string]DynamicPackageRules `yaml:"videoDrivers"`
-	PackageLogic        map[string]DynamicPackageRules `yaml:"packageLogic"`
-	DummyPackages       map[string]DummyPackageRule    `yaml:"dummyPackages"`
-	ProvidePackages     []string                       `yaml:"providePackages"`
-	BaseModules         []string                       `yaml:"baseModules"`
+	ChrootDir              string                         `yaml:"chrootDir"`
+	StandardPackages       []string                       `yaml:"standardPackages"`
+	DefaultRunlevels       map[string][]string            `yaml:"defaultRunlevels"`
+	DefaultRunlevelsDinit  map[string][]string            `yaml:"defaultRunlevelsDinit"`
+	DinitReplacedByChimera []string                       `yaml:"dinitReplacedByChimera"`
+	DinitSkipServices      []string                       `yaml:"dinitSkipServices"`
+	DiskLayouts            map[string]DynamicPackageRules `yaml:"diskLayouts"`
+	DesktopEnvironments    map[string]DynamicPackageRules `yaml:"desktopEnvironments"`
+	VideoDrivers           map[string]DynamicPackageRules `yaml:"videoDrivers"`
+	PackageLogic           map[string]DynamicPackageRules `yaml:"packageLogic"`
+	DummyPackages          map[string]DummyPackageRule    `yaml:"dummyPackages"`
+	ProvidePackages        []string                       `yaml:"providePackages"`
+	BaseModules            []string                       `yaml:"baseModules"`
 }
 
 // DummyPackageRule defines a package to replace with a memory-safe dummy.
@@ -101,8 +107,44 @@ func LoadConfig(userPath string) (*Config, error) {
 		return nil, err
 	}
 
-	// Look for internal_rules.yaml in src/variables/ directory
-	// This file contains the dynamic rules and is not user-editable
+	if err := LoadInternalRules(conf); err != nil {
+		return nil, err
+	}
+
+	conf.User.Runlevels = make(map[string][]string)
+	for k, v := range conf.Internal.DefaultRunlevels {
+		conf.User.Runlevels[k] = v
+	}
+
+	conf.User.RunlevelsDinit = make(map[string][]string)
+	for k, v := range conf.Internal.DefaultRunlevelsDinit {
+		conf.User.RunlevelsDinit[k] = v
+	}
+
+	// Input validation — reject shell metacharacters in fields that touch the shell
+	if err := validateConfig(conf); err != nil {
+		return nil, fmt.Errorf("input validation: %w", err)
+	}
+
+	// LuksPassword fallback: use Login password if LUKS passphrase not set
+	if conf.User.LuksPassword == "" {
+		conf.User.LuksPassword = conf.User.Password
+	}
+
+	// ignoreErrors: best-effort mode — command failures are logged and the
+	// installation continues (SKEA_IGNORE_ERRORS is honored by shell.ExecuteCmd).
+	// unattended only skips manual input; this flag governs error handling.
+	if conf.User.IgnoreErrors {
+		os.Setenv("SKEA_IGNORE_ERRORS", "1")
+	}
+
+	return conf, nil
+}
+
+// LoadInternalRules loads internal_rules.yaml into conf.Internal.
+// Looks in standard locations relative to the working directory.
+// Used by LoadConfig and by the generator (enum options for the wizard).
+func LoadInternalRules(conf *Config) error {
 	iPaths := []string{
 		"src/variables/internal_rules.yaml",
 		"variables/internal_rules.yaml",
@@ -118,62 +160,37 @@ func LoadConfig(userPath string) (*Config, error) {
 	}
 
 	if iData == nil {
-		return nil, fmt.Errorf("cannot find internal_rules.yaml in any expected location")
+		return fmt.Errorf("cannot find internal_rules.yaml in any expected location")
 	}
 
-	if err := yaml.Unmarshal(iData, &conf.Internal); err != nil {
-		return nil, err
-	}
-
-	conf.User.Runlevels = make(map[string][]string)
-	for k, v := range conf.Internal.DefaultRunlevels {
-		conf.User.Runlevels[k] = v
-	}
-
-	// Input validation — reject shell metacharacters in fields that touch the shell
-	if err := validateConfig(conf); err != nil {
-		return nil, fmt.Errorf("input validation: %w", err)
-	}
-
-	// LuksPassword fallback: use Login password if LUKS passphrase not set
-	if conf.User.LuksPassword == "" {
-		conf.User.LuksPassword = conf.User.Password
-	}
-
-	return conf, nil
+	return yaml.Unmarshal(iData, &conf.Internal)
 }
 
-// validateConfig rejects shell metacharacters in user-provided fields.
+// validateConfig rejects invalid values in user-provided fields.
+// Delegates to per-field validators in validators.go (shared with the wizard).
 func validateConfig(conf *Config) error {
 	u := &conf.User
 
-	diskRe := regexp.MustCompile(`^/dev/(sd[a-z]+|vd[a-z]+|nvme\d+n\d+|mmcblk\d+)$`)
-	for _, disk := range u.Disks {
-		if !diskRe.MatchString(disk) {
-			return fmt.Errorf("invalid disk path %q: must match /dev/sdX, /dev/vdX, /dev/nvmeXnX, or /dev/mmcblkX", disk)
+	if err := ValidateDisks(u.Disks); err != nil {
+		return err
+	}
+	if u.UserName != "" {
+		if err := ValidateUserName(u.UserName); err != nil {
+			return err
 		}
 	}
-
-	userRe := regexp.MustCompile(`^[a-z_][a-z0-9_-]{0,31}$`)
-	if u.UserName != "" && !userRe.MatchString(u.UserName) {
-		return fmt.Errorf("invalid username %q: must be [a-z_][a-z0-9_-]{0,31}", u.UserName)
+	if u.Hostname != "" {
+		if err := ValidateHostname(u.Hostname); err != nil {
+			return err
+		}
 	}
-
-	hostRe := regexp.MustCompile(`^[a-zA-Z0-9-]{1,63}$`)
-	if u.Hostname != "" && !hostRe.MatchString(u.Hostname) {
-		return fmt.Errorf("invalid hostname %q: must be [a-zA-Z0-9-]{1,63}", u.Hostname)
+	if u.Timezone != "" {
+		if err := ValidateTimezone(u.Timezone); err != nil {
+			return err
+		}
 	}
-
-	tzRe := regexp.MustCompile(`^[A-Za-z0-9/_+-]+$`)
-	if u.Timezone != "" && !tzRe.MatchString(u.Timezone) {
-		return fmt.Errorf("invalid timezone %q: must be [A-Za-z0-9/_+-]+", u.Timezone)
-	}
-
 	// Reject shell metacharacters in all shell-touching fields
-	shellMeta := regexp.MustCompile(`[;&|$\` + "`" + `\n'"]`)
-	for _, field := range []struct {
-		name, value string
-	}{
+	for _, v := range []struct{ name, value string }{
 		{"userName", u.UserName},
 		{"hostname", u.Hostname},
 		{"timezone", u.Timezone},
@@ -182,57 +199,53 @@ func validateConfig(conf *Config) error {
 		{"password", u.Password},
 		{"luksPassword", u.LuksPassword},
 	} {
-		if shellMeta.MatchString(field.value) {
-			return fmt.Errorf("invalid %s %q: contains shell metacharacters", field.name, field.value)
+		if err := hasShellMeta(v.name, v.value); err != nil {
+			return err
 		}
+	}
+	if err := ValidateExtraPackages(u.ExtraPackages); err != nil {
+		return err
+	}
+	if err := ValidateExtraPackages(u.ExtraPackagesEdge); err != nil {
+		return err
+	}
+	// extraPackagesEdge installs from the @edge tagged repos — those only
+	// exist when enableEdgeRepos wrote them into /etc/apk/repositories.
+	if len(u.ExtraPackagesEdge) > 0 && !u.EnableEdgeRepos {
+		return fmt.Errorf("extraPackagesEdge requires enableEdgeRepos: true (@edge tagged repos)")
 	}
 
-	// Validate ExtraPackages
-	pkgRe := regexp.MustCompile(`^[a-zA-Z0-9._+-]+$`)
-	for _, pkg := range u.ExtraPackages {
-		if !pkgRe.MatchString(pkg) {
-			return fmt.Errorf("invalid extra package %q: must match [a-zA-Z0-9._+-]+", pkg)
-		}
-	}
+	// Runtime rule fields (populated by logic.ApplyRules, not wizard-editable)
 	for _, pkg := range u.NixPackages {
 		if !pkgRe.MatchString(pkg) {
 			return fmt.Errorf("invalid nix package %q: must match [a-zA-Z0-9._+-]+", pkg)
 		}
 	}
-	flatpakRe := regexp.MustCompile(`^[a-zA-Z0-9._+:/-]+$`)
 	for _, pkg := range u.FlatpakPackages {
 		if !flatpakRe.MatchString(pkg) {
 			return fmt.Errorf("invalid flatpak package %q: must match [a-zA-Z0-9._+:/-]+", pkg)
 		}
 	}
 
-	// Validate Mirror
 	if u.Mirror != "" {
-		if !strings.HasPrefix(u.Mirror, "http://") && !strings.HasPrefix(u.Mirror, "https://") {
-			return fmt.Errorf("invalid mirror %q: must start with http:// or https://", u.Mirror)
-		}
-		if shellMeta.MatchString(u.Mirror) {
-			return fmt.Errorf("invalid mirror %q: contains shell metacharacters", u.Mirror)
+		if err := ValidateMirror(u.Mirror); err != nil {
+			return err
 		}
 	}
-	// Validate Branch / Arch (used in shell curl pipe)
-	branchRe := regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
-	if u.Branch != "" && !branchRe.MatchString(u.Branch) {
-		return fmt.Errorf("invalid branch %q: must match [a-zA-Z0-9._-]+", u.Branch)
+	if u.Branch != "" {
+		if err := ValidateBranch(u.Branch); err != nil {
+			return err
+		}
 	}
-	archRe := regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
-	if u.Arch != "" && !archRe.MatchString(u.Arch) {
-		return fmt.Errorf("invalid arch %q: must match [a-zA-Z0-9_-]+", u.Arch)
+	if u.Arch != "" {
+		if err := ValidateArch(u.Arch); err != nil {
+			return err
+		}
 	}
-	// Validate DefaultNetworkInterface (used in shell echo > file)
-	ifaceRe := regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
-	if u.DefaultNetworkInterface != "" && !ifaceRe.MatchString(u.DefaultNetworkInterface) {
-		return fmt.Errorf("invalid defaultNetworkInterface %q: must match [a-zA-Z0-9._-]+", u.DefaultNetworkInterface)
-	}
-
-	// LuksPassword fallback: if not set, use the login password
-	if conf.User.LuksPassword == "" {
-		conf.User.LuksPassword = conf.User.Password
+	if u.DefaultNetworkInterface != "" {
+		if err := ValidateInterface(u.DefaultNetworkInterface); err != nil {
+			return err
+		}
 	}
 
 	return nil

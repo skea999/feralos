@@ -1,101 +1,103 @@
-#
-#
-#
-#
-MARKERS='english-scrub-markers'==>MARKERS='english-scrub-markers'
-MARKERS='english-scrub-markers'==>MARKERS='english-scrub-markers'
-  'english-scrub-markers'==>  'english-scrub-markers'
-try to include all needed firmware==>try to include all needed firmware
-Update and Package Installation==>Update and Package Installation
-Subvolumes on Root Partition==>Subvolumes on Root Partition
-Subvolumes on RAID==>Subvolumes on RAID
-GPT Partitioning==>GPT Partitioning
-add icons to the application bar==>add icons to the application bar
-confirm before formatting==>confirm before formatting
-for this you need to identify the hardware==>for this you need to identify the hardware
-Extra Packages==>Extra Packages
-We try several common paths to make sure we find it==>We try several common paths to make sure we find it
-no disk specified in the configuration==>no disk specified in the configuration
-GRUB installation on both EFI disks for redundancy==>GRUB installation on both EFI disks for redundancy
-Initramfs regeneration (needed to include the raid1/btrfs modules loaded earlier)==>Initramfs regeneration (needed to include the raid1/btrfs modules loaded earlier)
-Save the current working kernel before apk overwrites it during an upgrade.==>Save the current working kernel before apk overwrites it during an upgrade.
-Initialize the minimal required fields if needed==>Initialize the minimal required fields if needed
-keyboard in kde==>keyboard in kde
-application style: add scrollbar handles==>application style: add scrollbar handles
-import the key for the repositories==>import the key for the repositories
-* [ ] functions==>* [ ] functions
-**Free** in philosophy==>**Free** in philosophy
-Most Linux distributions are "tamed" — they follow market rules, bend to business needs, accept compromises for compatibility.==>Most Linux distributions are "tamed" — they follow market rules, bend to business needs, accept compromises for compatibility.
-this should work, to be verified==>this should work, to be verified
-function to install package and enable service; input params: packagename, servicename==>function to install package and enable service; input params: packagename, servicename
-the default does not work; create a new staging file with the default values and ask first with yesNo==>the default does not work; create a new staging file with the default values and ask first with yesNo
-We could also add automatic creation of the config file here if we wanted==>We could also add automatic creation of the config file here if we wanted
-function, if to check mkdir, if to check execution exit 0 and for loop==>function, if to check mkdir, if to check execution exit 0 and for loop
-Indomitable in Vision==>Indomitable in Vision
-Formatting and Labeling==>Formatting and Labeling
-Subvolume Creation and Mount==>Subvolume Creation and Mount
-Fstab Generation==>Fstab Generation
-User creation without default groups (only its primary group)==>User creation without default groups (only its primary group)
-Added to DYNAMIC groups (including wheel if present in doas/sudo rules)==>Added to DYNAMIC groups (including wheel if present in doas/sudo rules)
-Formatting partitions...==>Formatting partitions...
-Final GRUB configuration file generation==>Final GRUB configuration file generation
-Starting single-disk partitioning (Standard)==>Starting single-disk partitioning (Standard)
-convert to a working installation on any distribution (i.e. with the tar)==>convert to a working installation on any distribution (i.e. with the tar)
-DE with minimal installation + terminal==>DE with minimal installation + terminal
-initial dependency installation for the most common package managers (apt, pacman, dnf, maybe others)==>initial dependency installation for the most common package managers (apt, pacman, dnf, maybe others)
-**Wildness** → Do not bend to conventions, look for better solutions==>**Wildness** → Do not bend to conventions, look for better solutions
-Executes: rc-update add <service> <runlevel>==>Executes: rc-update add <service> <runlevel>
-[SUCCESS] New file generated: %s\n==>[SUCCESS] New file generated: %s\n
-The values in [ ] come from the variables.yaml file.==>The values in [ ] come from the variables.yaml file.
-this file contains the commands the installation script will run==>this file contains the commands the installation script will run
-Wild but Structured==>Wild but Structured
-to be done in a universal way, so it can be installed from any linux version==>to be done in a universal way, so it can be installed from any linux version
-FeralOS is **feral**:==>FeralOS is **feral**:
-- **Rejects C when memory-safe alternatives exist** — uutils instead of coreutils, micro instead of vim==>- **Rejects C when memory-safe alternatives exist** — uutils instead of coreutils, micro instead of vim
-- **Does not compromise on security** — doas instead of sudo, zero unnecessary components==>- **Does not compromise on security** — doas instead of sudo, zero unnecessary components
-- **Rigid architecture** — standard core, pluggable data==>- **Rigid architecture** — standard core, pluggable data
-- **Clean code** — Go for the installer, Rust for system components==>- **Clean code** — Go for the installer, Rust for system components
-### The Mountain as Metaphor==>### The Mountain as Metaphor
-The Alps represent:==>The Alps represent:
-- **Solidity** — ancient, immovable rock that endures for centuries==>- **Solidity** — ancient, immovable rock that endures for centuries
-- **Freedom** — open peaks, infinite sky, absence of boundaries==>- **Freedom** — open peaks, infinite sky, absence of boundaries
-- **Wildness** — pristine forests, wild fauna, intact ecosystem==>- **Wildness** — pristine forests, wild fauna, intact ecosystem
-- **Necessary** — balances the ecosystem, eliminates the weak==>- **Necessary** — balances the ecosystem, eliminates the weak
-- **Intelligent** — hunts in packs, strategy, adaptability==>- **Intelligent** — hunts in packs, strategy, adaptability
-| **Ubuntu** | "Humanity towards others" | Community, accessibility |==>| **Ubuntu** | "Humanity towards others" | Community, accessibility |
-| **Fedora** | Fedora hat | Innovation, cutting edge |==>| **Fedora** | Fedora hat | Innovation, cutting edge |
-| **Alpine** | The Alps | Minimalism, simplicity |==>| **Alpine** | The Alps | Minimalism, simplicity |
-| **Arch** | Architecture | DIY, customization |==>| **Arch** | Architecture | DIY, customization |
-| **FeralOS** | Wild | Security, freedom, excellence |==>| **FeralOS** | Wild | Security, freedom, excellence |
-- **Promise of freedom** — open source, no hidden dependency==>- **Promise of freedom** — open source, no hidden dependency
-- **Freedom** → Open source, transparent code, no hidden dependency==>- **Freedom** → Open source, transparent code, no hidden dependency
-FeralOS embodies these qualities in the software world:==>FeralOS embodies these qualities in the software world:
-no logout on inactivity==>no logout on inactivity
-// Safety check to avoid a crash if the disk list is empty==>// Safety check to avoid a crash if the disk list is empty
-[INFO] Unattended mode active in the YAML file. Skipping wizard.==>[INFO] Unattended mode active in the YAML file. Skipping wizard.
-maybe better with itarball if present==>maybe better with itarball if present
-// Handles kernel fallback and EFI sync if a multi-disk setup is present.==>// Handles kernel fallback and EFI sync if a multi-disk setup is present.
-// If the hostname is empty, the YAML file was malformed or missing==>// If the hostname is empty, the YAML file was malformed or missing
-This subtitle captures the essence:==>This subtitle captures the essence:
-- **Wild** — the transformation FeralOS brings==>- **Wild** — the transformation FeralOS brings
-- **Solidity** → Memory-safe architecture, Rust and Go components==>- **Solidity** → Memory-safe architecture, Rust and Go components
-> **FeralOS** — *Alpine Linux, Wild*==>> **FeralOS** — *Alpine Linux, Wild*
-// If launched from the project root==>// If launched from the project root
-// If launched from installer/utility/==>// If launched from installer/utility/
-// If launched from installer/utility/makeVariables/==>// If launched from installer/utility/makeVariables/
-- **Phase 1** → Solid, tested installer==>- **Phase 1** → Solid, tested installer
-- **Phase 2** → Dinit instead of OpenRC, custom repository==>- **Phase 2** → Dinit instead of OpenRC, custom repository
-- **Phase 3** → Full distribution, desktop and server==>- **Phase 3** → Full distribution, desktop and server
-**FeralOS** derives from the English term **"feral"**, which in turn comes from the Latin **"feralis"** (belonging to the dead, deadly) and even earlier from **"ferus"** (wild, fierce).==>**FeralOS** derives from the English term **"feral"**, which in turn comes from the Latin **"feralis"** (belonging to the dead, deadly) and even earlier from **"ferus"** (wild, fierce).
-button management==>button management
-- **Intelligent** — dynamic rules, automatic configuration==>- **Intelligent** — dynamic rules, automatic configuration
-* [x] command success checking (if $? = 1 then )==>* [x] command success checking (if $? = 1 then )
-// Helper to extract the disk name (e.g. sda)==>// Helper to extract the disk name (e.g. sda)
-[ERROR] Error loading the template: %v==>[ERROR] Error loading the template: %v
-[ERROR] Save failed: %v==>[ERROR] Save failed: %v
-// PromptForConfig uses EXCLUSIVELY the values present in conf as defaults.==>// PromptForConfig uses EXCLUSIVELY the values present in conf as defaults.
-error: the RAID1 layout requires at least 2 disks, configured: %d==>error: the RAID1 layout requires at least 2 disks, configured: %d
-fdisk failed on %s: %w==>fdisk failed on %s: %w
-btrfsStandardServer layout requires at least 2 disks, found: %d==>btrfsStandardServer layout requires at least 2 disks, found: %d
-Make sure the template file is present and populated.==>Make sure the template file is present and populated.
-#==>#
+MARKERS='english-scrub-markers'==MARKERS='english-scrub-markers'
+MARKERS='english-scrub-markers'==MARKERS='english-scrub-markers'
+  'english-scrub-markers'==  'english-scrub-markers'
+try to include all needed firmware==try to include all needed firmware
+Update and Package Installation==Update and Package Installation
+Subvolumes on Root Partition==Subvolumes on Root Partition
+Subvolumes on RAID==Subvolumes on RAID
+GPT Partitioning==GPT Partitioning
+add icons to the application bar==add icons to the application bar
+confirm before formatting==confirm before formatting
+for this you need to identify the hardware==for this you need to identify the hardware
+Extra Packages==Extra Packages
+We try several common paths to make sure we find it==We try several common paths to make sure we find it
+no disk specified in the configuration==no disk specified in the configuration
+GRUB installation on both EFI disks for redundancy==GRUB installation on both EFI disks for redundancy
+Initramfs regeneration (needed to include the raid1/btrfs modules loaded earlier)==Initramfs regeneration (needed to include the raid1/btrfs modules loaded earlier)
+Save the current working kernel before apk overwrites it during an upgrade.==Save the current working kernel before apk overwrites it during an upgrade.
+Initialize the minimal required fields if needed==Initialize the minimal required fields if needed
+keyboard in kde==keyboard in kde
+application style: add scrollbar handles==application style: add scrollbar handles
+import the key for the repositories==import the key for the repositories
+* [ ] functions==* [ ] functions
+**Free** in philosophy==**Free** in philosophy
+Most Linux distributions are "tamed" — they follow market rules, bend to business needs, accept compromises for compatibility.==Most Linux distributions are "tamed" — they follow market rules, bend to business needs, accept compromises for compatibility.
+this should work, to be verified==this should work, to be verified
+function to install package and enable service; input params: packagename, servicename==function to install package and enable service; input params: packagename, servicename
+the default does not work; create a new staging file with the default values and ask first with yesNo==the default does not work; create a new staging file with the default values and ask first with yesNo
+We could also add automatic creation of the config file here if we wanted==We could also add automatic creation of the config file here if we wanted
+function, if to check mkdir, if to check execution exit 0 and for loop==function, if to check mkdir, if to check execution exit 0 and for loop
+Indomitable in Vision==Indomitable in Vision
+Formatting and Labeling==Formatting and Labeling
+Subvolume Creation and Mount==Subvolume Creation and Mount
+Fstab Generation==Fstab Generation
+User creation without default groups (only its primary group)==User creation without default groups (only its primary group)
+Added to DYNAMIC groups (including wheel if present in doas/sudo rules)==Added to DYNAMIC groups (including wheel if present in doas/sudo rules)
+Formatting partitions...==Formatting partitions...
+Final GRUB configuration file generation==Final GRUB configuration file generation
+Starting single-disk partitioning (Standard)==Starting single-disk partitioning (Standard)
+convert to a working installation on any distribution (i.e. with the tar)==convert to a working installation on any distribution (i.e. with the tar)
+DE with minimal installation + terminal==DE with minimal installation + terminal
+initial dependency installation for the most common package managers (apt, pacman, dnf, maybe others)==initial dependency installation for the most common package managers (apt, pacman, dnf, maybe others)
+**Wildness** → Do not bend to conventions, look for better solutions==**Wildness** → Do not bend to conventions, look for better solutions
+Executes: rc-update add <service> <runlevel>==Executes: rc-update add <service> <runlevel>
+[SUCCESS] New file generated: %s\n==[SUCCESS] New file generated: %s\n
+The values in [ ] come from the variables.yaml file.==The values in [ ] come from the variables.yaml file.
+this file contains the commands the installation script will run==this file contains the commands the installation script will run
+Wild but Structured==Wild but Structured
+to be done in a universal way, so it can be installed from any linux version==to be done in a universal way, so it can be installed from any linux version
+FeralOS is **feral**:==FeralOS is **feral**:
+- **Rejects C when memory-safe alternatives exist** — uutils instead of coreutils, micro instead of vim==- **Rejects C when memory-safe alternatives exist** — uutils instead of coreutils, micro instead of vim
+- **Does not compromise on security** — doas instead of sudo, zero unnecessary components==- **Does not compromise on security** — doas instead of sudo, zero unnecessary components
+- **Rigid architecture** — standard core, pluggable data==- **Rigid architecture** — standard core, pluggable data
+- **Clean code** — Go for the installer, Rust for system components==- **Clean code** — Go for the installer, Rust for system components
+### The Mountain as Metaphor==### The Mountain as Metaphor
+The Alps represent:==The Alps represent:
+- **Solidity** — ancient, immovable rock that endures for centuries==- **Solidity** — ancient, immovable rock that endures for centuries
+- **Freedom** — open peaks, infinite sky, absence of boundaries==- **Freedom** — open peaks, infinite sky, absence of boundaries
+- **Wildness** — pristine forests, wild fauna, intact ecosystem==- **Wildness** — pristine forests, wild fauna, intact ecosystem
+- **Necessary** — balances the ecosystem, eliminates the weak==- **Necessary** — balances the ecosystem, eliminates the weak
+- **Intelligent** — hunts in packs, strategy, adaptability==- **Intelligent** — hunts in packs, strategy, adaptability
+| **Ubuntu** | "Humanity towards others" | Community, accessibility |==| **Ubuntu** | "Humanity towards others" | Community, accessibility |
+| **Fedora** | Fedora hat | Innovation, cutting edge |==| **Fedora** | Fedora hat | Innovation, cutting edge |
+| **Alpine** | The Alps | Minimalism, simplicity |==| **Alpine** | The Alps | Minimalism, simplicity |
+| **Arch** | Architecture | DIY, customization |==| **Arch** | Architecture | DIY, customization |
+| **FeralOS** | Wild | Security, freedom, excellence |==| **FeralOS** | Wild | Security, freedom, excellence |
+- **Promise of freedom** — open source, no hidden dependency==- **Promise of freedom** — open source, no hidden dependency
+- **Freedom** → Open source, transparent code, no hidden dependency==- **Freedom** → Open source, transparent code, no hidden dependency
+FeralOS embodies these qualities in the software world:==FeralOS embodies these qualities in the software world:
+no logout on inactivity==no logout on inactivity
+// Safety check to avoid a crash if the disk list is empty==// Safety check to avoid a crash if the disk list is empty
+[INFO] Unattended mode active in the YAML file. Skipping wizard.==[INFO] Unattended mode active in the YAML file. Skipping wizard.
+maybe better with itarball if present==maybe better with itarball if present
+// Handles kernel fallback and EFI sync if a multi-disk setup is present.==// Handles kernel fallback and EFI sync if a multi-disk setup is present.
+// If the hostname is empty, the YAML file was malformed or missing==// If the hostname is empty, the YAML file was malformed or missing
+This subtitle captures the essence:==This subtitle captures the essence:
+- **Wild** — the transformation FeralOS brings==- **Wild** — the transformation FeralOS brings
+- **Solidity** → Memory-safe architecture, Rust and Go components==- **Solidity** → Memory-safe architecture, Rust and Go components
+> **FeralOS** — *Alpine Linux, Wild*==> **FeralOS** — *Alpine Linux, Wild*
+// If launched from the project root==// If launched from the project root
+// If launched from installer/utility/==// If launched from installer/utility/
+// If launched from installer/utility/makeVariables/==// If launched from installer/utility/makeVariables/
+- **Phase 1** → Solid, tested installer==- **Phase 1** → Solid, tested installer
+- **Phase 2** → Dinit instead of OpenRC, custom repository==- **Phase 2** → Dinit instead of OpenRC, custom repository
+- **Phase 3** → Full distribution, desktop and server==- **Phase 3** → Full distribution, desktop and server
+**FeralOS** derives from the English term **"feral"**, which in turn comes from the Latin **"feralis"** (belonging to the dead, deadly) and even earlier from **"ferus"** (wild, fierce).==**FeralOS** derives from the English term **"feral"**, which in turn comes from the Latin **"feralis"** (belonging to the dead, deadly) and even earlier from **"ferus"** (wild, fierce).
+button management==button management
+- **Intelligent** — dynamic rules, automatic configuration==- **Intelligent** — dynamic rules, automatic configuration
+* [x] command success checking (if $? = 1 then )==* [x] command success checking (if $? = 1 then )
+// Helper to extract the disk name (e.g. sda)==// Helper to extract the disk name (e.g. sda)
+[ERROR] Error loading the template: %v==[ERROR] Error loading the template: %v
+[ERROR] Save failed: %v==[ERROR] Save failed: %v
+// PromptForConfig uses EXCLUSIVELY the values present in conf as defaults.==// PromptForConfig uses EXCLUSIVELY the values present in conf as defaults.
+error: the RAID1 layout requires at least 2 disks, configured: %d==error: the RAID1 layout requires at least 2 disks, configured: %d
+fdisk failed on %s: %w==fdisk failed on %s: %w
+btrfsStandardServer layout requires at least 2 disks, found: %d==btrfsStandardServer layout requires at least 2 disks, found: %d
+Make sure the template file is present and populated.==Make sure the template file is present and populated.
+- **Enablement model (Artix-verified)**: `-dinit` packages ship the service file ONLY (boot.d links removed from all, getty included; install ≠ enabled). Installer: boot.d symlinks driven by rules from `defaultRunlevelsDinit` + `packageLogic.services` — service names = Alpine initd names (chronyd, sshd, incusd, smartd, nix-daemon, mdev, incus-agent) → identical rules for OpenRC and dinit, zero aliases. `dinitctl --offline` crashes on Alpine 0.21 (cpbuffer assert) → identical direct symlinks.==- **Enablement model (Artix-verified)**: `-dinit` packages ship the service file ONLY (boot.d links removed from all, getty included; install ≠ enabled). Installer: boot.d symlinks driven by rules from `defaultRunlevelsDinit` + `packageLogic.services` — service names = Alpine initd names (chronyd, sshd, incusd, smartd, nix-daemon, mdev, incus-agent) → identical rules for OpenRC and dinit, zero aliases. `dinitctl --offline` crashes on Alpine 0.21 (cpbuffer assert) → identical direct symlinks.
+- **New aports packages**: networking-dinit (ifup -a — nothing brought eth0 up under dinit), incus-feature-dinit (incusd host daemon), dinit-boot-log (mirrors the PID1 trail /run/dinit-boot.log → /var/log/dinit/boot.log), sshd-dinit DELETED (real sshd in openssh-server-common-dinit); getty = single template body `agetty -L $1 115200` (port before baud).==- **New aports packages**: networking-dinit (ifup -a — nothing brought eth0 up under dinit), incus-feature-dinit (incusd host daemon), dinit-boot-log (mirrors the PID1 trail /run/dinit-boot.log → /var/log/dinit/boot.log), sshd-dinit DELETED (real sshd in openssh-server-common-dinit); getty = single template body `agetty -L $1 115200` (port before baud).
+- **Logs**: every `-dinit` `type=process` → `log-type=file` `/var/log/dinit/<name>.log`; vector `dinit_services` source + messages sink; **logrotate RE-ADDED** (vector does NOT rotate — it only tails rotated files; copytruncate+delaycompress; supersedes the old "vector replaces it" decision) — installer config only, Alpine package, execution via cronie/periodic. `dinit_log_file=/run/dinit-boot.log` on the cmdline; dinit-chimera r5 wrapper patch: reads it from /proc/cmdline (booster does not forward unknown params to init's env).==- **Logs**: every `-dinit` `type=process` → `log-type=file` `/var/log/dinit/<name>.log`; vector `dinit_services` source + messages sink; **logrotate RE-ADDED** (vector does NOT rotate — it only tails rotated files; copytruncate+delaycompress; supersedes the old "vector replaces it" decision) — installer config only, Alpine package, execution via cronie/periodic. `dinit_log_file=/run/dinit-boot.log` on the cmdline; dinit-chimera r5 wrapper patch: reads it from /proc/cmdline (booster does not forward unknown params to init's env).
+- **Harness**: **hard 7-minute limit for the whole run** (`runHardTimeout` constant, watchdog kills VMs + exit 124 — non-configurable by design), boot 300s, instant runner kill + guest sync + swtpm race fix, `--keep-target-running` respected by the watchdog (target spared for the separate verify). **Final result: 47/47 PASS** (run 2026-09-20T02-31-53Z).==- **Harness**: **hard 7-minute limit for the whole run** (`runHardTimeout` constant, watchdog kills VMs + exit 124 — non-configurable by design), boot 300s, instant runner kill + guest sync + swtpm race fix, `--keep-target-running` respected by the watchdog (target spared for the separate verify). **Final result: 47/47 PASS** (run 2026-09-20T02-31-53Z).
+/home/user==/home/user
+/home/user==>/home/user
+/home/user==>/home/user

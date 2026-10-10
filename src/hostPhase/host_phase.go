@@ -1,12 +1,12 @@
 package hostPhase
 
 import (
-	"alpineInstaller/hostPhase/disks/btrfsRaid0"
-	"alpineInstaller/hostPhase/disks/btrfsStandard"
-	"alpineInstaller/hostPhase/disks/btrfsStandardServer"
-	"alpineInstaller/hostPhase/disks/btrfsUnencrypted"
-	"alpineInstaller/hostPhase/internal"
-	"alpineInstaller/utils/config"
+	"feralos/src/hostPhase/disks/btrfsRaid0"
+	"feralos/src/hostPhase/disks/btrfsStandard"
+	"feralos/src/hostPhase/disks/btrfsStandardServer"
+	"feralos/src/hostPhase/disks/btrfsUnencrypted"
+	"feralos/src/hostPhase/internal"
+	"feralos/src/utils/config"
 	"fmt"
 )
 

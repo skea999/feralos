@@ -15,8 +15,8 @@ import (
 	"syscall"
 	"time"
 
-	"skeaAlpineInstaller/tests/harness/internal/mcp"
-	"skeaAlpineInstaller/tests/harness/internal/service"
+	"feralos/tests/harness/internal/mcp"
+	"feralos/tests/harness/internal/service"
 )
 
 func main() {
@@ -25,6 +25,12 @@ func main() {
 		os.Exit(1)
 	}
 }
+
+// Per-phase timeouts prevent hangs within each phase:
+//   Runner SSH wait: BootTimeout (5min default, flag -boot-timeout-seconds)
+//   Target SSH wait: BootTimeout (5min default)
+//   Verify: VerificationTimeout (2min default, flag -verify-timeout-seconds)
+// No global cap needed — the per-phase timeouts are the safety net.
 
 func run(args []string) error {
 	if len(args) == 0 {
@@ -79,6 +85,27 @@ func run(args []string) error {
 		if err != nil {
 			return err
 		}
+		// Inherit install settings from the run's variables.yaml — standalone
+		// verify otherwise uses defaults (wrong user, no dinit awareness...).
+		var rc service.RunConfig
+		if cfg.RunDir != "" {
+			err = service.LoadVariablesFile(&rc, filepath.Join(cfg.RunDir, "variables.yaml"))
+			if err == nil {
+				cfg.InstalledUser = rc.InstalledUser
+				cfg.DesktopEnvironment = rc.DesktopEnvironment
+				cfg.DiskLayout = rc.DiskLayout
+				cfg.EnableSwap = rc.EnableSwap
+				cfg.EnableSecureboot = rc.EnableSecureboot
+				cfg.EnableTPM = rc.EnableTPM
+				cfg.EnablePodman = rc.EnablePodman
+				cfg.EnableWebmin = rc.EnableWebmin
+				cfg.EnableDinit = rc.EnableDinit
+				cfg.EnableNix = rc.EnableNix
+				cfg.SwapSize = rc.SwapSize
+				cfg.NixPackages = rc.NixPackages
+				cfg.FlatpakPackages = rc.FlatpakPackages
+			}
+		}
 		result, err := harnessService.Verify(ctx, &cfg)
 		if err != nil {
 			return err
@@ -125,6 +152,8 @@ func run(args []string) error {
 		if err != nil {
 			return err
 		}
+		// Keep stdout clean for the JSON-RPC stream: progress → stderr.
+		service.SetProgressWriter(os.Stderr)
 		server := mcp.NewServer(harnessService, cfg.RepoRoot, cfg.ArtifactsRoot)
 		return server.Serve(ctx, os.Stdin, os.Stdout)
 	case "help", "--help", "-h":
@@ -212,7 +241,7 @@ func parseRunArgs(args []string, repoRoot, artifactsRoot string) (service.RunCon
 	}
 
 	var variablesFile string
-	bootTimeoutSeconds := 600
+	bootTimeoutSeconds := 300
 	verifyTimeoutSeconds := 120
 	fs := flag.NewFlagSet("run", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
@@ -242,6 +271,14 @@ func parseRunArgs(args []string, repoRoot, artifactsRoot string) (service.RunCon
 	if variablesFile == "" {
 		return service.RunConfig{}, fmt.Errorf("usage: skea-harness run -f <path-to-variables.yaml>")
 	}
+	// CWD-independent resolution: documented commands ("run -f
+	// ../tests/fixtures/...") must work from the repository root,
+	// tests/harness, or anywhere inside a fresh clone.
+	resolvedVariables, resolveErr := resolveVariablesFile(variablesFile)
+	if resolveErr != nil {
+		return service.RunConfig{}, resolveErr
+	}
+	variablesFile = resolvedVariables
 	if err := service.LoadVariablesFile(&defaults, variablesFile); err != nil {
 		return service.RunConfig{}, fmt.Errorf("load variables file: %w", err)
 	}
@@ -330,6 +367,40 @@ func printJSON(value any) error {
 	encoder := json.NewEncoder(os.Stdout)
 	encoder.SetIndent("", "  ")
 	return encoder.Encode(value)
+}
+
+// resolveVariablesFile makes the run -f path CWD-independent so documented
+// commands work from any directory (non-expert users clone the repository
+// and paste commands verbatim). Candidates, first existing wins:
+//  1. the path as given (absolute, or relative to the current directory)
+//  2. the path relative to the repository root with any leading "../"
+//     segments stripped — the documented "../tests/fixtures/..." form
+//     resolves from the repository root, tests/harness, or any subdirectory
+func resolveVariablesFile(path string) (string, error) {
+	if filepath.IsAbs(path) {
+		if _, err := os.Stat(path); err != nil {
+			return "", fmt.Errorf("variables file not found: %s", path)
+		}
+		return path, nil
+	}
+	candidates := []string{path}
+	if repoRoot, rootErr := detectRepoRoot(); rootErr == nil {
+		cleaned := filepath.Clean(path)
+		for strings.HasPrefix(cleaned, ".."+string(filepath.Separator)) {
+			cleaned = cleaned[3:]
+		}
+		candidates = append(candidates, filepath.Join(repoRoot, cleaned))
+	}
+	for _, candidate := range candidates {
+		if _, err := os.Stat(candidate); err == nil {
+			absolute, absErr := filepath.Abs(candidate)
+			if absErr != nil {
+				absolute = candidate
+			}
+			return absolute, nil
+		}
+	}
+	return "", fmt.Errorf("variables file not found: %s (tried: %s)", path, strings.Join(candidates, ", "))
 }
 
 func detectRepoRoot() (string, error) {

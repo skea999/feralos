@@ -6,6 +6,197 @@
 
 > **Primary context for AI agents.** This file keeps full project info. Detailed copies live in `docs/` (double documentation). Read this file first, then follow `→` pointers for deep dives.
 
+## Recent Rounds (latest first)
+
+### 2026-10-10 22:45 - validation: tests + harness dinit/niri 94/94 + debug_run live; debug_run QEMU flag fix
+**Agent:** codebase
+**Summary:** Post-rename validation round (user request: memory recall → go test → harness dinit+niri → debug_run).
+- **Tests**: `go test ./...` green in src (config + swap, 25 subtests), harness (service pkg), debug_run (no tests).
+- **Harness** (fixture `btrfs_standard_niri_full_test.yaml`): run `2026-10-10T22-11-11Z` **94/94 PASS** — 0 ignored/hard errors, dinit stack + niri rendering + screenshot PNG + wayvnc :5900 + DMS + bluetooth org.bluez + NM wifi + TPM auto-unlock all green. INFRA FIXES needed (folder-rename fallout, host-side): runner qcow2 stale backing path (rebase -u to `~/Progetti/feralos/...`), runner disk 3G→8G (`prepare-runner -force`), `cloud-image-utils` (cloud-localds) reinstalled.
+- **debug_run**: live boot of the run = 8/8 checks PASS (PID1 dinit, boot chain, user dinit niri/dms/wayvnc/pipewire started, greetd socket, less shim `-R` OK, wifi enabled).
+- **BUG found+fixed** (`tests/debug_run/main.go`): target `-device virtio-vga-gl,venus=on,blob=true,hostmem=1G` — apt QEMU 8.2.2 rejects `venus` → QEMU exit 1; harness dropped these flags in the 14:30 round but debug_run was missed. Fix `dccb79a`: plain `virtio-vga-gl` + comment updated; validated with a NATIVE boot (no wrapper): dinit PID1, niri alive, wayvnc :5900.
+- **debug_run gotchas (no code change)**: guest poweroff from ssh user needs password sudo → use QMP `system_powerdown` on `d-qmp.sock`; wrapper/nohup parent may linger after qemu exit (kill manually); root ssh shell = fish (wrap globs in `sh -c`).
+- Commits: `dccb79a` pushed to `developDinit` (SHA match).
+
+### 2026-10-10 17:00 - src: Go module alpineInstaller → feralos/src (completes the rename)
+**Agent:** codebase
+**Summary:** User request: rename the src module too (it carried the older `alpineInstaller` name — never `skeaAlpineInstaller`, hence untouched by the 16:30 round).
+- **Module + imports**: `src/go.mod` → `module feralos/src`; ~50 `.go` files' imports `"alpineInstaller/..."` → `"feralos/src/..."`; createValues Fatalf template-path hint updated. Pure rename: 121 insertions / 121 deletions.
+- **Docs**: CONTEXT.md + `docs/intent/vocabulary.md` (`Go module`), ADR-001 (`go.mod:`), ADR-003 + `docs/architecture/isolation.md` (internal-rule import examples).
+- **KEPT**: git branch name `alpineInstallerGolang` (docs/audit.md + AGENTS.md migration history) — it's a branch, not a module ref.
+- **Validated**: 5 binaries build (installer, createValues, secureboot, tpm, webmin), go vet + gofmt + golangci-lint clean, `go test ./...` green (config + swap), grep zero `alpineInstaller` left in src/. Pre-commit govulncheck warnings = pre-existing stdlib findings (Go 1.22.2 toolchain), non-blocking.
+- Commit `5d3a7a8` pushed to `developDinit` (SHA match local == github).
+
+### 2026-10-10 16:30 - repo: Go modules + paths renamed skeaAlpineInstaller → feralos
+**Agent:** codebase
+**Summary:** Follow-up to the GitHub migration + folder rename (`~/Progetti/feralos`): in-repo `skeaAlpineInstaller` identifiers renamed to `feralos` for coherence.
+- **Go modules** (2 of 3 — `src/go.mod` was already `alpineInstaller`): `tests/harness/go.mod` → `module feralos/tests/harness`, `tests/debug_run/go.mod` → `module feralos/tests/debug_run`; imports updated in `cmd/skea_harness/main.go`, `internal/mcp/server.go`, `internal/service/service.go`.
+- **Guest path** (`service.go:716`): runner-VM repo root `/home/<user>/skeaAlpineInstaller` → `/home/<user>/feralos` (tar name derives from it — consistent). SAFE for existing runner images: the repo is copied at runtime (tar → extract), nothing baked in the image; old runs + debug_run unaffected (target VM paths independent).
+- **Docs**: `docs/harness/{debug_run,development,workflow,building}.md` (module names, run-dir example, `~/feralos.tar.gz`), `docs/guides/getting_started.md` (BONUS FIX: curl/clone URLs pointed to wrong owner `skem/skeaAlpineInstaller` + nonexistent `latest-stable` path → now real `raw.githubusercontent.com/skea999/feralos/main/setup.sh` + `github.com/skea999/feralos.git`), `docs/guides/development.md` + AGENTS.md harness example paths → `~/Progetti/feralos`.
+- **Historical occurrences KEPT** (correct as-is): AGENTS.md migration-round summary, `state/session_state.json` decision record, `.agent-memory` entry — they describe the OLD gitea repo name.
+- Validated: zero remaining functional `skeaAlpineInstaller` occurrences (grep); harness + debug_run builds green (go build + go vet).
+
+### 2026-10-10 15:45 - repo: hosting migrated Gitea → GitHub (skea999/feralos)
+**Agent:** codebase
+**Summary:** User request: repo hosting migration gitea.com/sketa999/skeaAlpineInstaller → github.com/skea999/feralos. GitHub importer had already copied refs; parity verified BEFORE switching.
+- **Refs parity**: `git ls-remote` both sides — main/develop/alpineInstallerGolang/oldDevelop identical SHAs; ZERO tags on both sides (nothing to migrate); `developDinit` behind on GitHub by exactly the 2 unpushed local commits → fast-forward push (no force).
+- **Remotes**: old `origin` renamed `gitea` (kept during confidence period, remove + archive gitea repo later); new `origin` = `https://github.com/skea999/feralos.git`; `gh auth setup-git` credential helper; tracking re-pointed on main/develop/developDinit.
+- **URLs fixed** (only 2 hardcoded refs repo-wide; other grep hits = Artix audit refs / historical memory): `setup.sh` repoUrl → `https://github.com/skea999/feralos.git`; README wget → `https://raw.githubusercontent.com/skea999/feralos/main/setup.sh` (GOTCHA: raw format differs — gitea `raw/branch/main/...` vs github `raw.githubusercontent.com/<owner>/<repo>/main/...`).
+- **No CI to port**: `.github/` + `.githooks/` empty of tracked content; no `.gitea/workflows` either.
+
+### 2026-10-10 14:30 - host: Nix QEMU stack removed, apt QEMU 8.2.2 validated 94/94
+**Agent:** codebase
+**Summary:** User request: swap the bug-3-era Nix QEMU for apt QEMU. Validated BEFORE believing the theory — full harness run on the apt stack.
+- **Removed**: all 5 wrapper locations (`/usr/local/bin` + dpkg-unowned `/usr/bin`+`/bin` symlinks + `~/.local/bin` — the one actually resolving in PATH), nix profile `qemu` (11.1.1; swtpm/OVMF/virt-manager/mesa KEPT in profile), AppArmor nix overrides (4 local files: abstractions/libvirt-qemu, usr.sbin.libvirtd, virt-aa-helper, virtqemud — all `/nix/store/**` + `~/.local/bin/qemu*` lines deleted, `.pre-aptqemu-backup` backups kept, apparmor reloaded). Backup: `/tmp/qemu-nix-backup.txt`.
+- **Installed**: apt `qemu-system-x86` + `qemu-system-gui` **8.2.2** + `libvirglrenderer1` **1.0.0** (Ubuntu noble — no CLI virglrenderer pkg needed, QEMU links the lib). Capability greps: `virtio-vga-gl` ✓ `egl-headless` ✓.
+- **Insight recorded**: the GL path niri actually uses = guest mesa virgl (edge) ↔ host libvirglrenderer; QEMU version is NOT the discriminator (any ≥~7 with virtio-vga-gl + egl-headless works) — the bug-3 fix was the GUEST mesa virgl driver, not Nix QEMU. `venus=on,blob,hostmem` flags harmless leftovers (harness doesn't pass them anymore).
+- **Validated**: run `2026-10-10T14-04-38Z` (apt QEMU) **94/94 PASS** — niri_layers/outputs/screenshot/wayvnc all green, zero GL regressions. Stale comments updated (service.go host requirements + debug_run: virgl is the path, venus optional).
+
+### 2026-10-10 12:15 - DMS wifi/BT harness checks: 2 found+fixed real bugs, 94/94
+**Agent:** codebase
+**Summary:** Two new niri-block checks (`bluetooth_service` init-conditional, `nm_wifi_support` init-agnostic) — first run (94 checks, run `2026-10-10T11-37-52Z`) caught TWO real bugs; fixed; re-run `2026-10-10T12-12-01Z` = **94/94 PASS, zero failures**.
+- **NEW `bluetooth_service`** (dinit/OpenRC conditional like console_keymap): started marker (dinitctl/rc-status) + `pgrep bluetoothd` + **org.bluez registered on the system bus** via `dbus-send ListNames` — the endpoint DMS BT widget actually talks to. No BT adapter in QEMU: org.bluez registers anyway; adapters = real-hw.
+- **NEW `nm_wifi_support`**: `networkmanager-wifi` + `wireless-regdb` + `wpa_supplicant` packages + `regulatory.db` + `nmcli radio wifi` answers (NM daemon + radio subsystem live). Scan/connect = real hardware.
+- **BUG 1 (aports, found by check)**: bluez-dinit service `command` = `/usr/libexec/bluetooth/bluetoothd` — Debian path; Alpine installs `/usr/lib/bluetooth/bluetoothd` → bluetoothd never ran, service STOPPED-failed, `log_errors` cascaded on the serial `[FAILED] bluetooth`. Fix aports `fb64d77` r3 (Pages live, CI green, docker abuild green).
+- **BUG 2 (harness, found by check)**: my check tested `/usr/sbin/wpa_supplicant` — Alpine installs `/sbin/wpa_supplicant`. Path fixed; wifi stack itself was healthy (`nmcli radio wifi` = enabled).
+- **Validated**: run `2026-10-10T12-12-01Z` 94/94 — `bluetooth_service` `[ {+} ] bluetooth (pid: 1562) ... org.bluez on bus`, `nm_wifi_support` `radio: enabled`, all sentinels green (niri_layers/greetd_socket/dms_ipc/wayvnc/less checks). Installer.log proves bluez/bluez-openrc/bluez-dinit r2(→r3 next run)/networkmanager-wifi/wireless-regdb all installed from rules.
+
+### 2026-10-10 01:40 - bluetooth service unified + niri-only enablement
+**Agent:** codebase
+**Summary:** Correction round on the previous bluetooth wiring (user review): (a) the dinit service must NOT live in `defaultRunlevelsDinit.boot` — that's the BASE list, bluetooth would be enabled on every dinit install, not just niri; (b) since feralos OWNS `bluez-dinit`, the service name can be unified instead of hacked around.
+- **aports rename** (`e9ac00c`, CI green, Pages `bluez-dinit 0.1.0-r2`): service file `/lib/dinit.d/bluez` → `/lib/dinit.d/bluetooth` (same name as the OpenRC initd). Published apk verified: contains ONLY `lib/dinit.d/bluetooth`.
+- **internal_rules simplified**: `defaultRunlevelsDinit.boot` back to original (no bluez), `dinitSkipServices` back to original (no bluetooth — the service file now EXISTS under dinit, must not be skipped). Enablement = the single `"bluetooth": "default"` in the NIRI desktop services map only → dinit loop (Runlevels pass) links `boot.d/bluetooth` + OpenRC `rc-update add bluetooth default`. Desktop flows (server/minimal/kde/cosmic) never enable it.
+- **wireless-regdb explained** (user asked): kernel regulatory database (`/lib/firmware/regulatory.db`, cfg80211) — legal channels/frequencies/power per country; without it real wifi cards refuse to scan or lock to wrong channels. Tiny data package, standard everywhere wifi ships.
+- YAML assertions green (no bluez in dinit boot, no bluetooth in skip, niri services has bluetooth, base default clean), installer build/vet/gofmt clean.
+
+### 2026-10-10 01:10 - DMS bluetooth + NM wifi completeness (data-only round)
+**Agent:** codebase
+**Summary:** DMS bluetooth widget dead + DMS network widget missing wifi — both diagnosed on the live target (`dms doctor`, debug_run of run `2026-10-09T22-30-58Z`) and fixed data-only in `internal_rules.yaml` (zero Go changes). DMS doctor also gave the definitive missing-packages list: matugen + cava = hard warnings (user handled separately), dgop = NOT a gap (embedded in the dms Go binary), kimageformats/khal/adw-gtk3 = user already added.
+- **Bluetooth (was entirely absent)**: niri packages += `bluez`, `bluez-openrc`, `bluez-dinit` (feralos bluez-dinit = `/lib/dinit.d/bluez`, dbus-wait-for readiness, exists in repo+Pages — never wired into the installer until now). DMS BT widget speaks org.bluez dbus.
+- **Service-name split (gotcha)**: OpenRC initd = `bluetooth`, feralos bluez-dinit service = `bluez`. Wiring: niri desktop `services: {"bluetooth": "default"}` (OpenRC enablement) + `defaultRunlevelsDinit.boot += "bluez"` (dinit boot.d link) + `dinitSkipServices += bluetooth` (prevents the dinit loop from trying the nonexistent /lib/dinit.d/bluetooth).
+- **WiFi (incomplete)**: Alpine splits the NM wifi plugin — `networkmanager-wifi` was missing, so NM had NO wifi support at all (DMS network widget = no wifi section). niri packages += `networkmanager-wifi`, `wireless-regdb`. wpa_supplicant already present (NM spawns it); NM config (`10-manage.conf` managed=true) untouched; real-hw wifi firmware covered by the installer's hardware detection.
+- Verified names against Alpine 3.24 (docker `apk add -s`: bluez 5.86-r2, networkmanager-wifi 1.52.2-r0, wireless-regdb 2025.10.07-r0 all resolve; obex subpackage = `bluez-obexd`, not used). YAML parse + assertions green, installer build/vet/gofmt clean.
+
+### 2026-10-10 00:20 - wizard password double-entry confirmation
+**Agent:** codebase
+**Summary:** Generator UX hardening (`create_values.go` askSecret): password + LUKS passphrase now asked TWICE (entry + `Confirm` prompt, masked both); mismatch = BOTH re-asked from the first entry. Empty LUKS (reuse user password) skips confirmation (nothing to mistype). Non-tty path (pipes/automation) keeps plain readLine but confirmation still enforced. Min length UNCHANGED at `MinPasswordLen = 6` (validators.go single source, shared with validateConfig) — already stricter than the requested ">4". Lint: one govet shadow fix in the same function (mechanical, zero behavior change). Builds green: installer + createValues, vet/lint/test. Docs: `docs/guides/variables.md` wizard paragraph.
+
+### 2026-10-09 23:50 - niri/DMS dinit runtime depth: 5 checks added/hardened, validated 91/91
+**Agent:** codebase
+**Summary:** Harness-only round — deeper "does it actually DISPLAY and WORK" coverage for the dinit niri stack (user asked to leave `dms_ipc`/`niri_wayvnc_port` OpenRC failures as-is and deepen dinit verification instead). Fixture for dinit niri validation = `btrfs_standard_niri_full_test.yaml` (`enableDinit: true`).
+- **NEW `niri_layers`** (dinit): `niri msg layers` must list ≥1 `^Output` — layer-shell surfaces MAPPED = the DMS bar actually RENDERS (deeper than dms_runtime process-alive and dms_ipc IPC-answers). Output shape verified live: `Output "Virtual-1": Background layer: Namespace: "quickshell"`.
+- **NEW `greetd_socket`** (BOTH inits): greetd IPC socket exists — complement to static greetd_config. GOTCHA verified live: greetd socket is PID-suffixed `/run/greetd-<pid>.sock` (clients get path via GREETD_SOCKET env), NOT the literal `/run/greetd.sock` → glob `/run/greetd-*.sock`. First run failed on the literal path (91/92), fixed, standalone re-verify 91/91.
+- **NEW `session_dbus_socket` + `session_pipewire_socket`** (dinit): `/run/user/$uid/bus` + `/run/user/$uid/pipewire-0` — services "started" ≠ consumer endpoints exist.
+- **`niri_screenshot` hardened**: PNG magic bytes asserted (`od -An -tx1` == `89 50 4e 47 0d 0a 1a 0a`) — fresh-file criterion now also proves a REAL PNG (validated: 220926-byte capture).
+- **regreet runtime NOT checkable** on verify boots: harness test-only autologin starts the user session directly — greeter UI never runs there; greetd daemon + static config remain the greeter coverage.
+- **Validated**: run `2026-10-09T22-30-58Z` (dinit+edge+niri) 91/92 → 91/91 after greetd glob fix; all existing dinit runtime checks green (user dinit stack, dms_runtime, dms_ipc, wayvnc :5900, windows shows DMS window `com.danklinux.dms` "Benvenuto"). Builds green. OpenRC niri fixture unchanged (2 known dinit-only FAILs remain by user decision).
+
+### 2026-10-09 21:45 - less shim: aports less-dummy package replaces broken symlink dummy
+**Agent:** codebase
+**Summary:** Dummy `less`→bat symlink CONFIRMED BROKEN on live target (debug_run of run `2026-10-09T18-21-04Z`): bat with TTY stdout execs its HARDCODED pager `less -R -F -K --no-init` (ignores `$PAGER` entirely — only `cat` short-circuits), so the symlink made bat re-exec ITSELF and clap errored `unexpected argument '-R'` — fish `history`, `git log`, `man` all broke (anything piping to $PAGER on a TTY). busybox ash "worked" only because it has no pager-piping history builtin. Fix = aports package `less-dummy` (`f8dcee5`, CI green after ECR mirror fix, Pages `999.0.0-r2`): `/usr/bin/less` = POSIX-sh wrapper that DROPS all less flags (keeps file operands, post-`--` args kept), dumps once via `bat --color=always --paging=never` — child bat never re-pages, chain always terminates. `provides="less=999.0.0-r0"` + `replaces="less"` (file conflict = real C less can never sneak back). CI infra: `build.yml` container `alpine:latest` → `public.ecr.aws/docker/library/alpine:latest` (Docker Hub anonymous pull rate limit blocked 3 runs — permanent fix).
+- **Installer**: `internal_rules.yaml` — `less-dummy` added to standardPackages (Memory-safe block), `dummyPackages: {}` (bat→less symlink rule REMOVED with explanatory comments); no Go changes (flows via AllPackages).
+- **Harness**: `less_dummy` check made FALSIFIABLE — `apk info -e less-dummy && ! test -L /usr/bin/less && printf 'shim-test\n' | less -R && echo OK || exit 1` (the `-R` path = the exact formerly-broken flag); old Go post-processing block enforcing symlink→bat semantics DELETED (wrapper is a regular file now).
+- **Tradeoff**: no interactive scroll/search in "less" — dumps. Future: moar/ov (Go pagers) via same package, zero installer change.
+- Builds green: src gofmt/vet/lint/build; harness gofmt/vet/lint/build/test. NEXT: optional `BAT_PAGER=cat` belt+braces env.
+- **VALIDATED LIVE** (run `2026-10-09T22-03-03Z`, fixture `btrfs_standard_niri`, 68/71): checks deepened BEFORE the run — `less_dummy` = 4 assertions (pkg + regular file + bat's EXACT flag set `-R -F -K --no-init` accepted + stdin/file/`--` content passthrough via markers) + NEW `less_fish_history` (fish `-ic history` output must contain no clap `unexpected argument` text). Both GREEN on the installed target — clap parses args before any TTY check, so the flag-set test is a real discriminator even on non-TTY verify SSH. 3 unrelated FAILs = pre-existing gating gap: fixture runs OpenRC (`enableDinit: false`) but `console_keymap`/`dms_ipc`/`niri_wayvnc_port` assume dinit (keymap actually loaded: `loadkmap [ started ]` in rc-status) — FOLLOW-UP: `console_keymap` is NOW init-conditional (dinit: dinitctl `[[+]]`/`[{+}]` marker; OpenRC: `rc-status --all` `loadkmap [  started  ]` marker, regex validated against the real run output); `dms_ipc` + `niri_wayvnc_port` still dinit-only (user-dinit services don't exist under OpenRC — need cfg.EnableDinit gating or fixture flip).
+
+### 2026-10-09 - bug-3 DEAD: niri renders in QEMU (86/86 zero skips); edge repos = confined feature
+**Agent:** codebase
+**Summary:** Host + installer + harness round. **bug-3 (zero wl_outputs) RESOLVED**: host Nix QEMU 11.1.1 full build via dynamic `/usr/local/bin` wrappers (qemu-system-x86_64 + qemu-img exec the nix profile binaries — no dead copies, libvirt/virt-manager compatible; libvirt AppArmor local override for `/home/skem`) + `-device virtio-vga-gl,venus=on,blob=true,hostmem=1G` + `-display egl-headless,gl=on` + host kernel 7.0 HWE (venus-gpu module) + guest mesa 26.2.4 @edge (virgl gallium driver restored upstream) ⇒ niri has a REAL output (`Virtual-1` 1280x800), wayvnc listens :5900, screenshot writes a real PNG. Run `2026-10-09T18-21-04Z`: **86/86 PASS, zero skips** (first fully-real niri run in QEMU).
+- **Installer**: `enableEdgeRepos` + `extraPackagesEdge` confined feature `chrootPhase/features/edgerepos.go` — 3-step at the tail of SetupPackages: append @edge repos → `apk add` the list → comment the repos out (apk v3 tagged-repo masking kills mid-install edge mixing — "masked in @edge" solver cascade verified live; the early chroot_env writer removed). Console keymap: aports `busybox-loadkmap-dinit` r1 (NO /etc/conf.d file — OpenRC owns it) + `misc.go` KEYMAP= from user variables (bkeymaps layout: keymap == layout dir) + internal_rules boot-list enablement. setup.sh: config path = repo `src/variables/variables.yaml` + cdrom apt-source fix for the live host.
+- **Harness**: QEMU DMI skip-gates (niri_outputs_count/niri_wayvnc_port/niri_screenshot + wayvnc.user required-list) REMOVED — all checks real on every host; console_keymap regex fixed for the `[{+}]` dependency-started dinitctl marker; screenshot check = count-based fresh-PNG (newest-compare loses the rc-0-before-write race); GPU line: `virtio-vga-gl` + `egl-headless,gl=on` in service.go target args.
+- **Fixtures**: 28/28 = full 33-key template mirror (niri fixtures carry the 5-pkg edge mesa stack in `extraPackagesEdge`).
+- NEXT: user's real-hw validation (keymap + rendering on real GPU); dms windows depth; booster initramfs module policy parked (booster = host-specific by default; user force_load list sufficient — no universal mode).
+
+### 2026-10-08 - all 28 fixtures mirror variables.yaml template structure
+**Agent:** codebase
+**Summary:** Every `tests/fixtures/variables/*.yaml` fixture (28) rewritten to carry the COMPLETE template field set (33 keys, template order, 1-line header comment). Missing fields filled with behavior-preserving defaults (Go zero values = prior effective harness behavior): `luksPassword` = fixture `password` (matches installer fallback config.go:130), `enableDinit: false` when absent (OpenRC regression fixtures keep OpenRC), podman/webmin/zswap/nix/hardening false when absent, `videoDriver: ""` (== "none": both miss the VideoDrivers map → no-op, logic.go:27).
+- **niri fixtures** (`btrfs_standard_niri.yaml`, `btrfs_raid0_full.yaml`, `btrfs_standard_niri_full_test.yaml`): `enableEdgeRepos: true` + `videoDriver: virtio` + `extraPackagesEdge:` = 5-pkg edge mesa stack (mesa, mesa-dri-gallium, mesa-gl, mesa-egl, mesa-gbm @edge); no `@edge` entries left in `extraPackages`.
+- **server/minimal fixtures**: `enableEdgeRepos: false`, `extraPackagesEdge: []`. Distinctive values preserved everywhere (diskLayout, disks count, sb/tpm flags, swapSize explicit values, amdgpu for kde/cosmic, incus/qemu extraPackages).
+- Semantics verified by before/after JSON diff (only intended changes); 28/28 yaml parse; harness + installer builds green. No Go code changed — harness passthrough already handles all fields (loadVariablesFile/writeHarnessVariables).
+- NEXT: niri harness run (edge mesa + virtio GL validation, bug-3 direction (a)).
+
+### 2026-10-08 - extraPackagesEdge (edge-tagged packages installed LAST)
+**Agent:** codebase
+**Summary:** New user variable `extraPackagesEdge` ([]string, default empty): packages installed from the @edge tagged repos, installed AFTER all other package installs + FinalUpgrade (very tail of `SetupPackages`) so the base install completes from stable first. Requires `enableEdgeRepos: true` — hard validation error in `validateConfig` (config.go) otherwise; per-package `@tag` suffix accepted (`ValidateExtraPackages` pkgRe already allows it).
+- **Installer**: `config.go` field + validation (edge list w/o flag = error); `packages.go` tail: `apk add <pkgs>` after FinalUpgrade, hard error on failure (NOT ignoreErrors-swallowed at call site — SKEA_IGNORE_ERRORS env still applies inside ExecuteCmdArgs). No wizard prompt (template-only; create_values.go has no extraPackages prompt either). Template `variables.yaml`: `extraPackagesEdge: []` documented near extraPackages.
+- **Harness**: full passthrough (RunConfig field, VariablesYAML field, LoadVariablesFile copy, writeHarnessVariables conditional block mirroring flatpakPackages/nixPackages style). Fixture `btrfs_standard_niri_full_test.yaml`: 5 mesa@edge entries MOVED from extraPackages to new `extraPackagesEdge:` list (fixture already `enableEdgeRepos: true`). `enableEdgeRepos` was already wired end-to-end in the harness.
+- Builds green: installer gofmt/vet/build; harness gofmt/vet/build. Docs: `docs/guides/variables.md` Extra Packages table row. NEXT: niri harness run to validate mesa-from-edge lands + GL-on-virtio (bug-3 zero-outputs fix direction (a)).
+
+### 2026-10-07 - console keymap (loadkmap) restored under dinit
+**Agent:** codebase
+**Summary:** Console keymap regression fixed (OpenRC→dinit migration lost the busybox-initscripts loadkmap service). New aports package `busybox-loadkmap-dinit` 0.1.0-r0 (docker abuild green): scripted service `/lib/dinit.d/loadkmap` (depends-on local.target, before login.target) → `/usr/lib/dinit/loadkmap` wrapper (sources `/etc/conf.d/loadkmap`, default `us`, pipes `.bmap.gz` via `zcat | busybox loadkmap`) → conf default `/etc/conf.d/loadkmap` (apk-protected; installer rewrites KEYMAP= from user variables).
+- **Installer**: `misc.go` keymap no longer hardcoded `it` — `keymapPath = /usr/share/bkeymaps/<keymap>/<keymap>.bmap.gz` from `u.Keymap` (kbd-bkeymaps layout: keymap == layout dir; `%q` quoting). `packages.go` dinit corePkgs += `busybox-loadkmap-dinit` (hard-verified install). `kbd-bkeymaps` was ALREADY in `standardPackages` (no change).
+- **Enablement**: `internal_rules.yaml` `defaultRunlevelsDinit.boot` += `loadkmap` (boot.d symlink via services.go first loop); `dinitSkipServices` keeps `loadkmap` (prevents duplicate enable from the OpenRC boot list — same name in both lists). OpenRC `defaultRunlevels.boot` already had `loadkmap` (busybox-initscripts) — untouched.
+- **Why not chimera early-console**: `dinit-console` reads `/etc/conf.d/keymaps` (short name) under `/usr/share/keymaps/...` — paths don't exist with kbd-bkeymaps; always no-op for keymaps. Font half still applies. Note in `docs/dinit/BOOT.md` step 24.
+- **Harness**: `console_keymap` check (niri block, service.go): `grep -q 'bkeymaps' /etc/conf.d/loadkmap && dinitctl list | grep -E '\[.\] *loadkmap'` — conf + started marker, no polling (boot-time scripted).
+- Builds green: installer gofmt/vet/golangci-lint/build; harness gofmt/vet/build. NEXT: harness dinit niri fixture run to validate check + keymap live.
+
+### 2026-10-05 19:35 - check mechanics fixes validated on LIVE target (standalone verify 85/85)
+**Agent:** codebase
+**Summary:** Harness-only round. 5 output-dependent niri checks re-guarded with DMI product_name+sys_vendor concat; `dms_ipc` syntax fixed to an empirically-verified call. Re-verified against the LIVE debug_run boot of run `2026-10-05T00-42-34Z` — **85/85 PASS** (standalone `./skea_harness verify -run-dir ...`; writes JSON to stdout only, does NOT touch verify.md — the run-dir verify.md stays the install-time snapshot).
+- **DMI QEMU detection (service.go, 5 checks)**: `niri_outputs_count`, `niri_wayvnc_port`, `niri_screenshot`, `niri_user_dinit_runtime` (wayvnc.user dropped from REQUIRED list under QEMU — output-starved crash-loop cascade, NOT a product bug), all now read BOTH `product_name` AND `sys_vendor` and match the concat `case "$p$v" in *QEMU*)` (q35: product_name `Standard PC (Q35 + ICH9, 2009)`, sys_vendor `QEMU` — verified verbatim on the live target). Guards exit 0 informational under QEMU; real hw unchanged (hard).
+- **dms_ipc REAL syntax (service.go)**: `dms ipc call outputs status` — empirically verified on the live target: answers `auto: off / active: none / outputs: []` rc 0 (empty list = QEMU zero-output reality, call still proves IPC). GOTCHA: dms answers UNKNOWN targets rc 0 too (`widget list` also rc 0 despite no `widget` target in help) — only real target/function pairs are valid proof. dms REFUSES root → `su - <user> -s /bin/sh`; NIRI_SOCKET exported for symmetry; 60s poll, `timeout 10`.
+- **Working read-only dms calls found live**: `audio status`, `lock status` (JSON), `outputs status`, `notifications getDoNotDisturb`.
+- **Note**: run `2026-10-05T01-00-52Z` (later run in state) failed "context canceled" and its teardown killed all VMs; target for this round re-booted from run `00-42-34Z` disk via `tests/debug_run` (port 2223). Host key change on reconnect = fresh install, expected (ssh-keygen -R the stale entry).
+
+### 2026-10-05 00:40 - greeter dinit log dir; 4 new niri/dms runtime checks; OpenRC minimal 49/49
+**Agent:** codebase
+**Summary:** Installer + harness round, OpenRC minimal regression green (`btrfs_standard_minimal`, run `2026-10-05T00-33-48Z`, **49/49 PASS**, verify.md in run dir).
+- **Greeter user-dinit log dir (niri.go)**: greeter user services (dbus-session etc.) log under `$HOME/.local/share/dinit` — dir was missing for `/var/lib/greetd` → "opening log file" failures. Added `mkdir -p /var/lib/greetd/.local/share/dinit` in the greeter section, covered by the existing `chown -R greeter:greeter`.
+- **Dead eth0 write (network.go)**: `setupInterfaces` eth0-dhcp write is dead ONLY in the niri flow (overwritten by niri.go lo-only write; NM manages eth0). NOT removed — function shared by all non-niri flows (their only network config). Both spots now carry DEAD-in-niri-flow comments (network.go func doc + niri.go step 7).
+- **Harness runtime checks (service.go, gated niri)**: `niri_msg_version` (rc 0 + head -2 detail), `niri_windows` (state query, pass on rc 0), `niri_outputs_count` (THE ONE QEMU skip: `*QEMU*` product_name → exit 0 informational — venus/virgl upstream limitation gives niri ZERO outputs, bug-3; real hw enforces ≥1 `^Output`), `dms_ipc` (`dms ipc call widget list` — DankLinux docs syntax `dms ipc call <target> <function>`, NO `output list` target; client finds shell socket via XDG_RUNTIME_DIR; VERIFY EMPIRICALLY next niri run). All use the same socket discovery (`ls /run/user/$uid/niri*.sock | head -1`).
+- **Realhw script** (`tests/harness/niri_realhw_check.sh`): same 4 checks added; `niri_outputs_count` HARD there (real hw MUST have ≥1), no QEMU skip.
+- Builds green: harness gofmt/vet/golangci-lint/build OK; installer go vet + build OK. niri fixture run = next step (not this round).
+
+### 2026-10-03 21:45 - caef07b fixes VALIDATED; bug-3 root cause = zero wl_outputs in QEMU (77/80 ×2)
+**Agent:** codebase
+**Summary:** Runs 2026-10-03T18-56-40Z + 2026-10-03T19-27-59Z, both 77/80. **All 3 aports caef07b fixes work**; 3 remaining FAILs share ONE root cause: niri boots with ZERO outputs under QEMU.
+- **Fix 1 race poll WORKS**: run 1 verify boot missing-list was `niri wayvnc.user`; after a check-regex mechanics fix (service.go: dinitctl marks EXPLICITLY-started services `[[+]]`, DEPENDENCY-started `[{+}]`; niri started via `dinitctl --user start niri` renders `[[+]] niri` — old regex `'\{\+.*\] niri'` never matched), run 2 missing-list = `wayvnc.user` ONLY → niri IS supervised in user dinit on verify boots. Timing proof: compositor starts 1.3s after PAM open; the fallback path requires the 15s poll to expire first — impossible. Debug_run boot confirmed live: `[[+] ] niri (pid: 1619)`, `dinitctl --user status niri` = STARTED/explicitly started. Earlier "race lost 3/3" conclusion in the 19:35 round was a false negative from this regex.
+- **Fix 2 niri.log WORKS**: `~/.local/share/dinit/niri.log` exists with full stderr; bug-3 root cause captured (see below).
+- **Fix 3 launchers WORK (half-proven)**: polkit-agent.user GREEN both runs (was crash-looping every boot); dms.user green. wayvnc.user now fails one layer deeper: env resolves, wayvnc starts then exits 1 8× "No output found" (smooth-recovery loop) — because compositor has no outputs.
+- **Bug-3 root cause (niri.log verbatim, verify boot)**: `WARN niri::backend::tty: error getting the render node for the primary GPU; proceeding anyway` → `using as the render node: "/dev/dri/card0"` → card0 = PCI 1234:1111 bochs (mesa `driver (null)`, `no allocator available for device`) → card1 virtio-gpu-gl: `virtio_gpu: driver missing` (guest mesa lacks venus/virgl pipe) → both rejected (`software EGL renderers are skipped`) → `INFO listening on Wayland socket: wayland-1` with ZERO devices → `WARN niri::handlers::layer_shell: no output for new layer surface, closing`. `niri msg outputs` = EMPTY (rc 0). Consequences: screenshot-screen exits 0 but writes nothing (no output to capture), wayvnc "No output found" crash-loop, :5900 never listens.
+- **Fix directions (product/env, NOT harness-check)**: (a) guest userspace for virtio-gpu-gl (mesa venus/virgl in target install — check `mesa-dri-gallium` split), or (b) make virtio-gpu-gl the PRIMARY/boot VGA (only card; bochs card0 comes from QEMU defaults — consider `-nodefaults` + explicit console path) so niri picks it as primary. Real hardware unaffected (real GPU = real outputs).
+- **Harness**: debug_run (tests/debug_run) boot of run 18-56-40Z used for live user-dinit inspection; old target QEMU must be killed before re-run (port 2223 hostfwd collision). Session lifetime re-proven both runs: `New session c1 of user skea999` @4.8-5.0s → `Removed session c1` only at ~298s STOPPD teardown.
+- Runs kept: `runs/2026-10-03T18-56-40Z`, `runs/2026-10-03T19-27-59Z` (verify.md = report path).
+
+### 2026-10-03 19:35 - niri-session fix VALIDATED; 3 product bugs diagnosed (77/80 ×2)
+**Agent:** codebase
+**Summary:** Harness runs 2026-10-03T16-34-07Z + 2026-10-03T17-09-19Z, both 77/80. **Session fix WORKS**: verify boots hold `New session c1 of user skea999` @4.9s → Removed only @~297s at STOPPD teardown (was ~350ms death); 3 of 6 runtime checks GREEN for the first time (`niri_session_user`, `niri_wayland_socket`, `niri_ipc`); 74 legacy checks green, zero regressions.
+- **Package evidence**: `niri-user-dinit-989.0.1.0-r1` installed (installer.log:1779); `apk info --who-owns /usr/bin/niri-session` → niri-user-dinit; file header = FeralOS fix (aports 6dec818).
+- **Bug 1 — pgrep race (aports niri-user-dinit)**: niri-session's single-shot `pgrep -u UID dinit` loses the turnstiled async user-dinit spawn on both harness verify boots (2/2) → fallback `exec niri --session` → compositor outside user dinit: verify checks report `niri` missing from `dinitctl --user list` while pgrep/IPC/wayland-1 all pass. Debug boots win the race (2/2, `[[+]] niri` in list) — nondeterministic. Fix: poll for user dinit (e.g. `dinitctl --user ping` retry loop) before the fallback decision.
+- **Bug 2 — user dinit env lacks WAYLAND_DISPLAY (aports)**: wayvnc.user + polkit-agent.user crash-loop on EVERY boot incl. normal-path boots (`wayvnc.log`: "WAYLAND_DISPLAY is not set"; `polkit-agent.log`: "cannot open display"). niri-session's setenv imports greetd's login env, which cannot contain WAYLAND_DISPLAY (socket doesn't exist pre-start); nothing sets it after `dinitctl --user start niri` returns. `dms.user` works only because its wrapper self-resolves the socket. Fix: setenv `WAYLAND_DISPLAY=wayland-1` (+ DISPLAY/XDG_SESSION_TYPE) after start returns, or on-start hook in niri.service.
+- **Bug 3 — screenshot writes nothing (niri 25.11 in QEMU)**: action exits 0 in ALL CLI shapes (no-arg, `--write-to-disk true`, `--path <abs>`; positional arg rejected) yet NO file ever appears (whole-FS find; decoy persists → not perms/deleter; niri unconfined by AppArmor; stderr → /dev/null — no logfile in niri.user service). Harness check mechanics fixed + verified correct (fires action, requires NEW non-empty PNG).
+- **Harness fixes shipped (service.go)**: `niri_screenshot` — dropped the rejected positional path-arg attempt, fires `screenshot-screen` and requires a *fresh* non-empty PNG (before/after latest-png compare); `enableNiriTestAutologin` — `install -d -o <user> -g <user> -m 2700` on BOTH `~/Pictures` and `~/Pictures/Screenshots` (root `mkdir -p` left the parent root-owned mode 2700 → user could never write screenshots anywhere under ~/Pictures).
+- **Known issue**: golangci-lint shadow at service.go:1149 pre-dates this round (earlier uncommitted work); go vet clean.
+- Run dirs kept for debug_run: `runs/2026-10-03T16-34-07Z`, `runs/2026-10-03T17-09-19Z`.
+
+### 2026-10-02 02:30 - earlyoom tiered victim selection
+**Agent:** codebase
+**Summary:** earlyoom-dinit tiered (prefer user apps 172 / ignore system core 48 / desktop session natural); aports `ce86d69` CI green first try.
+- Tier 1 user apps killed FIRST via `--prefer` (+300): 172 apps (browsers, chat/mail, office/PDF, KDE/GNOME/XFCE, media, images, games/emu, torrents, dev tools, installer apps); flatpak apps keep comm names = same regex; truncation-correct 15-BYTE comms.
+- Tier 3 system core NEVER chosen: `--ignore` (hard skip) not `--avoid` — key insight: `--avoid` only subtracts 300 oom_score (soft, can be outbid — manpage-verified) while `--ignore` = hard skip. Covers PID1 (dinit + init for OpenRC path), session mgr, bus, polkitd, network, logging, time, cron, ssh, login path, seat/hw daemons, printers, bt/modem/store, flatpak infra, kthreadd.
+- Tier 2 desktop session (niri, pipewire, portals, terminals) absent from both lists = natural oom_score order.
+- Wrapper POSIX sh (busybox-clean); config `/etc/dinit.d/config/earlyoom.conf` (ADR-008 pattern); regex values glob-safe (no `[ ] * ?`), case via repeated names (discord|Discord).
+
+### 2026-10-02 00:45 - dinit services aligned to Artix/Chimera (ADR-009)
+**Agent:** codebase
+**Summary:** 48 -dinit pkgs aligned after full Artix/Chimera audit; aports `b69a573` pushed, CI green; 74/74 dinit niri + 49/49 OpenRC minimal.
+- `restart=true` removed from ALL daemons (Artix/Chimera never restart — smooth-recovery only); scripted one-shots explicit `restart=false`; getty keeps `restart=true` + gained `termsignal=HUP` + config-driven baud/term (wrapper `/usr/lib/dinit/getty` + `/etc/dinit.d/config/getty.conf`, Artix agetty-default pattern, 115200 serial default).
+- `before=login.target` added to 33 services (Artix+Chimera universal convention); network ordering: firewalld/nftables/iptables before `pre-network.target`, NetworkManager depends pre-network + before `network.target`, avahi/rsync depend networking, apparmor before `local.target` (profiles load BEFORE local services), fuse after `early-root-rw.target`.
+- `dnsmasq` privilege drop `-u dnsmasq -g dnsmasq --enable-dbus` (Artix exact; was running as root); `dbus` `smooth-recovery=no` (nobody restarts the bus; ADR-007 stop guard kept, verified clean shutdown elogind→dbus→power down).
+- bluez/elogind bus-name readiness via NEW package `dbus-wait-for-dinit` (BSD-2-Clause helper from Artix dinit-rc, libdbus, `/usr/lib/dinit/dbus-wait-for`, pipefd:4).
+- `lxc` FIXED latent restart-loop bug — process+restart=true on one-shot lxc-autostart → scripted start/stop + stop-command; `sshd` gained scripted `ssh-keygen` prereq service (keys baked at install, Artix/Chimera pattern).
+- Audit facts: Artix dbus-activates polkit/udisks2/fwupd (no init service by design); irqbalance/rasdaemon/incus/nix/vector/klogd/cosmic-greeter NOT packaged on Artix; turnstile-dinit on Artix = split subpackage (we already match its 2 seds); ADR-008 wrapper+config pattern retained as FeralOS extension (NOT in Artix/Chimera).
+
+### 2026-10-01 23:59 - conf.d-equivalent config files (Artix pattern)
+**Agent:** codebase
+**Summary:** 22 -dinit packages converted to wrapper+config-file pattern (Artix); aports `cc107a1` pushed, CI green; harness `dinit_config` check added; 74/74 dinit niri + 46/46 OpenRC minimal.
+- Every `-dinit` service now: service file → `/usr/lib/dinit/<svc>` wrapper → `[ -r ] && . /etc/dinit.d/config/<svc>.conf` → exec daemon `${VARS}` — user-editable, apk-protected (OpenRC `/etc/conf.d` convention restored; defaults match Alpine conf.d).
+- `dnsmasq` `DNSMASQ_CFGFILE` defaults to `/etc/dnsmasq.conf` (empty would mean no config); `cpufrequtils` gained a `stop-command` consuming `CPUFREQ_STOP_OPTS`.
+- Harness: permanent `dinit_config` check in `tests/harness/internal/service/service.go` (EnableDinit only: config dir + ≥10 `.conf` + wiring spot-checks).
+- Verified: dinit niri full **74/74** (run `2026-10-01T22-19-23Z`), OpenRC minimal **46/46** (run `2026-10-01T22-27-05Z`, check correctly absent). ADR-008.
+
 ## Workflow
 
 **Chain (complex)**: `context/recall` → `interview/refine` → `@planner` → *approve* → `@codebase` → PARALLEL(`@review`+`@code-reviewer`+`@vulnerability-scan`+`@information-scan`) → `@debugger/tests` → `@docs/docs` → save
@@ -29,6 +220,8 @@ Key Decisions: `hostPhase` writes files (NO chroot), `chrootPhase` runs commands
 ## Session Memory
 
 Storage `.agent-memory/`, scripts `.agents/skills/session-memory/scripts/`
+
+**The memory must be pushed.** `.agent-memory/` is tracked in git — after saving, commit and push it with the session's changes.
 
 ```bash
 .agents/skills/session-memory/scripts/memory.sh context --days 14
@@ -64,7 +257,7 @@ sudo ./feralos_installer -config variables.yaml
 # Run harness tests
 cd tests/harness
 ./skea_harness prepare-runner
-./skea_harness run -f ~/Progetti/skeaAlpineInstaller/src/variables/variables.yaml
+./skea_harness run -f ~/Progetti/feralos/src/variables/variables.yaml
 ./skea_harness status
 ./skea_harness cleanup
 
@@ -72,7 +265,7 @@ cd tests/harness
 ./skea_harness run -f tests/fixtures/variables/btrfs_raid0_minimal.yaml
 ./skea_harness run -f tests/fixtures/variables/btrfs_raid0_noswap.yaml
 ./skea_harness run -f tests/fixtures/variables/btrfs_standard_swap_explicit_8g.yaml
-ls tests/fixtures/variables/  # 14 templates: minimal, noswap, explicit, full, isolate (scenarios)
+ls tests/fixtures/variables/  # 28 fixtures, full variables.yaml template mirror (all scenarios)
 
 # Run tests (when available)
 cd src && go test ./...
@@ -163,6 +356,12 @@ Cleanup (before/after) and firstboot (install config, secureboot/tpm compile) ar
 
 → Details: `docs/architecture/logging.md`, `docs/adr/ADR-004-executecmd-logging.md`, `src/utils/shell/execute.go`
 
+## Error Handling (`unattended` vs `ignoreErrors`)
+
+**`unattended: true`** skips manual input prompts ONLY (wizard skip; unchanged semantics). **`ignoreErrors: true`** (default `false`) = best-effort install: command failures are logged (`[ERROR][IGNORED] command failed (ignoreErrors=true): ...`) and installation CONTINUES. Wiring: `LoadConfig` sets `SKEA_IGNORE_ERRORS=1` when `conf.User.IgnoreErrors`; `shell.ExecuteCmd`/`ExecuteCmdArgs` honor it after retries are exhausted (return nil error → callers continue). Used by the test harness: harness runs are ALWAYS best-effort (`LoadVariablesFile` forces `cfg.IgnoreErrors = true`, `writeHarnessVariables` writes `ignoreErrors: true`, all fixtures carry `ignoreErrors: true`) — a failing optional step must not abort the run; the verification phase judges what actually works.
+
+→ Details: `docs/guides/variables.md` (Options table), `src/utils/config/config.go` (env wiring), `src/utils/shell/execute.go` (ignore path)
+
 ## Activatable Feature Confinement
 
 **Rule: Every activatable feature MUST be confined to a single owner file.**
@@ -196,14 +395,18 @@ Each `Enable*` flag (and `DesktopEnvironment`) is owned by exactly ONE file unde
 | `EnableHardening` | `chrootPhase/features/hardening.go` | `packages.go` + `chroot_phase.go` |
 | `EnableNix` | `chrootPhase/features/nix.go` | `packages.go` + `chroot_phase.go` |
 | `EnableZswap` | `chrootPhase/features/zswap.go` + `zswap_server.go` | `packages.go` + `chroot_phase.go` |
+| `EnableEdgeRepos` | `chrootPhase/features/edgerepos.go` | `packages.go` (tail of `SetupPackages`) |
 | `EnableDebug` | `chrootPhase/features/hardening.go` | via `HardeningPackages()` |
 | `EnableSwap` | `hostPhase/disks/*` | `host_phase.go` (disk layout layer) |
 | `DesktopEnvironment` | `chrootPhase/desktops/desktops.go` | `chroot_phase.go` |
 
 **Desktop environments supported:**
-- `niri` — custom config (greetd, regreet, niri config, DMS, xdg-su) in `chrootPhase/desktops/niri.go`
+- `niri` — custom config (greetd, regreet, niri config, DMS, xdg-su) in `chrootPhase/desktops/niri.go`; session wiring = turnstile (PAM → user dinit) + `niri-session` via login-shell trick (`-s /usr/libexec/feralos/login-shell`, not in `/etc/shells`, symlink re-pointed to fish — busybox applet dispatch breaks the package's `/bin/ash` target; user `chsh` skipped) + `niri`/`niri-shutdown` user services (`niri-user-dinit`); installer enables `/etc/dinit.d/boot.d/turnstiled` + user `boot.d` stack in `/usr/lib/dinit.d/user/boot.d/`
+  - Session startup: real path = greetd/regreet → `niri-session` (fixed dinit branch shipped by `niri-user-dinit`, `replaces="niri"`: full login-env setenv + dinit-monitor wait — upstream post-25.11 mechanism). greetd autologin exists ONLY as a harness test fixture (simulates the real login); the installer never writes `[initial_session]`. Harness = real-life simulation; installer = the product; harness-discovered fixes go to installer/aports, never the harness.
 - `kde` — packages only via `internal_rules.yaml`, no custom config
 - `cosmic` — packages only via `internal_rules.yaml` (uses seatd, not elogind), no custom config
+
+**Dinit services** ship `/etc/dinit.d/config/<svc>.conf` (Artix pattern, ADR-008): service → `/usr/lib/dinit/<svc>` wrapper → sources config → exec daemon. User-editable, apk-protected; service conventions per ADR-009 (no restart, before=login.target, pre-network ordering, dbus-wait-for readiness).
 
 → Details: `docs/architecture/feature_confinement.md`, `docs/guides/development.md` (how to add feature)
 
@@ -219,7 +422,7 @@ Activatable features (Secure Boot, TPM, Webmin) use standalone binaries in `src/
 
 - `src/firstBoot/secureboot/main.go` — autonomous: installs packages, generates EFI keys, enrolls sbctl, builds+signs UKI, writes hooks
 - `src/firstBoot/tpm/main.go` — autonomous: checks TPM, installs clevis@edge + tpm2-tools, binds LUKS to TPM2, rebuilds initramfs+UKI
-- `src/firstBoot/webmin/main.go` — autonomous: verifies podman, creates `/opt/webmin`, generates compose + module configs, seeds `/etc/webmin` from image (`webmin-seed` container), starts via `podman compose up -d`, creates `webmin-ensure` oneshot, sets root password via `changepass.pl` + `chpasswd`
+- `src/firstBoot/webmin/main.go` — autonomous: verifies podman, creates `/opt/webmin`, generates compose + module configs, seeds `/etc/webmin` from image (`webmin-seed` container), starts via `podman compose up -d`, creates `webmin-ensure` oneshot (dual-init: PID1 via `cat /proc/1/comm` → dinit `/etc/dinit.d/webmin-ensure` + `/usr/libexec/dinit-webmin-ensure` + boot.d link, OpenRC `/etc/init.d/webmin-ensure`), sets root password via `changepass.pl` + `chpasswd`
 
 **Installer flow**:
 
@@ -250,8 +453,8 @@ Full tree → `docs/INSTALLER.md#project-structure` and `docs/architecture/overv
 ## Docs Index (double documentation — AGENTS.md keeps full info, copies live in `docs/`)
 
 - **Architecture**: `docs/architecture/overview.md` (principle + tree), `isolation.md` (entry-point + internal rule + hostPhase order), `logging.md` (ExecuteCmd rule), `feature_confinement.md` (single-owner), `storage.md` (layouts: btrfsStandardServer, btrfsStandard, btrfsRaid0, btrfsUnencrypted), `firstboot.md` (secureboot/tpm 3-boot) — all double of AGENTS.md above
-- **ADRs**: `docs/adr/README.md` → ADR-001 Go installer, 002 isolation, 003 internal rule, 004 ExecuteCmd, 005 LUKS+Btrfs+booster+UKI, 006 no compat (decisions from AGENTS.md)
-- **Guides** (user guides only): `docs/guides/README.md` (index) → `getting_started.md` (real hardware), `first_boot.md` (secureboot/tpm post-install), `variables.md` (variables.yaml compilation), `niri.md` (niri + rustdesk flatpak + firewall), `webmin.md` (podman-based web admin), `podman.md` (btrfs driver), `development.md` (how to code / separation)
+- **ADRs**: `docs/adr/README.md` → ADR-001 Go installer, 002 isolation, 003 internal rule, 004 ExecuteCmd, 005 LUKS+Btrfs+booster+UKI, 006 no compat, 007 dinit shutdown ordering (decisions from AGENTS.md)
+- **Guides** (user guides only): `docs/guides/README.md` (index) → `getting_started.md` (real hardware), `first_boot.md` (secureboot/tpm post-install), `variables.md` (variables.yaml compilation), `niri.md` (niri + NetworkManager + wayvnc), `webmin.md` (podman-based web admin), `podman.md` (btrfs driver), `development.md` (how to code / separation)
 - **Harness**: `docs/harness/README.md` (index) → `overview.md` (what it does), `workflow.md` (3-phase + 3-boot), `artifacts.md` (where generated, gitignored), `building.md` (where compiled binary goes), `development.md` (how to code), `commands.md` (CLI+MCP), `debug_run.md` (`tests/debug_run/` boot existing run, LUKS inject). `tests/harness/README.md` is pointer only.
 - **Intent / Ideas**: `docs/intent/vision.md`, `docs/intent/goals.md`, `docs/intent/vocabulary.md`, `docs/ideas/backlog.md` ← `CONTEXT.md` / `ROADMAP.md` / `TASKS.md`
 
@@ -264,7 +467,7 @@ Full tree → `docs/INSTALLER.md#project-structure` and `docs/architecture/overv
 | Phase 1 | btrfsStandardServer, btrfsStandard, btrfsRaid0 | Completed |
 | Phase 1 | Generator, Test harness, Nix | Completed |
 | Phase 1 | btrfsUnencrypted | Completed |
-| Phase 1 | niri + flatpak rustdesk + firewall + webmin/podman | Completed |
+| Phase 1 | niri + NetworkManager + wayvnc + firewall + webmin/podman | Completed |
 | Phase 1 | Refining | Planned |
 | Phase 2 | Dinit, Custom repo, Full release | Planned |
 
@@ -272,102 +475,4 @@ See `ROADMAP.md` for pipeline priorities. Memory-safe alternatives table → `CO
 
 ## Known Issues
 
-All prior swap/vector/dummy issues resolved. See `CHANGELOG.md` Fixed section. Current: none blocking (QEMU-only `smartd`/`fsck` whitelisted).
-
----
-
-*Updated: 2026-09-10*
-
-### 2026-09-10 — feralos-aports: full APK pipeline (rule 0) + docs split
-**Agent:** codebase
-- Repo `references/feralos-aports` (github.com/skea999/feralos-aports, nested clone, gitignored): GitHub Actions CI on `alpine:latest` container → abuild → signed apk index (abuild-sign) → GitHub Pages; 3 jobs (build/deploy/client-test); secrets `ABUILD_PRIVKEY`/`ABUILD_KEYNAME` as **Repository secrets** (NOT environment!)
-- **RULE 0**: use Alpine packages whenever they exist → sd-tools DROPPED (Alpine community v3.24+edge ships 0.99.0-r3 with cmd:sd-tmpfiles/sysusers); Steps 1a/1b DONE-SUPERSEDED but remain as PIPELINE PROOF: signature verified client-side (fresh container, only feralos.pub trusted, install without --allow-untrusted, provenance via apk policy)
-- Source-verified facts: dinit-chimera init wrapper → meson installs it to **/usr/sbin/init** → package() relocates to /usr/libexec/dinit/init (OpenRC coexistence); Alpine eudev: **udevd=/sbin/udevd, udevadm=/bin/udevadm** (not usr-merged); NO scdoc (pre-rendered .8 manpage); sd-tools v0.99.0 single tag; mkinitfs honors init= (source-verified initramfs-init.in) → initramfs-agnostic packages, mkinitfs NOT tested by us
-- Policy: optional PACKAGES all mandatory; optional FEATURES best-effort, droppable only if build fails AND boot doesn't need them → registry `docs/DROPPED-FEATURES.md`; GCC toolchain (cports rejected: Chimera libc++ build root, Alpine-host bootstrap unsupported due to patched musl SONAME) — record in aports `docs/TOOLCHAIN.md`
-- Docs split by competence: see feralos-aports repo — system docs (BOOT, TROUBLESHOOTING) + installer-side README/PLAN in `docs/dinit/`
-- **Audit + anonymization**: no credentials in either repo (fixtures `Alpine.1` = documented test cred); webmin firstboot hardcoded `/home/user`+`chown skea999:skea999` → `cfg.UserName`; harness `trusted_users_clean` literal → `cfg.InstalledUser`; `~/projects` paths → `~/Progetti`; history scrub tooling added (`scripts/history-scrub.sh` + `scripts/history-replacements.txt` + `docs/guides/audit.md`) — Italian/machine-user scrub across ALL branches via git-filter-repo, run before public pushes
-
-### 2026-09-10 — Dinit planning + docs split (installer vs feralos-aports) + KDE/COSMIC DEs
-**Agent:** codebase
-- **COSMIC + KDE desktop environments added**: `internal_rules.yaml` `desktopEnvironments.cosmic` (seatd — NOT elogind, verified: Alpine cosmic-greeter OpenRC init requires seatd; polkit not polkit-elogind) + `kde` fixture; `desktops.go` unicode sed in rc.conf for ALL DEs (musl default off) + "not implemented" warning removed (packages/services come from internal_rules); harness fixtures `btrfs_standard_cosmic_full_test.yaml` + `btrfs_standard_kde_full_test.yaml` both **41/41 PASS**; `log_errors` allowlist += `abseil-cpp-strerror` (pkg name contains "error")
-- **Dinit planning complete** (branch `developDinit`): dinit from Alpine community 0.21.0 (`--shutdown-prefix=dinit-`); boot = Chimera suite `dinit-chimera` v0.99.24 built from upstream tarball (52 services, 12 compiled C++ helpers, only `kmod` links libkmod); our glue = 2 hook scripts (`dinit-devd` eudev, `dinit-cryptdisks`) + `getty@` (upstream ships none); switch via cmdline `init=` (booster init-agnostic, OpenRC coexists); Phase 4 turnstile (chimera project, ex `dinit-userservd`, Dinit backend is the upstream reference) → `dinit --user`, DMS becomes a user service; Chimera polkit `turnstile.patch` REQUIRED with turnstile (verified: Alpine 127-r2 does NOT have it, versions aligned 127=127-r2)
-- **Docs split by competence**: packaging docs (PACKAGES/SERVICES/REPOSITORY/TOOLCHAIN/CONVERSION) → repo `references/feralos-aports` (github.com/skea999/feralos-aports, nested clone, own .git); system docs (BOOT/TROUBLESHOOTING) + rewritten README/PLAN stay in `docs/dinit/`; aports repo hassss `PLAN.md` step-by-step (8 steps, checkboxes) + `STATUS.md` (update-per-step) + `.github/workflows/build.yml` draft + `.gitignore`
-- **Toolchain decision CLOSED**: aports + abuild + GCC (no clang/LLVM/libc++); cports rejected (build root = Chimera base libc++, source-bootstrap unsupported on Alpine host due to patched musl SONAME) — record in aports `docs/TOOLCHAIN.md`
-- **Note**: `references/*` is gitignored in the outer repo — the nested clone does not touch the installer repo
-
-### 2026-09-09 — Niri rustdesk flatpak + firewall offline-cmd, harness 51/51 PASS
-
-- **Niri:** conditional `spawn-at-startup "flatpak" "run" "com.rustdesk.RustDesk" "--service"` in `~/.config/niri/config.kdl` only when `flatpakPackages` contains `rustdesk` (`hasRustdesk` over `conf.User.FlatpakPackages`); `firewall-offline-cmd --zone=public --add-port=21115-21119/tcp` + `21116/udp` (was `firewall-cmd --permanent` which fails when `firewalld` not running in chroot); `regreet.toml` `reboot = ["reboot"]` / `poweroff = ["poweroff"]` (was `systemctl reboot` — Alpine OpenRC); `xdg-user-dirs` added to `standardPackages` for flatpak portal; `/lib/modules` mkdir moved to `chrootPhase/internal/packages.go:SetupPackages` **before** `apk update`/`apk add` (was in `features/flatpak.go` after install — flatpak checks module path early); `wayvnc` removed (`spawn-at-startup "wayvnc"` + wayvnc config dropped, remote via flatpak RustDesk)
-- **Flatpak:** `chrootPhase/features/flatpak.go` — `FlatpakPackages()` returns `["flatpak"]` when `len(FlatpakPackages)>0`, `SetupFlatpak` does `flatpak remote-add --if-not-exists flathub` + per-entry `flatpak install -y --noninteractive <remote> <appID>` (split `flathub:com.rustdesk.RustDesk`); `internal_rules.yaml:desktopEnvironments.niri` now `flatpakPackages: ["flathub:com.rustdesk.RustDesk"]` + 6 nix packages (quickshell, dms-shell, rclone, rclone-ui, mission-center, cups-browsed — `nix-software-center` manual due to crates.io 403 on QEMU IPs); `config.go:FlatpakPackages []string yaml:"flatpakPackages"`, `logic.go:applyRule` propagates `FlatpakPackages`
-- **Podman/Webmin:** webmin **podman-based** verified — `podman` APK (`podman-openrc`, `iptables`, `podman-compose`, `podman-docker`, `fuse-overlayfs`) with `btrfs` driver via `sed` on `/etc/containers/storage.conf`, `cgroups`+`podman` services; webmin standalone binary `src/firstBoot/webmin/main.go` verifies `podman --version` only (podman already in chrootPhase), builds `/opt/feralos_webmin` → `podman compose up -d` with `read_only`+`tmpfs`, seed via `webmin-seed`, `webmin-ensure` oneshot; `nix` tmp `775`/`1777` `root:nixbld`, `TMPDIR` scoped to daemon via `/etc/conf.d/nix-daemon`, locale `it→it_IT.UTF-8`
-- **Harness:** `firewall_rustdesk` check (`firewall-cmd --permanent --list-ports | grep 21115` || `grep -rq 21115 /etc/firewalld/` — permanent ports, not runtime), `flatpak_installed` (`flatpak list | grep rustdesk`), allowlist widened `commitpartial|bwrap.*pivot_root|To enable access to XDG directories` (flatpak XDG portal noise, was `commitpartial: No such file` exact), `/lib/modules` timing fix verified, `xdg-user-dirs` no longer missing; **51/51 PASS** (was 45/45, now +6: `firewall_rustdesk`, `flatpak_installed`, `niri_*` 4)
-- **Docs:** new `docs/guides/niri.md` (greetd/regreet/niri/rustdesk autostart conditional + firewall offline-cmd + flatpak + `xdg-user-dirs`/`/lib/modules`/`regreet` fixes + podman/webmin integration + troubleshooting); updated `AGENTS.md` history + Docs Index + Roadmap (niri completed), `docs/guides/README.md` (niri index), `docs/guides/variables.md` (flatpakPackages + firewall ports), `docs/guides/development.md` (feature map + module map), `docs/harness/artifacts.md` (51/51 table, new checks, allowlist, /lib/modules)
-
-### 2026-09-08 — Nix SSL env + nix_packages_missing parse fix
-
-- **Nix:** user-side `su - user` nix commands (registry add, profile add loop, flake metadata + profile list smoke tests) now prefix `NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt` — daemon-side `ssl-cert-file` in nix.conf didn't cover the nix client TLS
-- **Harness:** `nix_packages_missing` check rewritten: `grep -oE "quickshell|dms-shell|rclone-ui|rclone|mission-center|nix-software-center|cups-browsed" | sort -u | wc -l` (unique names — `nix profile list` prints 3 lines/package so old `wc -l` overcounted); post-processing strips `\r` + takes last line before `Atoi` (SSH warning prefixed output broke parse); expected count = `len(cfg.NixPackages)` when set (7 for niri), FAIL messages embed raw output
-
-### 2026-09-06 — Nix perms + Podman btrfs + Webmin divider + Harness checks
-
-- **Nix:** `trusted-users = root <user>` temp inject during chroot install (allows `--option sandbox false`), then cleaned to `root` via `sed` + `rc-service nix-daemon restart`; `/nix/var/nix/build` is `775` + `chown root:nixbld`; `/nix/var/nix/build/tmp` is `1777` + `chown root:nixbld` (world-writable sticky); `TMPDIR` scoped to daemon via `/etc/conf.d/nix-daemon` (was global export leaked into podman → broke `containers-storage`); install loop non-fatal (collect `failedPkgs` warning), dry-run `nix flake update` + `nix profile upgrade`; single-block `trusted-users` install
-- **Podman:** `btrfs` driver via `sed -i 's/^#*driver.*/driver = "btrfs"/' /etc/containers/storage.conf` (keep Alpine's full config), `cgroups` service enabled alongside `podman`, `iptables` added, `fuse-overlayfs` kept as fallback
-- **Webmin:** standalone binary `src/firstBoot/webmin/main.go`, compose `read_only: true` + `tmpfs: /tmp /run /var/log /var/webmin`, image `demosthenesk/webmin:noble` (pschatzmann dead), seed `/etc/webmin` via `webmin-seed` container before first start, `webmin-ensure` oneshot service, `changepass.pl` + `chpasswd`, quoted heredocs, `---` divider in `docs/guides/webmin.md`
-- **Locale:** `it` → `it_IT.UTF-8` (`%s_%s.UTF-8` expansion) — bare `it` crashes `conmon` `setlocale` (musl)
-- **Harness:** functional checks `webmin_binary`/`webmin_container`/`webmin_port`/`webmin_http` (8×5s wget retry, no `|| echo` fallback), `trusted_users_clean`, `works_in_real_life` (no non-interactive warning in installer.log), `nix_build_tmp_perms` (stat 777), `nix_packages_missing` (7 expected for niri), `chmod_77_check` now excludes `/nix/var/nix/build/tmp` and checks `chmod 777/1777`; 45/45 PASS with `demosthenesk` image; `runWebminOnTarget` + `runScriptOnTarget` DRY
-- **Niri:** `cosmic-files/edit/screenshot/player/store/settings`, `okular`, `eog`, `cups`, `firewalld-gui`, `gnome-firmware`, `thunderbird`, `gnome-disk-utility`, `kcron`, `cosmic-store`, `ksystemlog`, `rclone`/`rclone-ui`, `mission-center`, `nix-software-center`; `cups-browsed` moved to nix (`nixpkgs#cups-browsed`); removed `wl-clipboard`; 7 nix packages for niri
-- **Fixtures:** `full_stack.yaml` updated (enablePodman+enableWebmin true), new per-layout `btrfs_*_full_stack.yaml` (raid0, server, unencrypted); `btrfs_standard_niri_full_test.yaml` untracked test fixture
-- **Hooks:** `govulncheck` now warning-only (not blocking commit)
-- **Docs:** `docs/guides/webmin.md` (divider, seed, tmpfs, demosthenesk, Implementation Notes), `docs/guides/podman.md` (btrfs sed, cgroups, iptables, fuse-overlayfs), `docs/harness/artifacts.md` (new checks table, nix perms, podman/webmin details)
-
-### 2026-09-02 — Webmin + Locale + TMPDIR + Podman fixes
-
-- **Locale:** `it` → `it_IT.UTF-8` (bare `it` crashes conmon setlocale)
-- **Nix TMPDIR:** scoped to daemon via `/etc/conf.d/nix-daemon` (was global export, leaked into podman and broke containers-storage)
-- **Image:** `demosthenesk/webmin:noble` (pschatzmann dead — webmin 1.820 2016)
-- **Seed:** `/etc/webmin` from image before first start (`webmin-seed` container, bind mount shadowed `miniserv.conf`)
-- **tmpfs:** `/tmp /run /var/log /var/webmin` with `read_only: true`
-- **Heredocs:** quoted heredocs — no escaping (was breaking `webmin-ensure` script)
-- **Binary:** exits 1 on compose failure, verifies `podman ps` (harness reports honestly)
-- **Podman:** `btrfs` driver via `sed` (was `vfs`), `cgroups` service
-- **Harness:** functional webmin checks (`webmin_container`/`port`/`http`), `runWebminOnTarget` on first boot like tpm pattern; 45/45 PASS
-
-### 2026-08-29 — Config markers + verify checks + cleanup enabled
-- Installer now appends `# Generated by FeralOS Installer` at END of all config files: /etc/kernel/cmdline, /etc/booster.yaml, /etc/network/interfaces, /etc/fstab (4 layouts)
-- Fstab header marker removed (only footer marker for single-point verification)
-- Harness verify: 4 new marker checks (cmdline_marker, booster_marker, fstab_marker, network_marker) — grep -c must be > 0
-- All 4 layouts PASS 35/35 (btrfsStandard 35/35, btrfsRaid0 35/35, btrfsStandardServer 35/35, btrfsUnencrypted 35/35)
-- cleanup.Cleanup(conf) enabled (final unmount works after sleep 20s)
-- log_errors: BTRFS Transaction aborted + forced readonly allowed for btrfs layouts
-- verify.md: SSH warning stripped, table cleaned
-- harnessLog shadow fix, serialLogHasPrompt offset-based
-- LUKS single injection per boot
-- eth0 restored, virtio modules added to baseModules
-
-### 2026-08-29 — Network fix + verify.md + log_errors + unmount investigation
-- network: `defaultNetworkInterface: eth0` restored in fixtures + harness writeHarnessVariables; `virtio_net,virtio_pci,virtio` added to `baseModules` in `internal_rules.yaml`. `btrfsStandard` 33/33 PASS.
-- verify.log → verify.md (markdown table, SSH warnings stripped, detail truncated)
-- log_errors allowlist: added `errors=remount-ro` (fstab), `BTRFS error.*is missing/failed/open_ctree` (transient booster)
-- harnessLog shadow fix (`:=` → `=`), serialLogHasPrompt offset-based
-- LUKS injection: single per boot (`<1`), not 4x
-- enableEncryption removed (leftover)
-- Final cleanup disabled (BTRFS Transaction aborted -5) — sleep 20s before shutdown
-- **TODO**: investigate why final `cleanup.Cleanup(conf)` causes `BTRFS Transaction aborted -5, forced readonly` during runner shutdown
-
-### 2026-08-30 — Dedup: dupl linter + harness DRY + firstboot DRY
-**Agent:** codebase
-- **dupl linter**: added `dupl` to `.golangci.yml` (threshold 100), exclusions for `src/hostPhase/disks/` + `src/utils/firstboot/` (intentional duplication). Pre-commit hook runs golangci-lint which includes dupl.
-- **Harness dedup**: `hasHealthyBtrfsRaidLayout(detail, level string)` parametrized (was 2 identical functions for RAID1/RAID0). `formatCheckTable()` extracted (was 2 identical verify table loops). Zero dupl findings in harness.
-- **firstboot DRY**: `buildBinary()` extracted to `firstboot.go`, `secureboot.go` + `tpm.go` now thin wrappers (13 lines each). Standalone binaries (`src/firstBoot/`) untouched.
-- **swap_test.go fix**: `TestParseSwapSizeMiB` 1T/1P cases now expect error (32 GiB `maxSwapMiB` cap). 26/26 pass.
-- **Docs**: `review.md` updated (§3.5 dedup entry, Appendix dedup row), `AGENTS.md` lint section updated with dupl info.
-
-### 2026-08-26 — Entry-point delegation + isolation doc + harness prepare-runner fix
-**Agent:** codebase
-- **Architecture fix**: `main.go` no longer calls cleanup or disk layouts directly. It collects/generates config then delegates to `hostPhase.Run()` + `chrootPhase.Run()`. `hostPhase.Run()` owns: cleanup (`internal/cleanup.go`, step 0) → disk layout switch (step 1) → mount → bootstrap → chroot prep → install-config → firstBoot compile. `cleanup.go` stays in `hostPhase/internal` (called by `host_phase.go` via `internal.` — `main` cannot import internal).
-- **Docs**: added "Entry Point & Phase Isolation" to `AGENTS.md`; rewrote `docs/INSTALLER.md` Installation Flow (Phase 1 now shows `hostPhase.Run()` delegation + cleanup step 0). Created `docs/architecture/` (6 files), `docs/adr/` (6 ADRs), `docs/guides/` (getting_started real hardware, first_boot, variables, development), `docs/harness/` (6 files), `docs/intent/`+`ideas/` from `CONTEXT.md`/`ROADMAP.md`. Added `AGENTS.md` Docs Index with pointers (double docs, no strip).
-- **Harness `prepare-runner` fix** (`tests/harness/internal/service/service.go`): overlay inherited 327MB base size → cloud-init "No space". Added `RunnerImageSize` (default 8G) + `qemu.ResizeDisk` after `CreateOverlay`, and `growpart`+`resizefs` to cloud-init user-data. Runner packages reduced to `tar,curl,parted` (installer installs its own deps via apt). Verified: cloud-init finishes clean.
-- **Logging Rule**: added `AGENTS.md` Logging Rule (always `shell.ExecuteCmd`, never `os.*`), fixed 8 `hostPhase` files (`bind_mounts.go`, `disks/*/fstab.go` + `partitioning.go` with `fdisk` heredoc, `features/install_config.go` heredoc) + audited `chrootPhase` (already clean). `docs/architecture/logging.md` copy.
-- **PENDING**: test `run` fails at `go build` inside runner with `go.sum` hash mismatch for `yaml.v3`. Harness builds installer via `setup.sh` (copies local repo, NOT git clone — confirmed in `tests/harness/README.md`). Fix must be in harness build env (GOPROXY/GOFLAGS/module cache), NOT `go mod vendor` (user rejected vendor). Need documented harness build mechanism — not yet located.
-
-> Older history → `CHANGELOG.md` + `git log` + `.agent-memory/` (session-memory).
+All prior swap/vector/dummy issues resolved. See `CHANGELOG.md` Fixed section. Current: `log_errors` shows QEMU-only noise (`smartd`/`fsck` whitelisted; netns `mount/umount /run/netns ... Invalid argument` QEMU early-chain noise allowlisted; udevd `/bin/false` module install errors — parport/psmouse/intel_gtt/input_leds/intel_pmc_bxt — from OpenRC udev path, harmless in QEMU, nix pivot fix landed). Resolved 2026-09-30: dinit shutdown ordering — `turnstiled` pam_elogind bus error at shutdown (dinit releases dependencies at dependent stop-start, not exit) fixed via feralos-aports `stop-command` guards on `dbus`/`elogind` (ADR-007, commit `75c566a`; harness 63/63 run 2026-09-30T00-08-04Z).

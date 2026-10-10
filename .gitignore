@@ -58,7 +58,8 @@ feralos_create_config
 feralos_harness
 feralos_secureboot
 feralos_tpm
+feralos_webmin
 references/*
 !references/.gitkeep
-references/skeaSimpleServer/
+references/skeaSimpleServer
 

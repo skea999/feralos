@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"skeaAlpineInstaller/tests/harness/internal/service"
+	"feralos/tests/harness/internal/service"
 )
 
 type Server struct {

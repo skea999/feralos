@@ -10,7 +10,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"alpineInstaller/utils/shell"
+	"feralos/src/utils/shell"
 )
 
 // InstallConfig matches the YAML written by hostPhase/features/install_config.go

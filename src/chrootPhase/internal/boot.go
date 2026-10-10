@@ -1,8 +1,8 @@
 package internal
 
 import (
-	"alpineInstaller/utils/config"
-	"alpineInstaller/utils/shell"
+	"feralos/src/utils/config"
+	"feralos/src/utils/shell"
 	"fmt"
 	"strings"
 )
@@ -15,6 +15,22 @@ func SetupBoot(conf *config.Config) error {
 	// 1. Write final kernel cmdline
 	fmt.Println("[INFO] Writing final kernel cmdline...")
 	finalCmdline := strings.Join(u.KernelCmdline, " ")
+	if u.EnableDebug {
+		// Test-only: serial console lets the harness watch boot output and
+		// answer the LUKS passphrase prompt. Real hardware stays clean.
+		finalCmdline += " console=ttyS0,115200"
+	}
+	if u.EnableDinit {
+		finalCmdline += " init=/usr/libexec/dinit/init"
+		// Full service status trail (start/stop/fail, timestamps) to a file:
+		// once login.target (runs-on-console) takes the console, dinit's own
+		// output is inhibited — the file keeps the complete history. /run
+		// exists from the initramfs (written before /var/log is mounted).
+		// The dinit-boot-log service mirrors it to /var/log/dinit/boot.log
+		// (vector source + logrotate). Upstream wrapper param:
+		// dinit_log_file= -> --log-file.
+		finalCmdline += " dinit_log_file=/run/dinit-boot.log"
+	}
 	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /etc/kernel"); err != nil {
 		return fmt.Errorf("failed to create /etc/kernel directory: %w", err)
 	}

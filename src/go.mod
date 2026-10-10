@@ -1,4 +1,4 @@
-module alpineInstaller
+module feralos/src
 
 go 1.22.2
 

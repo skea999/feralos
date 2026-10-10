@@ -1,11 +1,11 @@
 package btrfsRaid0
 
 import (
-	"alpineInstaller/hostPhase/disks/common"
-	"alpineInstaller/utils/config"
-	"alpineInstaller/utils/misc"
-	"alpineInstaller/utils/shell"
-	"alpineInstaller/utils/swap"
+	"feralos/src/hostPhase/disks/common"
+	"feralos/src/utils/config"
+	"feralos/src/utils/misc"
+	"feralos/src/utils/shell"
+	"feralos/src/utils/swap"
 	"fmt"
 	"strings"
 )
@@ -168,6 +168,19 @@ func RunBtrfsSetup(conf *config.Config) error {
 		if err := common.LuksAddKey(swapPart2, hostSwapKey, u.LuksPassword); err != nil {
 			return fmt.Errorf("failed to add key to swap2: %w", err)
 		}
+		// Encrypted swap unlock — BOTH init systems (dual-init distro):
+		//   /etc/crypttab       → dinit (chimera early-cryptdisks runs our
+		//                         dinit-cryptdisks hook, keyfile in field 3)
+		//   /etc/conf.d/dmcrypt → OpenRC (dmcrypt initd legacy format)
+		// fstab then swapon's /dev/mapper/swap-* (chimera early-swap / OpenRC swap).
+		crypttab := fmt.Sprintf(`swap-%s%s UUID=%s %s luks,discard
+swap-%s%s UUID=%s %s luks,discard
+`, swapSuffix1, misc.GetPartitionSpacer(d1)+"2", swapUUID1, swapKey,
+			swapSuffix2, misc.GetPartitionSpacer(d2)+"2", swapUUID2, swapKey)
+		escapedCrypttab := strings.ReplaceAll(crypttab, "'", "'\\''")
+		if _, err := shell.ExecuteCmd("", fmt.Sprintf("echo '%s' > %s/etc/crypttab", escapedCrypttab, i.ChrootDir)); err != nil {
+			return fmt.Errorf("failed to write crypttab: %w", err)
+		}
 		dmcryptConf := fmt.Sprintf(`
 target=swap-%s%s
 source=UUID=%s
@@ -193,7 +206,7 @@ key=%s
 	raidUUID2, _ := common.LuksUUID(d2 + misc.GetPartitionSpacer(d2) + rootPart)
 
 	kernelCmdline := fmt.Sprintf(
-		"rd.luks.name=%s=luks-%s rd.luks.name=%s=luks-%s root=UUID=%s rootfstype=btrfs rootflags=subvol=@,device=/dev/mapper/luks-%s rootdelay=30 rootwait console=ttyS0,115200",
+		"rd.luks.name=%s=luks-%s rd.luks.name=%s=luks-%s root=UUID=%s rootfstype=btrfs rootflags=subvol=@,device=/dev/mapper/luks-%s rootdelay=30 rootwait",
 		raidUUID1, raidUUID1,
 		raidUUID2, raidUUID2,
 		misc.GetBtrfsUUID(luksRoot1),
@@ -216,7 +229,7 @@ func setupSubvolumesAndMounts(chroot string, luksDevice string, d1 string, d2 st
 		{Name: "@opt", Path: "/opt", Options: "compress=zstd:3,autodefrag,ssd"},
 		{Name: "@root", Path: "/root", Options: "compress=zstd:3,autodefrag,ssd"},
 		{Name: "@srv", Path: "/srv", Options: "autodefrag,ssd,nodev,noexec,nosuid", NoCoW: true},
-		{Name: "@tmp", Path: "/tmp", Options: "compress=zstd:3,autodefrag,ssd,noexec,nosuid"},
+		{Name: "@tmp", Path: "/tmp", Options: "compress=zstd:3,autodefrag,ssd,nosuid"},
 		{Name: "@var", Path: "/var", Options: "compress=zstd:3,autodefrag,ssd"},
 		{Name: "@var-lib-ex", Path: "/var/lib/ex", Options: "autodefrag,ssd,nodev,noexec,nosuid", NoCoW: true},
 		{Name: "@var-lib-libvirt", Path: "/var/lib/libvirt", Options: "compress=zstd:3,autodefrag,ssd"},
@@ -236,7 +249,6 @@ func setupSubvolumesAndMounts(chroot string, luksDevice string, d1 string, d2 st
 		{Name: "@nix-store", Path: "/nix/store", Options: "compress=zstd:3,autodefrag,ssd"},
 		{Name: "@nix-var-nix", Path: "/nix/var/nix", Options: "compress=zstd:3,autodefrag,ssd"},
 		{Name: "@nix-var-log", Path: "/nix/var/log", Options: "autodefrag,ssd,nodev,noexec,nosuid", NoCoW: true},
-		{Name: "@nix-var-nix-build", Path: "/nix/var/nix/build", Options: "compress=zstd:3,autodefrag,ssd"},
 		// Btrbk backup
 		{Name: "@btrbk", Path: "/btrbk", Options: "compress=zstd:3,autodefrag,ssd"},
 	}
@@ -289,6 +301,12 @@ func setupSubvolumesAndMounts(chroot string, luksDevice string, d1 string, d2 st
 		if _, err := shell.ExecuteCmdArgs("", "mount", "-t", "btrfs", "-o", opts, luksDevice, target); err != nil {
 			return fmt.Errorf("failed to mount subvolume %s: %w", s.Name, err)
 		}
+	}
+
+	// FHS modes: fresh subvolume roots come up 0755 — /tmp and /var/tmp
+	// must be 1777 sticky (O_TMPFILE, unprivileged temp writes)
+	if err := misc.SetTempDirModes(chroot); err != nil {
+		return err
 	}
 
 	// EFI Mounts (both disks)

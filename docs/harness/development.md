@@ -4,7 +4,7 @@
 
 ## Module structure
 
-Separate Go module `skeaAlpineInstaller/tests/harness` (`tests/harness/go.mod`, Go 1.22).
+Separate Go module `feralos/tests/harness` (`tests/harness/go.mod`, Go 1.22).
 
 ```
 tests/harness/
@@ -46,6 +46,8 @@ No `internal` package rule like `src/hostPhase/internal` — harness is a standa
 
 ### Logging & execution
 
+- Run phases: `phase(n, name)` prints `[harness] phase N/9: …` for every `run` step (1 boot runner → 2 run installer → 3 reboot runner → 4 boot target → 5 run sbctl → 6 run tpm → 7 reboot target → 8 boot target verification → 9 verify target) to **stdout** and to `runs/<ts>/harness.log` — all `logHarness` messages go to both. MCP mode calls `service.SetProgressWriter(os.Stderr)` to keep the stdio JSON-RPC stream clean.
+- Target shutdown is init-aware (`powerOffTarget`): OpenRC → `poweroff`; dinit → `dinit-poweroff` (busybox `poweroff` sends SIGUSR2 which dinit ignores; `dinitctl shutdown` only HALTs). Bounded by `targetShutdownTimeout` (5m) — a guest that never powers off fails the run instead of hanging.
 - QEMU logs: `qemu.Start` writes `LogPath` (`runner-qemu.log`/`target-qemu.log`); serial logs via `-serial file:` or `-chardev socket,logfile=` (`runner-serial.log`/`target-serial.log` + `tser.sock`).
 - Guest execution: `guest.Run(ctx, opts, cmd, stdout, stderr)` and `guest.Output` (SSH exec, `Shell: bash|sh`); installer captured to `installer.log` file handle.
 - No `os.*` file-op bypass — harness is not the installer, but keep I/O observable via logs. Use `qemu.CopyFile`, `os.WriteFile` for artifacts with explicit paths.
@@ -53,10 +55,11 @@ No `internal` package rule like `src/hostPhase/internal` — harness is a standa
 ### Adding a new check
 
 1. Add entry to `checks` map in `service.Verify` (`internal/service/service.go:Verify`): `checks["my_check"] = "shell command; echo detail"`.
-2. Add conditional block after the loop if it needs pass/fail logic (see `storage_layout`, `fstab`, `tpm_auto_unlock`, `less_dummy` patterns — flip `result.Success=false` and annotate `Detail`).
-3. For desktop-gated checks, guard with `if cfg.DesktopEnvironment == desktopNiri` (see `niri_config_valid` etc.).
-4. Wire `VerifyConfig` fields through `bootAndVerifyTarget` → `Verify` call if the check needs new config (e.g., `EnableSwap`, `DiskLayout` already plumbed).
-5. Test: `go vet ./...` in `tests/harness`, then `go run ./cmd/skea_harness -- verify --run-dir <run>` or a full `run -f <fixture>`.
+2. **Checks must be falsifiable**: the harness marks a check PASS when the SSH command exits 0 (`Pass: err == nil`). A bare `|| echo '<fail>'` fallback always exits 0 → the check can never go red (this made 8 `dinit_*` checks silently green). Use `COND && echo '<ok>' || { echo '<fail>'; exit 1; }` (or Go post-processing, next step).
+3. Add conditional block after the loop if it needs pass/fail logic (see `storage_layout`, `fstab`, `tpm_auto_unlock`, `less_dummy` patterns — flip `result.Success=false` and annotate `Detail`).
+4. For desktop-gated checks, guard with `if cfg.DesktopEnvironment == desktopNiri` (see `niri_config_valid` etc.).
+5. Wire `VerifyConfig` fields through `bootAndVerifyTarget` → `Verify` call if the check needs new config (e.g., `EnableSwap`, `DiskLayout` already plumbed).
+6. Test: `go vet ./...` in `tests/harness`, then `go run ./cmd/skea_harness -- verify --run-dir <run>` or a full `run -f <fixture>`.
 
 ## Swtpm always present
 

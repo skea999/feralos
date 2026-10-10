@@ -1,6 +1,6 @@
 package firstboot
 
-import "alpineInstaller/utils/config"
+import "feralos/src/utils/config"
 
 // SetupTpm compiles the firstBoot tpm binary and copies it to
 // /mnt/opt/feralos_tpm. Called after chrootPhase so /mnt is still

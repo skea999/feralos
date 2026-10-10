@@ -19,20 +19,28 @@ UEFI → UKI (booster + kernel + cmdline)
          │  ulimit -c, auto-recovery/quiet/log-level from kernel cmdline
          │  exec env -i PATH=… HOME=/root dinit
          ▼
-   dinit (PID 1) reads /usr/lib/dinit.d/boot
+    dinit (PID 1) reads /lib/dinit.d/boot   **[FeralOS]** /lib, NOT /usr/lib
          ▼
-   boot ──depends-on──▶ system ──▶ login.target + network.target
-     │                     │
-     │                     └── waits-for.d: /usr/lib/dinit.d/boot.d   (packages)
-     └── waits-for.d: /etc/dinit.d/boot.d                              (admin overrides)
-         ▼
-   early chain (below) → local.target → network.target → login.target
-         ▼
-   getty / display manager
+    boot ──depends-on──▶ system ──▶ login.target + network.target
+      │                     │
+      │                     └── waits-for.d: /lib/dinit.d/boot.d   (packages)
+      └── waits-for.d: /etc/dinit.d/boot.d                              (admin overrides)
+          ▼
+    early chain (below) → local.target → network.target → login.target
+          ▼
+    getty / display manager
 ```
 
+**[FeralOS] Service directory = `/lib/dinit.d` (Alpine standard).** The stock
+Alpine `dinit` (0.21) scans only `/etc/dinit.d`, `/run/dinit.d`,
+`/usr/local/lib/dinit.d`, `/lib/dinit.d` — it does **NOT** scan `/usr/lib/dinit.d`
+(Chimera works because cports patches their dinit; Alpine's is unpatched).
+Symptom if services land in `/usr/lib/dinit.d`: `dinit: boot: could not find
+service description.` The dinit-chimera APKBUILD overrides meson `srvdir` to
+`/lib/dinit.d` in `prepare()`; all FeralOS `*-dinit` packages install there.
+
 Note the two `boot.d` directories — both are upstream conventions:
-- `/usr/lib/dinit.d/boot.d` — symlinks dropped by **packages** (our `*-dinit` pkgs)
+- `/lib/dinit.d/boot.d` — symlinks dropped by **packages** (our `*-dinit` pkgs)
 - `/etc/dinit.d/boot.d` — symlinks created by **admin** (or `dinitctl enable`)
 
 ## Early Boot Chain (upstream services, in dependency order)
@@ -67,6 +75,16 @@ Note the two `boot.d` directories — both are upstream conventions:
 | 26 | `local.target` / `pre-local.target` | oneshots done, rc.local | `local.sh` |
 
 Everything above is **upstream code** — FeralOS only fills the 2 hook scripts (8, 13).
+
+> **Keymap note**: `dinit-console` reads `/etc/conf.d/keymaps` (short name) and
+> looks under `/usr/share/keymaps/` — paths that do not exist with
+> `kbd-bkeymaps` (`/usr/share/bkeymaps/<code>/<code>.bmap.gz`). The REAL
+> console keymap load is `busybox-loadkmap-dinit`'s `loadkmap` scripted
+> service (boot.d-enabled, `depends-on = local.target`): it sources
+> `/etc/conf.d/loadkmap` (`KEYMAP=` full path, written by the installer from
+> the user `keymap` variable) and pipes the `.bmap.gz` through busybox
+> loadkmap. `early-keyboard.target` stays a no-op on FeralOS; the font half
+> of `dinit-console` (consolefont) still applies.
 
 ## Target Chain
 
@@ -103,7 +121,7 @@ unmounts/tears down late state. No FeralOS code needed.
 `dinit_console_level=`, `dinit_log_file=`
 
 **dinit-chimera boot debug**: `dinit_early_debug=1`, `dinit_early_debug_slow=N`,
-`dinit_early_debug_log=FILE`, `dinit_early_root_remount=VAL`
+`dinit_early_debug_log=FILE`, `dinit_early_root_remount=`
 
 **Misc**: `dinit.runsize=` / `initramfs.runsize=` (default 10%),
 `fsck.mode=skip|force`, `fsck.repair=yes|no`, `fastboot`, `forcefsck`, `fsckfix`,
@@ -112,9 +130,10 @@ unmounts/tears down late state. No FeralOS code needed.
 ## FeralOS Cmdline (UKI / /etc/kernel/cmdline)
 
 ```
-root=UUID=… rootfstype=btrfs rootflags=subvol=@ … init=/usr/libexec/dinit/init
+root=UUID=… rootfstype=btrfs rootflags=subvol=@ … init=/usr/libexec/dinit/init dinit_log_file=/run/dinit-boot.log
 ```
 
-Only addition vs today: `init=`. Booster passes it through after `switch_root`.
-Temporary testing: edit cmdline at boot, or `booster` regen not required (UKI embeds
-cmdline from `/etc/kernel/cmdline` — regenerate UKI after change).
+- `init=/usr/libexec/dinit/init` — switches from OpenRC to dinit
+- `dinit_log_file=/run/dinit-boot.log` — full service status trail (read by wrapper via `/proc/cmdline` since booster does not forward unknown params to init's env; mirrored by `dinit-boot-log` to `/var/log/dinit/boot.log`)
+
+Note: regenerate UKI after changing cmdline.

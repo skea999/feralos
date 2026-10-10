@@ -1,0 +1,43 @@
+# btrfs_standard_cosmic_dinit.yaml: btrfsStandard cosmic 1disk sb tpm hard zswap dinit dbg — full variables.yaml template mirror (machine-consumed)
+variables:
+  unattended: true
+  ignoreErrors: true
+  enableEdgeRepos: false
+  disks:
+  - /dev/sda
+  userName: skea999
+  password: Alpine.1
+  luksPassword: Alpine.1
+  hostname: skea-server
+  timezone: Europe/Rome
+  locale: it
+  keymap: it
+  mirror: https://dl-cdn.alpinelinux.org/alpine
+  arch: x86_64
+  branch: latest-stable
+  diskLayout: btrfsStandard
+  desktopEnvironment: cosmic
+  videoDriver: amdgpu
+  sshAuthorizedKey: ''
+  defaultNetworkInterface: eth0
+  enableSecureboot: true
+  enableTPM: true
+  enableHardening: true
+  enableZswap: true
+  enableNix: false
+  enableSwap: true
+  swapSize: auto
+  enableDebug: true
+  enablePodman: false
+  enableWebmin: false
+  webminListenAll: false
+  enableDinit: true
+  extraPackages:
+  - incus-feature
+  - incus-feature-vm
+  - incus-feature-client
+  - incus-feature-utils
+  - qemu-system-x86_64
+  - qemu-img
+  - qemu-modules
+  extraPackagesEdge: []

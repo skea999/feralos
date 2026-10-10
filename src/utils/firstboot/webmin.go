@@ -1,6 +1,6 @@
 package firstboot
 
-import "alpineInstaller/utils/config"
+import "feralos/src/utils/config"
 
 // SetupWebmin compiles the firstBoot webmin binary and copies it to
 // /mnt/opt/feralos_webmin. Called after chrootPhase so /mnt is still

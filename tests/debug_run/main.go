@@ -33,6 +33,7 @@ type variablesYAML struct {
 		EnableHardening         bool     `yaml:"enableHardening"`
 		EnableZswap             bool     `yaml:"enableZswap"`
 		EnableNix               bool     `yaml:"enableNix"`
+		EnableDinit             bool     `yaml:"enableDinit"`
 		ExtraPackages           []string `yaml:"extraPackages"`
 		SSHAuthorizedKey        string   `yaml:"sshAuthorizedKey"`
 		DefaultNetworkInterface string   `yaml:"defaultNetworkInterface"`
@@ -528,7 +529,10 @@ func buildTargetArgs(cfg targetArgsInput) []string {
 		"-machine", "q35,smm=on",
 		"-m", fmt.Sprintf("%d", cfg.MemoryMiB),
 		"-smp", fmt.Sprintf("%d", cfg.CPUs),
-		"-nographic",
+		// egl-headless instead of -nographic: the GL device below requires a
+		// GL display backend ("-display none" → "opengl is not available").
+		// Host needs virglrenderer + EGL + qemu-system-modules-opengl.
+		"-display", "egl-headless",
 		"-chardev", "socket,id=targetserial,path=" + cfg.SerialSocket + ",server=on,wait=off,logfile=" + cfg.SerialLog + ",logappend=on",
 		"-serial", "chardev:targetserial",
 		"-qmp", "unix:" + cfg.QMPPath + ",server=on,wait=off",
@@ -539,6 +543,21 @@ func buildTargetArgs(cfg targetArgsInput) []string {
 		"-drive", "if=pflash,format=raw,file=" + cfg.OVMFVars,
 		"-netdev", fmt.Sprintf("user,id=net0,hostfwd=tcp::%d-:22", cfg.SSHPort),
 		"-device", "virtio-net-pci,netdev=net0",
+		// niri (and any DRM compositor) needs a render node: virtio-gpu
+		// provides /dev/dri/renderD128 — std VGA (bochs) does not (parity
+		// with harness service.go buildTargetArgs). virtio-vga-gl adds 3D
+		// accel — niri/wlroots GL needs it; without it only the pixman
+		// fallback works. Flags DROPPED: venus=on+blob+hostmem — apt QEMU
+		// 8.2.2 rejects the `venus` property (exit 1); the GL path actually
+		// used is VIRGL: guest mesa edge restored the virgl gallium driver,
+		// host libvirglrenderer serves it (parity with harness service.go,
+		// which dropped the same flags in the apt-QEMU round). HOST
+		// REQUIREMENTS (apt qemu-system-x86/gui 8.2.2 + libvirglrenderer1
+		// 1.0.0 validated 94/94, run 2026-10-10T14-04-38Z — the Nix QEMU
+		// 11.1.1 stack and its GL-env wrappers were removed): any qemu >= ~7
+		// with virtio-vga-gl + egl-headless. If the host lacks the packages,
+		// QEMU fails at startup (fail loud, intended).
+		"-device", "virtio-vga-gl",
 		"-drive", "if=none,id=targetdisk1,format=qcow2,file=" + cfg.Disk1Path,
 		"-device", "virtio-blk-pci,drive=targetdisk1,bootindex=1",
 	}
@@ -817,7 +836,14 @@ func run(args []string) error {
 	<-ctx.Done()
 	fmt.Fprintf(os.Stderr, "\nshutting down...\n")
 
-	if err := sshRun(context.Background(), sshOpts, "poweroff"); err != nil {
+	// Init-aware shutdown: busybox `poweroff` sends SIGUSR2, which dinit
+	// ignores (and `dinitctl shutdown` only HALTs) — dinit needs
+	// `dinit-poweroff` from the dinit-shutdown package.
+	shutdownCommand := "poweroff"
+	if vars.Variables.EnableDinit {
+		shutdownCommand = "/usr/sbin/dinit-poweroff"
+	}
+	if err := sshRun(context.Background(), sshOpts, shutdownCommand); err != nil {
 		_ = qmpSystemPowerdown(targetQMPPath)
 	}
 	_ = instance.wait()

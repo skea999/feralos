@@ -166,7 +166,7 @@ _Note: Some C components remain when no memory-safe alternative exists or when t
 ## Conventions
 
 - **Language**: English only in code, configs, docs
-- **Go module**: `alpineInstaller`
+- **Go module**: `feralos/src`
 - **Config format**: YAML
 - **Mount point**: `/mnt` (default chrootDir)
 - **Disk labels**: `EFI<DISK>`, `swap-<DISK>`, `data-<DISK>`, `boot`, `root`

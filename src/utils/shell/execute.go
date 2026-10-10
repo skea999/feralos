@@ -139,6 +139,11 @@ func ExecuteCmdWithAllowFail(chroot string, cmd string, allowFail bool, critical
 		}
 
 		// After 3 failures
+		if os.Getenv("SKEA_IGNORE_ERRORS") == "1" {
+			fmt.Printf("[ERROR][IGNORED] command failed (ignoreErrors=true): %s: %v\n", cmd, lastErr)
+			return lastStdout, nil
+		}
+
 		if os.Getenv("SKEA_NONINTERACTIVE") == "1" && !critical {
 			decision := strings.ToLower(os.Getenv("SKEA_NONINTERACTIVE_DECISION"))
 			switch decision {
@@ -152,6 +157,7 @@ func ExecuteCmdWithAllowFail(chroot string, cmd string, allowFail bool, critical
 		}
 
 		// Ask user
+	askLoop:
 		for {
 			fmt.Printf("Options: [s]top, [i]gnore, [r]etry: ")
 			input, _ := stdinReader.ReadString('\n')
@@ -166,7 +172,8 @@ func ExecuteCmdWithAllowFail(chroot string, cmd string, allowFail bool, critical
 				return lastStdout, nil
 			case "r":
 				fmt.Printf("[INFO] Retrying command...\n")
-				attempt = 0 // Will be incremented to 1
+				attempt = 0 // outer for increments back to 1
+				break askLoop
 			default:
 				fmt.Printf("[INFO] Invalid input. Please enter 's', 'i', or 'r'.\n")
 			}
@@ -259,6 +266,10 @@ func ExecuteCmdArgsWithAllowFail(chroot, name string, args []string, allowFail, 
 			time.Sleep(3 * time.Second)
 			continue
 		}
+		if os.Getenv("SKEA_IGNORE_ERRORS") == "1" {
+			fmt.Printf("[ERROR][IGNORED] command failed (ignoreErrors=true): %s: %v\n", logCmd, lastErr)
+			return lastStdout, nil
+		}
 		if os.Getenv("SKEA_NONINTERACTIVE") == "1" && !critical {
 			decision := strings.ToLower(os.Getenv("SKEA_NONINTERACTIVE_DECISION"))
 			switch decision {
@@ -270,6 +281,8 @@ func ExecuteCmdArgsWithAllowFail(chroot, name string, args []string, allowFail, 
 				return "", fmt.Errorf("command failed after %d attempts: %s: %w", MaxRetries, logCmd, lastErr)
 			}
 		}
+		// Ask user
+	askLoop:
 		for {
 			fmt.Printf("Options: [s]top, [i]gnore, [r]etry: ")
 			input, _ := stdinReader.ReadString('\n')
@@ -283,7 +296,8 @@ func ExecuteCmdArgsWithAllowFail(chroot, name string, args []string, allowFail, 
 				return lastStdout, nil
 			case "r":
 				fmt.Printf("[INFO] Retrying command...\n")
-				attempt = 0
+				attempt = 0 // outer for increments back to 1
+				break askLoop
 			default:
 				fmt.Printf("[INFO] Invalid input. Please enter 's', 'i', or 'r'.\n")
 			}

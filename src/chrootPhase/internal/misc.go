@@ -1,8 +1,8 @@
 package internal
 
 import (
-	"alpineInstaller/utils/config"
-	"alpineInstaller/utils/shell"
+	"feralos/src/utils/config"
+	"feralos/src/utils/shell"
 	"fmt"
 	"strings"
 )
@@ -44,9 +44,12 @@ fi' > /etc/profile.d/console.sh`
 		return fmt.Errorf("failed to write locale config: %w", err)
 	}
 
-	// 6. Keymap
-	fmt.Println("[INFO] Setting keyboard layout...")
-	if _, err := shell.ExecuteCmd(chroot, "echo 'KEYMAP=\"/usr/share/bkeymaps/it/it.bmap.gz\"' > /etc/conf.d/loadkmap"); err != nil {
+	// 6. Keymap — consumed by the loadkmap service (busybox-loadkmap-dinit
+	// under dinit, busybox-initscripts under OpenRC). kbd-bkeymaps layout:
+	// /usr/share/bkeymaps/<code>/<code>.bmap.gz (keymap == layout dir).
+	keymapPath := fmt.Sprintf("/usr/share/bkeymaps/%s/%s.bmap.gz", u.Keymap, u.Keymap)
+	fmt.Printf("[INFO] Setting keyboard layout to %s...\n", keymapPath)
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo 'KEYMAP=%q' > /etc/conf.d/loadkmap", keymapPath)); err != nil {
 		return fmt.Errorf("failed to write keymap config: %w", err)
 	}
 
@@ -121,6 +124,16 @@ root soft nofile 100000
 	fmt.Println("[INFO] Configuring APK audit cron...")
 	if _, err := shell.ExecuteCmd(chroot, "echo '0 4 * * 0 /usr/bin/apk audit --full --quiet || true' >> /etc/crontabs/root"); err != nil {
 		fmt.Printf("[WARNING] Failed to write cron job: %v\n", err)
+	}
+
+	// 16. SSH host keys — baked at install time. The dinit sshd service runs
+	// plain `sshd -D -e` (no shell wrapper: dinit does not parse quotes), so
+	// the OpenRC initd key generation never runs. ssh-keygen -A is idempotent.
+	if out, _ := shell.ExecuteCmd(chroot, "apk info -e openssh >/dev/null 2>&1 && echo INSTALLED || echo NOT_INSTALLED"); strings.Contains(out, "INSTALLED") && !strings.Contains(out, "NOT_INSTALLED") {
+		fmt.Println("[INFO] Generating SSH host keys...")
+		if _, err := shell.ExecuteCmd(chroot, "ssh-keygen -A"); err != nil {
+			fmt.Printf("[WARNING] Failed to generate SSH host keys: %v\n", err)
+		}
 	}
 
 	return nil

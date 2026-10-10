@@ -1,7 +1,7 @@
 package features
 
 import (
-	"alpineInstaller/utils/config"
+	"feralos/src/utils/config"
 )
 
 // WebminPackages returns the APK packages needed for Webmin.

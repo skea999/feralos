@@ -50,7 +50,7 @@ src/
     ├── chroot_phase.go              # Run(conf) — 14-step orchestrator (incl. flatpak, desktops)
     ├── internal/ (packages.go, boot.go, storage.go, uki.go, services.go, users.go, ...) # packages.go: /lib/modules before apk, dummy+firmware+feature packages
     ├── features/ (hardening.go, nix.go, zswap.go, zswap_server.go, podman.go, flatpak.go) # flatpak: flathub + install; podman: btrfs driver
-    └── desktops/ (desktops.go, niri.go) # niri: greetd/regreet/niri/rustdesk autostart + firewall-offline-cmd + xdg-su/dms
+    └── desktops/ (desktops.go, niri.go) # niri: greetd/regreet/niri + NetworkManager + wayvnc (user dinit) + xdg-su/dms
 ```
 
 Full tree: `docs/INSTALLER.md#Project Structure`, `docs/architecture/overview.md`.
@@ -92,12 +92,12 @@ Cleanup (before/after) and firstboot (install config, secureboot/tpm compile) ar
 | `EnableWebmin` | `utils/firstboot/webmin.go` | `main.go` (podman-based, verifies podman) |
 | `EnablePodman` | `chrootPhase/features/podman.go` | `packages.go` + `chroot_phase.go` (btrfs driver, cgroups) |
 | `EnableHardening` | `chrootPhase/features/hardening.go` | `packages.go` + `chroot_phase.go` |
-| `EnableNix` | `chrootPhase/features/nix.go` | `packages.go` + `chroot_phase.go` (tmp 775/1777, TMPDIR scoped) |
+| `EnableNix` | `chrootPhase/features/nix.go` | `packages.go` + `chroot_phase.go` (upstream default build dir /tmp, exec since round 48) |
 | `EnableZswap` | `chrootPhase/features/zswap.go` + `zswap_server.go` | `packages.go` + `chroot_phase.go` |
 | `EnableDebug` | `chrootPhase/features/hardening.go` | via `HardeningPackages()` |
 | `EnableSwap` | `hostPhase/disks/*` | `host_phase.go` (disk layout) |
-| `DesktopEnvironment` | `chrootPhase/desktops/desktops.go` + `niri.go` | `chroot_phase.go` (niri: rustdesk conditional + firewall-offline-cmd) |
-| `FlatpakPackages` | `chrootPhase/features/flatpak.go` | `packages.go` + `chroot_phase.go` (`flathub:com.rustdesk.RustDesk`, `/lib/modules` before apk) |
+| `DesktopEnvironment` | `chrootPhase/desktops/desktops.go` + `niri.go` | `chroot_phase.go` (niri: NetworkManager wiring + CUPS admin via lpadmin group) |
+| `FlatpakPackages` | `chrootPhase/features/flatpak.go` | `packages.go` + `chroot_phase.go` (flathub + install, `/lib/modules` before apk; no niri default) |
 
 Violations: inline packages in `packages.go`, config in `chroot_phase.go`/`host_phase.go`, logic in `logic.go`. Ref: `docs/architecture/feature_confinement.md`.
 
@@ -137,8 +137,8 @@ cd tests/harness && go test ./...
 # harness (QEMU) — see docs/harness/README.md
 cd tests/harness
 ./skea_harness prepare-runner
-./skea_harness run -f ~/Progetti/skeaAlpineInstaller/src/variables/variables.yaml
-./skea_harness run -f tests/fixtures/variables/btrfs_raid0_minimal.yaml  # 14 templates
+./skea_harness run -f ~/Progetti/feralos/src/variables/variables.yaml
+./skea_harness run -f tests/fixtures/variables/btrfs_raid0_minimal.yaml  # 28 fixtures, full template mirror
 ./skea_harness status && ./skea_harness cleanup
 
 # artifacts (gitignored): tests/artifacts/{feralos_create_config,harness}/{cache,prepare,runs,state}

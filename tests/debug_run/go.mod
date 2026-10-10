@@ -1,4 +1,4 @@
-module skeaAlpineInstaller/tests/debug_run
+module feralos/tests/debug_run
 
 go 1.22.0
 

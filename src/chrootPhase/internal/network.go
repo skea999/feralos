@@ -1,8 +1,8 @@
 package internal
 
 import (
-	"alpineInstaller/utils/config"
-	"alpineInstaller/utils/shell"
+	"feralos/src/utils/config"
+	"feralos/src/utils/shell"
 	"fmt"
 	"strings"
 )
@@ -23,9 +23,8 @@ func SetupNetwork(conf *config.Config) error {
 		return fmt.Errorf("failed to write hosts: %w", err)
 	}
 
-	if _, err := shell.ExecuteCmd(chroot, "echo 'nameserver 208.67.222.222\nnameserver 208.67.220.220' > /etc/resolv.conf"); err != nil {
-		return fmt.Errorf("failed to write resolv.conf: %w", err)
-	}
+	// resolv.conf: already written in chroot_phase.Run step 0 (BEFORE apk
+	// update — DNS needed to fetch); do NOT overwrite it here
 
 	iface := u.DefaultNetworkInterface
 	if iface == "" {
@@ -60,6 +59,15 @@ func detectNetworkInterface(chroot string) (string, error) {
 	return "", fmt.Errorf("no non-loopback network interface found")
 }
 
+// setupInterfaces writes the ifupdown /etc/network/interfaces (loopback +
+// DHCP on the primary interface).
+//
+// DEAD in the niri desktop flow: desktops.SetupNiri overwrites this file
+// later in the same chroot run with a loopback-only version (NetworkManager
+// manages eth0; the stale DHCP ifupdown config caused double default
+// routes). Intentionally KEPT: every non-niri flow (OpenRC minimal, server
+// layouts, desktopEnvironment=none) has no other network configuration and
+// boots with this file.
 func setupInterfaces(chroot, iface string) error {
 	interfacesContent := fmt.Sprintf(`auto lo
 iface lo inet loopback

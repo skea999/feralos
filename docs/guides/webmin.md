@@ -31,7 +31,7 @@ Webmin is installed automatically when `enableWebmin: true` in `variables.yaml`.
    - Generate `docker-compose.yml`
    - Generate module configs
    - Start Webmin container via `podman compose up -d`
-   - Create oneshot service `/etc/init.d/webmin-ensure`
+   - Create oneshot service (dual-init, PID1 via `cat /proc/1/comm`): dinit → `/etc/dinit.d/webmin-ensure` (scripted, `depends-on = local.target`) + `/usr/libexec/dinit-webmin-ensure` script + boot.d link; OpenRC → `/etc/init.d/webmin-ensure`
    - Create `.desktop` file for Firefox PWA
 
 ### Manual Installation
@@ -169,14 +169,14 @@ cd /opt/webmin && podman compose down
 - **Persistent config** — `/opt/webmin/config/` survives restarts
 - **HTTPS only** — SSL by default
 - **Storage driver** — btrfs (native, via `sed` on `/etc/containers/storage.conf`)
-- **No global TMPDIR leak** — Nix TMPDIR scoped to daemon via `/etc/conf.d/nix-daemon` (was global export that broke `containers-storage`)
+- **No global temp-dir leak** — nix uses the upstream default build dir (`/tmp`, mounted exec); the old daemon-scoped temp override that leaked into podman is gone
 
 ---
 
 ## Implementation Notes (recent fixes)
 
 - **Locale:** `it` → `it_IT.UTF-8` expansion (same as shell reference; bare `it` crashes `conmon` `setlocale`)
-- **Nix TMPDIR:** scoped to daemon only (`/etc/conf.d/nix-daemon`), not `/etc/profile.d/nix-daemon.sh` globally — leaked into podman caused `containers-storage` failure
+- **Nix temp dir:** upstream default (`/tmp`, exec since round 48) — old scoped override leaked into podman caused `containers-storage` failure, hence removal
 - **Heredocs:** quoted heredocs (`<< 'COMPOSE'`) — no escaping, prevents broken `webmin-ensure` script
 - **Binary:** exits 1 on compose failure, verifies `podman ps` after start — harness reports honestly
 - **Divider:** `---` horizontal rule separates Quick Start / Directory Structure / Implementation Notes for readability

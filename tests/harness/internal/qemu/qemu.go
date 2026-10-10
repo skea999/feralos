@@ -232,6 +232,21 @@ func StartSoftwareTPM(cfg *SoftwareTPMConfig) error {
 		return fmt.Errorf("find swtpm: %w", err)
 	}
 
+	// A stale swtpm (e.g. after an instant runner-VM kill) still holds the
+	// NVRAM lockfile: SWTPM_NVRAM_Lock_Dir fails with EAGAIN. Kill it by
+	// pidfile and wait for the process to be gone before starting a new one.
+	if blob, err := os.ReadFile(cfg.PIDFile); err == nil {
+		if pid, perr := strconv.Atoi(strings.TrimSpace(string(blob))); perr == nil && pid > 0 {
+			_ = syscall.Kill(pid, syscall.SIGTERM)
+			for i := 0; i < 30; i++ {
+				if err := syscall.Kill(pid, 0); errors.Is(err, syscall.ESRCH) {
+					break
+				}
+				time.Sleep(100 * time.Millisecond)
+			}
+		}
+	}
+
 	for _, path := range []string{cfg.SocketPath, cfg.ControlPath, cfg.PIDFile} {
 		_ = os.Remove(path)
 	}
@@ -256,8 +271,20 @@ func StartSoftwareTPM(cfg *SoftwareTPMConfig) error {
 		"--log", "level=5,file=" + cfg.LogPath,
 		"--flags", "not-need-init,startup-clear",
 	}
-	cmd := exec.Command("swtpm", args...)
-	if output, err := cmd.CombinedOutput(); err != nil {
+	// nix swtpm 0.11 releases the NVRAM flock asynchronously after QEMU
+	// disconnect — wait for exit + retry start (race seen on Mint/Nix host,
+	// run 02-11-18Z)
+	var output []byte
+	var err error
+	for attempt := 0; attempt < 5; attempt++ {
+		cmd := exec.Command("swtpm", args...)
+		output, err = cmd.CombinedOutput()
+		if err == nil {
+			break
+		}
+		time.Sleep(300 * time.Millisecond)
+	}
+	if err != nil {
 		return fmt.Errorf("start swtpm: %w: %s", err, string(output))
 	}
 
@@ -291,6 +318,16 @@ func StopSoftwareTPM(pidFile string) error {
 	}
 	if err := syscall.Kill(pid, syscall.SIGTERM); err != nil && !errors.Is(err, syscall.ESRCH) {
 		return fmt.Errorf("signal swtpm pid %d: %w", pid, err)
+	}
+	// Wait for the old process to exit before removing the pidfile: nix
+	// swtpm 0.11 releases the NVRAM flock asynchronously after QEMU
+	// disconnect — wait for exit + retry start (race seen on Mint/Nix host,
+	// run 02-11-18Z)
+	for i := 0; i < 30; i++ {
+		if err := syscall.Kill(pid, 0); errors.Is(err, syscall.ESRCH) {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
 	}
 	_ = os.Remove(pidFile)
 	return nil
@@ -432,21 +469,49 @@ func WriteSerial(socketPath, text string) error {
 }
 
 func WriteSerialChunks(socketPath string, pause time.Duration, chunks ...string) error {
-	conn, err := net.DialTimeout("unix", socketPath, 5*time.Second)
-	if err != nil {
-		return fmt.Errorf("dial serial socket: %w", err)
+	// QEMU chardev sockets can drop the connection between boots or while
+	// the guest resets its serial device — a broken pipe at the LUKS prompt
+	// previously failed the whole passphrase injection. Redial and retry
+	// each chunk instead of failing the call.
+	const attempts = 3
+	var conn net.Conn
+	dial := func() error {
+		c, err := net.DialTimeout("unix", socketPath, 5*time.Second)
+		if err != nil {
+			return fmt.Errorf("dial serial socket: %w", err)
+		}
+		if conn != nil {
+			conn.Close()
+		}
+		conn = c
+		// Let the chardev settle after accepting the connection before sending data.
+		time.Sleep(200 * time.Millisecond)
+		return nil
+	}
+	if err := dial(); err != nil {
+		return err
 	}
 	defer conn.Close()
 
-	// Let the chardev settle after accepting the connection before sending data.
-	time.Sleep(200 * time.Millisecond)
-
 	for index, chunk := range chunks {
-		if err := conn.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
-			return fmt.Errorf("set serial write deadline: %w", err)
+		var lastErr error
+		for attempt := 1; attempt <= attempts; attempt++ {
+			if err := conn.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
+				lastErr = fmt.Errorf("set serial write deadline: %w", err)
+			} else if _, err := conn.Write([]byte(chunk)); err == nil {
+				lastErr = nil
+				break
+			} else {
+				lastErr = fmt.Errorf("write serial data chunk %d: %w", index, err)
+			}
+			// redial before the next attempt
+			if err := dial(); err != nil {
+				lastErr = fmt.Errorf("%w (redial: %w)", lastErr, err)
+			}
+			time.Sleep(500 * time.Millisecond)
 		}
-		if _, err := conn.Write([]byte(chunk)); err != nil {
-			return fmt.Errorf("write serial data chunk %d: %w", index, err)
+		if lastErr != nil {
+			return lastErr
 		}
 		if pause > 0 && index < len(chunks)-1 {
 			time.Sleep(pause)

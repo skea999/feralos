@@ -5,9 +5,75 @@ chrootDir: "/mnt"
 # NOTE: udev services are in packageLogic under eudev (Alpine uses mdev by default)
 defaultRunlevels:
   sysinit: ["devfs", "dmesg", "sysctl", "sysfs"]
-  boot: ["hwclock", "hostname", "bootmisc", "binfmt", "fsck", "root", "procfs", "loadkmap", "localmount"]
-  default: ["cgroups", "networking"]
+  boot: ["hwclock", "hostname", "bootmisc", "binfmt", "fsck", "root", "procfs", "loadkmap", "localmount", "klogd"]
+  default: ["cgroups", "cpufrequtils", "networking"]
   shutdown: ["mount-ro", "killprocs", "savecache"]
+
+# Dinit base services — enabled via boot.d symlinks when enableDinit is true.
+# This is the dinit counterpart of defaultRunlevels.
+#   system: chimera's primary service processor — without it, boot.d is never
+#           processed and no services (networking, sshd, etc.) start.
+#   getty@tty1/ttyS0: console login on real hardware + serial (harness).
+#   dinit-boot-log: mirrors PID1 boot trail to /var/log/dinit/boot.log.
+#   klogd: busybox kernel-log forwarder (kernel ring -> /dev/log -> vector
+#          kern.log + /var/log/dmesg one-shot); dinit-only — the Alpine
+#          OpenRC service needs `logger` (busybox syslogd), which vector
+#          replaced (see klogd-dinit package).
+#   loadkmap: console keyboard layout — busybox-loadkmap-dinit ships
+#          /lib/dinit.d/loadkmap (consumes /etc/conf.d/loadkmap written by
+#          misc.go); the chimera early-console hook reads /etc/conf.d/keymaps
+#          whose /usr/share/keymaps paths don't exist with kbd-bkeymaps.
+defaultRunlevelsDinit:
+  boot: ["system", "getty@tty1", "getty@ttyS0", "dinit-boot-log", "klogd", "loadkmap"]
+
+# OpenRC service names that must NOT be dinitctl-enabled:
+#   - chimera-covered base services (early chain provides them)
+#   - loadkmap: provided dinit-natively (busybox-loadkmap-dinit) and enabled
+#     via defaultRunlevelsDinit — skipping here prevents a duplicate boot.d
+#     link from the OpenRC boot list (same service name, both lists)
+#   - vector-setup: replaced under dinit by vector-dinit's tmpfiles file
+dinitSkipServices:
+  - hwclock
+  - hostname
+  - bootmisc
+  - binfmt
+  - fsck
+  - root
+  - procfs
+  - loadkmap
+  - localmount
+  - swap
+  - cgroups
+  - udev
+  - udev-trigger
+  - udev-settle
+  - udev-postmount
+  - btrfs-scan
+  - dmcrypt
+  - vector-setup
+
+# -openrc subpackages whose service is already provided by the dinit-chimera
+# suite — never converted to -dinit (their -dinit equivalent does not exist
+# and must not be installed):
+#   agetty, busybox, udev-init-scripts, util-linux — chimera early chain covers
+#   cryptsetup — early-cryptdisks handles /etc/crypttab
+#   eudev — early-devd hook (/usr/libexec/dinit-devd) runs /sbin/udevd directly
+#   kbd — early-console.target hook (/usr/libexec/dinit-console)
+#   makedumpfile — kdump handled by chimera early-kdump/try-kdump
+#   logrotate — runs via /etc/periodic/daily (cronie), init-agnostic: no
+#     service needed under either init (logrotate-dinit does not exist)
+#   (incus-feature NOT skipped anymore: incus-feature-dinit ships incusd)
+dinitReplacedByChimera:
+  - agetty
+  - busybox
+  - btrfs-progs   # btrfs device scan: covered by chimera early-fs-btrfs
+  - cryptsetup
+  - eudev
+  - kbd
+  - logrotate
+  - makedumpfile
+  - udev-init-scripts
+  - util-linux
 
 # Fixed system packages — matches reference skeaSimpleServer exactly
 standardPackages:
@@ -28,8 +94,11 @@ standardPackages:
   - btrfs-progs
   - cryptsetup
   - zstd
+  - dosfstools   # real fsck.vfat (busybox stub lacks -C, errors at boot fsck)
   # Services
   - cronie
+  - cpufrequtils       # CPU governor settings (scripted dinit service; skips on VMs)
+  - cpufrequtils-dinit
   - chrony
   - dbus
   - shadow
@@ -46,6 +115,10 @@ standardPackages:
   - cpufrequtils
   - smartmontools
   # Logging
+  # logrotate: vector does NOT rotate files — it only tails rotated ones
+  # (copytruncate recommended by vector docs). Covers vector sinks AND
+  # dinit service logs; runs via /etc/periodic/daily (cronie).
+  - logrotate
   - vector
   - vector-openrc
   # Shell
@@ -87,6 +160,13 @@ standardPackages:
   - fd
   - dust
   - bat
+  # less shim (feralos-aports): /usr/bin/less is a flag-translating wrapper
+  # that dumps via `bat --paging=never`. NOT a symlink less→bat — bat rejects
+  # the hardcoded less CLI flags it itself passes to its pager
+  # (`less -R -F -K --no-init` on TTY), so the symlink made bat re-exec
+  # itself and clap errored ("unexpected argument '-R'") — broke fish
+  # `history`, `git log`, `man` (anything piping to $PAGER on a TTY).
+  - less-dummy
   # Firewall
   - firewalld
   # XDG user dirs (for flatpak portal access)
@@ -103,6 +183,10 @@ diskLayouts:
   btrfsRaid0:
     packages: ["btrfs-progs", "cryptsetup", "efibootmgr", "btrbk"]
     modules: ["dm_mod", "dm_crypt", "crc32c_cryptoapi", "zstd", "btrfs", "efivarfs", "nvme"]
+  # No LUKS → omits dm_mod/dm_crypt (docs/architecture/storage.md#common)
+  btrfsUnencrypted:
+    packages: ["btrbk"]
+    modules: ["crc32c_cryptoapi", "zstd", "btrfs", "efivarfs", "nvme"]
 
 # 2. Desktop Environments Definitions
 desktopEnvironments:
@@ -111,19 +195,43 @@ desktopEnvironments:
     services: {"sddm": "default", "dbus": "default"}
     groups: ["video", "input"]
   niri:
-    packages: ["niri", "niri-portalsconf", "greetd", "greetd-regreet", "greetd-openrc", "elogind", "elogind-openrc", "dbus", "alacritty", "xdg-desktop-portal-wlr", "xdg-desktop-portal-gtk", "pipewire", "polkit-elogind", "polkit-gnome", "xwayland-satellite", "mesa-dri-gallium", "wayland-libs-server", "cosmic-files", "cosmic-edit", "cosmic-screenshot", "okular", "eog", "cups", "cups-filters", "avahi", "system-config-printer", "cosmic-player", "libreoffice", "galculator", "firefox", "firewalld-gui", "gnome-firmware", "thunderbird", "gnome-disk-utility", "kcron", "cosmic-store", "ksystemlog", "cosmic-settings"]
-    # turnstile: edge only (not in Alpine 3.24) — include when stable
-    services: {"greetd": "default", "elogind": "default", "firewalld": "default"}
-    # render group does not exist on Alpine (video covers DRM access)
-    groups: ["video", "input"]
-    # Both from the stable nixpkgs channel (nixos-26.05) — dms-shell is
-    # packaged in nixpkgs (no external flake needed)
-    # nix-software-center (flake, GitHub snowfallorg) disabled: crates.io
-    # returns 403 on datacenter/QEMU IPs (nix-editor crate fetch) — install
-    # manually after first boot on real hardware:
-    #   nix profile add github:snowfallorg/nix-software-center#nix-software-center
-    nixPackages: ["nixpkgs#quickshell", "nixpkgs#dms-shell", "nixpkgs#rclone", "nixpkgs#rclone-ui", "nixpkgs#mission-center", "nixpkgs#cups-browsed"]
-    flatpakPackages: ["flathub:com.rustdesk.RustDesk"]
+    packages: ["niri", "niri-portalsconf", "greetd", "greetd-regreet", "greetd-openrc", "elogind", "elogind-openrc", "dbus", "alacritty", "xdg-desktop-portal-wlr", "xdg-desktop-portal-gtk", "polkit-elogind", "polkit-gnome", "xwayland-satellite", "xwayland", "mesa-dri-gallium", "wayland-libs-server", "dms-shell", "turnstile", "niri-user-dinit", "accountsservice", "power-profiles-daemon", "cups-pk-helper", "iptables", "ip6tables", "ebtables", "dbus-user-dinit", "pipewire-user-dinit", "pipewire-pulse-user-dinit", "wireplumber-user-dinit", "wayland-wait-user-dinit", "polkit-agent-user-dinit", "wayvnc", "wayvnc-user-dinit", "networkmanager", "networkmanager-cli", "networkmanager-tui", "networkmanager-dinit", "networkmanager-wifi", "wireless-regdb", "bluez", "bluez-openrc", "bluez-dinit", "wpa_supplicant", "wireguard-tools", "qt6-qtmultimedia", "i2c-tools", "wtype", "simple-scan", "sane", "sane-backends", "sane-utils", "sane-airscan", "gnome-keyring", "cosmic-edit", "cosmic-screenshot", "eog", "cups", "cups-filters", "avahi", "system-config-printer", "cosmic-player", "libreoffice", "galculator", "firefox", "firewalld-gui", "gnome-firmware", "thunderbird", "gnome-disk-utility", "kcron", "ksystemlog", "kimageformats", "khal", "adw-gtk3", "font-terminus", "font-inconsolata", "font-dejavu", "font-noto", "font-noto-cjk", "font-awesome", "font-noto-extra"]
+    # turnstile + niri-user-dinit: PAM session → user dinit (turnstiled);
+    # Alpine niri-session's dinit branch starts the `niri` user service.
+    # Login-shell trick: passwd shell = /usr/libexec/feralos/login-shell
+    # (not in /etc/shells) skips niri-session's bash re-exec (see users.go)
+    # cava (DMS audio visualizer) NOT on Alpine v3.24 — re-add when packaged
+    # iptables/ip6tables/ebtables: firewalld direct-rule backends (runtime)
+    # audio stack = user dinit services (pipewire-user-dinit + deps pull
+    # pipewire/pipewire-pulse/wireplumber as runtime deps; session-supervised)
+    # NetworkManager replaces ifupdown as the network service (DMS network/VPN
+    # UI needs the NM backend; /etc/network/interfaces reduced to lo by the
+    # desktop setup, NM manages eth0 — FIX-niri-dms.md rounds 30/44)
+    # networkmanager-wifi: NM wifi PLUGIN subpackage (Alpine splits it) —
+    # without it NM has NO wifi support and the DMS network widget shows no
+    # wifi at all. wireless-regdb = regulatory table (real radios need it);
+    # wpa_supplicant already in the list (NM spawns/supervises it itself).
+    # bluez + bluez-openrc + bluez-dinit: DMS bluetooth widget speaks the
+    # org.bluez dbus API. Service name UNIFIED at "bluetooth" on BOTH inits
+    # (feralos bluez-dinit r2 ships /lib/dinit.d/bluetooth — we own the
+    # package, aports e9ac00c) → the single "bluetooth": "default" in the
+    # services map below enables it for dinit AND OpenRC, niri-only
+    # (desktop services map is merged into the per-desktop Runlevels, not
+    # the base defaultRunlevels).
+    # wayvnc = VNC server (round 37) — RustDesk flatpak REMOVED (round 43
+    # cleanup philosophy: not part of the validated stack)
+    services: {"greetd": "default", "elogind": "default", "firewalld": "default", "polkit": "default", "cupsd": "default", "networkmanager": "default", "bluetooth": "default"}
+    # render group does not exist on Alpine (video covers DRM access);
+    # audio group: /dev/snd/* for pipewire (real-hardware audio);
+    # plugdev: NM polkit rule allows GUI connection management (round 30);
+    # lpadmin: CUPS SystemGroup (printer admin — cups-files.conf default)
+    groups: ["video", "input", "audio", "plugdev", "netdev", "lpadmin"]
+    # DMS 1.6.x + quickshell 0.3.x ship as NATIVE apk packages (feralos-aports)
+    # — the nix stack (dms-shell/quickshell/matugen/dgop/nixGL/execfilter) is
+    # gone. matugen (dynamic wallpaper theming) and rclone-ui are not on
+    # Alpine: DMS degrades gracefully without them.
+    # RustDesk removed (round 43 cleanup + user decision): wayvnc is the
+    # remote-desktop path (user dinit service, loopback by default).
   cosmic:
     packages: ["cosmic-session", "cosmic-term", "cosmic-greeter", "cosmic-edit", "cosmic-player", "cosmic-store", "cosmic-settings", "cosmic-screenshot", "cosmic-icons", "cosmic-initial-setup", "adwaita-icon-theme", "desktop-file-utils", "hicolor-icon-theme", "seatd", "seatd-openrc", "dbus", "polkit", "pipewire", "xdg-desktop-portal-cosmic"]
     services: {"cosmic-greeter": "default", "seatd": "default", "dbus": "default"}
@@ -132,21 +240,30 @@ desktopEnvironments:
 # 3. Video Drivers Definitions
 videoDrivers:
   amdgpu:
-    packages: ["xf86-video-amdgpu", "mesa-dri-gallium", "mesa-va-gallium", "vulkan-loader"]
+    # mesa-vulkan-ati = RADV ICD (Alpine renamed from mesa-vulkan-radeon);
+    # vulkan-loader required separately (ICD does not pull it).
+    # VDPAU (mesa-vdpau-gallium) removed upstream in mesa >=25 — VA-API only.
+    packages: ["xf86-video-amdgpu", "mesa-dri-gallium", "mesa-va-gallium", "mesa-vulkan-ati", "vulkan-loader", "linux-firmware-amdgpu"]
     modules: ["amdgpu"]
   nvidia:
     packages: ["nvidia-lts", "nvidia-libs"]
     modules: ["nvidia", "nvidia-modeset"]
   intel:
-    packages: ["xf86-video-intel", "mesa-dri-intel"]
+    packages: ["mesa-dri-gallium", "mesa-va-gallium", "mesa-vulkan-intel", "intel-media-driver", "libva-intel-driver", "linux-firmware-i915"]
+  virtio:
+    # QEMU virtio-gpu userspace (virgl/venus pipe for virtio-gpu-gl)
+    packages: ["mesa-dri-gallium", "mesa-vulkan-virtio"]
+    modules: ["virtio_gpu"]
 
 # Dummy packages: if key is installed, creates symlink for replaced package
 # Symlink goes from /usr/bin/<replaced> → /usr/bin/<replacement>
 # Bin overrides replacement binary name (e.g. ripgrep → rg)
 # NOTE: grep NOT replaced — rg doesn't support GNU regex extensions (\+)
-dummyPackages:
-  bat:
-    replace: less
+# NOTE: less NOT replaced here — a symlink less→bat crashes: bat execs its
+# hardcoded pager `less -R -F -K --no-init` and cannot parse less flags
+# (clap error). less ships as the aports package `less-dummy` instead
+# (provides less=999, /usr/bin/less = wrapper script → bat --paging=never).
+dummyPackages: {}
 
 # Dynamic logic: if a package is in the install list, apply these changes
 packageLogic:
@@ -157,10 +274,13 @@ packageLogic:
     services: {"incusd": "default"}
     modules: ["tun", "tap", "veth", "overlay"]
   incus-feature:
-    packages: ["incus-feature-vm", "incus-feature-client", "incus-feature-utils", "bridge", "bridge-utils", "vlan"]
+    packages: ["incus-feature-vm", "incus-feature-client", "incus-feature-utils", "bridge", "bridge-utils"]
     groups: ["incus-admin"]
     services: {"incusd": "default"}
-    modules: ["tun", "tap", "bonding", "veth", "overlay"]
+    # 8021q was provided by the 'vlan' package rule — removed: the vlan package
+    # conflicts with ifupdown-ng (required by networking-dinit); ifupdown-ng
+    # handles vlan interfaces itself
+    modules: ["tun", "tap", "bonding", "veth", "overlay", "8021q"]
   incus-feature-vm:
     packages: ["qemu-system-x86_64", "qemu-img", "qemu-modules"]
   qemu-system-x86_64:
@@ -226,6 +346,14 @@ providePackages:
 baseModules:
   - r8169
   - binfmt_misc
+  - sd_mod
+  - sr_mod
+  - ata_piix
+  - ahci
+  - nvme
   - virtio
   - virtio_pci
   - virtio_net
+  - virtio_blk
+  - virtio_scsi
+

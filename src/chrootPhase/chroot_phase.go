@@ -1,11 +1,11 @@
 package chrootPhase
 
 import (
-	"alpineInstaller/chrootPhase/desktops"
-	"alpineInstaller/chrootPhase/features"
-	"alpineInstaller/chrootPhase/internal"
-	"alpineInstaller/utils/config"
-	"alpineInstaller/utils/shell"
+	"feralos/src/chrootPhase/desktops"
+	"feralos/src/chrootPhase/features"
+	"feralos/src/chrootPhase/internal"
+	"feralos/src/utils/config"
+	"feralos/src/utils/shell"
 	"fmt"
 )
 
@@ -15,6 +15,11 @@ func Run(conf *config.Config) error {
 	chroot := i.ChrootDir
 
 	fmt.Println("[INFO] Starting ChrootPhase.Run...")
+
+	// 0. Write resolv.conf BEFORE first apk update (DNS needed for apk)
+	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /etc && echo 'nameserver 208.67.222.222\nnameserver 208.67.220.220' > /etc/resolv.conf"); err != nil {
+		return fmt.Errorf("failed to write resolv.conf: %w", err)
+	}
 
 	// 1. Install packages (apk add)
 	if err := internal.SetupPackages(conf); err != nil {
@@ -59,7 +64,8 @@ func Run(conf *config.Config) error {
 	}
 
 	// 7. Setup nix (optional) — must run before desktop setup so nix-installed
-	// binaries (e.g. dms) are available for configuration steps.
+	// binaries are available for configuration steps (DMS is a native apk
+	// since feralos-aports dms-shell; nix is an explicit enableNix feature).
 	if err := features.SetupNix(conf); err != nil {
 		return fmt.Errorf("nix setup failed: %w", err)
 	}

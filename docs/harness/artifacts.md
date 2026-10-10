@@ -20,7 +20,7 @@ tests/artifacts/harness/
 ├── runs/<timestamp>/       # one per run (keep last 2, cleanOldRuns)
 │   ├── install-disk-1.qcow2 [, install-disk-2.qcow2]  # 16G default (qemu.CreateDisk)
 │   ├── runner-serial.log, runner-qemu.log, runner-qmp.sock
-│   ├── installer.log, post-install.log, harness.log (run summary at end), sbctl.log, tpm-post-install.log
+│   ├── installer.log, post-install.log, harness.log (phase log + run summary), sbctl.log, tpm-post-install.log
 │   ├── target-serial.log, target-qemu.log, target-firmware.log, tser.sock, target-qmp.sock
 │   ├── verify.md (markdown summary table — converted from verify.log; SSH warnings stripped, detail truncated), OVMF_VARS.fd
 │   ├── tpm.sock, tpm.sock.ctrl, tpm-state/, tpm.pid, tpm.log
@@ -87,9 +87,10 @@ All 4 layouts PASS 35/35 with markers enabled. Markers appended at END of each c
 
 | Check | What it verifies | Pass condition |
 |-------|------------------|----------------|
-| `trusted_users_clean` | Nix `trusted-users` temp injection cleaned | `! grep -q "<user>" /etc/nix/nix.conf` (user added during chroot install, then cleaned via `sed -i 's/trusted-users = root .*/trusted-users = root/'`) |
-| `nix_packages_missing` | Expected nix profile packages installed | Unique package-name count (`grep -oE \| sort -u \| wc -l`) >= expected (`len(cfg.NixPackages)` when set — 6 for niri stable: quickshell, dms-shell, rclone, rclone-ui, mission-center, cups-browsed; 1 otherwise). Post-processing strips `\r` + SSH warning, takes last line before Atoi; FAIL messages embed raw output |
-| `nix_build_tmp_perms` | Nix build tmp world-writable | `stat -c %a /nix/var/nix/build/tmp` contains `777` (1777) |
+| `trusted_users_clean` | No per-user `trusted-users` injection in nix.conf | `! grep -q "<user>" /etc/nix/nix.conf` (trust is group-based: `trusted-users = root @wheel`, NixOS default) |
+| `nix_trusted_wheel` | `trusted-users = root @wheel` present | `grep -q 'trusted-users = root @wheel' /etc/nix/nix.conf` (gated `enableNix`) |
+| `nix_packages_missing` | Expected nix profile packages installed | Unique package-name count (`grep -oE \| sort -u \| wc -l`) >= `len(cfg.NixPackages)` (0 when fixture sets only `enableNix` — no profile packages expected). Post-processing strips `\r` + SSH warning, takes last line before Atoi; FAIL messages embed raw output |
+| `nix_tmp_exec` | `/tmp` mounted exec | `mount \| grep ' /tmp '` has NO `noexec` (nix builds use upstream default build dir `/tmp`; old `/nix/var/nix/build/tmp` workaround removed) |
 | `chmod_77_check` | No insecure chmod in installer.log | Count `chmod 777`/`chmod 1777` excluding `/nix/var/nix/build/tmp` (which SHOULD be 1777) must be 0; previous check flagged `775` false positive |
 | `works_in_real_life` | No ignored errors | `installer.log` must NOT contain `[WARNING] Non-interactive mode: ignoring error and continuing.` |
 | `webmin_binary` | Webmin firstboot binary present | `test -x /opt/feralos_webmin` |
@@ -98,20 +99,26 @@ All 4 layouts PASS 35/35 with markers enabled. Markers appended at END of each c
 | `webmin_http` | Webmin HTTP answering | `wget -q -T 5 --no-check-certificate https://localhost:10000/` retry 8×5s |
 | `podman_*` | Podman functional | `podman info`, `podman ps` etc. when `enablePodman=true` |
 | `niri_*` | Niri desktop valid | `niri_config_valid` (validate both kdl), `greetd_config` (greeter files +x), `niri_greeter` (pgrep niri), `dms_installed` (nix profile + binary) |
-| `firewall_rustdesk` | RustDesk firewall ports | `firewall-cmd --permanent --list-ports | grep 21115` OR `grep -rq 21115 /etc/firewalld/` (permanent, not runtime — `firewall-offline-cmd --zone=public` in chroot) |
-| `flatpak_installed` | RustDesk flatpak | `flatpak list | grep rustdesk` when `desktopEnvironment==niri` or `len(FlatpakPackages)>0` |
+| `niri_msg_version` | niri IPC version query (runtime) | `niri msg version` via discovered `niri*.sock` — rc 0 + first 2 lines as detail; sharper binary+IPC proof than `niri_ipc` (gated niri, 90s poll) |
+| `niri_windows` | niri compositor state query (runtime) | `niri msg windows` rc 0 (window list may be tiny — pass on rc, head -5 detail) (gated niri, 90s poll) |
+| `niri_outputs_count` | niri output count | `niri msg outputs` must show ≥1 `^Output` line — REAL on every host (QEMU skip-gate removed 2026-10-09: virtio-vga-gl + egl-headless,gl=on + guest mesa edge 26.2.4 with virgl restored renders — QEMU reports `Output "Red Hat, Inc. QEMU Monitor" (Virtual-1)` 1280x800; run 2026-10-09T18-21-04Z 86/86 zero skips) (gated niri) |
+| `dms_ipc` | DMS IPC liveness (runtime) | `dms ipc call outputs status` (EMPIRICALLY VERIFIED live: answers rc 0; post bug-3 fix outputs exist — `outputs: ["Virtual-1"]`; dms answers unknown targets like `widget list` rc 0 too, so only real target/function pairs are valid proof) via `su - <user> -s /bin/sh` (dms REFUSES root), `XDG_RUNTIME_DIR` + `NIRI_SOCKET` from discovered `niri*.sock`, 60s poll, `timeout 10` (gated niri) |
+| `firewall_rustdesk` | RustDesk firewall ports | Only when a fixture explicitly lists a rustdesk flatpak: `firewall-cmd --permanent --list-ports \| grep 21115` OR `grep -rq 21115 /etc/firewalld/` (niri default: check absent — RustDesk removed) |
+| `flatpak_installed` | RustDesk flatpak | Only when `FlatpakPackages` contains rustdesk: `flatpak list \| grep rustdesk` (niri no longer injects a default) |
+| `dinit_shutdown_commands` | dinit shutdown commands wired | `/usr/bin/{poweroff,halt,shutdown}` symlinks + `/usr/bin/{reboot,soft-reboot}` wrappers all executable when `enableDinit=true` |
+| `gnome_keyring` | gnome-keyring secrets service (niri) | `apk info -e gnome-keyring` + `/usr/share/dbus-1/services/org.freedesktop.secrets.service` exists + `pam_gnome_keyring` in `/etc/pam.d/greetd` (gated niri) |
 
-**Nix tmp permissions:** `/nix/var/nix/build` is `775` + `chown root:nixbld`; `/nix/var/nix/build/tmp` is `1777` + `chown root:nixbld` (world-writable sticky). Required because `/tmp` is `noexec` + `0755` for security, so nix temp must live on `@nix-var-nix-build` subvolume. `TMPDIR` scoped to daemon only via `/etc/conf.d/nix-daemon` (not global export — leaked into podman and broke `containers-storage`). Nix SSL: `NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt` prefixed to all `su - user` nix client cmds.
+**Nix build sandbox:** upstream default build dir (`/tmp`) — `/tmp` is mounted exec (no `noexec`), so the old `@nix-var-nix-build` tmp workaround (777 tmp + scoped temp dir) is gone. `trusted-users = root @wheel` is permanent (NixOS default — wheel is root-equivalent, no escalation). Nix SSL: `NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt` prefixed to all `su - user` nix client cmds.
 
 **Podman storage driver:** `btrfs` via `sed` on `/etc/containers/storage.conf` (keep Alpine's full config, override only `driver` line). `cgroups` service enabled alongside `podman`. `fuse-overlayfs` kept as fallback for rootless overlay. `iptables` added to package set.
 
 **Webmin (podman-based):** `demosthenesk/webmin:noble` image (pschatzmann dead), config seeded via `webmin-seed` container before first start, `tmpfs` for `/tmp /run /var/log /var/webmin` with `read_only: true`, quoted heredocs, binary exits 1 on compose failure, `podman --version` only (podman already in chrootPhase). Compose: `podman compose up -d`.
 
-**Niri + Flatpak + Firewall:** `regreet.toml` `reboot = ["reboot"]` / `poweroff = ["poweroff"]` (not `systemctl` — Alpine OpenRC); `xdg-user-dirs` in `standardPackages` (flatpak portal); `/lib/modules` mkdir before `apk update` in `chrootPhase/internal/packages.go` (was `features/flatpak.go` after install); `wayvnc` removed; rustdesk `spawn-at-startup flatpak run com.rustdesk.RustDesk --service` conditional + `firewall-offline-cmd --zone=public` for `21115-21119/tcp`+`21116/udp`.
+**Niri + NetworkManager + wayvnc:** `regreet.toml` `reboot = ["reboot"]` / `poweroff = ["poweroff"]` (not `systemctl` — Alpine OpenRC); `xdg-user-dirs` in `standardPackages` (flatpak portal); `/lib/modules` mkdir before `apk update` in `chrootPhase/internal/packages.go`; RustDesk removed (flatpak + spawn + firewall ports) — remote desktop = wayvnc (`wayvnc-user-dinit`, user dinit, loopback 127.0.0.1:5900 default); NetworkManager replaces ifupdown (`/etc/network/interfaces` lo-only, `10-manage.conf managed=true`, plugdev/netdev groups); `/tmp` mounted exec (nosuid kept — OpenTUI/Bun `.so` extraction); `/var/tmp` created `1777` (O_TMPFILE — exempt in chmod-777 log scan); dinit conversion skips session/NM-managed services (pipewire stack, wpa_supplicant, wireguard-tools).
 
-**Log allowlist:** `log_errors` allowRe expanded 2026-09-09 to `commitpartial|bwrap.*pivot_root|To enable access to XDG directories` (flatpak XDG portal noise, was exact `commitpartial: No such file` + `bwrap: pivot_root: Invalid argument`). Base + btrfs `BTRFS error` allowlist retained.
+**Log allowlist:** `log_errors` allowRe expanded 2026-09-09 to `commitpartial|bwrap.*pivot_root|To enable access to XDG directories` (flatpak XDG portal noise, was exact `commitpartial: No such file` + `bwrap: pivot_root: Invalid argument`). Base + btrfs `BTRFS error` allowlist retained. 2026-09-28: netns QEMU early-chain noise (`mount /run/netns/netns-*: Invalid argument`, matches both bare `mount` and `umount: can't unmount` variants) via `mount /run/netns.*Invalid argument`.
 
-**Harness result:** **51/51 PASS** including `firewall_rustdesk` + `flatpak_installed` + `niri_*` 4, with `demosthenesk` image (was 45/45, +6 checks).
+**Harness result (niri+dinit fixture, run 2026-09-29T22-07-20Z):** **63/63 PASS** — `niri_*` checks, `niri_user_service` (Alpine `niri-session` → `niri` user service), `login_shell_trick` (passwd shell `/usr/libexec/feralos/login-shell` → fish symlink, not in `/etc/shells`), `turnstile_pkg` + `user_services_enabled` (turnstiled service + 8 user `boot.d` links), `dinit_user_services`, `gnome_keyring` (pkg + `org.freedesktop.secrets` service file + `pam_gnome_keyring` in greetd PAM), `dms_installed` (apk check), NM + wayvnc active; rustdesk checks removed.
 
 ## Cache reuse
 

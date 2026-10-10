@@ -7,13 +7,13 @@ import (
 	"os"
 	"time"
 
-	"alpineInstaller/chrootPhase"
-	"alpineInstaller/hostPhase"
-	"alpineInstaller/utils/cleanup"
-	"alpineInstaller/utils/config"
-	"alpineInstaller/utils/createConfig"
-	"alpineInstaller/utils/firstboot"
-	"alpineInstaller/utils/logic"
+	"feralos/src/chrootPhase"
+	"feralos/src/hostPhase"
+	"feralos/src/utils/cleanup"
+	"feralos/src/utils/config"
+	"feralos/src/utils/createConfig"
+	"feralos/src/utils/firstboot"
+	"feralos/src/utils/logic"
 )
 
 func main() {
@@ -38,7 +38,10 @@ func main() {
 		if os.IsNotExist(err) {
 			fmt.Println("[WARN] No configuration file found. Starting with defaults...")
 			conf = &config.Config{}
-		} else {
+			// Rules needed by the wizard (enum options for layout/DE/video)
+			err = config.LoadInternalRules(conf)
+		}
+		if err != nil {
 			log.Fatalf("[ERROR] Configuration loading failed: %v", err)
 		}
 	}

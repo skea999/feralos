@@ -1,8 +1,8 @@
 package features
 
 import (
-	"alpineInstaller/utils/config"
-	"alpineInstaller/utils/shell"
+	"feralos/src/utils/config"
+	"feralos/src/utils/shell"
 	"fmt"
 	"strings"
 )
@@ -35,18 +35,19 @@ func SetupNix(conf *config.Config) error {
 	fmt.Println("[INFO] Installing and configuring Nix...")
 
 	fmt.Println("[INFO] Configuring Nix daemon...")
-	// trusted-users: lets the wheel user pass --option sandbox false during
-	// chroot install (the nix build sandbox pivot_root fails inside the
-	// installer chroot). The installed system keeps the default sandbox.
+	// ssl-cert-file: builder curl (crates.io fetchers) must see the host CA
+	// bundle, else "unable to get local issuer certificate" → 403 cascade.
 	// NOTE: allow-unfree/allow-insecure are NOT recognized by Alpine's nix
 	// build (unknown setting warnings) — NIXPKGS_ALLOW_* env vars in
 	// /etc/profile.d/nix-daemon.sh (and fish/bash) carry that permanently.
-	// ssl-cert-file: builder curl (crates.io fetchers) must see the host CA
-	// bundle, else "unable to get local issuer certificate" → 403 cascade.
-	nixConf := fmt.Sprintf(`build-dir = /nix/var/nix/build
-extra-experimental-features = nix-command flakes
-trusted-users = root %s
-ssl-cert-file = /etc/ssl/certs/ca-certificates.crt`, u.UserName)
+	nixConf := `extra-experimental-features = nix-command flakes
+ssl-cert-file = /etc/ssl/certs/ca-certificates.crt
+trusted-users = root @wheel`
+	// trusted-users = root @wheel — the NixOS upstream default. Trusted users
+	// can pass trusted settings (--option sandbox false, needed for chroot
+	// installs; --impure; extra cache URLs) and are ~root-equivalent by
+	// definition — wheel already is, so this adds zero escalation.
+	// Daily UX: nix profile add / flakes work for wheel users without sudo.
 	escapedNixConf := strings.ReplaceAll(nixConf, "'", "'\\''")
 	// Append (not overwrite): preserve Alpine's allowed-users=@nix,
 	// build-users-group=nixbld and max-jobs from /etc/nix/nix.conf.
@@ -58,38 +59,43 @@ ssl-cert-file = /etc/ssl/certs/ca-certificates.crt`, u.UserName)
 		fmt.Printf("[WARNING] Failed to add user to nix group: %v\n", err)
 	}
 
-	if _, err := shell.ExecuteCmdArgs(chroot, "chown", "root:nixbld", "/nix/var/nix/build"); err != nil {
-		fmt.Printf("[WARNING] Failed to set build dir ownership: %v\n", err)
-	}
-	if _, err := shell.ExecuteCmdArgs(chroot, "chmod", "775", "/nix/var/nix/build"); err != nil {
-		fmt.Printf("[WARNING] Failed to set build dir permissions: %v\n", err)
-	}
-
-	if _, err := shell.ExecuteCmdArgs(chroot, "rc-update", "add", "nix-daemon", "default"); err != nil {
-		fmt.Printf("[WARNING] Failed to add nix-daemon to default: %v\n", err)
+	// nix-daemon enablement: OpenRC runlevels under OpenRC; under dinit the
+	// converted nix-daemon-dinit service is enabled via boot.d symlink
+	// (no rules map entry covers it — the nix feature owns its service).
+	if conf.User.EnableDinit {
+		if _, err := shell.ExecuteCmd(chroot, "mkdir -p /etc/dinit.d/boot.d && test -f /lib/dinit.d/nix-daemon && ln -sf /lib/dinit.d/nix-daemon /etc/dinit.d/boot.d/nix-daemon || true"); err != nil {
+			fmt.Printf("[WARNING] Failed to enable nix-daemon dinit service: %v\n", err)
+		}
+	} else {
+		if _, err := shell.ExecuteCmdArgs(chroot, "rc-update", "add", "nix-daemon", "default"); err != nil {
+			fmt.Printf("[WARNING] Failed to add nix-daemon to default: %v\n", err)
+		}
 	}
 
 	if _, err := shell.ExecuteCmdArgs(chroot, "nix-channel", "--add", "https://nixos.org/channels/nixos-26.05", "nixpkgs"); err != nil {
 		fmt.Printf("[WARNING] Failed to add nix channel: %v\n", err)
 	}
+	// Unpack the channel manifest NOW: a freshly added channel is not usable
+	// until updated — the first <nixpkgs> use on the installed system would
+	// fail with "undefined variable 'nixpkgs'" (seen via debug_run).
+	// NIX_CONFIG sandbox=false: the unpack derivation uses the build sandbox,
+	// whose pivot_root fails inside the installer chroot (EINVAL — / is not
+	// a mountpoint). Same chroot-only workaround as the profile installs
+	// below; the installed system keeps the default sandbox.
+	if _, err := shell.ExecuteCmd(chroot, "NIX_CONFIG='sandbox = false' nix-channel --update"); err != nil {
+		fmt.Printf("[WARNING] nix-channel --update failed: %v\n", err)
+	}
 
 	fmt.Println("[INFO] Setting Nix environment variables...")
 	// XKB_CONFIG_ROOT: nix-installed GUI apps need the host X11 xkb data.
-	// NOTE: TMPDIR is deliberately NOT exported globally — /tmp is noexec
-	// (security) so nix builds need the @nix-var-nix-build subvolume, but the
-	// var is scoped to the nix daemon only via /etc/conf.d/nix-daemon below.
-	// A global export leaks into podman etc. and breaks containers-storage.
+	// Build sandbox: upstream default — /tmp is exec since round 48, the old
+	// scoping workaround (born from the noexec era) is gone.
 	nixEnv := `export XKB_CONFIG_ROOT=/usr/share/X11/xkb`
 	escapedNixEnv := strings.ReplaceAll(nixEnv, "'", "'\\''")
 	// Append (not overwrite): preserve the PATH/daemon setup the Alpine nix
 	// package ships in /etc/profile.d/nix-daemon.sh.
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' >> /etc/profile.d/nix-daemon.sh", escapedNixEnv)); err != nil {
 		return fmt.Errorf("failed to write nix env: %w", err)
-	}
-
-	// Scope TMPDIR to the nix daemon service only (OpenRC sources conf.d)
-	if _, err := shell.ExecuteCmd(chroot, "echo 'TMPDIR=/nix/var/nix/build/tmp' > /etc/conf.d/nix-daemon"); err != nil {
-		return fmt.Errorf("failed to write /etc/conf.d/nix-daemon: %w", err)
 	}
 
 	nixFishEnv := `set -gx XKB_CONFIG_ROOT /usr/share/X11/xkb`
@@ -130,21 +136,6 @@ ssl-cert-file = /etc/ssl/certs/ca-certificates.crt`, u.UserName)
 			fmt.Printf("[WARNING] Failed to start nix-daemon in chroot: %v\n", err)
 		}
 
-		// The nix client uses TMPDIR for its temp files. /tmp is mounted
-		// noexec + 0755 (security), so temp files MUST go to the nix build
-		// subvolume (@nix-var-nix-build, mounted at /nix/var/nix/build).
-		// The dir persists in the subvolume, so it exists after boot too.
-		nixTmp := "/nix/var/nix/build/tmp"
-		if _, err := shell.ExecuteCmdArgs(chroot, "mkdir", "-p", nixTmp); err != nil {
-			return fmt.Errorf("failed to prepare nix build tmp dir: %w", err)
-		}
-		if _, err := shell.ExecuteCmdArgs(chroot, "chown", "root:nixbld", nixTmp); err != nil {
-			fmt.Printf("[WARNING] Failed to set tmp dir ownership: %v\n", err)
-		}
-		if _, err := shell.ExecuteCmdArgs(chroot, "chmod", "1777", nixTmp); err != nil {
-			return fmt.Errorf("failed to prepare nix build tmp dir: %w", err)
-		}
-
 		// The default flake registry maps nixpkgs -> nixpkgs-unstable, which
 		// would override the stable channel for `nixpkgs#...` installs. Pin
 		// the user's registry to the stable branch (same as the channel).
@@ -161,7 +152,7 @@ ssl-cert-file = /etc/ssl/certs/ca-certificates.crt`, u.UserName)
 		var failedPkgs []string
 		for _, pkg := range u.NixPackages {
 			fmt.Printf("[INFO] nix profile add %s\n", pkg)
-			inner := fmt.Sprintf("TMPDIR=%s NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt NIXPKGS_ALLOW_INSECURE=1 NIXPKGS_ALLOW_UNFREE=1 nix profile add --impure --option sandbox false %s", nixTmp, pkg)
+			inner := fmt.Sprintf("NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt NIXPKGS_ALLOW_INSECURE=1 NIXPKGS_ALLOW_UNFREE=1 nix profile add --impure --option sandbox false %s", pkg)
 			if _, err := shell.ExecuteCmdArgs(chroot, "su", "-", u.UserName, "-c", inner); err != nil {
 				fmt.Printf("[WARNING] Failed to install nix package %s: %v\n", pkg, err)
 				failedPkgs = append(failedPkgs, pkg)
@@ -179,13 +170,6 @@ ssl-cert-file = /etc/ssl/certs/ca-certificates.crt`, u.UserName)
 		}
 		if _, err := shell.ExecuteCmdArgs(chroot, "su", "-", u.UserName, "-c", "NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt nix profile list 2>&1 || true"); err != nil {
 			fmt.Printf("[WARNING] nix profile list failed: %v\n", err)
-		}
-
-		if _, err := shell.ExecuteCmd(chroot, "sed -i 's/trusted-users = root .*/trusted-users = root/' /etc/nix/nix.conf"); err != nil {
-			fmt.Printf("[WARNING] Failed to clean trusted-users in nix.conf: %v\n", err)
-		}
-		if _, err := shell.ExecuteCmdArgs(chroot, "rc-service", "nix-daemon", "restart"); err != nil {
-			fmt.Printf("[WARNING] Failed to restart nix-daemon in chroot: %v\n", err)
 		}
 
 		// Stop the daemon again — the target boots its own nix-daemon service.

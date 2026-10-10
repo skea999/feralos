@@ -29,6 +29,8 @@ revert `init=` to drop back into OpenRC — coexistence is the safety net).
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
+| `dinit: boot: could not find service description.` right after booster switch | services in `/usr/lib/dinit.d` — stock Alpine dinit does NOT scan it | dinit-chimera APKBUILD `prepare()` must override `srvdir` to `/lib/dinit.d`; all `*-dinit` pkgs install to `/lib/dinit.d` (pkgrel ≥ dinit-chimera 0.99.24-r2) |
+| `early-tmpfiles-dev command failed with exit code 139` → whole boot cascade FAILED | `sd-tmpfiles --create` segfaults — GCC use-after-scope in `CONF_PATHS_STRV` ([upstream #5](https://github.com/chimera-linux/sd-tools/issues/5)); Alpine's r3 is GCC-built and broken | use our `sd-tools-0.99.990-r993` (static-storage patch, inflated pkgver always beats Alpine 0.99.x); never let Alpine's r3 win: `apk policy sd-tools` must show 0.99.990-r993 |
 | Boots into OpenRC despite `init=` | cmdline lost (UKI not regenerated) | regenerate UKI after `/etc/kernel/cmdline` change |
 | `init=` ignored in initramfs stage | expected — booster is init-agnostic, only post-switch_root | n/a |
 | Hangs at `early-devd` | udevd path wrong in our hook | check `command -v udevd` / `/usr/lib/udev/udevd` in chroot; fix `dinit-devd` |
@@ -40,6 +42,7 @@ revert `init=` to drop back into OpenRC — coexistence is the safety net).
 | Two console services block each other | both `runs-on-console` | demote one to `shares-console` |
 | Network up but DNS dead | chronyd/netorder fine, resolv.conf empty | installer writes resolv.conf — check chroot step, not dinit |
 | Display manager never starts | seat provider missing (elogind vs seatd) or DM `depends-on` wrong | `dinitctl status elogind seatd <dm>` |
+| `poweroff`/`reboot` do nothing (machine keeps running) | Alpine's busybox `poweroff` sends SIGUSR2 — dinit ignores it (handles only SIGINT=reboot / SIGTERM=halt / SIGQUIT=now); `dinitctl shutdown` sends HALT (no poweroff); and without the `dinit-shutdown` binary PID 1 cannot finalize ANY shutdown | `dinit-shutdown` package (installer core) provides `dinit-poweroff` / `dinit-reboot`; installer also wires conventional commands (Artix/Chimera style): `poweroff`/`halt`/`shutdown` symlinks + `reboot`/`soft-reboot` wrappers in `/usr/bin`; daemon rolls back services then execs `/usr/sbin/dinit-shutdown --system -p/-r/-h` |
 
 ## Live Inspection (running system)
 
@@ -49,12 +52,31 @@ dinitctl status boot system      # entry points
 dinitctl status login.target network.target local.target
 dinitctl start|stop <svc>        # runtime control
 dinitctl enable|disable <svc>    # boot.d symlink add/remove
+dinitctl catlog <svc>            # n/a: our services use log-type=file
 
-ls /usr/lib/dinit.d/boot.d/      # enabled-by-package
-ls /etc/dinit.d/boot.d/          # enabled-by-admin
+ls /lib/dinit.d/boot.d/          # (unused: vendor dir, packages don't enable)
+ls /etc/dinit.d/boot.d/          # enabled by installer rules (boot waits-for)
+ls /var/log/dinit/               # per-service logs (log-type=file) + boot.log
+tail /var/log/dinit/boot.log     # PID1 status trail: every start/stop/fail
 ```
 
-Logging: dinit logs to console (+ `dinit_log_file=` if set). System logs go through
+## Logging Architecture (dinit)
+
+- PID1 trail: cmdline `dinit_log_file=/run/dinit-boot.log` → mirrored live to
+  `/var/log/dinit/boot.log` by `dinit-boot-log` (tail -F; logrotate
+  copytruncate-safe)
+- Daemon stderr: `log-type=file` → `/var/log/dinit/<name>.log`
+- Vector ingests both (`dinit_services` file source + syslog socket);
+  rotation via logrotate (`/etc/logrotate.d/feralos`, copytruncate +
+  delaycompress — vector-docs recommended)
+- NOTE: once `login.target` (runs-on-console, upstream) starts, dinit stops
+  printing to console — services keep running; read the trail from
+  `/var/log/dinit/boot.log`
+- `dinitctl --offline enable` crashes on Alpine dinit 0.21.0 (assert) —
+  installer creates the identical boot.d symlinks directly; retry dinitctl
+  when Alpine ships a fixed dinit
+
+Logging: dinit logs to console (+ `dinit_log_file` if set). System logs go through
 **vector** (our stack) — no journalctl on FeralOS; check `/var/log/` vector sinks.
 
 ## Package / Repo Issues
@@ -73,7 +95,7 @@ Coexistence guarantee: remove `init=` from cmdline → boots OpenRC exactly as b
 
 ```sh
 apk add dinit-chimera            # re-install/repair
-dinitcheck /usr/lib/dinit.d/<svc>
+dinitcheck /lib/dinit.d/<svc>
 vi /etc/kernel/cmdline           # re-add init= when fixed, regenerate UKI
 ```
 

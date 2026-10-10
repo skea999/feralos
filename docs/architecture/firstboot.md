@@ -8,7 +8,7 @@ Activatable features use autonomous Go binaries in `src/firstBoot/`:
 
 - `src/firstBoot/secureboot/main.go` — installs packages, generates EFI keys, enrolls `sbctl`, builds+signs UKI, writes hooks
 - `src/firstBoot/tpm/main.go` — checks TPM `/dev/tpmrm0`, installs `clevis@edge` + `tpm2-tools`, binds each LUKS device to TPM2 (empty PCR `{}`), removes keyfile, rebuilds initramfs+UKI
-- `src/firstBoot/webmin/main.go` — verifies `podman --version`, creates `/opt/webmin`, generates `docker-compose.yml` (image `demosthenesk/webmin:noble`, `read_only: true`, `tmpfs: /tmp /run /var/log /var/webmin`), seeds `/etc/webmin` via `webmin-seed` container, starts via `podman compose up -d`, creates `webmin-ensure` oneshot, sets root password via `changepass.pl` + `chpasswd`
+- `src/firstBoot/webmin/main.go` — verifies `podman --version`, creates `/opt/webmin`, generates `docker-compose.yml` (image `demosthenesk/webmin:noble`, `read_only: true`, `tmpfs: /tmp /run /var/log /var/webmin`), seeds `/etc/webmin` via `webmin-seed` container, starts via `podman compose up -d`, creates `webmin-ensure` oneshot (dual-init: PID1 via `cat /proc/1/comm` → dinit `/etc/dinit.d/webmin-ensure` + `/usr/libexec/dinit-webmin-ensure` + boot.d link, OpenRC `/etc/init.d/webmin-ensure`), sets root password via `changepass.pl` + `chpasswd`
 
 Binaries are autonomous — installer does NOT run them.
 

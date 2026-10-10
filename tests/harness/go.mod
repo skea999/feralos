@@ -1,4 +1,4 @@
-module skeaAlpineInstaller/tests/harness
+module feralos/tests/harness
 
 go 1.22.0
 

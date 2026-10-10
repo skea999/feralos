@@ -1,8 +1,8 @@
 package features
 
 import (
-	"alpineInstaller/utils/config"
-	"alpineInstaller/utils/shell"
+	"feralos/src/utils/config"
+	"feralos/src/utils/shell"
 	"fmt"
 )
 
@@ -27,14 +27,18 @@ func SetupPodman(conf *config.Config) error {
 
 	fmt.Println("[INFO] Configuring Podman rootless containers...")
 
-	// Enable podman service
-	if _, err := shell.ExecuteCmdArgs(chroot, "rc-update", "add", "podman", "default"); err != nil {
-		fmt.Printf("[WARNING] Failed to add podman to default runlevel: %v\n", err)
-	}
+	// Enable services — OpenRC runlevels only under OpenRC. Under dinit the
+	// rules-driven enablement (podman-dinit service + chimera cgroups) owns
+	// this; rc-update symlinks would be dead weight.
+	if !conf.User.EnableDinit {
+		if _, err := shell.ExecuteCmdArgs(chroot, "rc-update", "add", "podman", "default"); err != nil {
+			fmt.Printf("[WARNING] Failed to add podman to default runlevel: %v\n", err)
+		}
 
-	// Enable cgroups (required by podman)
-	if _, err := shell.ExecuteCmdArgs(chroot, "rc-update", "add", "cgroups", "default"); err != nil {
-		fmt.Printf("[WARNING] Failed to add cgroups to default runlevel: %v\n", err)
+		// Enable cgroups (required by podman)
+		if _, err := shell.ExecuteCmdArgs(chroot, "rc-update", "add", "cgroups", "default"); err != nil {
+			fmt.Printf("[WARNING] Failed to add cgroups to default runlevel: %v\n", err)
+		}
 	}
 
 	// Configure subuid/subgid for rootless containers

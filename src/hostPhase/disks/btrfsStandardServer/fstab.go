@@ -1,9 +1,9 @@
 package btrfsStandardServer
 
 import (
-	"alpineInstaller/utils/config"
-	"alpineInstaller/utils/misc"
-	"alpineInstaller/utils/shell"
+	"feralos/src/utils/config"
+	"feralos/src/utils/misc"
+	"feralos/src/utils/shell"
 	"fmt"
 	"strings"
 )
@@ -62,7 +62,7 @@ func GenerateFstab(conf *config.Config) error {
 		{Name: "@opt", Path: "/opt", Options: "compress=zstd:3,autodefrag,ssd,subvol=@opt"},
 		{Name: "@root", Path: "/root", Options: "compress=zstd:3,autodefrag,ssd,subvol=@root"},
 		{Name: "@srv", Path: "/srv", Options: "autodefrag,ssd,nodev,noexec,nosuid,subvol=@srv", NoCoW: true},
-		{Name: "@tmp", Path: "/tmp", Options: "compress=zstd:3,autodefrag,ssd,noexec,nosuid,subvol=@tmp"},
+		{Name: "@tmp", Path: "/tmp", Options: "compress=zstd:3,autodefrag,ssd,nosuid,subvol=@tmp"},
 		{Name: "@var", Path: "/var", Options: "compress=zstd:3,autodefrag,ssd,subvol=@var"},
 		{Name: "@var-lib-ex", Path: "/var/lib/ex", Options: "autodefrag,ssd,nodev,noexec,nosuid,subvol=@var-lib-ex", NoCoW: true},
 		{Name: "@var-lib-libvirt", Path: "/var/lib/libvirt", Options: "compress=zstd:3,autodefrag,ssd,subvol=@var-lib-libvirt"},
@@ -82,7 +82,6 @@ func GenerateFstab(conf *config.Config) error {
 		{Name: "@nix-store", Path: "/nix/store", Options: "compress=zstd:3,autodefrag,ssd,subvol=@nix-store"},
 		{Name: "@nix-var-nix", Path: "/nix/var/nix", Options: "compress=zstd:3,autodefrag,ssd,subvol=@nix-var-nix"},
 		{Name: "@nix-var-log", Path: "/nix/var/log", Options: "autodefrag,ssd,nodev,noexec,nosuid,subvol=@nix-var-log", NoCoW: true},
-		{Name: "@nix-var-nix-build", Path: "/nix/var/nix/build", Options: "compress=zstd:3,autodefrag,ssd,subvol=@nix-var-nix-build"},
 		// Btrbk backup
 		{Name: "@btrbk", Path: "/btrbk", Options: "compress=zstd:3,autodefrag,ssd,subvol=@btrbk"},
 	}

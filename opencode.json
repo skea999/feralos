@@ -6,11 +6,7 @@
   ],
   "permission": {
     "*": "allow",
-    "external_directory": {
-      "*": "ask",
-      "~/Progetti/*": "allow"
-    },
-    "doom_loop": "deny"
+    "external_directory": "allow"
   },
   "agent": {
     "planner": {},
@@ -45,28 +41,7 @@
     "orchestrator": {
       "permission": {
         "task": {
-          "*": "deny",
-          "planner": "allow",
-          "codebase": "allow",
-          "review": "allow",
-          "code-reviewer": "allow",
-          "vulnerability-scan": "allow",
-          "information-scan": "allow",
-          "debugger": "allow",
-          "test-automator": "allow",
-          "performance-engineer": "allow",
-          "refactoring-specialist": "allow",
-          "docs": "allow",
-          "documentation-engineer": "allow",
-          "researcher": "allow",
-          "blogger": "allow",
-          "brutal-critic": "allow",
-          "legal-advisor": "allow",
-          "em-advisor": "allow",
-          "penetration-tester": "allow",
-          "security-auditor": "allow",
-          "explore": "allow",
-          "general": "allow"
+          "*": "allow"
         }
       }
     }

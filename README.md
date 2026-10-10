@@ -4,6 +4,39 @@
 
 FeralOS is not another clone. It's a different approach: take Alpine's solid foundation (musl, apk) and rebuild the userland with memory-safe alternatives. The init system will be Dinit instead of OpenRC, with the ability to choose between both. The goal is a secure, modern distribution that's actually good for desktop use — something Alpine has always struggled with.
 
+## Getting Started
+
+1. Download a Linux Mint live ISO
+2. Write to USB and boot
+3. Open a terminal and run:
+
+```bash
+wget https://raw.githubusercontent.com/skea999/feralos/main/setup.sh
+sudo bash setup.sh
+```
+
+The script will automatically clone the repository, build the installer, and run it.
+
+### Options
+
+```bash
+# Interactive (asks for configuration)
+sudo bash setup.sh
+
+# Non-interactive (use existing config)
+sudo bash setup.sh -config variables.yaml
+```
+
+### Using the Generator
+
+To create a custom `variables.yaml` configuration:
+
+```bash
+sudo bash setup.sh
+# Then run the generator inside the installer directory
+./feralos_create_config
+```
+
 ## What Makes FeralOS Different
 
 ### Memory Safety First
@@ -95,39 +128,6 @@ Stack: **k3s** + **LINSTOR/Pirateus** as distributed storage backend for **Incus
 - 2 disks, 8 GB minimum each
 - UEFI system (for Secure Boot)
 - Network connection (for package installation)
-
-## Getting Started
-
-1. Download a Linux Mint live ISO
-2. Write to USB and boot
-3. Open a terminal and run:
-
-```bash
-wget https://gitea.com/sketa999/skeaAlpineInstaller/raw/branch/main/setup.sh
-sudo bash setup.sh
-```
-
-The script will automatically clone the repository, build the installer, and run it.
-
-### Options
-
-```bash
-# Interactive (asks for configuration)
-sudo bash setup.sh
-
-# Non-interactive (use existing config)
-sudo bash setup.sh -config variables.yaml
-```
-
-### Using the Generator
-
-To create a custom `variables.yaml` configuration:
-
-```bash
-sudo bash setup.sh
-# Then run the generator inside the installer directory
-./feralos_create_config
-```
 
 ## Project Status
 
