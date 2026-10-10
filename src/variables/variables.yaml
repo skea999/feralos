@@ -1,7 +1,7 @@
 variables:
   unattended: false
   ignoreErrors: false               # true = log errors and continue (harness mode); false = abort on first error
-  enableEdgeRepos: false            # @edge tagged repos (main/community/testing) — for installing packages from Alpine edge via extraPackages (e.g. pkg@edge)
+  enableEdgeRepos: true            # @edge tagged repos (main/community/testing) — for installing packages from Alpine edge via extraPackages (e.g. pkg@edge)
   # Disk Configuration
   disks:
     - "/dev/sda"
