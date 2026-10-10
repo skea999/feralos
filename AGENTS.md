@@ -8,6 +8,16 @@
 
 ## Recent Rounds (latest first)
 
+### 2026-10-10 22:45 - validation: tests + harness dinit/niri 94/94 + debug_run live; debug_run QEMU flag fix
+**Agent:** codebase
+**Summary:** Post-rename validation round (user request: memory recall → go test → harness dinit+niri → debug_run).
+- **Tests**: `go test ./...` green in src (config + swap, 25 subtests), harness (service pkg), debug_run (no tests).
+- **Harness** (fixture `btrfs_standard_niri_full_test.yaml`): run `2026-10-10T22-11-11Z` **94/94 PASS** — 0 ignored/hard errors, dinit stack + niri rendering + screenshot PNG + wayvnc :5900 + DMS + bluetooth org.bluez + NM wifi + TPM auto-unlock all green. INFRA FIXES needed (folder-rename fallout, host-side): runner qcow2 stale backing path (rebase -u to `~/Progetti/feralos/...`), runner disk 3G→8G (`prepare-runner -force`), `cloud-image-utils` (cloud-localds) reinstalled.
+- **debug_run**: live boot of the run = 8/8 checks PASS (PID1 dinit, boot chain, user dinit niri/dms/wayvnc/pipewire started, greetd socket, less shim `-R` OK, wifi enabled).
+- **BUG found+fixed** (`tests/debug_run/main.go`): target `-device virtio-vga-gl,venus=on,blob=true,hostmem=1G` — apt QEMU 8.2.2 rejects `venus` → QEMU exit 1; harness dropped these flags in the 14:30 round but debug_run was missed. Fix `dccb79a`: plain `virtio-vga-gl` + comment updated; validated with a NATIVE boot (no wrapper): dinit PID1, niri alive, wayvnc :5900.
+- **debug_run gotchas (no code change)**: guest poweroff from ssh user needs password sudo → use QMP `system_powerdown` on `d-qmp.sock`; wrapper/nohup parent may linger after qemu exit (kill manually); root ssh shell = fish (wrap globs in `sh -c`).
+- Commits: `dccb79a` pushed to `developDinit` (SHA match).
+
 ### 2026-10-10 17:00 - src: Go module alpineInstaller → feralos/src (completes the rename)
 **Agent:** codebase
 **Summary:** User request: rename the src module too (it carried the older `alpineInstaller` name — never `skeaAlpineInstaller`, hence untouched by the 16:30 round).
