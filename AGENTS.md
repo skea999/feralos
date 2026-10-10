@@ -8,6 +8,14 @@
 
 ## Recent Rounds (latest first)
 
+### 2026-10-10 01:10 - DMS bluetooth + NM wifi completeness (data-only round)
+**Agent:** codebase
+**Summary:** DMS bluetooth widget dead + DMS network widget missing wifi — both diagnosed on the live target (`dms doctor`, debug_run of run `2026-10-09T22-30-58Z`) and fixed data-only in `internal_rules.yaml` (zero Go changes). DMS doctor also gave the definitive missing-packages list: matugen + cava = hard warnings (user handled separately), dgop = NOT a gap (embedded in the dms Go binary), kimageformats/khal/adw-gtk3 = user already added.
+- **Bluetooth (was entirely absent)**: niri packages += `bluez`, `bluez-openrc`, `bluez-dinit` (feralos bluez-dinit = `/lib/dinit.d/bluez`, dbus-wait-for readiness, exists in repo+Pages — never wired into the installer until now). DMS BT widget speaks org.bluez dbus.
+- **Service-name split (gotcha)**: OpenRC initd = `bluetooth`, feralos bluez-dinit service = `bluez`. Wiring: niri desktop `services: {"bluetooth": "default"}` (OpenRC enablement) + `defaultRunlevelsDinit.boot += "bluez"` (dinit boot.d link) + `dinitSkipServices += bluetooth` (prevents the dinit loop from trying the nonexistent /lib/dinit.d/bluetooth).
+- **WiFi (incomplete)**: Alpine splits the NM wifi plugin — `networkmanager-wifi` was missing, so NM had NO wifi support at all (DMS network widget = no wifi section). niri packages += `networkmanager-wifi`, `wireless-regdb`. wpa_supplicant already present (NM spawns it); NM config (`10-manage.conf` managed=true) untouched; real-hw wifi firmware covered by the installer's hardware detection.
+- Verified names against Alpine 3.24 (docker `apk add -s`: bluez 5.86-r2, networkmanager-wifi 1.52.2-r0, wireless-regdb 2025.10.07-r0 all resolve; obex subpackage = `bluez-obexd`, not used). YAML parse + assertions green, installer build/vet/gofmt clean.
+
 ### 2026-10-10 00:20 - wizard password double-entry confirmation
 **Agent:** codebase
 **Summary:** Generator UX hardening (`create_values.go` askSecret): password + LUKS passphrase now asked TWICE (entry + `Confirm` prompt, masked both); mismatch = BOTH re-asked from the first entry. Empty LUKS (reuse user password) skips confirmation (nothing to mistype). Non-tty path (pipes/automation) keeps plain readLine but confirmation still enforced. Min length UNCHANGED at `MinPasswordLen = 6` (validators.go single source, shared with validateConfig) — already stricter than the requested ">4". Lint: one govet shadow fix in the same function (mechanical, zero behavior change). Builds green: installer + createValues, vet/lint/test. Docs: `docs/guides/variables.md` wizard paragraph.

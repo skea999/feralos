@@ -24,7 +24,11 @@ defaultRunlevels:
 #          misc.go); the chimera early-console hook reads /etc/conf.d/keymaps
 #          whose /usr/share/keymaps paths don't exist with kbd-bkeymaps.
 defaultRunlevelsDinit:
-  boot: ["system", "getty@tty1", "getty@ttyS0", "dinit-boot-log", "klogd", "loadkmap"]
+  boot: ["system", "getty@tty1", "getty@ttyS0", "dinit-boot-log", "klogd", "loadkmap", "bluez"]
+  # bluez: DMS bluetooth widget (org.bluez dbus). bluez-dinit ships
+  # /lib/dinit.d/bluez (dbus-wait-for readiness, depends-on local.target,
+  # before login.target). Name split vs OpenRC ("bluetooth") — see the
+  # niri desktop services comment.
 
 # OpenRC service names that must NOT be dinitctl-enabled:
 #   - chimera-covered base services (early chain provides them)
@@ -32,6 +36,10 @@ defaultRunlevelsDinit:
 #     via defaultRunlevelsDinit — skipping here prevents a duplicate boot.d
 #     link from the OpenRC boot list (same service name, both lists)
 #   - vector-setup: replaced under dinit by vector-dinit's tmpfiles file
+#   - bluetooth: OpenRC name of the bluez service — under dinit the feralos
+#     bluez-dinit package ships the service as "bluez" (enabled via
+#     defaultRunlevelsDinit); skipping here prevents the dinit loop from
+#     trying a /lib/dinit.d/bluetooth link that does not exist
 dinitSkipServices:
   - hwclock
   - hostname
@@ -51,6 +59,7 @@ dinitSkipServices:
   - btrfs-scan
   - dmcrypt
   - vector-setup
+  - bluetooth
 
 # -openrc subpackages whose service is already provided by the dinit-chimera
 # suite — never converted to -dinit (their -dinit equivalent does not exist
@@ -195,7 +204,7 @@ desktopEnvironments:
     services: {"sddm": "default", "dbus": "default"}
     groups: ["video", "input"]
   niri:
-    packages: ["niri", "niri-portalsconf", "greetd", "greetd-regreet", "greetd-openrc", "elogind", "elogind-openrc", "dbus", "alacritty", "xdg-desktop-portal-wlr", "xdg-desktop-portal-gtk", "polkit-elogind", "polkit-gnome", "xwayland-satellite", "xwayland", "mesa-dri-gallium", "wayland-libs-server", "dms-shell", "turnstile", "niri-user-dinit", "accountsservice", "power-profiles-daemon", "cups-pk-helper", "rclone", "iptables", "ip6tables", "ebtables", "dbus-user-dinit", "pipewire-user-dinit", "pipewire-pulse-user-dinit", "wireplumber-user-dinit", "wayland-wait-user-dinit", "polkit-agent-user-dinit", "wayvnc", "wayvnc-user-dinit", "networkmanager", "networkmanager-cli", "networkmanager-tui", "networkmanager-dinit", "wpa_supplicant", "wireguard-tools", "qt6-qtmultimedia", "i2c-tools", "wtype", "simple-scan", "sane", "sane-backends", "sane-utils", "sane-airscan", "gnome-keyring", "cosmic-files", "cosmic-edit", "cosmic-screenshot", "okular", "eog", "cups", "cups-filters", "avahi", "system-config-printer", "cosmic-player", "libreoffice", "galculator", "firefox", "firewalld-gui", "gnome-firmware", "thunderbird", "gnome-disk-utility", "kcron", "cosmic-store", "ksystemlog", "cosmic-settings"]
+    packages: ["niri", "niri-portalsconf", "greetd", "greetd-regreet", "greetd-openrc", "elogind", "elogind-openrc", "dbus", "alacritty", "xdg-desktop-portal-wlr", "xdg-desktop-portal-gtk", "polkit-elogind", "polkit-gnome", "xwayland-satellite", "xwayland", "mesa-dri-gallium", "wayland-libs-server", "dms-shell", "turnstile", "niri-user-dinit", "accountsservice", "power-profiles-daemon", "cups-pk-helper", "iptables", "ip6tables", "ebtables", "dbus-user-dinit", "pipewire-user-dinit", "pipewire-pulse-user-dinit", "wireplumber-user-dinit", "wayland-wait-user-dinit", "polkit-agent-user-dinit", "wayvnc", "wayvnc-user-dinit", "networkmanager", "networkmanager-cli", "networkmanager-tui", "networkmanager-dinit", "networkmanager-wifi", "wireless-regdb", "bluez", "bluez-openrc", "bluez-dinit", "wpa_supplicant", "wireguard-tools", "qt6-qtmultimedia", "i2c-tools", "wtype", "simple-scan", "sane", "sane-backends", "sane-utils", "sane-airscan", "gnome-keyring", "cosmic-edit", "cosmic-screenshot", "eog", "cups", "cups-filters", "avahi", "system-config-printer", "cosmic-player", "libreoffice", "galculator", "firefox", "firewalld-gui", "gnome-firmware", "thunderbird", "gnome-disk-utility", "kcron", "ksystemlog", "kimageformats", "khal", "adw-gtk3"]
     # turnstile + niri-user-dinit: PAM session → user dinit (turnstiled);
     # Alpine niri-session's dinit branch starts the `niri` user service.
     # Login-shell trick: passwd shell = /usr/libexec/feralos/login-shell
@@ -207,9 +216,18 @@ desktopEnvironments:
     # NetworkManager replaces ifupdown as the network service (DMS network/VPN
     # UI needs the NM backend; /etc/network/interfaces reduced to lo by the
     # desktop setup, NM manages eth0 — FIX-niri-dms.md rounds 30/44)
+    # networkmanager-wifi: NM wifi PLUGIN subpackage (Alpine splits it) —
+    # without it NM has NO wifi support and the DMS network widget shows no
+    # wifi at all. wireless-regdb = regulatory table (real radios need it);
+    # wpa_supplicant already in the list (NM spawns/supervises it itself).
+    # bluez + bluez-openrc + bluez-dinit: DMS bluetooth widget speaks the
+    # org.bluez dbus API. Service NAME SPLIT: OpenRC initd = "bluetooth",
+    # feralos bluez-dinit ships /lib/dinit.d/bluez — hence the services map
+    # enables "bluetooth" (OpenRC) and defaultRunlevelsDinit enables "bluez"
+    # (dinitSkipServices prevents the dinit loop from trying the OpenRC name).
     # wayvnc = VNC server (round 37) — RustDesk flatpak REMOVED (round 43
     # cleanup philosophy: not part of the validated stack)
-    services: {"greetd": "default", "elogind": "default", "firewalld": "default", "polkit": "default", "cupsd": "default", "networkmanager": "default"}
+    services: {"greetd": "default", "elogind": "default", "firewalld": "default", "polkit": "default", "cupsd": "default", "networkmanager": "default", "bluetooth": "default"}
     # render group does not exist on Alpine (video covers DRM access);
     # audio group: /dev/snd/* for pipewire (real-hardware audio);
     # plugdev: NM polkit rule allows GUI connection management (round 30);

@@ -218,6 +218,13 @@ All notable changes to FeralOS will be documented in this file.
 
 > Detailed implementation history, moved here from `AGENTS.md` (2026-09-25); newest first.
 
+### 2026-10-10 01:10 — DMS bluetooth + NM wifi completeness (data-only round)
+**Agent:** codebase
+- **Bluetooth absent entirely**: DMS BT widget speaks org.bluez dbus — bluez was in NO package list. niri packages += `bluez`, `bluez-openrc`, `bluez-dinit` (feralos bluez-dinit ships `/lib/dinit.d/bluez` with dbus-wait-for readiness — existed in repo+Pages since ADR-009 but was never wired into the installer). Verified live on Alpine 3.24: bluez 5.86-r2.
+- **Service-name split gotcha**: OpenRC initd = `bluetooth`, bluez-dinit service = `bluez`. Wiring: niri services `{"bluetooth": "default"}` + `defaultRunlevelsDinit.boot += "bluez"` + `dinitSkipServices += bluetooth` (dinit loop must not try the nonexistent `/lib/dinit.d/bluetooth`).
+- **WiFi incomplete**: Alpine splits the NM wifi plugin — `networkmanager-wifi` was never installed, NM had NO wifi support, DMS network widget showed no wifi section. niri packages += `networkmanager-wifi` (1.52.2-r0) + `wireless-regdb` (2025.10.07-r0). wpa_supplicant already present (NM spawns it); NM config untouched; real-hw wifi firmware = installer hardware detection.
+- **DMS doctor inventory** (definitive, live): hard warnings matugen + cava (user handled separately); NOT gaps: dgop (embedded in the dms Go binary — Capabilities list proves it), mission-center, rclone-ui; soft: khal, danksearch/dankcalendar (GitHub-only), fprintd, adw-gtk3. Data-only round: zero Go changes, YAML parse + installer build/vet green.
+
 ### 2026-10-09 23:50 — niri/DMS dinit runtime depth: 5 checks added/hardened (91/91)
 **Agent:** codebase
 - **NEW `niri_layers`** (dinit): `niri msg layers` must list ≥1 `^Output` — layer-shell surfaces mapped = the DMS bar RENDERS (deeper than dms_runtime process + dms_ipc IPC). Live shape: `Output "Virtual-1": Background layer: Namespace: "quickshell"`.
