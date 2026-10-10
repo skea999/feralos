@@ -19,7 +19,7 @@
 cd tests/debug_run && go build -o debug_run . && ./debug_run
 # auto-detects latest run in tests/artifacts/harness/runs/
 
-./debug_run --run-dir ~/Progetti/skeaAlpineInstaller/tests/artifacts/harness/runs/2026-08-26T12-00-00Z --ssh-port 2224 --password Alpine.1
+./debug_run --run-dir ~/Progetti/feralos/tests/artifacts/harness/runs/2026-08-26T12-00-00Z --ssh-port 2224 --password Alpine.1
 
 # after "=== SSH ready ==="
 ssh -p 2224 root@127.0.0.1
@@ -66,7 +66,7 @@ cd tests/debug_run && go build -o debug_run .
 go run . -- --run-dir tests/artifacts/harness/runs/2026-08-27T10-00-00Z
 ```
 
-Module `skeaAlpineInstaller/tests/debug_run` (`tests/debug_run/go.mod`, Go 1.22, `gopkg.in/yaml.v3`). Binary `tests/debug_run/debug_run` is gitignored (`.gitignore:44` `tests/debug_run/debug_run`) — do not commit.
+Module `feralos/tests/debug_run` (`tests/debug_run/go.mod`, Go 1.22, `gopkg.in/yaml.v3`). Binary `tests/debug_run/debug_run` is gitignored (`.gitignore:44` `tests/debug_run/debug_run`) — do not commit.
 
 Verify: `git check-ignore -v tests/debug_run/debug_run` → `.gitignore:44:tests/debug_run/debug_run`.
 

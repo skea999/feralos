@@ -137,7 +137,7 @@ cd tests/harness && go test ./...
 # harness (QEMU) — see docs/harness/README.md
 cd tests/harness
 ./skea_harness prepare-runner
-./skea_harness run -f ~/Progetti/skeaAlpineInstaller/src/variables/variables.yaml
+./skea_harness run -f ~/Progetti/feralos/src/variables/variables.yaml
 ./skea_harness run -f tests/fixtures/variables/btrfs_raid0_minimal.yaml  # 28 fixtures, full template mirror
 ./skea_harness status && ./skea_harness cleanup
 

@@ -16,7 +16,7 @@ FeralOS installer — Go 1.22 + YAML, Alpine-based, LUKS2 + Btrfs + booster + UK
 **Option A — Automated (curl, recommended for hardware):**
 
 ```bash
-sudo bash <(curl -fsSL https://raw.githubusercontent.com/skem/skeaAlpineInstaller/latest-stable/setup.sh)
+sudo bash <(curl -fsSL https://raw.githubusercontent.com/skea999/feralos/main/setup.sh)
 # follows wizard, builds feralos_installer, runs install
 ```
 
@@ -37,8 +37,8 @@ sudo bash <(curl -fsSL https://raw.githubusercontent.com/skem/skeaAlpineInstalle
 3. **Clone + build**:
 
    ```bash
-   git clone https://github.com/skem/skeaAlpineInstaller.git
-   cd skeaAlpineInstaller
+   git clone https://github.com/skea999/feralos.git
+   cd feralos
    cd src && go build -o ../feralos_installer . && cd ..
    ```
 

@@ -37,7 +37,7 @@ Phase announcements (`[harness] phase N/9: …`) print to stdout and are written
 3. Create target disks: `qemu.CreateDisk` 16G default (`--disk-size`), 1 disk for `btrfsStandard`, 2 for `btrfsRaid0`/`btrfsStandardServer` under `runs/<timestamp>/`.
 4. Start swtpm **always** (`qemu.StartSoftwareTPM` with `tpm.sock`, `tpm.sock.ctrl`, `tpm-state/`, `tpm.pid`, `tpm.log`) — even if `enableTPM=false` simplifies flow; QEMU 10 uses `--ctrl type=unixio` not `--server` (avoids `CMD_SET_DATAFD` guard).
 5. Boot runner: virtio drives for runner image + install disks, `tpmQEMUArgs(tpm.sock.ctrl)` always appended, `EnableKVM` if available.
-6. `guest.WaitForSSH` (runner 2222) → `createRepositoryArchive` tars `RepoRoot` excluding `tests/artifacts/`, `.git/`, `*.qcow2` → `guest.CopyToGuest` to `~/skeaAlpineInstaller.tar.gz` → `tar -xzf` → write `variables.yaml` + shims (`git`, `bash`, `fdisk` in `.skea_harness-bin` on `PATH`) → run:
+6. `guest.WaitForSSH` (runner 2222) → `createRepositoryArchive` tars `RepoRoot` excluding `tests/artifacts/`, `.git/`, `*.qcow2` → `guest.CopyToGuest` to `~/feralos.tar.gz` → `tar -xzf` → write `variables.yaml` + shims (`git`, `bash`, `fdisk` in `.skea_harness-bin` on `PATH`) → run:
    ```sh
    sudo env PATH=.skea_harness-bin:... SKEA_HARNESS_LOCAL_REPO=. SKEA_NONINTERACTIVE=1 bash ./setup.sh --test . -config ./variables.yaml
    ```

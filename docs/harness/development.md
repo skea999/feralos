@@ -4,7 +4,7 @@
 
 ## Module structure
 
-Separate Go module `skeaAlpineInstaller/tests/harness` (`tests/harness/go.mod`, Go 1.22).
+Separate Go module `feralos/tests/harness` (`tests/harness/go.mod`, Go 1.22).
 
 ```
 tests/harness/

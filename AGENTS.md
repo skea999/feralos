@@ -8,6 +8,15 @@
 
 ## Recent Rounds (latest first)
 
+### 2026-10-10 16:30 - repo: Go modules + paths renamed skeaAlpineInstaller → feralos
+**Agent:** codebase
+**Summary:** Follow-up to the GitHub migration + folder rename (`~/Progetti/feralos`): in-repo `skeaAlpineInstaller` identifiers renamed to `feralos` for coherence.
+- **Go modules** (2 of 3 — `src/go.mod` was already `alpineInstaller`): `tests/harness/go.mod` → `module feralos/tests/harness`, `tests/debug_run/go.mod` → `module feralos/tests/debug_run`; imports updated in `cmd/skea_harness/main.go`, `internal/mcp/server.go`, `internal/service/service.go`.
+- **Guest path** (`service.go:716`): runner-VM repo root `/home/<user>/skeaAlpineInstaller` → `/home/<user>/feralos` (tar name derives from it — consistent). SAFE for existing runner images: the repo is copied at runtime (tar → extract), nothing baked in the image; old runs + debug_run unaffected (target VM paths independent).
+- **Docs**: `docs/harness/{debug_run,development,workflow,building}.md` (module names, run-dir example, `~/feralos.tar.gz`), `docs/guides/getting_started.md` (BONUS FIX: curl/clone URLs pointed to wrong owner `skem/skeaAlpineInstaller` + nonexistent `latest-stable` path → now real `raw.githubusercontent.com/skea999/feralos/main/setup.sh` + `github.com/skea999/feralos.git`), `docs/guides/development.md` + AGENTS.md harness example paths → `~/Progetti/feralos`.
+- **Historical occurrences KEPT** (correct as-is): AGENTS.md migration-round summary, `state/session_state.json` decision record, `.agent-memory` entry — they describe the OLD gitea repo name.
+- Validated: zero remaining functional `skeaAlpineInstaller` occurrences (grep); harness + debug_run builds green (go build + go vet).
+
 ### 2026-10-10 15:45 - repo: hosting migrated Gitea → GitHub (skea999/feralos)
 **Agent:** codebase
 **Summary:** User request: repo hosting migration gitea.com/sketa999/skeaAlpineInstaller → github.com/skea999/feralos. GitHub importer had already copied refs; parity verified BEFORE switching.
@@ -229,7 +238,7 @@ sudo ./feralos_installer -config variables.yaml
 # Run harness tests
 cd tests/harness
 ./skea_harness prepare-runner
-./skea_harness run -f ~/Progetti/skeaAlpineInstaller/src/variables/variables.yaml
+./skea_harness run -f ~/Progetti/feralos/src/variables/variables.yaml
 ./skea_harness status
 ./skea_harness cleanup
 

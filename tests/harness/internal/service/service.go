@@ -16,10 +16,10 @@ import (
 	"syscall"
 	"time"
 
-	"skeaAlpineInstaller/tests/harness/internal/cache"
-	"skeaAlpineInstaller/tests/harness/internal/guest"
-	"skeaAlpineInstaller/tests/harness/internal/qemu"
-	"skeaAlpineInstaller/tests/harness/internal/runstate"
+	"feralos/tests/harness/internal/cache"
+	"feralos/tests/harness/internal/guest"
+	"feralos/tests/harness/internal/qemu"
+	"feralos/tests/harness/internal/runstate"
 
 	"gopkg.in/yaml.v3"
 )
@@ -713,7 +713,7 @@ func (service *Service) RunInstall(ctx context.Context, cfg *RunConfig) (RunResu
 	active.Phase = "copying-repository"
 	_ = stateStore.Save(&active)
 	phase(2, "run installer")
-	remoteRepoRoot := fmt.Sprintf("/home/%s/skeaAlpineInstaller", cfg.RunnerSSHUser)
+	remoteRepoRoot := fmt.Sprintf("/home/%s/feralos", cfg.RunnerSSHUser)
 	remoteRepoArchive := remoteRepoRoot + ".tar.gz"
 	repoArchivePath := filepath.Join(runDir, "repo.tgz")
 

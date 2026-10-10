@@ -13,7 +13,7 @@ go run ./cmd/skea_harness -- prepare-runner
 go run ./cmd/skea_harness -- run -f tests/fixtures/variables/btrfs_standard_minimal.yaml
 ```
 
-The module is `skeaAlpineInstaller/tests/harness` (`tests/harness/go.mod`, Go 1.22, `gopkg.in/yaml.v3`).
+The module is `feralos/tests/harness` (`tests/harness/go.mod`, Go 1.22, `gopkg.in/yaml.v3`).
 
 ## Where the binary lives (gitignored)
 

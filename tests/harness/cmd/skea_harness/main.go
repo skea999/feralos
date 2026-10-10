@@ -15,8 +15,8 @@ import (
 	"syscall"
 	"time"
 
-	"skeaAlpineInstaller/tests/harness/internal/mcp"
-	"skeaAlpineInstaller/tests/harness/internal/service"
+	"feralos/tests/harness/internal/mcp"
+	"feralos/tests/harness/internal/service"
 )
 
 func main() {
