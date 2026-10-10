@@ -7,7 +7,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"alpineInstaller/utils/shell"
+	"feralos/src/utils/shell"
 )
 
 type InstallConfig struct {

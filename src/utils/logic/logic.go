@@ -1,7 +1,7 @@
 package logic
 
 import (
-	"alpineInstaller/utils/config"
+	"feralos/src/utils/config"
 	"fmt"
 )
 

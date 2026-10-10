@@ -1,8 +1,8 @@
 package main
 
 import (
-	"alpineInstaller/utils/config"
-	"alpineInstaller/utils/createConfig"
+	"feralos/src/utils/config"
+	"feralos/src/utils/createConfig"
 	"flag"
 	"fmt"
 	"log"
@@ -35,7 +35,7 @@ func main() {
 	}
 
 	if templatePath == "" {
-		log.Fatalf("[FATAL ERROR] Cannot find required template. Make sure 'alpineInstaller/variables/variables.yaml' exists.")
+		log.Fatalf("[FATAL ERROR] Cannot find required template. Make sure 'feralos/src/variables/variables.yaml' exists.")
 	}
 
 	fmt.Printf("[INFO] Loading defaults from template: %s\n", templatePath)

@@ -1,9 +1,9 @@
 package btrfsStandardServer
 
 import (
-	"alpineInstaller/utils/config"
-	"alpineInstaller/utils/misc"
-	"alpineInstaller/utils/shell"
+	"feralos/src/utils/config"
+	"feralos/src/utils/misc"
+	"feralos/src/utils/shell"
 	"fmt"
 	"strings"
 )

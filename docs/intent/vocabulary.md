@@ -141,7 +141,7 @@ Compressed swap in RAM via `zram-init`. For low-memory self-hosted envs. *Avoid*
 ## Conventions
 
 - **Language**: English only in code, configs, docs
-- **Go module**: `alpineInstaller`
+- **Go module**: `feralos/src`
 - **Config format**: YAML
 - **Mount point**: `/mnt` (default chrootDir)
 - **Disk labels**: `EFI<DISK>`, `swap-<DISK>`, `data-<DISK>`, `boot`, `root`

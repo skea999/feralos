@@ -10,7 +10,7 @@ Installer must partition disks, bootstrap Alpine, configure system reliably acro
 
 ## Decision
 
-- Use **Go 1.22** for installer (`go.mod: alpineInstaller`), Shell kept only as legacy reference in `internal/`.
+- Use **Go 1.22** for installer (`go.mod: feralos/src`), Shell kept only as legacy reference in `internal/`.
 - User config + dynamic rules in **YAML**: `variables.yaml` (user) + `variables/internal_rules.yaml` (rules), parsed by `utils/config` + `utils/logic`.
 - Generator (`utils/createConfig`) interactive or unattended; same Go toolchain builds firstBoot binaries and harness.
 

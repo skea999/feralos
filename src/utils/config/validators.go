@@ -6,7 +6,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"alpineInstaller/utils/swap"
+	"feralos/src/utils/swap"
 )
 
 // Per-field validators — single source of truth for both validateConfig

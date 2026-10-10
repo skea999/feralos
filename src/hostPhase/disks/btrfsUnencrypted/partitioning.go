@@ -1,11 +1,11 @@
 package btrfsUnencrypted
 
 import (
-	"alpineInstaller/hostPhase/disks/common"
-	"alpineInstaller/utils/config"
-	"alpineInstaller/utils/misc"
-	"alpineInstaller/utils/shell"
-	"alpineInstaller/utils/swap"
+	"feralos/src/hostPhase/disks/common"
+	"feralos/src/utils/config"
+	"feralos/src/utils/misc"
+	"feralos/src/utils/shell"
+	"feralos/src/utils/swap"
 	"fmt"
 	"strings"
 )

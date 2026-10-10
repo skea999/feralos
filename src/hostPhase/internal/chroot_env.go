@@ -1,8 +1,8 @@
 package internal
 
 import (
-	"alpineInstaller/utils/config"
-	"alpineInstaller/utils/shell"
+	"feralos/src/utils/config"
+	"feralos/src/utils/shell"
 	"fmt"
 )
 

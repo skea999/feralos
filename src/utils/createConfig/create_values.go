@@ -7,7 +7,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"alpineInstaller/utils/config"
+	"feralos/src/utils/config"
 
 	"golang.org/x/term"
 )

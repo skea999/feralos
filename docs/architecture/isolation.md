@@ -57,7 +57,7 @@ main.go (installer entry)
 
 `hostPhase/internal/*` is importable ONLY by `hostPhase` (and its subpackages). `main` cannot import it.
 
-Go `internal` visibility enforces this at compile time — any `import "alpineInstaller/hostPhase/internal"` outside `hostPhase` fails to compile.
+Go `internal` visibility enforces this at compile time — any `import "feralos/src/hostPhase/internal"` outside `hostPhase` fails to compile.
 
 ## hostPhase.Run() Fixed Order
 

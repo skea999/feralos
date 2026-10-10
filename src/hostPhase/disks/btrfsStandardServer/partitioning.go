@@ -1,10 +1,10 @@
 package btrfsStandardServer
 
 import (
-	"alpineInstaller/hostPhase/disks/common"
-	"alpineInstaller/utils/config"
-	"alpineInstaller/utils/misc"
-	"alpineInstaller/utils/shell"
+	"feralos/src/hostPhase/disks/common"
+	"feralos/src/utils/config"
+	"feralos/src/utils/misc"
+	"feralos/src/utils/shell"
 	"fmt"
 	"math"
 	"strconv"

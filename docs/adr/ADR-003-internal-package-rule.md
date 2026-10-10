@@ -11,7 +11,7 @@ Go `internal` packages are importable only by parent tree. Need structural guara
 ## Decision
 
 - Place host helpers in `hostPhase/internal/*` (`bind_mounts.go`, `bootstrap.go`, `chroot_env.go`, `hooks.go`).
-- Only `hostPhase` and its subpackages may import `hostPhase/internal`. `main` cannot `import "alpineInstaller/hostPhase/internal"` — compile fails.
+- Only `hostPhase` and its subpackages may import `hostPhase/internal`. `main` cannot `import "feralos/src/hostPhase/internal"` — compile fails.
 - `main` reaches helpers exclusively via `hostPhase.Run()` wrapper.
 - Cleanup moved to `utils/cleanup/cleanup.go` (importable by `main` directly — no longer internal).
 - FirstBoot features moved to `utils/firstboot/` (importable by `main` directly).

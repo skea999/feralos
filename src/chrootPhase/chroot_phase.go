@@ -1,11 +1,11 @@
 package chrootPhase
 
 import (
-	"alpineInstaller/chrootPhase/desktops"
-	"alpineInstaller/chrootPhase/features"
-	"alpineInstaller/chrootPhase/internal"
-	"alpineInstaller/utils/config"
-	"alpineInstaller/utils/shell"
+	"feralos/src/chrootPhase/desktops"
+	"feralos/src/chrootPhase/features"
+	"feralos/src/chrootPhase/internal"
+	"feralos/src/utils/config"
+	"feralos/src/utils/shell"
 	"fmt"
 )
 

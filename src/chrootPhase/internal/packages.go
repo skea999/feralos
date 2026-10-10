@@ -1,9 +1,9 @@
 package internal
 
 import (
-	"alpineInstaller/chrootPhase/features"
-	"alpineInstaller/utils/config"
-	"alpineInstaller/utils/shell"
+	"feralos/src/chrootPhase/features"
+	"feralos/src/utils/config"
+	"feralos/src/utils/shell"
 	"fmt"
 	"strings"
 )

@@ -7,13 +7,13 @@ import (
 	"os"
 	"time"
 
-	"alpineInstaller/chrootPhase"
-	"alpineInstaller/hostPhase"
-	"alpineInstaller/utils/cleanup"
-	"alpineInstaller/utils/config"
-	"alpineInstaller/utils/createConfig"
-	"alpineInstaller/utils/firstboot"
-	"alpineInstaller/utils/logic"
+	"feralos/src/chrootPhase"
+	"feralos/src/hostPhase"
+	"feralos/src/utils/cleanup"
+	"feralos/src/utils/config"
+	"feralos/src/utils/createConfig"
+	"feralos/src/utils/firstboot"
+	"feralos/src/utils/logic"
 )
 
 func main() {
