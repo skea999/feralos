@@ -11,7 +11,7 @@ FeralOS is not another clone. It's a different approach: take Alpine's solid fou
 3. Open a terminal and run:
 
 ```bash
-wget https://gitea.com/sketa999/skeaAlpineInstaller/raw/branch/main/setup.sh
+wget https://raw.githubusercontent.com/skea999/feralos/main/setup.sh
 sudo bash setup.sh
 ```
 

@@ -11,7 +11,7 @@
 
 set -euo pipefail
 
-repoUrl="https://gitea.com/sketa999/skeaAlpineInstaller.git"
+repoUrl="https://github.com/skea999/feralos.git"
 repoBranch="main"
 testMode=false
 testRepo=""

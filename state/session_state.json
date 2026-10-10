@@ -421,6 +421,11 @@
       "date": "2026-09-20",
       "decision": "harness: hard 7-minute run limit (runHardTimeout, non-configurable) + 5-minute boot wait + runner instant kill with guest sync + swtpm restart race fix + --keep-target-running respected by watchdog",
       "rationale": "runs that hang must die deterministically; graceful runner poweroff hung inside the budget; instant kill exposed the swtpm NVRAM lock race (fixed) and ESP vfat lost late writes (fixed with guest sync); 7m fits install + target boot + separate verify (verify command runs against the kept-alive target)."
+    },
+    {
+      "date": "2026-10-10",
+      "decision": "Repo hosting migrated gitea.com/sketa999/skeaAlpineInstaller -> github.com/skea999/feralos; origin = github, old remote renamed gitea (temporarily kept)",
+      "rationale": "GitHub importer copied refs; ls-remote parity verified before switching (identical SHAs except developDinit local-ahead-2 -> ff push; zero tags both sides). Only 2 hardcoded URLs existed repo-wide (setup.sh repoUrl, README wget) — fixed with github raw format (raw.githubusercontent.com/<owner>/<repo>/main/). gh auth setup-git = push auth. No CI configs to port. Cleanup (remove gitea remote, archive gitea repo) deferred to confidence period."
     }
   ],
   "next_actions": [

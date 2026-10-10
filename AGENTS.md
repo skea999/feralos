@@ -8,6 +8,14 @@
 
 ## Recent Rounds (latest first)
 
+### 2026-10-10 15:45 - repo: hosting migrated Gitea → GitHub (skea999/feralos)
+**Agent:** codebase
+**Summary:** User request: repo hosting migration gitea.com/sketa999/skeaAlpineInstaller → github.com/skea999/feralos. GitHub importer had already copied refs; parity verified BEFORE switching.
+- **Refs parity**: `git ls-remote` both sides — main/develop/alpineInstallerGolang/oldDevelop identical SHAs; ZERO tags on both sides (nothing to migrate); `developDinit` behind on GitHub by exactly the 2 unpushed local commits → fast-forward push (no force).
+- **Remotes**: old `origin` renamed `gitea` (kept during confidence period, remove + archive gitea repo later); new `origin` = `https://github.com/skea999/feralos.git`; `gh auth setup-git` credential helper; tracking re-pointed on main/develop/developDinit.
+- **URLs fixed** (only 2 hardcoded refs repo-wide; other grep hits = Artix audit refs / historical memory): `setup.sh` repoUrl → `https://github.com/skea999/feralos.git`; README wget → `https://raw.githubusercontent.com/skea999/feralos/main/setup.sh` (GOTCHA: raw format differs — gitea `raw/branch/main/...` vs github `raw.githubusercontent.com/<owner>/<repo>/main/...`).
+- **No CI to port**: `.github/` + `.githooks/` empty of tracked content; no `.gitea/workflows` either.
+
 ### 2026-10-10 14:30 - host: Nix QEMU stack removed, apt QEMU 8.2.2 validated 94/94
 **Agent:** codebase
 **Summary:** User request: swap the bug-3-era Nix QEMU for apt QEMU. Validated BEFORE believing the theory — full harness run on the apt stack.
