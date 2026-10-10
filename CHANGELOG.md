@@ -218,6 +218,13 @@ All notable changes to FeralOS will be documented in this file.
 
 > Detailed implementation history, moved here from `AGENTS.md` (2026-09-25); newest first.
 
+### 2026-10-10 01:40 — bluetooth service unified + niri-only enablement
+**Agent:** codebase
+- **User review corrections** on the previous round: `defaultRunlevelsDinit.boot += bluez` was BASE-list scope (bluetooth would be enabled on every dinit install — wrong, niri-only wanted); and since feralos owns `bluez-dinit`, the name split was pointless.
+- **aports `e9ac00c`** (CI green, Pages r2): bluez-dinit service renamed `/lib/dinit.d/bluez` → `/lib/dinit.d/bluetooth` — same name as the OpenRC initd. Published apk tar listing verified (only `lib/dinit.d/bluetooth`).
+- **internal_rules back to clean**: no bluez in `defaultRunlevelsDinit.boot`, no bluetooth in `dinitSkipServices` (the service file now EXISTS under dinit — skipping would break enablement). Single `"bluetooth": "default"` in the NIRI desktop services map enables both inits — desktop services merge into per-desktop Runlevels, never into the base lists. Server/minimal/kde/cosmic installs stay bluetooth-free.
+- **wireless-regdb kept** (user asked what it is): kernel regulatory database for cfg80211 — legal channels/frequency/power per country; required for real wifi hardware.
+
 ### 2026-10-10 01:10 — DMS bluetooth + NM wifi completeness (data-only round)
 **Agent:** codebase
 - **Bluetooth absent entirely**: DMS BT widget speaks org.bluez dbus — bluez was in NO package list. niri packages += `bluez`, `bluez-openrc`, `bluez-dinit` (feralos bluez-dinit ships `/lib/dinit.d/bluez` with dbus-wait-for readiness — existed in repo+Pages since ADR-009 but was never wired into the installer). Verified live on Alpine 3.24: bluez 5.86-r2.

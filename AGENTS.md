@@ -8,6 +8,14 @@
 
 ## Recent Rounds (latest first)
 
+### 2026-10-10 01:40 - bluetooth service unified + niri-only enablement
+**Agent:** codebase
+**Summary:** Correction round on the previous bluetooth wiring (user review): (a) the dinit service must NOT live in `defaultRunlevelsDinit.boot` — that's the BASE list, bluetooth would be enabled on every dinit install, not just niri; (b) since feralos OWNS `bluez-dinit`, the service name can be unified instead of hacked around.
+- **aports rename** (`e9ac00c`, CI green, Pages `bluez-dinit 0.1.0-r2`): service file `/lib/dinit.d/bluez` → `/lib/dinit.d/bluetooth` (same name as the OpenRC initd). Published apk verified: contains ONLY `lib/dinit.d/bluetooth`.
+- **internal_rules simplified**: `defaultRunlevelsDinit.boot` back to original (no bluez), `dinitSkipServices` back to original (no bluetooth — the service file now EXISTS under dinit, must not be skipped). Enablement = the single `"bluetooth": "default"` in the NIRI desktop services map only → dinit loop (Runlevels pass) links `boot.d/bluetooth` + OpenRC `rc-update add bluetooth default`. Desktop flows (server/minimal/kde/cosmic) never enable it.
+- **wireless-regdb explained** (user asked): kernel regulatory database (`/lib/firmware/regulatory.db`, cfg80211) — legal channels/frequencies/power per country; without it real wifi cards refuse to scan or lock to wrong channels. Tiny data package, standard everywhere wifi ships.
+- YAML assertions green (no bluez in dinit boot, no bluetooth in skip, niri services has bluetooth, base default clean), installer build/vet/gofmt clean.
+
 ### 2026-10-10 01:10 - DMS bluetooth + NM wifi completeness (data-only round)
 **Agent:** codebase
 **Summary:** DMS bluetooth widget dead + DMS network widget missing wifi — both diagnosed on the live target (`dms doctor`, debug_run of run `2026-10-09T22-30-58Z`) and fixed data-only in `internal_rules.yaml` (zero Go changes). DMS doctor also gave the definitive missing-packages list: matugen + cava = hard warnings (user handled separately), dgop = NOT a gap (embedded in the dms Go binary), kimageformats/khal/adw-gtk3 = user already added.
