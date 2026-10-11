@@ -8,6 +8,12 @@
 
 ## Recent Rounds (latest first)
 
+### 2026-10-11 16:30 - nix: flake registry pinned to stable 26.05 system-wide (unstable leak fixed)
+**Agent:** codebase
+**Summary:** User-reported: nix resolved the unstable branch. Root cause: the stable CHANNEL (nixos-26.05) was already added, but the FLAKE REGISTRY pin lived INSIDE `if len(u.NixPackages) > 0` — enableNix without nixPackages (current default: niri rules carry no nixPackages, harness fixtures neither) left the builtin default (nixpkgs → nixpkgs-unstable) active for every `nixpkgs#...` reference. Root also never pinned (user registry only, via su).
+- **Fix** (`nix.go`): system-wide `/etc/nix/registry.json` written (nixpkgs → github:NixOS/nixpkgs/nixos-26.05 — applies to every user incl. root) + user registry pin unconditional (belt+braces, user wins over system). Runs right after `nix-channel --update`, outside the nixPackages branch.
+- **Harness**: new `nix_registry_stable` check (cfg.EnableNix block): system registry file contains nixos-26.05 AND `nix registry list` as the user resolves nixos-26.05.
+
 ### 2026-10-11 15:00 - fix: pkexec refused the FeralOS login-shell (DMS user creation dead)
 **Agent:** codebase
 **Summary:** User-reported: DMS "Create user" said it couldn't find /etc/shells. Diagnosed LIVE via debug_run of run `2026-10-11T12-18-06Z`: pkexec validates the session user's passwd shell against `/etc/shells` and refuses RC=127 ("The value for the SHELL variable was not found in the /etc/shells file. This incident has been reported.") — the FeralOS login-shell path (`/usr/libexec/feralos/login-shell`) was deliberately NOT listed (the old upstream niri-session bash re-exec trap). So EVERY pkexec in a niri session failed: all DMS privileged ops (user management = `pkexec useradd/chpasswd/usermod`), not just Create User — global session bug, backend healthy (root useradd RC=0, shadow installed, bash present).

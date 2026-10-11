@@ -86,6 +86,31 @@ trusted-users = root @wheel`
 		fmt.Printf("[WARNING] nix-channel --update failed: %v\n", err)
 	}
 
+	// Flake registry: pin nixpkgs to the STABLE branch. The builtin default
+	// registry maps nixpkgs → nixpkgs-unstable, overriding the stable
+	// channel for every flake `nixpkgs#...` reference (profile installs,
+	// user commands). System-wide file first — /etc/nix/registry.json
+	// applies to every user INCLUDING root (root had no pin at all before);
+	// then the user registry (user wins over system — belt+braces).
+	// GOTCHA (fixed here): the user pin used to run only when nixPackages
+	// was non-empty — enableNix with no packages kept resolving unstable.
+	registryJSON := `{
+  "version": 2,
+  "flakes": [
+    {
+      "from": { "type": "indirect", "id": "nixpkgs" },
+      "to": { "type": "github", "owner": "NixOS", "repo": "nixpkgs", "ref": "nixos-26.05" }
+    }
+  ]
+}`
+	escapedRegistry := strings.ReplaceAll(registryJSON, "'", "'\\''")
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/nix/registry.json", escapedRegistry)); err != nil {
+		return fmt.Errorf("failed to write system flake registry: %w", err)
+	}
+	if _, err := shell.ExecuteCmdArgs(chroot, "su", "-", u.UserName, "-c", "NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt nix registry add nixpkgs github:NixOS/nixpkgs/nixos-26.05"); err != nil {
+		fmt.Printf("[WARNING] Failed to pin nixpkgs registry to stable: %v\n", err)
+	}
+
 	fmt.Println("[INFO] Setting Nix environment variables...")
 	// XKB_CONFIG_ROOT: nix-installed GUI apps need the host X11 xkb data.
 	// Build sandbox: upstream default — /tmp is exec since round 48, the old
@@ -134,13 +159,6 @@ trusted-users = root @wheel`
 		}
 		if _, err := shell.ExecuteCmdArgs(chroot, "rc-service", "nix-daemon", "start"); err != nil {
 			fmt.Printf("[WARNING] Failed to start nix-daemon in chroot: %v\n", err)
-		}
-
-		// The default flake registry maps nixpkgs -> nixpkgs-unstable, which
-		// would override the stable channel for `nixpkgs#...` installs. Pin
-		// the user's registry to the stable branch (same as the channel).
-		if _, err := shell.ExecuteCmdArgs(chroot, "su", "-", u.UserName, "-c", "NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt nix registry add nixpkgs github:NixOS/nixpkgs/nixos-26.05"); err != nil {
-			fmt.Printf("[WARNING] Failed to pin nixpkgs registry to stable: %v\n", err)
 		}
 
 		// Install into the real user's profile so ~/.local/state/nix/profiles

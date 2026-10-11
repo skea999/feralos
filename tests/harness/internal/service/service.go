@@ -1636,6 +1636,11 @@ echo 'fish history clean (no clap error)'`,
 		// trusted-users = root @wheel (NixOS default): wheel is trusted,
 		// the session user is NEVER individually injected into nix.conf.
 		checks["nix_trusted_wheel"] = "grep -q 'trusted-users = root @wheel' /etc/nix/nix.conf"
+		// nix_registry_stable: flake registry pinned to the stable branch
+		// (26.05) — the builtin default maps nixpkgs → nixpkgs-unstable and
+		// would override the stable channel for `nixpkgs#...` references.
+		// System registry file (covers root) + user registry both pinned.
+		checks["nix_registry_stable"] = fmt.Sprintf("grep -q 'nixos-26.05' /etc/nix/registry.json && su - %s -c 'nix registry list 2>/dev/null' | grep -q 'nixpkgs/nixos-26.05'", cfg.InstalledUser)
 	}
 
 	// Webmin checks — functional assertions: container running, port mapped,
