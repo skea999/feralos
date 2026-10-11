@@ -13,7 +13,7 @@
 **Summary:** User request: working update button in DMS. Research (DMS 1.6.2 = installed version, source-verified): the System Update tab supports a custom command — `updaterUseCustomCommand` + `updaterCustomCommand` run the command IN A TERMINAL (auto-detect alacritty ✓) as the session user with a sudo prompt hint; exit code surfaces as success/failure. DMS has NO native apk backend (pacman/dnf/apt/zypper/xbps/pkg/portage/flatpak only) → custom command is the right hook.
 - **Script** (`misc.go` step 17 → `/usr/local/bin/feralos-update`): sequence apk (update + upgrade --available) → flatpak if installed (uninstall --unused user/system, update --user/--system) → nix if installed (nix-channel --update, nix profile upgrade '.*', nix-env --delete-generations +5, nix-collect-garbage; + root profile trim/GC if present). Best-effort error counter, exit code = errors (DMS reports failure).
 - **DMS wiring** (niri settings.json seed): `updaterUseCustomCommand: true` + `updaterCustomCommand: "/usr/local/bin/feralos-update"`.
-- **Harness**: `dms_update_script` check (script executable + settings.json wired).
+- **No harness check** (user decision): running the script in the VM hits the edge-package upgrade limitation (the niri stack comes from `extraPackagesEdge`, its repos are commented out after install — `apk upgrade` of those packages fails in-harness) → check dropped; validation = manual on real hardware.
 - **Caveat**: DMS upgrade timeout = 30 min (server-side); very long nix updates could hit it — acceptable for now, upstream escalation if real cases appear.
 - Also committed: system-config-printer dropped from niri packages (DMS has printer settings).
 

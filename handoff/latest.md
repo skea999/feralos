@@ -9,7 +9,7 @@
 
 ## Current Focus
 
-**Update button working (2026-10-11)**: `/usr/local/bin/feralos-update` (apk → flatpak → nix, conditional, sudo in-terminal) wired as DMS `updaterCustomCommand`; harness `dms_update_script` check added. DMS timeout 30 min caveat.
+**Update button working (2026-10-11)**: `/usr/local/bin/feralos-update` (apk → flatpak → nix, conditional, sudo in-terminal) wired as DMS `updaterCustomCommand`. No harness check (edge-package upgrade limitation in the VM — user decision; manual validation on real hw). DMS timeout 30 min caveat.
 
 **DMS power off/reboot fix (2026-10-11)**: loginctl → elogind execs absolute /sbin/poweroff (busybox SIGUSR2 — dinit ignores); installer now writes /etc/elogind/system-shutdown/50-feralos-dinit.sh (hook point, execs dinit-poweroff/reboot/halt per verb). Harness dinit_shutdown_commands extended. Live validation = loginctl poweroff in-session + polkit power rule 49-feralos-power.rules (NoSessionForPID workaround, wheel → login1 YES).
 
