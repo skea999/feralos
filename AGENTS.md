@@ -8,6 +8,13 @@
 
 ## Recent Rounds (latest first)
 
+### 2026-10-11 01:30 - aports: DMS no longer starts on the greeter session (dms-shell guard)
+**Agent:** codebase
+**Summary:** User-reported: DMS started on the greetd/regreet login screen. Root cause: the installer links `dms.user` into system-wide `/usr/lib/dinit.d/user/boot.d/`, so the greeter user's own user-dinit (turnstile spawns one for every session, greeter included) started the full desktop stack; the `wait-wayland.user` gate opens because the greeter's niri (greeter.sh `exec niri -- regreet`) creates the socket.
+- **Fix (aports `dms-shell`, commit `0004567`, pkgrel 1→2, sha512sums regenerated)**: `dms-session` guard — clean `exit 0` when `id -un = greeter` (fixed installer-created username, reliable) or `XDG_SESSION_CLASS = greeter` (belt+braces, env may not reach user dinit). `dms.user` dropped `restart = true` (crucial: restart=true would loop on the clean guard exit; smooth-recovery kept so real crashes still recover — ADR-009 style).
+- **Scope note**: wayvnc/polkit-agent left as-is (wayvnc on greeter = remote unlock view, potentially useful; polkit-agent harmless).
+- **Validation**: `sh -n` OK, guard logic tested locally (rc=0 as normal user, GUARD_HITS with class=greeter), aports CI green. Greeter UI NOT harness-checkable (harness autologin bypasses regreet) — final check is manual boot/real HW: login screen must show only regreet, no DMS bar.
+
 ### 2026-10-11 00:30 - config: edge-repos auto-enable + wizard on invalid config (2 UX fixes)
 **Agent:** codebase
 **Summary:** User-reported: `extraPackagesEdge` without `enableEdgeRepos: true` hard-errored BEFORE the wizard — user could not fix the value interactively.
