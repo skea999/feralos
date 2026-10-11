@@ -164,7 +164,15 @@ org.freedesktop.impl.portal.ScreenCast=wlr;
 	// Session services live in the user dinit instance started by turnstile
 	// at login; RustDesk removed — remote desktop = wayvnc (user dinit
 	// service, round 37/43).
-	userNiri := fmt.Sprintf(`input {
+	userNiri := fmt.Sprintf(`// CSD off (Windows-like): niri asks apps to omit client-side titlebars —
+// window controls live on the DMS bar (dms-window-buttons widget) plus keys
+// (Mod+Q close / Mod+F maximize / Mod+Shift+F fullscreen). DMS's own embedded
+// niri config ships prefer-no-csd active too. Caveats (niri docs): floating
+// windows lose resize handles — resize with Mod+right-click; apps must be
+// restarted for the change to apply.
+prefer-no-csd
+
+input {
     keyboard {
         xkb {
             rules "evdev"

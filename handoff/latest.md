@@ -9,6 +9,8 @@
 
 ## Current Focus
 
+**prefer-no-csd (2026-10-12)**: niri user config now frameless (apps omit CSD titlebars); controls = DMS bar window-buttons + Mod+Q/F/Shift+F. Floating resize = Mod+right-click. Harness-validated via niri_config_valid.
+
 **Window-buttons plugin (2026-10-12)**: new repo `skea999/dms-window-buttons` v1.0.0 (ISC) + aports `dms-window-buttons` (CI green) → installs to DMS system plugin dir. Installer: bar back TOP, right widgets pinned + `dmsWindowButtons`, `plugin_settings.json` enables it. Harness `dms_window_buttons`.
 
 **Update button working (2026-10-11)**: `/usr/local/bin/feralos-update` (apk → flatpak → nix, conditional, sudo in-terminal) wired as DMS `updaterCustomCommand`. No harness check (edge-package upgrade limitation in the VM — user decision; manual validation on real hw). DMS timeout 30 min caveat. Script write via ExecSilent (log_errors false-positive fixed, run 17-45-21Z).

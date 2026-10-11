@@ -8,6 +8,13 @@
 
 ## Recent Rounds (latest first)
 
+### 2026-10-12 02:00 - niri: prefer-no-csd in the user config (frameless, Windows-like)
+**Agent:** codebase
+**Summary:** User request: also remove app titlebars (CSD). Research: the only lever is niri's GLOBAL `prefer-no-csd` (top-level config; no per-window toggle, no DMS setting — DMS's own embedded niri config ships it ACTIVE by default, but FeralOS writes its own niri config via the installer).
+- **Installer** (`niri.go` user config): `prefer-no-csd` added top-level + comment. Greeter config untouched. Window controls after the change: DMS bar widget (dms-window-buttons, same-day round) + keybinds Mod+Q/F/Shift+F + runningApps context menu.
+- **Caveats** (niri docs): floating windows lose resize handles (Mod+right-click resize); apps must be restarted; apps may still force their own CSD.
+- **Validated**: harness run (niri_config_valid = `niri validate` on the new config) — see run dir in that round.
+
 ### 2026-10-12 01:00 - dms: window-buttons plugin wired system-wide (bar back on top)
 **Agent:** codebase
 **Summary:** User decisions: keep runningApps, put the plugin on the RIGHT, bar back on TOP; plugin developed in a NEW repo then imported to aports.
