@@ -278,12 +278,17 @@ image/tiff=org.gnome.eog.desktop
 image/heic=org.gnome.eog.desktop
 image/heif=org.gnome.eog.desktop
 image/jxl=org.gnome.eog.desktop
-audio/mpeg=com.system76.CosmicPlayer.desktop
+	audio/mpeg=com.system76.CosmicPlayer.desktop
 audio/x-flac=com.system76.CosmicPlayer.desktop
 audio/wav=com.system76.CosmicPlayer.desktop
 audio/ogg=com.system76.CosmicPlayer.desktop
 audio/aac=com.system76.CosmicPlayer.desktop
-audio/webm=com.system76.CosmicPlayer.desktop`
+audio/webm=com.system76.CosmicPlayer.desktop
+x-scheme-handler/geo=org.gnome.Maps.desktop
+text/calendar=org.gnome.Calendar.desktop
+x-scheme-handler/calendar=org.gnome.Calendar.desktop
+x-scheme-handler/webcal=org.gnome.Calendar.desktop
+x-scheme-handler/webcals=org.gnome.Calendar.desktop`
 	if err := writeFile(chroot, fmt.Sprintf("/home/%s/.config/mimeapps.list", u.UserName), mimeapps); err != nil {
 		return fmt.Errorf("seed default apps (mimeapps.list): %w", err)
 	}
