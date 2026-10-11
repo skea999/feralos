@@ -16,6 +16,7 @@
 - **Harness** (`user_services_enabled`): now checks 5 links PRESENT in boot.d AND 3 session apps ABSENT; `niri_user_dinit_runtime` unchanged (stack started = `[[+]]` markers via explicit dinitctl). `dinit_user_services` unchanged (files exist).
 - **Lifetime semantics match upstream**: start = when niri-session runs (real login); stop = session end → turnstile tears down user dinit at last logout.
 - **Docs**: `docs/guides/niri.md` (turnstile paragraph + session services list). dms-shell split (`dms` + `dms-dinit`) still PENDING (user parked it).
+- **VALIDATED**: harness run `2026-10-11T02-30-17Z` **94/94** — niri-user-dinit r3 + dms-shell 1.6.2-r2 installed from Pages, `user_services_enabled` = 5 infra links present + 3 session apps absent, full user session stack running via niri-session (dms IPC + wayvnc :5900 + layers rendered + screenshot PNG). 0 ignored errors.
 
 ### 2026-10-11 01:30 - aports: DMS no longer starts on the greeter session (dms-shell guard)
 **Agent:** codebase
