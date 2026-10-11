@@ -1493,7 +1493,12 @@ echo 'fish history clean (no clap error)'`,
 		checks["niri_user_service"] = "test -f /etc/dinit.d/user/niri && grep -q 'niri --session' /etc/dinit.d/user/niri"
 		checks["login_shell_trick"] = fmt.Sprintf("getent passwd %s | cut -d: -f7 | grep -q feralos/login-shell && test -L /usr/libexec/feralos/login-shell", cfg.InstalledUser)
 		checks["turnstile_pkg"] = "test -f /etc/dinit.d/turnstiled && test -e /etc/dinit.d/boot.d/turnstiled && test -f /usr/lib/security/pam_turnstile.so"
-		checks["user_services_enabled"] = "for s in dbus.user pipewire.user pipewire-pulse.user wireplumber.user wait-wayland.user polkit-agent.user dms.user wayvnc.user; do test -e /usr/lib/dinit.d/user/boot.d/$s || { echo \"missing $s\"; exit 1; }; done; echo ok"
+		// user_services_enabled: infrastructure services only in the
+		// system-wide boot.d. Session apps (polkit-agent/dms/wayvnc) are
+		// bound to the niri session (started by niri-session, upstream
+		// "add-wants niri.service" model) — they must NOT be in boot.d,
+		// or every login (greetd greeter included) would start them.
+		checks["user_services_enabled"] = "for s in dbus.user pipewire.user pipewire-pulse.user wireplumber.user wait-wayland.user; do test -e /usr/lib/dinit.d/user/boot.d/$s || { echo \"missing $s\"; exit 1; }; done; for s in polkit-agent.user dms.user wayvnc.user; do test -e /usr/lib/dinit.d/user/boot.d/$s && { echo \"session app $s must not be in boot.d\"; exit 1; }; done; echo ok"
 		// gnome-keyring: package + D-Bus secrets service + PAM unlock lines in greetd
 		checks["gnome_keyring"] = "apk info -e gnome-keyring && test -f /usr/share/dbus-1/services/org.freedesktop.secrets.service && grep -q pam_gnome_keyring /etc/pam.d/greetd"
 		// Runtime checks — the verification boot runs the REAL user session:

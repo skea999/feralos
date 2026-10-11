@@ -336,11 +336,15 @@ exec /usr/bin/xdg-su "$@"
 		fmt.Printf("[WARNING] Failed to enable turnstiled: %v\n", err)
 	}
 
-	// 13. user session services: enable them in boot.d of the primary user
-	// service dir (/usr/lib/dinit.d/user; turnstile's dinit backend also
-	// scans /etc/dinit.d/user, where packages install their files).
+	// 13. user session services: enable INFRASTRUCTURE services in boot.d of
+	// the primary user service dir (/usr/lib/dinit.d/user; turnstile's dinit
+	// backend also scans /etc/dinit.d/user, where packages install their
+	// files). Session apps (polkit-agent/dms/wayvnc) are NOT enabled here —
+	// upstream "add-wants niri.service" model: niri-session starts them
+	// after niri (aports niri-user-dinit), so the greetd greeter session
+	// (greeter.sh, which never runs niri-session) never gets desktop apps.
 	// Existence-filtered — only installed packages get enabled.
-	userServices := "dbus.user pipewire.user pipewire-pulse.user wireplumber.user wait-wayland.user polkit-agent.user dms.user wayvnc.user"
+	userServices := "dbus.user pipewire.user pipewire-pulse.user wireplumber.user wait-wayland.user"
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p /usr/lib/dinit.d/user/boot.d && for s in %s; do [ -f /etc/dinit.d/user/$s ] && ln -sf /etc/dinit.d/user/$s /usr/lib/dinit.d/user/boot.d/$s; done", userServices)); err != nil {
 		fmt.Printf("[WARNING] Failed to enable user dinit services: %v\n", err)
 	}

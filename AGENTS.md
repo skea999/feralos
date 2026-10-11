@@ -8,6 +8,15 @@
 
 ## Recent Rounds (latest first)
 
+### 2026-10-11 02:30 - session apps bound to the niri session (add-wants model) — greeter class of bugs eliminated
+**Agent:** codebase
+**Summary:** User asked for the documented upstream model before fixing the greeter-DMS bug class permanently. Research: niri docs (session apps = `niri.service.wants`, "start when the niri session begins and terminate when the session exits"), DMS docs (`add-wants niri.service` — "won't run in other sessions"; explicit warning that user-manager enable starts DMS in ALL sessions = our exact bug), turnstile README (user manager = per-login spawn/last-logout teardown). Conclusion: boot.d = login scope, session apps must = compositor-session scope.
+- **aports `niri-user-dinit` r3 (`9838d81`, CI green)**: `niri-session` starts `polkit-agent.user dms.user wayvnc.user` existence-filtered right after `dinitctl --user start niri` (before the dinit-monitor hold). Real logins only — greeter.sh never runs niri-session. The dms-session greeter guard (`0004567`) stays as belt+braces.
+- **Installer** (`niri.go` step 13): boot.d list = infrastructure only (`dbus.user pipewire.user pipewire-pulse.user wireplumber.user wait-wayland.user`); session apps dropped with model explanation comment.
+- **Harness** (`user_services_enabled`): now checks 5 links PRESENT in boot.d AND 3 session apps ABSENT; `niri_user_dinit_runtime` unchanged (stack started = `[[+]]` markers via explicit dinitctl). `dinit_user_services` unchanged (files exist).
+- **Lifetime semantics match upstream**: start = when niri-session runs (real login); stop = session end → turnstile tears down user dinit at last logout.
+- **Docs**: `docs/guides/niri.md` (turnstile paragraph + session services list). dms-shell split (`dms` + `dms-dinit`) still PENDING (user parked it).
+
 ### 2026-10-11 01:30 - aports: DMS no longer starts on the greeter session (dms-shell guard)
 **Agent:** codebase
 **Summary:** User-reported: DMS started on the greetd/regreet login screen. Root cause: the installer links `dms.user` into system-wide `/usr/lib/dinit.d/user/boot.d/`, so the greeter user's own user-dinit (turnstile spawns one for every session, greeter included) started the full desktop stack; the `wait-wayland.user` gate opens because the greeter's niri (greeter.sh `exec niri -- regreet`) creates the socket.
