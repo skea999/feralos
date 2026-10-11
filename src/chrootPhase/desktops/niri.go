@@ -236,8 +236,10 @@ include "dms/colors.kdl"
 	// position=1 itself — seeding a partial barConfigs would replace the
 	// whole default array (raw assignment, no deep merge) and break the bar,
 	// and duplicating the full default would drift with DMS versions.
+	// dankBarLeftWidgets swaps the focused-window widget for running apps
+	// (same migration path; center/right keep following upstream defaults).
 	dmsSettingsDir := fmt.Sprintf("/home/%s/.config/DankMaterialShell", u.UserName)
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p '%s' && printf '{\\n  \"configVersion\": 1,\\n  \"currentThemeCategory\": \"generic\",\\n  \"currentThemeName\": \"green\",\\n  \"dankBarAtBottom\": true\\n}\\n' > '%s/settings.json' && chown %s:%s '%s/settings.json'", dmsSettingsDir, dmsSettingsDir, u.UserName, u.UserName, dmsSettingsDir)); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p '%s' && printf '{\\n  \"configVersion\": 1,\\n  \"currentThemeCategory\": \"generic\",\\n  \"currentThemeName\": \"green\",\\n  \"dankBarAtBottom\": true,\\n  \"dankBarLeftWidgets\": [\"launcherButton\", \"workspaceSwitcher\", \"runningApps\"]\\n}\\n' > '%s/settings.json' && chown %s:%s '%s/settings.json'", dmsSettingsDir, dmsSettingsDir, u.UserName, u.UserName, dmsSettingsDir)); err != nil {
 		return fmt.Errorf("seed DMS settings.json (green theme, bottom bar): %w", err)
 	}
 	// DMS dark mode seed (belt+braces): fresh installs already default dark
