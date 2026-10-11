@@ -51,7 +51,8 @@ variables:
   # Adding these will trigger dynamic rules (groups, services, etc.)
   extraPackages:
     - okular
-  # Packages from the @edge tagged repos (enableEdgeRepos: true required),
+    - satty
+  # Packages from the @edge tagged repos (auto-enables enableEdgeRepos),
   # installed LAST after all other packages (e.g. mesa-dri-gallium@edge)
   extraPackagesEdge: 
     - mesa@edge 
