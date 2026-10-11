@@ -8,6 +8,14 @@
 
 ## Recent Rounds (latest first)
 
+### 2026-10-11 15:00 - fix: pkexec refused the FeralOS login-shell (DMS user creation dead)
+**Agent:** codebase
+**Summary:** User-reported: DMS "Create user" said it couldn't find /etc/shells. Diagnosed LIVE via debug_run of run `2026-10-11T12-18-06Z`: pkexec validates the session user's passwd shell against `/etc/shells` and refuses RC=127 ("The value for the SHELL variable was not found in the /etc/shells file. This incident has been reported.") — the FeralOS login-shell path (`/usr/libexec/feralos/login-shell`) was deliberately NOT listed (the old upstream niri-session bash re-exec trap). So EVERY pkexec in a niri session failed: all DMS privileged ops (user management = `pkexec useradd/chpasswd/usermod`), not just Create User — global session bug, backend healthy (root useradd RC=0, shadow installed, bash present).
+- **Trap is gone**: the FeralOS niri-session (niri-user-dinit, replaces="niri") has ZERO /etc/shells/bash re-exec logic (grep-verified) — only upstream Alpine's script did.
+- **Fix** (`users.go`): installer lists `/usr/libexec/feralos/login-shell` in `/etc/shells` (idempotent grep -qxF || echo) right after the symlink re-point to fish. Comment documents the backward risk (reverting to upstream niri-session re-arms the trap).
+- **Harness**: `login_shell_trick` extended — also asserts the /etc/shells listing (falsifiable).
+- UsersService facts: `pkexec useradd -m -s /bin/bash` + `chpasswd` via `head -n1 | chpasswd`; isBSD branch never fires on Linux.
+
 ### 2026-10-11 03:30 - niri: DMS theme seeded green in the installer
 **Agent:** codebase
 **Summary:** User request: always pre-set DMS's green theme on niri installs. Researched from DMS docs + source (GitHub): settings live in `~/.config/DankMaterialShell/settings.json`; "green" = a Generic static theme (ThemeColorsTab grid), stored as `currentThemeCategory: "generic"` + `currentThemeName: "green"` (SettingsSpec.js defaults; generic = static Material palette, matugen/wallpaper only in dynamic mode — user switching to Auto/custom later overrides, by design).

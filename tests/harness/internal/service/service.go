@@ -1491,7 +1491,7 @@ echo 'fish history clean (no clap error)'`,
 		// from niri-user-dinit), login-shell trick (passwd shell NOT in
 		// /etc/shells), turnstile PAM → user dinit, boot.d enables.
 		checks["niri_user_service"] = "test -f /etc/dinit.d/user/niri && grep -q 'niri --session' /etc/dinit.d/user/niri"
-		checks["login_shell_trick"] = fmt.Sprintf("getent passwd %s | cut -d: -f7 | grep -q feralos/login-shell && test -L /usr/libexec/feralos/login-shell", cfg.InstalledUser)
+		checks["login_shell_trick"] = fmt.Sprintf("getent passwd %s | cut -d: -f7 | grep -q feralos/login-shell && test -L /usr/libexec/feralos/login-shell && grep -qxF /usr/libexec/feralos/login-shell /etc/shells", cfg.InstalledUser)
 		checks["turnstile_pkg"] = "test -f /etc/dinit.d/turnstiled && test -e /etc/dinit.d/boot.d/turnstiled && test -f /usr/lib/security/pam_turnstile.so"
 		// user_services_enabled: infrastructure services only in the
 		// system-wide boot.d. Session apps (polkit-agent/dms/wayvnc) are

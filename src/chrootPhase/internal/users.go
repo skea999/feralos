@@ -25,10 +25,8 @@ func SetupUsers(conf *config.Config) error {
 	// 2. Create user — no shell, safe for variable username.
 	// niri: passwd shell = /usr/libexec/feralos/login-shell (shipped by
 	// niri-user-dinit; installer re-points the symlink to fish, see below).
-	// Alpine's niri-session re-execs through bash when $SHELL is listed in
-	// /etc/shells; this path is deliberately NOT listed, so niri-session
-	// skips the re-exec and reaches its dinit branch (turnstile started the
-	// user dinit at login).
+	// The path is ALSO listed in /etc/shells (see below) so pkexec accepts
+	// the session shell.
 	fmt.Printf("[INFO] Creating user %s...\n", u.UserName)
 	adduserArgs := []string{"-D"}
 	if isNiri {
@@ -43,11 +41,23 @@ func SetupUsers(conf *config.Config) error {
 	// with that name and fails ("login-shell: applet not found"). Any consumer
 	// of the passwd shell then breaks (sshd, `su -`, the installer's own
 	// `su - <user> -c 'dms setup ...'`). Re-point the symlink at a real shell
-	// binary — fish, the pre-turnstile user shell. The PATH stays out of
-	// /etc/shells, so niri-session still skips its bash re-exec.
+	// binary — fish, the pre-turnstile user shell.
 	if isNiri {
 		if _, err := shell.ExecuteCmd(chroot, "ln -sf /usr/bin/fish /usr/libexec/feralos/login-shell"); err != nil {
 			fmt.Printf("[WARNING] Failed to re-point login-shell to fish: %v\n", err)
+		}
+		// pkexec validates the session user's passwd shell against
+		// /etc/shells and refuses with RC=127 ("The value for the SHELL
+		// variable was not found in the /etc/shells file") otherwise —
+		// EVERY privileged DMS operation died in the session (user
+		// management, all polkit actions; run 2026-10-11 debug_run).
+		// Listing the login-shell path is safe NOW: the FeralOS niri-session
+		// (niri-user-dinit, replaces="niri") has NO /etc/shells bash re-exec
+		// trap — only upstream Alpine's script did, which is why this path
+		// was originally kept out of /etc/shells. Backward risk: reverting
+		// to upstream niri-session would re-arm that trap.
+		if _, err := shell.ExecuteCmd(chroot, "grep -qxF '/usr/libexec/feralos/login-shell' /etc/shells || echo '/usr/libexec/feralos/login-shell' >> /etc/shells"); err != nil {
+			fmt.Printf("[WARNING] Failed to list login-shell in /etc/shells: %v\n", err)
 		}
 	}
 	passwdCmd = exec.Command("chroot", chroot, "passwd", u.UserName)
