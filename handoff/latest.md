@@ -9,6 +9,8 @@
 
 ## Current Focus
 
+**DMS green theme seeded by installer (2026-10-11)**: niri.go writes `~/.config/DankMaterialShell/settings.json` (`currentThemeCategory: generic`, `currentThemeName: green`) after the `dms setup` fragments + per-file chown. Generic themes = static Material palettes (not matugen); user switching to Auto/wallpaper later overrides normally. Keys verified from DMS source (SettingsSpec.js / ThemeColorsTab.qml).
+
 **DMS on greeter fixed (2026-10-11)**: aports `dms-shell` `0004567` — dms-session greeter guard (username greeter / XDG_SESSION_CLASS) + dms.user restart=true removed (clean exit stops, smooth-recovery keeps crash recovery). Installer boot.d links are system-wide so greeter's user dinit started the full stack; gate opened because greeter's niri creates the socket. CI green; manual boot = final proof.
 
 **Branch merge chain (2026-10-10)**: developDinit → develop fast-forward; develop → main merge commit `8568df0` (9 conflicts, develop side won — cancels the 2 old dinit reverts on main + net-zero resolv pair; keeps `btrfs_standard_dinit.yaml`). main = develop content now: bootstrap fix, feralos renames, full dinit integration. Pending cherry-pick item RESOLVED by the merge. All branches pushed (SHA match). **Work continues on `develop`** — `developDinit` == develop (same SHA), main = 1 merge commit ahead of develop.

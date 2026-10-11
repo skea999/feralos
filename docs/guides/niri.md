@@ -89,6 +89,7 @@ rc-update add firewalld default
   - `xwayland-satellite { path "xwayland-satellite" }` block — XWayland for X11 apps
   - `include "dms/binds.kdl"` + `dms/layout.kdl` + `dms/colors.kdl`
 - **DMS fragments**: pre-created before first niri validation via `su - <user> -c 'dms setup binds|layout|colors'` (packaged CLI). Config ownership fixed BEFORE `dms setup` (installer mkdir/writes run as root — without `chown -R`, `dms setup` cannot create `.config/niri/dms/` and every fragment fails)
+- **DMS theme seed**: installer writes `~/.config/DankMaterialShell/settings.json` with `currentThemeCategory: generic` + `currentThemeName: green` (Settings → Theme & Colors → Generic grid, static Material palette). File chowned to the user so DMS can persist changes; switching to Auto (wallpaper/matugen) or a registry theme later overrides normally
 - **background-effect strip**: DMS 1.6 layout template emits `background-effect { xray false }` — niri node added after 25.11 (`ext-background-effect-v1`, unsupported by Alpine 3.24 niri) that breaks the whole include. Installer strips the block via awk (`blur` unsupported on this niri anyway)
 - **User portals conf**: `/home/<user>/.config/xdg-desktop-portal/niri-portals.conf` — `[preferred] org.freedesktop.impl.portal.ScreenCast=wlr;` (system default `gnome;gtk` breaks ScreenCast)
 - **Session logs**: `~/.local/share/dinit/` (user dinit service logs — dinit `log-type=file` per service)

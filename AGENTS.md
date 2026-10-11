@@ -8,6 +8,12 @@
 
 ## Recent Rounds (latest first)
 
+### 2026-10-11 03:30 - niri: DMS theme seeded green in the installer
+**Agent:** codebase
+**Summary:** User request: always pre-set DMS's green theme on niri installs. Researched from DMS docs + source (GitHub): settings live in `~/.config/DankMaterialShell/settings.json`; "green" = a Generic static theme (ThemeColorsTab grid), stored as `currentThemeCategory: "generic"` + `currentThemeName: "green"` (SettingsSpec.js defaults; generic = static Material palette, matugen/wallpaper only in dynamic mode — user switching to Auto/custom later overrides, by design).
+- **Installer** (`niri.go`, after the `dms setup` fragments): seeds `~/.config/DankMaterialShell/settings.json` with the 2 keys via printf-escaped JSON (file doesn't exist before DMS's first launch — pre-seeding = DMS loads and merges on startup) + per-file chown (the general chown -R runs earlier — GOTCHA avoided: without per-file chown the seed would be root-owned and DMS could never save settings).
+- Hardcoded per user request (no variables.yaml option). Docs: `docs/guides/niri.md` (DMS fragments paragraph).
+
 ### 2026-10-11 02:30 - session apps bound to the niri session (add-wants model) — greeter class of bugs eliminated
 **Agent:** codebase
 **Summary:** User asked for the documented upstream model before fixing the greeter-DMS bug class permanently. Research: niri docs (session apps = `niri.service.wants`, "start when the niri session begins and terminate when the session exits"), DMS docs (`add-wants niri.service` — "won't run in other sessions"; explicit warning that user-manager enable starts DMS in ALL sessions = our exact bug), turnstile README (user manager = per-login spawn/last-logout teardown). Conclusion: boot.d = login scope, session apps must = compositor-session scope.

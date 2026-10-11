@@ -228,6 +228,15 @@ include "dms/colors.kdl"
 			fmt.Printf("[WARNING] dms setup %s failed: %v\n", setup, err)
 		}
 	}
+	// DMS theme seed: green (Settings → Theme & Colors → Generic grid).
+	// settings.json does not exist until DMS's first launch — writing it
+	// pre-seeds the keys DMS loads and merges on startup (SettingsSpec.js:
+	// currentThemeCategory/currentThemeName; generic themes are static
+	// Material palettes, matugen/wallpaper only applies in dynamic mode).
+	dmsSettingsDir := fmt.Sprintf("/home/%s/.config/DankMaterialShell", u.UserName)
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p '%s' && printf '{\\n  \"currentThemeCategory\": \"generic\",\\n  \"currentThemeName\": \"green\"\\n}\\n' > '%s/settings.json' && chown %s:%s '%s/settings.json'", dmsSettingsDir, dmsSettingsDir, u.UserName, u.UserName, dmsSettingsDir)); err != nil {
+		return fmt.Errorf("seed DMS settings.json (green theme): %w", err)
+	}
 	// DMS 1.6 layout template emits `background-effect { xray false }` — a
 	// niri node added after 25.11 (ext-background-effect-v1, unsupported by
 	// Alpine 3.24 niri) that breaks the whole include (run 2026-09-26,
