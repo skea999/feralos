@@ -13,7 +13,7 @@
 
 **System dark theme fixed (2026-10-12)**: portal reported "no preference" (dconf absent, color-scheme unset) → libadwaita/GTK4 apps light. Installer: dconf package + system default `color-scheme='prefer-dark'` (/etc/dconf/db/local.d + dconf update) + gtk-4.0 seed + Qt env → xdgdesktopportal. Second live finding: Alpine dconf ships NO /etc/dconf/profile/user → installer writes the standard GNOME profile (user-db:user + system-db:local; without it `gsettings get` = 'default'). Harness `theme_dark` check.
 
-**prefer-no-csd (2026-10-12)**: niri user config now frameless (apps omit CSD titlebars); controls = DMS bar window-buttons + Mod+Q/F/Shift+F. Floating resize = Mod+right-click. Harness-validated via niri_config_valid.
+**prefer-no-csd (2026-10-12)**: niri user config now frameless (apps omit CSD titlebars); controls = DMS bar window-buttons + Mod+Q/F/Shift+F. Floating resize = Mod+right-click. Harness-validated via niri_config_valid. Qt hard override env added (QT_WAYLAND_DISABLE_WINDOWDECORATION=1); libadwaita/GNOME/Firefox headerbars = app UI, kept by design (niri honors client CSD; GTK_CSD=0 dead on Wayland).
 
 **Window-buttons plugin (2026-10-12)**: new repo `skea999/dms-window-buttons` v1.0.0 (ISC) + aports `dms-window-buttons` (CI green) → installs to DMS system plugin dir. Installer: bar back TOP, right widgets pinned + `dmsWindowButtons`, `plugin_settings.json` enables it. Harness `dms_window_buttons`.
 

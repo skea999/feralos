@@ -31,6 +31,7 @@
 - **Installer** (`niri.go` user config): `prefer-no-csd` added top-level + comment. Greeter config untouched. Window controls after the change: DMS bar widget (dms-window-buttons, same-day round) + keybinds Mod+Q/F/Shift+F + runningApps context menu.
 - **Caveats** (niri docs): floating windows lose resize handles (Mod+right-click resize); apps must be restarted; apps may still force their own CSD.
 - **Validated**: harness run (niri_config_valid = `niri validate` on the new config) — see run dir in that round.
+- **Follow-up (CSD per-app reality, researched)**: titlebars after prefer-no-csd: (a) GTK3/GTK4 windows WITHOUT a custom titlebar are frameless ✓; (b) **libadwaita/GNOME apps (gnome-maps/calendar/eog) and Firefox KEEP their header — it is app UI, the client requests CSD and niri HONORS it by design** (no compositor can strip it; `GTK_CSD=0` is dead code on Wayland — GTK source exits before reading it); (c) Qt drops decorations via xdg-decoration negotiation + now the hard override `QT_WAYLAND_DISABLE_WINDOWDECORATION=1` (niri env; numeric "1" required — "true" parses to 0 in Qt). Harness niri_config_valid extended (prefer-no-csd + Qt env asserts).
 
 ### 2026-10-12 01:00 - dms: window-buttons plugin wired system-wide (bar back on top)
 **Agent:** codebase

@@ -189,6 +189,10 @@ environment {
     XDG_DATA_DIRS "/home/%s/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share:/usr/share"
     QT_QPA_PLATFORM "wayland"
     QT_QPA_PLATFORMTHEME "xdgdesktopportal"
+    // Hard override: Qt drops client-side decorations (niri's prefer-no-csd
+    // also works via xdg-decoration negotiation; this env guarantees it —
+    // value must be numeric "1", "true" parses to 0 and does NOT disable).
+    QT_WAYLAND_DISABLE_WINDOWDECORATION "1"
     ELECTRON_OZONE_PLATFORM_HINT "auto"
     SDL_VIDEO_DRIVER "wayland"
     CLUTTER_BACKEND "wayland"
