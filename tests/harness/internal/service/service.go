@@ -1456,6 +1456,11 @@ echo 'fish history clean (no clap error)'`,
 		// the Adwaita theme actually ON DISK (index.theme), and the seeded
 		// GTK settings pointing DMS at it.
 		checks["dms_icons"] = fmt.Sprintf("apk info -e adwaita-icon-theme hicolor-icon-theme && test -f /usr/share/icons/Adwaita/index.theme && grep -q '^gtk-icon-theme-name=Adwaita' /home/%s/.config/gtk-3.0/settings.ini && echo 'icon themes OK (Adwaita via gtk3 platform theme)'", cfg.InstalledUser)
+		// dms_window_buttons: the window-controls plugin chain — package
+		// installed (system dir /etc/xdg/quickshell/dms-plugins), plugin
+		// enabled in plugin_settings.json, widget wired in the bar's right
+		// section (settings.json seed).
+		checks["dms_window_buttons"] = fmt.Sprintf("apk info -e dms-window-buttons && test -f /etc/xdg/quickshell/dms-plugins/dmsWindowButtons/plugin.json && test -f /etc/xdg/quickshell/dms-plugins/dmsWindowButtons/WindowButtons.qml && grep -q dmsWindowButtons /home/%s/.config/DankMaterialShell/plugin_settings.json && grep -q dmsWindowButtons /home/%s/.config/DankMaterialShell/settings.json && echo 'window buttons plugin OK'", cfg.InstalledUser, cfg.InstalledUser)
 		// bluetooth_service: DMS BT widget speaks org.bluez dbus — the stack
 		// must be alive. Name UNIFIED at "bluetooth" on both inits (feralos
 		// bluez-dinit r2 ships /lib/dinit.d/bluetooth). Three assertions:

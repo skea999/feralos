@@ -8,6 +8,14 @@
 
 ## Recent Rounds (latest first)
 
+### 2026-10-12 01:00 - dms: window-buttons plugin wired system-wide (bar back on top)
+**Agent:** codebase
+**Summary:** User decisions: keep runningApps, put the plugin on the RIGHT, bar back on TOP; plugin developed in a NEW repo then imported to aports.
+- **Plugin repo** `github.com/skea999/dms-window-buttons` (NEW, ISC): `plugin.json` + `WindowButtons.qml` (PluginComponent; maximize-to-edges + fullscreen + close for the focused window via NiriService IPC / `toplevel.close()`; hidden with no focused window; minimize intentionally absent — niri has none, DMS hides it too). Tag `v1.0.0` (`6af94ee`).
+- **aports** `dms-window-buttons` 1.0.0 (`b8604c1`, CI green): installs to `/etc/xdg/quickshell/dms-plugins/dmsWindowButtons/` (DMS system plugin dir — no per-user seed needed for the files).
+- **Installer** (`niri.go`): settings.json seed — `dankBarAtBottom` REMOVED (v1→v2 migration default = Top), `dankBarRightWidgets` pinned (defaults + `dmsWindowButtons` at the end); NEW `plugin_settings.json` seed `{"dmsWindowButtons":{"enabled":true}}` (widget plugins default-disabled; file shape verified against 1.6.2 `parsePluginSettings` — bare map, no wrapper). `internal_rules`: niri packages += `dms-window-buttons`.
+- **Harness**: `dms_window_buttons` check (plugin files + enabled + right-widget wiring).
+
 ### 2026-10-11 20:30 - update: feralos-update script wired to the DMS System Update button
 **Agent:** codebase
 **Summary:** User request: working update button in DMS. Research (DMS 1.6.2 = installed version, source-verified): the System Update tab supports a custom command — `updaterUseCustomCommand` + `updaterCustomCommand` run the command IN A TERMINAL (auto-detect alacritty ✓) as the session user with a sudo prompt hint; exit code surfaces as success/failure. DMS has NO native apk backend (pacman/dnf/apt/zypper/xbps/pkg/portage/flatpak only) → custom command is the right hook.
