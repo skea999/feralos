@@ -237,6 +237,14 @@ include "dms/colors.kdl"
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p '%s' && printf '{\\n  \"currentThemeCategory\": \"generic\",\\n  \"currentThemeName\": \"green\"\\n}\\n' > '%s/settings.json' && chown %s:%s '%s/settings.json'", dmsSettingsDir, dmsSettingsDir, u.UserName, u.UserName, dmsSettingsDir)); err != nil {
 		return fmt.Errorf("seed DMS settings.json (green theme): %w", err)
 	}
+	// DMS dark mode seed (belt+braces): fresh installs already default dark
+	// (SharedSessionSpec.js isLightMode def=false; PortalService applies mode
+	// changes only after the first read), but the explicit seed guarantees
+	// dark portal-independently. Session store = XDG state dir, NOT config.
+	dmsStateDir := fmt.Sprintf("/home/%s/.local/state/DankMaterialShell", u.UserName)
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p '%s' && printf '{\\n  \"isLightMode\": false\\n}\\n' > '%s/session.json' && chown %s:%s '%s/session.json'", dmsStateDir, dmsStateDir, u.UserName, u.UserName, dmsStateDir)); err != nil {
+		return fmt.Errorf("seed DMS session.json (dark mode): %w", err)
+	}
 	// DMS 1.6 layout template emits `background-effect { xray false }` — a
 	// niri node added after 25.11 (ext-background-effect-v1, unsupported by
 	// Alpine 3.24 niri) that breaks the whole include (run 2026-09-26,

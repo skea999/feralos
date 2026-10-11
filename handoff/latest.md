@@ -9,7 +9,7 @@
 
 ## Current Focus
 
-**DMS green theme seeded by installer (2026-10-11)**: niri.go writes `~/.config/DankMaterialShell/settings.json` (`currentThemeCategory: generic`, `currentThemeName: green`) after the `dms setup` fragments + per-file chown. Generic themes = static Material palettes (not matugen); user switching to Auto/wallpaper later overrides normally. Keys verified from DMS source (SettingsSpec.js / ThemeColorsTab.qml).
+**DMS green theme seeded by installer (2026-10-11)**: niri.go writes `~/.config/DankMaterialShell/settings.json` (`currentThemeCategory: generic`, `currentThemeName: green`) after the `dms setup` fragments + per-file chown. Generic themes = static Material palettes (not matugen); user switching to Auto/wallpaper later overrides normally. Keys verified from DMS source (SettingsSpec.js / ThemeColorsTab.qml). Dark mode too: session.json (XDG state dir, ~/.local/state/DankMaterialShell/) seeded {"isLightMode": false} — default is already dark per DMS source, seed = portal-independent guarantee.
 
 **DMS on greeter fixed (2026-10-11)**: aports `dms-shell` `0004567` — dms-session greeter guard (username greeter / XDG_SESSION_CLASS) + dms.user restart=true removed (clean exit stops, smooth-recovery keeps crash recovery). Installer boot.d links are system-wide so greeter's user dinit started the full stack; gate opened because greeter's niri creates the socket. CI green; manual boot = final proof.
 
