@@ -188,7 +188,7 @@ environment {
     XDG_CURRENT_DESKTOP "niri"
     XDG_DATA_DIRS "/home/%s/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share:/usr/share"
     QT_QPA_PLATFORM "wayland"
-    QT_QPA_PLATFORMTHEME "gtk3"
+    QT_QPA_PLATFORMTHEME "xdgdesktopportal"
     ELECTRON_OZONE_PLATFORM_HINT "auto"
     SDL_VIDEO_DRIVER "wayland"
     CLUTTER_BACKEND "wayland"
@@ -279,16 +279,35 @@ include "dms/colors.kdl"
 	if err := writeFile(chroot, fmt.Sprintf("/home/%s/.config/xdg-terminals.list", u.UserName), "Alacritty.desktop"); err != nil {
 		return fmt.Errorf("seed default terminal (Alacritty): %w", err)
 	}
-	// DMS reads icons through QT_QPA_PLATFORMTHEME=gtk3 → GTK settings —
-	// without gtk-icon-theme-name apps fall back to hicolor generics (the
-	// "missing icons" effect). Adwaita = GNOME default, coherent with the
-	// GNOME apps shipped; prefer-dark keeps GTK apps coherent with DMS dark
-	// mode. Icon themes = dms-shell deps (aports 14f124b).
+	// GTK settings (3.0 + 4.0): without gtk-icon-theme-name apps fall back to
+	// hicolor generics (the "missing icons" effect); prefer-dark keeps GTK
+	// apps coherent with DMS dark mode. Adwaita = GNOME default. Icon themes
+	// = dms-shell deps (aports 14f124b). GTK4 file added because libadwaita/
+	// GTK4 apps read gtk-4.0 — but they primarily follow the PORTAL color
+	// scheme (see the dconf system default below).
 	gtkSettings := `[Settings]
 gtk-icon-theme-name=Adwaita
 gtk-application-prefer-dark-theme=true`
 	if err := writeFile(chroot, fmt.Sprintf("/home/%s/.config/gtk-3.0/settings.ini", u.UserName), gtkSettings); err != nil {
-		return fmt.Errorf("seed GTK settings (icon theme + dark): %w", err)
+		return fmt.Errorf("seed GTK3 settings (icon theme + dark): %w", err)
+	}
+	if err := writeFile(chroot, fmt.Sprintf("/home/%s/.config/gtk-4.0/settings.ini", u.UserName), gtkSettings); err != nil {
+		return fmt.Errorf("seed GTK4 settings (icon theme + dark): %w", err)
+	}
+	// System-wide dark preference for the xdg-desktop-portal color-scheme.
+	// Verified live: apps following the portal (libadwaita/GTK4 such as
+	// gnome-maps/calendar, Firefox, Qt via xdgdesktopportal) stayed LIGHT
+	// because dconf was absent and the color-scheme key was never set — the
+	// portal reported "no preference" (`v u 0`). The system dconf db is
+	// compiled with `dconf update` (no session bus needed in the chroot) and
+	// is inherited by every user (a user-set value still wins).
+	dconfDefault := `[org/gnome/desktop/interface]
+color-scheme='prefer-dark'`
+	if err := writeFile(chroot, "/etc/dconf/db/local.d/00-feralos-theme", dconfDefault); err != nil {
+		return fmt.Errorf("seed dconf color-scheme default: %w", err)
+	}
+	if _, err := shell.ExecuteCmd(chroot, "dconf update"); err != nil {
+		return fmt.Errorf("dconf update: %w", err)
 	}
 	mimeapps := `[Default Applications]
 x-scheme-handler/https=firefox.desktop
@@ -320,7 +339,7 @@ x-scheme-handler/webcals=org.gnome.Calendar.desktop`
 	if err := writeFile(chroot, fmt.Sprintf("/home/%s/.config/mimeapps.list", u.UserName), mimeapps); err != nil {
 		return fmt.Errorf("seed default apps (mimeapps.list): %w", err)
 	}
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("chown %s:%s '/home/%s/.config/xdg-terminals.list' '/home/%s/.config/mimeapps.list' '/home/%s/.config/gtk-3.0/settings.ini'", u.UserName, u.UserName, u.UserName, u.UserName, u.UserName)); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("chown %s:%s '/home/%s/.config/xdg-terminals.list' '/home/%s/.config/mimeapps.list' '/home/%s/.config/gtk-3.0/settings.ini' '/home/%s/.config/gtk-4.0/settings.ini'", u.UserName, u.UserName, u.UserName, u.UserName, u.UserName, u.UserName)); err != nil {
 		return fmt.Errorf("chown default app seeds: %w", err)
 	}
 	// DMS 1.6 layout template emits `background-effect { xray false }` — a

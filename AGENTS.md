@@ -8,6 +8,12 @@
 
 ## Recent Rounds (latest first)
 
+### 2026-10-12 03:00 - theme: system-wide dark preference (portal color-scheme fixed)
+**Agent:** codebase
+**Summary:** User-reported: some apps ignored the dark theme (light UI). Diagnosed LIVE via debug_run: apps following the xdg-desktop-portal color-scheme were light because Portals reported `v u 0` (no preference) — dconf was ABSENT and `org.gnome.desktop.interface color-scheme` was never set (`gsettings get` = 'default'). Also: `QT_QPA_PLATFORMTHEME=gtk3` was DEAD (Alpine ships NO QGtk3 platformtheme plugin — only `libqxdgdesktopportal.so`), and gtk-4.0 settings were never seeded.
+- **Fix (installer)**: niri packages += `dconf`; system dconf default `/etc/dconf/db/local.d/00-feralos-theme` (`color-scheme='prefer-dark'`) + `dconf update` (compiles the system db without a session bus; every user inherits, user values still win) → libadwaita/GTK4 apps (gnome-maps/calendar), Firefox, Qt can all go dark; `gtk-4.0/settings.ini` seed added; niri env `QT_QPA_PLATFORMTHEME=xdgdesktopportal` (only Qt platformtheme plugin present — follows the portal).
+- **Harness**: `theme_dark` check (dconf default file + GTK4 seed + effective `gsettings get` value as the user).
+
 ### 2026-10-12 02:00 - niri: prefer-no-csd in the user config (frameless, Windows-like)
 **Agent:** codebase
 **Summary:** User request: also remove app titlebars (CSD). Research: the only lever is niri's GLOBAL `prefer-no-csd` (top-level config; no per-window toggle, no DMS setting — DMS's own embedded niri config ships it ACTIVE by default, but FeralOS writes its own niri config via the installer).

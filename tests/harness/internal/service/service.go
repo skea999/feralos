@@ -1456,6 +1456,12 @@ echo 'fish history clean (no clap error)'`,
 		// the Adwaita theme actually ON DISK (index.theme), and the seeded
 		// GTK settings pointing DMS at it.
 		checks["dms_icons"] = fmt.Sprintf("apk info -e adwaita-icon-theme hicolor-icon-theme && test -f /usr/share/icons/Adwaita/index.theme && grep -q '^gtk-icon-theme-name=Adwaita' /home/%s/.config/gtk-3.0/settings.ini && echo 'icon themes OK (Adwaita via gtk3 platform theme)'", cfg.InstalledUser)
+		// theme_dark: system-wide dark preference end-to-end — dconf system
+		// default (color-scheme=prefer-dark; the xdg-desktop-portal reads
+		// it → libadwaita/GTK4 apps go dark), GTK4 settings seed present,
+		// and the value actually EFFECTIVE for the user (gsettings merges
+		// the system db into the user view).
+		checks["theme_dark"] = fmt.Sprintf("test -f /etc/dconf/db/local.d/00-feralos-theme && grep -q \"color-scheme='prefer-dark'\" /etc/dconf/db/local.d/00-feralos-theme && test -f /home/%s/.config/gtk-4.0/settings.ini && su - %s -s /bin/sh -c 'gsettings get org.gnome.desktop.interface color-scheme' 2>/dev/null | grep -q prefer-dark && echo 'dark preference OK (dconf system db + gtk4 seed)'", cfg.InstalledUser, cfg.InstalledUser)
 		// dms_window_buttons: the window-controls plugin chain — package
 		// installed (system dir /etc/xdg/quickshell/dms-plugins), plugin
 		// enabled in plugin_settings.json, widget wired in the bar's right
