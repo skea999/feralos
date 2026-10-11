@@ -250,6 +250,46 @@ include "dms/colors.kdl"
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p '%s' && printf '{\\n  \"isLightMode\": false\\n}\\n' > '%s/session.json' && chown %s:%s '%s/session.json'", dmsStateDir, dmsStateDir, u.UserName, u.UserName, dmsStateDir)); err != nil {
 		return fmt.Errorf("seed DMS session.json (dark mode): %w", err)
 	}
+	// DMS default apps: the Settings → Default Apps tab is a frontend for the
+	// freedesktop defaults — terminal via ~/.config/xdg-terminals.list
+	// (xdg-terminal-exec; DMS writes `<Id>.desktop` lines), everything else
+	// via ~/.config/mimeapps.list [Default Applications] (DMS reads/writes it
+	// through DesktopService). Seeding the standard files = DMS shows the
+	// values as set on first launch. Desktop IDs verified against Alpine
+	// (pkgs.alpinelinux.org contents): firefox.desktop, org.gnome.eog.desktop
+	// (NOT eog.desktop), com.system76.CosmicPlayer.desktop, Alacritty.desktop.
+	// MIME lists = DMS DefaultAppsTab.mimeMapping verbatim.
+	if err := writeFile(chroot, fmt.Sprintf("/home/%s/.config/xdg-terminals.list", u.UserName), "Alacritty.desktop"); err != nil {
+		return fmt.Errorf("seed default terminal (Alacritty): %w", err)
+	}
+	mimeapps := `[Default Applications]
+x-scheme-handler/https=firefox.desktop
+x-scheme-handler/http=firefox.desktop
+text/html=firefox.desktop
+application/xhtml+xml=firefox.desktop
+image/png=org.gnome.eog.desktop
+image/jpeg=org.gnome.eog.desktop
+image/gif=org.gnome.eog.desktop
+image/bmp=org.gnome.eog.desktop
+image/webp=org.gnome.eog.desktop
+image/avif=org.gnome.eog.desktop
+image/svg+xml=org.gnome.eog.desktop
+image/tiff=org.gnome.eog.desktop
+image/heic=org.gnome.eog.desktop
+image/heif=org.gnome.eog.desktop
+image/jxl=org.gnome.eog.desktop
+audio/mpeg=com.system76.CosmicPlayer.desktop
+audio/x-flac=com.system76.CosmicPlayer.desktop
+audio/wav=com.system76.CosmicPlayer.desktop
+audio/ogg=com.system76.CosmicPlayer.desktop
+audio/aac=com.system76.CosmicPlayer.desktop
+audio/webm=com.system76.CosmicPlayer.desktop`
+	if err := writeFile(chroot, fmt.Sprintf("/home/%s/.config/mimeapps.list", u.UserName), mimeapps); err != nil {
+		return fmt.Errorf("seed default apps (mimeapps.list): %w", err)
+	}
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("chown %s:%s '/home/%s/.config/xdg-terminals.list' '/home/%s/.config/mimeapps.list'", u.UserName, u.UserName, u.UserName, u.UserName)); err != nil {
+		return fmt.Errorf("chown default app seeds: %w", err)
+	}
 	// DMS 1.6 layout template emits `background-effect { xray false }` — a
 	// niri node added after 25.11 (ext-background-effect-v1, unsupported by
 	// Alpine 3.24 niri) that breaks the whole include (run 2026-09-26,
