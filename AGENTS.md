@@ -24,6 +24,7 @@
 - **No harness check** (user decision): running the script in the VM hits the edge-package upgrade limitation (the niri stack comes from `extraPackagesEdge`, its repos are commented out after install — `apk upgrade` of those packages fails in-harness) → check dropped; validation = manual on real hardware.
 - **Caveat**: DMS upgrade timeout = 30 min (server-side); very long nix updates could hit it — acceptable for now, upstream escalation if real cases appear.
 - Also committed: system-config-printer dropped from niri packages (DMS has printer settings).
+- **Fix (same round)**: the script write uses `ExecSilent` — the echoed script body landed in installer.log and tripped the harness `log_errors` sweep (its words "error"/"FAILED"/"failing" are legitimate script content; run `2026-10-11T17-45-21Z` exposed the false positive). Same rationale as firmware detection.
 
 ### 2026-10-11 18:30 - fix: DMS power off/reboot dead under dinit (elogind → busybox SIGUSR2)
 **Agent:** codebase

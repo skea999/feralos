@@ -205,7 +205,11 @@ fi
 exit "$errors"
 `
 	escapedUpdate := strings.ReplaceAll(updateScript, "'", "'\\''")
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p /usr/local/bin && echo '%s' > /usr/local/bin/feralos-update && chmod 755 /usr/local/bin/feralos-update", escapedUpdate)); err != nil {
+	// ExecSilent: the echoed script body would land in installer.log and trip
+	// the harness log_errors sweep (its words "error"/"FAILED"/"failing" are
+	// legitimate script content, not failures) — same rationale as firmware
+	// detection, which uses this silent variant.
+	if _, err := shell.ExecSilent(chroot, fmt.Sprintf("mkdir -p /usr/local/bin && echo '%s' > /usr/local/bin/feralos-update && chmod 755 /usr/local/bin/feralos-update", escapedUpdate)); err != nil {
 		return fmt.Errorf("failed to write feralos-update script: %w", err)
 	}
 
