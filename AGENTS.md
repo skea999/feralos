@@ -13,6 +13,7 @@
 **Summary:** User-reported: DMS "Power off"/"Reboot" did nothing. Research (DMS source + elogind source): DMS runs `loginctl poweroff|reboot` (elogind branch) → elogind BYPASSES PATH and execs the absolute `/sbin/poweroff` (busybox symlink) AFTER running `/etc/elogind/system-shutdown` hooks — busybox sends SIGUSR2, which dinit IGNORES (no systemd; no config override for the binary path in elogind — build-time only). Our /usr/bin/dinit-shutdown wrappers are never consulted.
 - **Fix** (`services.go` `setupDinitShutdownCommands`): installer writes `/etc/elogind/system-shutdown/50-feralos-dinit.sh` — elogind's documented hook point, running BEFORE its busybox exec: `exec /usr/sbin/dinit-{poweroff,reboot,halt}` per `$1` verb (machine tears down; the subsequent busybox exec is a harmless no-op either way).
 - **Harness**: `dinit_shutdown_commands` extended (hook executable + contains dinit-poweroff).
+- **Second finding (same round, bundled)**: under dinit elogind cannot map PIDs to sessions (`NoSessionForPID` — no session cgroups) → polkit never sees allow_active → every login1 power action = auth challenge (silent timeout without an agent). Fix: `/etc/polkit-1/rules.d/49-feralos-power.rules` — wheel → login1 power-off/reboot/halt YES (wheel = admin already; standard desktop posture, no escalation). Harness check extended (rule file + content).
 - Real-fix chain: DMS → loginctl → polkit (allow_active, in-session) → elogind → hook → dinit shutdown.
 
 ### 2026-10-11 16:30 - nix: flake registry pinned to stable 26.05 system-wide (unstable leak fixed)

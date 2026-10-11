@@ -9,7 +9,7 @@
 
 ## Current Focus
 
-**DMS power off/reboot fix (2026-10-11)**: loginctl → elogind execs absolute /sbin/poweroff (busybox SIGUSR2 — dinit ignores); installer now writes /etc/elogind/system-shutdown/50-feralos-dinit.sh (hook point, execs dinit-poweroff/reboot/halt per verb). Harness dinit_shutdown_commands extended. Live validation = loginctl poweroff in-session.
+**DMS power off/reboot fix (2026-10-11)**: loginctl → elogind execs absolute /sbin/poweroff (busybox SIGUSR2 — dinit ignores); installer now writes /etc/elogind/system-shutdown/50-feralos-dinit.sh (hook point, execs dinit-poweroff/reboot/halt per verb). Harness dinit_shutdown_commands extended. Live validation = loginctl poweroff in-session + polkit power rule 49-feralos-power.rules (NoSessionForPID workaround, wheel → login1 YES).
 
 **Nix stable 26.05 (2026-10-11)**: flake registry pin fixed — was inside the nixPackages condition (enableNix without packages = unstable default leak) and user-only (root unpinned). Now: system-wide /etc/nix/registry.json + unconditional user pin; harness `nix_registry_stable` check added. Nix fixtures (enableNix: true, no nixPackages) will validate.
 

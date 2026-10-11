@@ -190,8 +190,35 @@ esac
 		return fmt.Errorf("failed to install elogind shutdown hook: %w", err)
 	}
 
+	// polkit rule for the login1 power actions: under dinit, elogind cannot
+	// map PIDs to sessions (NoSessionForPID — no session cgroups), so polkit
+	// never sees "allow_active" and every loginctl power-off/reboot call
+	// becomes an auth challenge (or a silent timeout with no agent).
+	// wheel = admin already — granting the seat-owner actions changes no
+	// security posture (poweroff is no privilege escalation), and matches
+	// standard desktop behavior (no password for the owner's own machine).
+	polkitRule := `// FeralOS: allow wheel to power off/reboot without an auth prompt.
+// elogind under dinit cannot attribute PIDs to sessions (NoSessionForPID),
+// so the default "allow_active" policy never matches. wheel is admin anyway.
+polkit.addRule(function(action, subject) {
+    if (subject.isInGroup("wheel") &&
+        (action.id == "org.freedesktop.login1.power-off" ||
+         action.id == "org.freedesktop.login1.power-off-multiple-sessions" ||
+         action.id == "org.freedesktop.login1.reboot" ||
+         action.id == "org.freedesktop.login1.reboot-multiple-sessions" ||
+         action.id == "org.freedesktop.login1.halt" ||
+         action.id == "org.freedesktop.login1.halt-multiple-sessions")) {
+        return polkit.Result.YES;
+    }
+});
+`
+	escapedRule := strings.ReplaceAll(polkitRule, "'", "'\\''")
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p /etc/polkit-1/rules.d && echo '%s' > /etc/polkit-1/rules.d/49-feralos-power.rules && chmod 644 /etc/polkit-1/rules.d/49-feralos-power.rules", escapedRule)); err != nil {
+		return fmt.Errorf("failed to install polkit power rule: %w", err)
+	}
+
 	fmt.Println("[INFO] Dinit shutdown commands installed (poweroff/reboot/halt/shutdown/soft-reboot)")
-	fmt.Println("[INFO] elogind shutdown hook installed (loginctl poweroff/reboot → dinit)")
+	fmt.Println("[INFO] elogind shutdown hook + polkit power rule installed (loginctl poweroff/reboot → dinit)")
 
 	return nil
 }
