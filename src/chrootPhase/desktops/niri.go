@@ -301,6 +301,14 @@ gtk-application-prefer-dark-theme=true`
 	// portal reported "no preference" (`v u 0`). The system dconf db is
 	// compiled with `dconf update` (no session bus needed in the chroot) and
 	// is inherited by every user (a user-set value still wins).
+	// Alpine's dconf package ships NO /etc/dconf/profile/user (Debian ships
+	// it) — without the profile GLib never consults the system db and
+	// `gsettings get` returns the schema default (`'default'`), verified
+	// live. The standard GNOME profile is written explicitly.
+	dconfProfile := "user-db:user\nsystem-db:local\n"
+	if err := writeFile(chroot, "/etc/dconf/profile/user", dconfProfile); err != nil {
+		return fmt.Errorf("seed dconf profile: %w", err)
+	}
 	dconfDefault := `[org/gnome/desktop/interface]
 color-scheme='prefer-dark'`
 	if err := writeFile(chroot, "/etc/dconf/db/local.d/00-feralos-theme", dconfDefault); err != nil {

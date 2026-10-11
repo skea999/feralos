@@ -12,7 +12,9 @@
 **Agent:** codebase
 **Summary:** User-reported: some apps ignored the dark theme (light UI). Diagnosed LIVE via debug_run: apps following the xdg-desktop-portal color-scheme were light because Portals reported `v u 0` (no preference) — dconf was ABSENT and `org.gnome.desktop.interface color-scheme` was never set (`gsettings get` = 'default'). Also: `QT_QPA_PLATFORMTHEME=gtk3` was DEAD (Alpine ships NO QGtk3 platformtheme plugin — only `libqxdgdesktopportal.so`), and gtk-4.0 settings were never seeded.
 - **Fix (installer)**: niri packages += `dconf`; system dconf default `/etc/dconf/db/local.d/00-feralos-theme` (`color-scheme='prefer-dark'`) + `dconf update` (compiles the system db without a session bus; every user inherits, user values still win) → libadwaita/GTK4 apps (gnome-maps/calendar), Firefox, Qt can all go dark; `gtk-4.0/settings.ini` seed added; niri env `QT_QPA_PLATFORMTHEME=xdgdesktopportal` (only Qt platformtheme plugin present — follows the portal).
+- **Second live finding (first harness run)**: Alpine's `dconf` package ships NO `/etc/dconf/profile/user` (Debian ships it) → GLib never consulted the system db, `gsettings get` = `'default'`, `theme_dark` FAILED. Installer now writes the standard GNOME profile (`user-db:user` + `system-db:local`) before `dconf update`; re-verified live (profile written → `'prefer-dark'`).
 - **Harness**: `theme_dark` check (dconf default file + GTK4 seed + effective `gsettings get` value as the user).
+- **Validated**: harness run `2026-10-11T20-38-40Z` (niri full fixture) **97/97 PASS** — `theme_dark` green (`dark preference OK (dconf system db + gtk4 seed)`), 0 failed/skipped. First run `20-31-51Z` = 96/97 (the missing-profile catch).
 
 ### 2026-10-12 02:00 - niri: prefer-no-csd in the user config (frameless, Windows-like)
 **Agent:** codebase
