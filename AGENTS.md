@@ -14,6 +14,7 @@
 - **Fix**: DMS `customPowerActionReboot = "sudo -n /usr/bin/reboot"` (SessionService 1.6.2 runs custom power commands via `sh -c` as the session user; verified source) + `/etc/sudoers.d/zz-power` (`%wheel ALL=(root) NOPASSWD: /usr/bin/reboot`) — both dinit-only. Poweroff/polkit/hook paths unchanged.
 - **Live catch**: first debug_run attempt FAILED (`sudo: interactive authentication is required` despite `sudo -l` listing the NOPASSWD rule): sudo-rs applies the LAST matching rule and `/etc/sudoers.d/power` sorts BEFORE `/etc/sudoers.d/wheel` (`%wheel ALL=(ALL) ALL`, password) → the wheel rule overrode the NOPASSWD tag. Renamed to `zz-power` (sorts after wheel) — verified live: `sudo -n /usr/bin/reboot` as the session user → `reboot: Restarting system`, SSH returned ~20s, uptime fresh, 0 LUKS prompts (TPM).
 - **Harness**: dinit_shutdown_commands extended (sudoers.d/zz-power + customPowerActionReboot seed).
+- **Validated**: harness run `2026-10-11T23-06-13Z` **97/97 PASS** (dinit_shutdown_commands green with the zz-power assertions); live debug_run re-test of the exact command (`su - skea999 -s /bin/sh -c "sudo -n /usr/bin/reboot"`): "Issuing shutdown command..." → serial `reboot: Restarting system` + `reboot: machine restart`, SSH back in ~15s, fresh uptime, TPM auto-unlock.
 - **Note**: CLI `loginctl reboot` remains broken (elogind path) — acceptable; elogind rebuild parked in backlog if it ever matters.
 
 ### 2026-10-12 03:00 - theme: system-wide dark preference (portal color-scheme fixed)
