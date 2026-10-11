@@ -249,8 +249,36 @@ include "dms/colors.kdl"
 	// the focused window — system-wide plugin under
 	// /etc/xdg/quickshell/dms-plugins, package dms-window-buttons).
 	dmsSettingsDir := fmt.Sprintf("/home/%s/.config/DankMaterialShell", u.UserName)
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p '%s' && printf '{\\n  \"configVersion\": 1,\\n  \"currentThemeCategory\": \"generic\",\\n  \"currentThemeName\": \"green\",\\n  \"dankBarLeftWidgets\": [\"launcherButton\", \"workspaceSwitcher\", \"runningApps\"],\\n  \"dankBarRightWidgets\": [\"systemTray\", \"clipboard\", \"cpuUsage\", \"memUsage\", \"notificationButton\", \"battery\", \"controlCenterButton\", \"dmsWindowButtons\"],\\n  \"updaterUseCustomCommand\": true,\\n  \"updaterCustomCommand\": \"/usr/local/bin/feralos-update\"\\n}\\n' > '%s/settings.json' && chown %s:%s '%s/settings.json'", dmsSettingsDir, dmsSettingsDir, u.UserName, u.UserName, dmsSettingsDir)); err != nil {
-		return fmt.Errorf("seed DMS settings.json (green theme, top bar, plugin): %w", err)
+	// DMS reboot fix (no elogind rebuild): DMS runs `loginctl reboot`
+	// (isElogind branch) → elogind execs the ABSOLUTE /sbin/reboot (busybox)
+	// → SIGTERM to dinit → dinit overwrites the shutdown type REBOOT→HALT =
+	// machine halts, never reboots (poweroff survives: busybox SIGUSR2 is
+	// ignored by dinit; diagnosis: run 2026-10-11T20-38-40Z live test).
+	// SessionService (1.6.2) runs `customPowerActionReboot` as the session
+	// user via `sh -c` → `sudo -n /usr/bin/reboot` = our dinit wrapper,
+	// NOPASSWD-granted to wheel for this exact binary (below). Wired only
+	// under dinit (the wrapper is dinit's; OpenRC keeps loginctl default).
+	settingsJSON := "{\n  \"configVersion\": 1,\n  \"currentThemeCategory\": \"generic\",\n  \"currentThemeName\": \"green\",\n  \"dankBarLeftWidgets\": [\"launcherButton\", \"workspaceSwitcher\", \"runningApps\"],\n  \"dankBarRightWidgets\": [\"systemTray\", \"clipboard\", \"cpuUsage\", \"memUsage\", \"notificationButton\", \"battery\", \"controlCenterButton\", \"dmsWindowButtons\"],\n  \"updaterUseCustomCommand\": true,\n  \"updaterCustomCommand\": \"/usr/local/bin/feralos-update\""
+	if u.EnableDinit {
+		settingsJSON += ",\n  \"customPowerActionReboot\": \"sudo -n /usr/bin/reboot\""
+	}
+	settingsJSON += "\n}\n"
+	if err := writeFile(chroot, fmt.Sprintf("%s/settings.json", dmsSettingsDir), settingsJSON); err != nil {
+		return fmt.Errorf("seed DMS settings.json: %w", err)
+	}
+	if u.EnableDinit {
+		// NOPASSWD for the dinit reboot wrapper only (wheel = admin already;
+		// reboot is no privilege escalation — same posture as the polkit
+		// login1 rule). sudo-rs reads /etc/sudoers.d.
+		if err := writeFile(chroot, "/etc/sudoers.d/power", "%wheel ALL=(root) NOPASSWD: /usr/bin/reboot\n"); err != nil {
+			return fmt.Errorf("write sudoers power rule: %w", err)
+		}
+		if _, err := shell.ExecuteCmd(chroot, "chmod 440 /etc/sudoers.d/power"); err != nil {
+			return fmt.Errorf("chmod sudoers power rule: %w", err)
+		}
+	}
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("chown %s:%s '%s/settings.json'", u.UserName, u.UserName, dmsSettingsDir)); err != nil {
+		return fmt.Errorf("chown DMS settings.json: %w", err)
 	}
 	// DMS plugin seed: enable the window-buttons plugin. Widget plugins are
 	// DISABLED by default (PluginService: getPluginSetting(id, "enabled",
