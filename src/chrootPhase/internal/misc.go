@@ -136,5 +136,78 @@ root soft nofile 100000
 		}
 	}
 
+	// 17. FeralOS update script — wired to the DMS System Update button
+	// (updaterCustomCommand in the niri settings seed) and usable manually:
+	// `feralos-update`. Sequence: apk → flatpak (if installed) → nix (if
+	// installed). Best-effort: a failing phase bumps the error counter,
+	// later phases still run; exit code = error count (DMS reports failure
+	// on non-zero). Privileged steps use sudo — DMS opens this in a
+	// terminal, so the password prompt is visible there.
+	fmt.Println("[INFO] Writing feralos-update script...")
+	updateScript := `#!/bin/sh
+# FeralOS system update — wired to the DMS System Update button
+# (updaterCustomCommand) and usable manually: feralos-update
+# Sequence: apk -> flatpak (if installed) -> nix (if installed).
+# Best-effort: a failing phase bumps the error counter, later phases still
+# run; exit code = error count. Privileged steps use sudo (prompt in this
+# terminal — DMS opens one with the update banner).
+echo "=== FeralOS update ==="
+errors=0
+run() {
+    echo
+    echo "--- $1 ---"
+    shift
+    "$@" || { echo "!!! FAILED: $*"; errors=$((errors + 1)); }
+}
+
+# --- 1. APK (always) ---
+run "APK: refresh indexes" sudo apk update
+run "APK: upgrade system" sudo apk upgrade --available
+
+# --- 2. Flatpak (if installed) ---
+if command -v flatpak >/dev/null 2>&1; then
+    echo
+    echo "=== Flatpak ==="
+    run "Flatpak: remove unused (user)" flatpak uninstall --unused -y
+    run "Flatpak: remove unused (system)" sudo flatpak uninstall --unused --system -y
+    run "Flatpak: update (user)" flatpak update --user -y
+    run "Flatpak: update (system)" sudo flatpak update --system -y
+else
+    echo
+    echo "=== Flatpak not installed - skipping ==="
+fi
+
+# --- 3. Nix (if installed) ---
+if command -v nix >/dev/null 2>&1; then
+    echo
+    echo "=== Nix ==="
+    run "Nix: refresh channels" nix-channel --update
+    run "Nix: upgrade profile packages" nix profile upgrade '.*'
+    run "Nix: trim generations (keep last 5)" nix-env --delete-generations +5
+    run "Nix: garbage collect" nix-collect-garbage
+    if [ "$(id -u)" != 0 ] && sudo test -e /root/.local/state/nix/profiles/profile; then
+        echo
+        echo "=== Nix (root profile) ==="
+        run "Nix: trim root generations (keep last 5)" sudo nix-env --delete-generations +5
+        run "Nix: garbage collect (root)" sudo nix-collect-garbage
+    fi
+else
+    echo
+    echo "=== Nix not installed - skipping ==="
+fi
+
+echo
+if [ "$errors" -eq 0 ]; then
+    echo "=== Update completed with no errors ==="
+else
+    echo "=== Update completed with $errors error(s) ==="
+fi
+exit "$errors"
+`
+	escapedUpdate := strings.ReplaceAll(updateScript, "'", "'\\''")
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p /usr/local/bin && echo '%s' > /usr/local/bin/feralos-update && chmod 755 /usr/local/bin/feralos-update", escapedUpdate)); err != nil {
+		return fmt.Errorf("failed to write feralos-update script: %w", err)
+	}
+
 	return nil
 }

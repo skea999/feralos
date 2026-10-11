@@ -1456,6 +1456,10 @@ echo 'fish history clean (no clap error)'`,
 		// the Adwaita theme actually ON DISK (index.theme), and the seeded
 		// GTK settings pointing DMS at it.
 		checks["dms_icons"] = fmt.Sprintf("apk info -e adwaita-icon-theme hicolor-icon-theme && test -f /usr/share/icons/Adwaita/index.theme && grep -q '^gtk-icon-theme-name=Adwaita' /home/%s/.config/gtk-3.0/settings.ini && echo 'icon themes OK (Adwaita via gtk3 platform theme)'", cfg.InstalledUser)
+		// dms_update_script: the DMS System Update button runs the FeralOS
+		// update script in a terminal (updaterCustomCommand) — script present
+		// + settings.json wired.
+		checks["dms_update_script"] = fmt.Sprintf("test -x /usr/local/bin/feralos-update && grep -q 'feralos-update' /home/%s/.config/DankMaterialShell/settings.json && echo 'update script OK (DMS custom command)'", cfg.InstalledUser)
 		// bluetooth_service: DMS BT widget speaks org.bluez dbus — the stack
 		// must be alive. Name UNIFIED at "bluetooth" on both inits (feralos
 		// bluez-dinit r2 ships /lib/dinit.d/bluetooth). Three assertions:
