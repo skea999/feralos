@@ -107,6 +107,8 @@ func LoadConfig(userPath string) (*Config, error) {
 		return nil, err
 	}
 
+	applyImpliedFlags(conf)
+
 	if err := LoadInternalRules(conf); err != nil {
 		return nil, err
 	}
@@ -121,9 +123,12 @@ func LoadConfig(userPath string) (*Config, error) {
 		conf.User.RunlevelsDinit[k] = v
 	}
 
-	// Input validation — reject shell metacharacters in fields that touch the shell
+	// Input validation — reject shell metacharacters in fields that touch the shell.
+	// Returns the partially-populated conf alongside the error: the caller
+	// (main.go) feeds it to the wizard pre-filled so the values can be fixed
+	// interactively instead of hard-stopping.
 	if err := validateConfig(conf); err != nil {
-		return nil, fmt.Errorf("input validation: %w", err)
+		return conf, fmt.Errorf("input validation: %w", err)
 	}
 
 	// LuksPassword fallback: use Login password if LUKS passphrase not set
@@ -164,6 +169,25 @@ func LoadInternalRules(conf *Config) error {
 	}
 
 	return yaml.Unmarshal(iData, &conf.Internal)
+}
+
+// applyImpliedFlags derives feature flags from the values that require them,
+// so a single YAML field is enough (no error asking for a second one).
+// extraPackagesEdge installs from the @edge tagged repos — those only exist
+// when enableEdgeRepos wrote them into /etc/apk/repositories, so the package
+// list implies the flag.
+func applyImpliedFlags(conf *Config) {
+	u := &conf.User
+	if len(u.ExtraPackagesEdge) > 0 && !u.EnableEdgeRepos {
+		u.EnableEdgeRepos = true
+		fmt.Println("[INFO] extraPackagesEdge set: enableEdgeRepos enabled automatically")
+	}
+}
+
+// ValidateConfig re-checks a configuration (exported for main.go, which runs
+// it after the wizard so invalid values never reach the disk phase).
+func ValidateConfig(conf *Config) error {
+	return validateConfig(conf)
 }
 
 // validateConfig rejects invalid values in user-provided fields.
@@ -208,11 +232,6 @@ func validateConfig(conf *Config) error {
 	}
 	if err := ValidateExtraPackages(u.ExtraPackagesEdge); err != nil {
 		return err
-	}
-	// extraPackagesEdge installs from the @edge tagged repos — those only
-	// exist when enableEdgeRepos wrote them into /etc/apk/repositories.
-	if len(u.ExtraPackagesEdge) > 0 && !u.EnableEdgeRepos {
-		return fmt.Errorf("extraPackagesEdge requires enableEdgeRepos: true (@edge tagged repos)")
 	}
 
 	// Runtime rule fields (populated by logic.ApplyRules, not wizard-editable)

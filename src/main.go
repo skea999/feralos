@@ -35,19 +35,33 @@ func main() {
 	fmt.Println("[INFO] Step 1: Loading configuration files...")
 	conf, err := config.LoadConfig(*userConfigPath)
 	if err != nil {
-		if os.IsNotExist(err) {
+		switch {
+		case os.IsNotExist(err):
 			fmt.Println("[WARN] No configuration file found. Starting with defaults...")
 			conf = &config.Config{}
 			// Rules needed by the wizard (enum options for layout/DE/video)
-			err = config.LoadInternalRules(conf)
-		}
-		if err != nil {
+			if rulesErr := config.LoadInternalRules(conf); rulesErr != nil {
+				log.Fatalf("[ERROR] Configuration loading failed: %v", rulesErr)
+			}
+		case conf != nil:
+			// File loaded but values invalid — the wizard below starts
+			// pre-filled so the user can fix them; re-validated after it.
+			fmt.Printf("[WARN] Configuration validation failed: %v\n", err)
+			fmt.Println("[WARN] Entering the wizard so the values can be corrected...")
+		default:
 			log.Fatalf("[ERROR] Configuration loading failed: %v", err)
 		}
 	}
 
 	// 3.1. Run Wizard (skips automatically if unattended: true)
 	createConfig.PromptForConfig(conf)
+
+	// 3.2. Re-validate before any disk work — the wizard pre-fills from the
+	// file and can fix invalid values; anything still invalid (e.g. an
+	// unattended run with a broken config) stops here, before host phase.
+	if err := config.ValidateConfig(conf); err != nil {
+		log.Fatalf("[ERROR] Configuration invalid after wizard: %v", err)
+	}
 
 	// 4. Apply Dynamic Rules
 	fmt.Println("[INFO] Step 2: Applying dynamic package logic...")

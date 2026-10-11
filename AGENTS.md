@@ -8,6 +8,16 @@
 
 ## Recent Rounds (latest first)
 
+### 2026-10-11 00:30 - config: edge-repos auto-enable + wizard on invalid config (2 UX fixes)
+**Agent:** codebase
+**Summary:** User-reported: `extraPackagesEdge` without `enableEdgeRepos: true` hard-errored BEFORE the wizard — user could not fix the value interactively.
+- **Fix 1 (auto-enable)**: `applyImpliedFlags(conf)` in `LoadConfig` (right after YAML unmarshal) — non-empty `extraPackagesEdge` ⇒ `enableEdgeRepos = true` + `[INFO]` (single source: the package list implies the flag, same philosophy as Nix auto-enable). Hard error REMOVED from `validateConfig`.
+- **Fix 2 (wizard pre-filled on invalid config)**: `LoadConfig` now returns `(conf, err)` on VALIDATION errors (yaml-parse/rules errors still `nil` conf → fatal). `main.go` restructured: not-exist → defaults+wizard (unchanged); loaded-but-invalid → `[WARN]` + wizard pre-filled; after wizard `config.ValidateConfig(conf)` re-checks — still invalid (e.g. unattended run) → fatal BEFORE any disk work.
+- **Tests**: new `src/utils/config/config_test.go` — `TestApplyImpliedFlagsEdgeRepos` (5 subtests) + `TestValidateConfigEdgePackagesNoRepoFlagRequired`. Green.
+- **Lint**: one govet shadow fix in main.go (mechanical, `rulesErr`).
+- **Validated**: installer + createValues build, vet/gofmt/golangci-lint clean, `go test ./...` green.
+- **Docs**: `docs/guides/variables.md` (edge rows + Compilation wizard-behavior note).
+
 ### 2026-10-10 23:30 - branches: developDinit → develop → main merged; work continues on develop
 **Agent:** codebase
 **Summary:** User-requested merge chain. developDinit → develop = **fast-forward** (`b50e04f` → `c3ef811`). develop → main = **merge commit `8568df0`** with 9 conflicts resolved — develop side everywhere.
