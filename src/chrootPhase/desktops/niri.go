@@ -228,14 +228,17 @@ include "dms/colors.kdl"
 			fmt.Printf("[WARNING] dms setup %s failed: %v\n", setup, err)
 		}
 	}
-	// DMS theme seed: green (Settings → Theme & Colors → Generic grid).
-	// settings.json does not exist until DMS's first launch — writing it
-	// pre-seeds the keys DMS loads and merges on startup (SettingsSpec.js:
-	// currentThemeCategory/currentThemeName; generic themes are static
-	// Material palettes, matugen/wallpaper only applies in dynamic mode).
+	// DMS theme seed: green (Settings → Theme & Colors → Generic grid) +
+	// bar at the bottom. settings.json does not exist until DMS's first
+	// launch — writing it pre-seeds the keys DMS loads and merges on
+	// startup. Bar position uses the v1→v2 MIGRATION path (configVersion 1
+	// + legacy dankBarAtBottom): DMS builds the FULL default barConfigs with
+	// position=1 itself — seeding a partial barConfigs would replace the
+	// whole default array (raw assignment, no deep merge) and break the bar,
+	// and duplicating the full default would drift with DMS versions.
 	dmsSettingsDir := fmt.Sprintf("/home/%s/.config/DankMaterialShell", u.UserName)
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p '%s' && printf '{\\n  \"currentThemeCategory\": \"generic\",\\n  \"currentThemeName\": \"green\"\\n}\\n' > '%s/settings.json' && chown %s:%s '%s/settings.json'", dmsSettingsDir, dmsSettingsDir, u.UserName, u.UserName, dmsSettingsDir)); err != nil {
-		return fmt.Errorf("seed DMS settings.json (green theme): %w", err)
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p '%s' && printf '{\\n  \"configVersion\": 1,\\n  \"currentThemeCategory\": \"generic\",\\n  \"currentThemeName\": \"green\",\\n  \"dankBarAtBottom\": true\\n}\\n' > '%s/settings.json' && chown %s:%s '%s/settings.json'", dmsSettingsDir, dmsSettingsDir, u.UserName, u.UserName, dmsSettingsDir)); err != nil {
+		return fmt.Errorf("seed DMS settings.json (green theme, bottom bar): %w", err)
 	}
 	// DMS dark mode seed (belt+braces): fresh installs already default dark
 	// (SharedSessionSpec.js isLightMode def=false; PortalService applies mode
