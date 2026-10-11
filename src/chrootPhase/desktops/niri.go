@@ -262,6 +262,17 @@ include "dms/colors.kdl"
 	if err := writeFile(chroot, fmt.Sprintf("/home/%s/.config/xdg-terminals.list", u.UserName), "Alacritty.desktop"); err != nil {
 		return fmt.Errorf("seed default terminal (Alacritty): %w", err)
 	}
+	// DMS reads icons through QT_QPA_PLATFORMTHEME=gtk3 → GTK settings —
+	// without gtk-icon-theme-name apps fall back to hicolor generics (the
+	// "missing icons" effect). Adwaita = GNOME default, coherent with the
+	// GNOME apps shipped; prefer-dark keeps GTK apps coherent with DMS dark
+	// mode. Icon themes = dms-shell deps (aports 14f124b).
+	gtkSettings := `[Settings]
+gtk-icon-theme-name=Adwaita
+gtk-application-prefer-dark-theme=true`
+	if err := writeFile(chroot, fmt.Sprintf("/home/%s/.config/gtk-3.0/settings.ini", u.UserName), gtkSettings); err != nil {
+		return fmt.Errorf("seed GTK settings (icon theme + dark): %w", err)
+	}
 	mimeapps := `[Default Applications]
 x-scheme-handler/https=firefox.desktop
 x-scheme-handler/http=firefox.desktop
@@ -292,7 +303,7 @@ x-scheme-handler/webcals=org.gnome.Calendar.desktop`
 	if err := writeFile(chroot, fmt.Sprintf("/home/%s/.config/mimeapps.list", u.UserName), mimeapps); err != nil {
 		return fmt.Errorf("seed default apps (mimeapps.list): %w", err)
 	}
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("chown %s:%s '/home/%s/.config/xdg-terminals.list' '/home/%s/.config/mimeapps.list'", u.UserName, u.UserName, u.UserName, u.UserName)); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("chown %s:%s '/home/%s/.config/xdg-terminals.list' '/home/%s/.config/mimeapps.list' '/home/%s/.config/gtk-3.0/settings.ini'", u.UserName, u.UserName, u.UserName, u.UserName, u.UserName)); err != nil {
 		return fmt.Errorf("chown default app seeds: %w", err)
 	}
 	// DMS 1.6 layout template emits `background-effect { xray false }` — a
