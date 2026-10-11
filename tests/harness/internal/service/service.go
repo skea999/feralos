@@ -1487,9 +1487,10 @@ echo 'fish history clean (no clap error)'`,
 		// user dinit services: supervised session stack (dbus/audio/wayland
 		// gate/polkit-agent/dms) shipped by *-user-dinit packages + dms-shell
 		checks["dinit_user_services"] = "for s in dbus.user pipewire.user pipewire-pulse.user wireplumber.user wait-wayland.user polkit-agent.user dms.user; do test -f /etc/dinit.d/user/$s || { echo \"missing $s\"; exit 1; }; done; echo 'user services OK'"
-		// niri session wiring: Alpine niri-session unmodified (user service
-		// from niri-user-dinit), login-shell trick (passwd shell NOT in
-		// /etc/shells), turnstile PAM → user dinit, boot.d enables.
+		// niri session wiring: FeralOS niri-session (niri-user-dinit, no
+		// shells/re-exec traps), login-shell trick (passwd shell listed in
+		// /etc/shells — pkexec requires it), turnstile PAM → user dinit,
+		// boot.d enables.
 		checks["niri_user_service"] = "test -f /etc/dinit.d/user/niri && grep -q 'niri --session' /etc/dinit.d/user/niri"
 		checks["login_shell_trick"] = fmt.Sprintf("getent passwd %s | cut -d: -f7 | grep -q feralos/login-shell && test -L /usr/libexec/feralos/login-shell && grep -qxF /usr/libexec/feralos/login-shell /etc/shells", cfg.InstalledUser)
 		checks["turnstile_pkg"] = "test -f /etc/dinit.d/turnstiled && test -e /etc/dinit.d/boot.d/turnstiled && test -f /usr/lib/security/pam_turnstile.so"
