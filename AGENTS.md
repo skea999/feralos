@@ -11,8 +11,9 @@
 ### 2026-10-12 04:00 - fix: DMS reboot via custom power command (no elogind rebuild)
 **Agent:** codebase
 **Summary:** Live diagnosis (debug_run of run 2026-10-11T20-38-40Z): DMS `loginctl reboot` → elogind execs the ABSOLUTE `/sbin/reboot` (busybox) AFTER the hooks → busybox sends SIGTERM (its reboot signal; poweroff=SIGUSR2, ignored by dinit) → dinit's sigterm handler calls `stop_all_services(HALT)` OVERWRITING the REBOOT type → "System halted", machine frozen. Terminal `reboot` is unaffected (PATH → our /usr/bin wrapper). Upstream NOT fixed (dinit master identical; upgrading useless). Artix rebuilds elogind with `-Dreboot-path=/usr/bin/reboot` — we chose the lighter route per user decision.
-- **Fix**: DMS `customPowerActionReboot = "sudo -n /usr/bin/reboot"` (SessionService 1.6.2 runs custom power commands via `sh -c` as the session user; verified source) + `/etc/sudoers.d/power` (`%wheel ALL=(root) NOPASSWD: /usr/bin/reboot`) — both dinit-only. Poweroff/polkit/hook paths unchanged.
-- **Harness**: dinit_shutdown_commands extended (sudoers.d/power + customPowerActionReboot seed).
+- **Fix**: DMS `customPowerActionReboot = "sudo -n /usr/bin/reboot"` (SessionService 1.6.2 runs custom power commands via `sh -c` as the session user; verified source) + `/etc/sudoers.d/zz-power` (`%wheel ALL=(root) NOPASSWD: /usr/bin/reboot`) — both dinit-only. Poweroff/polkit/hook paths unchanged.
+- **Live catch**: first debug_run attempt FAILED (`sudo: interactive authentication is required` despite `sudo -l` listing the NOPASSWD rule): sudo-rs applies the LAST matching rule and `/etc/sudoers.d/power` sorts BEFORE `/etc/sudoers.d/wheel` (`%wheel ALL=(ALL) ALL`, password) → the wheel rule overrode the NOPASSWD tag. Renamed to `zz-power` (sorts after wheel) — verified live: `sudo -n /usr/bin/reboot` as the session user → `reboot: Restarting system`, SSH returned ~20s, uptime fresh, 0 LUKS prompts (TPM).
+- **Harness**: dinit_shutdown_commands extended (sudoers.d/zz-power + customPowerActionReboot seed).
 - **Note**: CLI `loginctl reboot` remains broken (elogind path) — acceptable; elogind rebuild parked in backlog if it ever matters.
 
 ### 2026-10-12 03:00 - theme: system-wide dark preference (portal color-scheme fixed)

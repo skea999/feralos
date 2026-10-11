@@ -269,11 +269,15 @@ include "dms/colors.kdl"
 	if u.EnableDinit {
 		// NOPASSWD for the dinit reboot wrapper only (wheel = admin already;
 		// reboot is no privilege escalation — same posture as the polkit
-		// login1 rule). sudo-rs reads /etc/sudoers.d.
-		if err := writeFile(chroot, "/etc/sudoers.d/power", "%wheel ALL=(root) NOPASSWD: /usr/bin/reboot\n"); err != nil {
+		// login1 rule). sudo-rs reads /etc/sudoers.d. FILENAME MUST SORT
+		// AFTER "wheel": sudo-rs applies the LAST matching rule, and
+		// /etc/sudoers.d/wheel (`%wheel ALL=(ALL) ALL`, password) would
+		// otherwise override the NOPASSWD tag (live-caught via debug_run
+		// 2026-10-11: `sudo -l` showed the rule but execution asked auth).
+		if err := writeFile(chroot, "/etc/sudoers.d/zz-power", "%wheel ALL=(root) NOPASSWD: /usr/bin/reboot\n"); err != nil {
 			return fmt.Errorf("write sudoers power rule: %w", err)
 		}
-		if _, err := shell.ExecuteCmd(chroot, "chmod 440 /etc/sudoers.d/power"); err != nil {
+		if _, err := shell.ExecuteCmd(chroot, "chmod 440 /etc/sudoers.d/zz-power"); err != nil {
 			return fmt.Errorf("chmod sudoers power rule: %w", err)
 		}
 	}

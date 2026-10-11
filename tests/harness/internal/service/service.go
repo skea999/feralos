@@ -1695,7 +1695,11 @@ echo 'fish history clean (no clap error)'`,
 		// exec target is the busybox /sbin/poweroff (SIGUSR2, ignored).
 		// + polkit power rule: NoSessionForPID under dinit otherwise turns
 		// every login1 power action into an auth challenge.
-		checks["dinit_shutdown_commands"] = fmt.Sprintf("test -x /usr/bin/poweroff -a -x /usr/bin/reboot -a -x /usr/bin/halt -a -x /usr/bin/shutdown -a -x /usr/bin/soft-reboot && test -x /etc/elogind/system-shutdown/50-feralos-dinit.sh && grep -q dinit-poweroff /etc/elogind/system-shutdown/50-feralos-dinit.sh && test -f /etc/polkit-1/rules.d/49-feralos-power.rules && grep -q login1.power-off /etc/polkit-1/rules.d/49-feralos-power.rules && test -f /etc/sudoers.d/power && grep -q '/usr/bin/reboot' /etc/sudoers.d/power && grep -q customPowerActionReboot /home/%s/.config/DankMaterialShell/settings.json && echo 'shutdown commands OK' || { echo 'shutdown commands MISSING'; exit 1; }", cfg.InstalledUser)
+		// + DMS custom reboot: customPowerActionReboot (sudo -n /usr/bin/reboot)
+		// via /etc/sudoers.d/zz-power — must sort AFTER /etc/sudoers.d/wheel
+		// (`%wheel ALL=(ALL) ALL`; sudo-rs last-match-wins would override
+		// the NOPASSWD tag otherwise — live-caught 2026-10-11).
+		checks["dinit_shutdown_commands"] = fmt.Sprintf("test -x /usr/bin/poweroff -a -x /usr/bin/reboot -a -x /usr/bin/halt -a -x /usr/bin/shutdown -a -x /usr/bin/soft-reboot && test -x /etc/elogind/system-shutdown/50-feralos-dinit.sh && grep -q dinit-poweroff /etc/elogind/system-shutdown/50-feralos-dinit.sh && test -f /etc/polkit-1/rules.d/49-feralos-power.rules && grep -q login1.power-off /etc/polkit-1/rules.d/49-feralos-power.rules && test -f /etc/sudoers.d/zz-power && grep -q '/usr/bin/reboot' /etc/sudoers.d/zz-power && grep -q customPowerActionReboot /home/%s/.config/DankMaterialShell/settings.json && echo 'shutdown commands OK' || { echo 'shutdown commands MISSING'; exit 1; }", cfg.InstalledUser)
 		// conf.d-equivalent config files (Artix pattern): every -dinit
 		// package ships /etc/dinit.d/config/<svc>.conf sourced by its
 		// wrapper. Core set on any dinstall: dbus chronyd cronie acpid sshd

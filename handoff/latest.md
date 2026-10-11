@@ -9,7 +9,7 @@
 
 ## Current Focus
 
-**DMS reboot fixed without elogind rebuild (2026-10-12)**: root cause = elogind execs busybox /sbin/reboot (SIGTERM → dinit overwrites REBOOT→HALT). DMS custom power command `sudo -n /usr/bin/reboot` + sudoers.d/power NOPASSWD (dinit-only). Terminal reboot was never affected. CLI loginctl reboot remains broken (documented).
+**DMS reboot fixed without elogind rebuild (2026-10-12)**: root cause = elogind execs busybox /sbin/reboot (SIGTERM → dinit overwrites REBOOT→HALT). DMS custom power command `sudo -n /usr/bin/reboot` + sudoers.d/zz-power NOPASSWD (dinit-only; named zz- to sort AFTER /etc/sudoers.d/wheel — sudo-rs last-match-wins, `power` was overridden by `%wheel ALL=(ALL) ALL`, live-caught). Terminal reboot was never affected. CLI loginctl reboot remains broken (documented). Live-validated: reboot: Restarting system, SSH back ~20s, TPM auto-unlock.
 
 **System dark theme fixed (2026-10-12)**: portal reported "no preference" (dconf absent, color-scheme unset) → libadwaita/GTK4 apps light. Installer: dconf package + system default `color-scheme='prefer-dark'` (/etc/dconf/db/local.d + dconf update) + gtk-4.0 seed + Qt env → xdgdesktopportal. Second live finding: Alpine dconf ships NO /etc/dconf/profile/user → installer writes the standard GNOME profile (user-db:user + system-db:local; without it `gsettings get` = 'default'). Harness `theme_dark` check.
 
