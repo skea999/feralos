@@ -1679,7 +1679,10 @@ echo 'fish history clean (no clap error)'`,
 		checks["dinit_key"] = "test -f /etc/apk/keys/feralos.rsa.pub && echo 'key OK' || { echo 'key MISSING'; exit 1; }"
 		// Conventional shutdown commands wired to dinit helpers by the
 		// installer (busybox poweroff/reboot do not work under dinit).
-		checks["dinit_shutdown_commands"] = "test -x /usr/bin/poweroff -a -x /usr/bin/reboot -a -x /usr/bin/halt -a -x /usr/bin/shutdown -a -x /usr/bin/soft-reboot && echo 'shutdown commands OK' || { echo 'shutdown commands MISSING'; exit 1; }"
+		// + elogind shutdown hook: loginctl poweroff/reboot (DMS power menu)
+		// reaches dinit via /etc/elogind/system-shutdown — elogind's own
+		// exec target is the busybox /sbin/poweroff (SIGUSR2, ignored).
+		checks["dinit_shutdown_commands"] = "test -x /usr/bin/poweroff -a -x /usr/bin/reboot -a -x /usr/bin/halt -a -x /usr/bin/shutdown -a -x /usr/bin/soft-reboot && test -x /etc/elogind/system-shutdown/50-feralos-dinit.sh && grep -q dinit-poweroff /etc/elogind/system-shutdown/50-feralos-dinit.sh && echo 'shutdown commands OK' || { echo 'shutdown commands MISSING'; exit 1; }"
 		// conf.d-equivalent config files (Artix pattern): every -dinit
 		// package ships /etc/dinit.d/config/<svc>.conf sourced by its
 		// wrapper. Core set on any dinstall: dbus chronyd cronie acpid sshd

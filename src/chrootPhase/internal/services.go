@@ -165,7 +165,33 @@ func setupDinitShutdownCommands(chroot string) error {
 	if !strings.Contains(out, "OK") {
 		return fmt.Errorf("dinit shutdown commands were not installed correctly")
 	}
+
+	// elogind shutdown hook (DMS "Power off" / "Reboot" fix): DMS runs
+	// `loginctl poweroff|reboot` (elogind branch); elogind bypasses PATH and
+	// execs the ABSOLUTE /sbin/poweroff (busybox) — busybox sends SIGUSR2,
+	// which dinit IGNORES, so the machine never goes down. elogind has no
+	// config override for the binary path, but it runs
+	// /etc/elogind/system-shutdown hooks BEFORE the exec: trigger the real
+	// dinit shutdown from the hook (exec — elogind waits on this script and
+	// the machine tears down; if elogind were to proceed anyway, the
+	// subsequent busybox exec is a harmless no-op).
+	hookDir := "/etc/elogind/system-shutdown"
+	hookContent := `#!/bin/sh
+# FeralOS: elogind execs the absolute /sbin/poweroff (busybox, SIGUSR2 —
+# ignored by dinit) AFTER these hooks. Trigger the real dinit shutdown here.
+case "$1" in
+poweroff) exec /usr/sbin/dinit-poweroff ;;
+reboot)   exec /usr/sbin/dinit-reboot ;;
+halt)     exec /usr/sbin/dinit-halt ;;
+esac
+`
+	escapedHook := strings.ReplaceAll(hookContent, "'", "'\\''")
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p '%s' && echo '%s' > '%s/50-feralos-dinit.sh' && chmod 755 '%s/50-feralos-dinit.sh'", hookDir, escapedHook, hookDir, hookDir)); err != nil {
+		return fmt.Errorf("failed to install elogind shutdown hook: %w", err)
+	}
+
 	fmt.Println("[INFO] Dinit shutdown commands installed (poweroff/reboot/halt/shutdown/soft-reboot)")
+	fmt.Println("[INFO] elogind shutdown hook installed (loginctl poweroff/reboot → dinit)")
 
 	return nil
 }

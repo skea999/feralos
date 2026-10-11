@@ -8,6 +8,13 @@
 
 ## Recent Rounds (latest first)
 
+### 2026-10-11 18:30 - fix: DMS power off/reboot dead under dinit (elogind → busybox SIGUSR2)
+**Agent:** codebase
+**Summary:** User-reported: DMS "Power off"/"Reboot" did nothing. Research (DMS source + elogind source): DMS runs `loginctl poweroff|reboot` (elogind branch) → elogind BYPASSES PATH and execs the absolute `/sbin/poweroff` (busybox symlink) AFTER running `/etc/elogind/system-shutdown` hooks — busybox sends SIGUSR2, which dinit IGNORES (no systemd; no config override for the binary path in elogind — build-time only). Our /usr/bin/dinit-shutdown wrappers are never consulted.
+- **Fix** (`services.go` `setupDinitShutdownCommands`): installer writes `/etc/elogind/system-shutdown/50-feralos-dinit.sh` — elogind's documented hook point, running BEFORE its busybox exec: `exec /usr/sbin/dinit-{poweroff,reboot,halt}` per `$1` verb (machine tears down; the subsequent busybox exec is a harmless no-op either way).
+- **Harness**: `dinit_shutdown_commands` extended (hook executable + contains dinit-poweroff).
+- Real-fix chain: DMS → loginctl → polkit (allow_active, in-session) → elogind → hook → dinit shutdown.
+
 ### 2026-10-11 16:30 - nix: flake registry pinned to stable 26.05 system-wide (unstable leak fixed)
 **Agent:** codebase
 **Summary:** User-reported: nix resolved the unstable branch. Root cause: the stable CHANNEL (nixos-26.05) was already added, but the FLAKE REGISTRY pin lived INSIDE `if len(u.NixPackages) > 0` — enableNix without nixPackages (current default: niri rules carry no nixPackages, harness fixtures neither) left the builtin default (nixpkgs → nixpkgs-unstable) active for every `nixpkgs#...` reference. Root also never pinned (user registry only, via su).

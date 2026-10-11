@@ -9,6 +9,8 @@
 
 ## Current Focus
 
+**DMS power off/reboot fix (2026-10-11)**: loginctl → elogind execs absolute /sbin/poweroff (busybox SIGUSR2 — dinit ignores); installer now writes /etc/elogind/system-shutdown/50-feralos-dinit.sh (hook point, execs dinit-poweroff/reboot/halt per verb). Harness dinit_shutdown_commands extended. Live validation = loginctl poweroff in-session.
+
 **Nix stable 26.05 (2026-10-11)**: flake registry pin fixed — was inside the nixPackages condition (enableNix without packages = unstable default leak) and user-only (root unpinned). Now: system-wide /etc/nix/registry.json + unconditional user pin; harness `nix_registry_stable` check added. Nix fixtures (enableNix: true, no nixPackages) will validate.
 
 **pkexec vs login-shell fixed (2026-10-11)**: pkexec validates the session user's shell vs /etc/shells → FeralOS login-shell path unlisted = RC=127 on every privileged DMS op (Create User + all polkit). Diagnosed via debug_run (repro: pkexec RC=127, root useradd RC=0). Fix: installer lists login-shell in /etc/shells (safe — our niri-session has no re-exec trap, grep-verified); harness login_shell_trick now asserts it.
