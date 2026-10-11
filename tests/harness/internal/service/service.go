@@ -1448,6 +1448,14 @@ echo 'fish history clean (no clap error)'`,
 		// take ~30s, so 60s worst case still fits.
 		checks["niri_greeter"] = "i=0; while [ $i -lt 60 ]; do pgrep -x niri >/dev/null && { echo 'niri running'; exit 0; }; sleep 1; i=$((i+1)); done; echo 'niri not running'; exit 1"
 		checks["dms_installed"] = "apk info -e dms-shell quickshell && test -x /usr/bin/dms"
+		// dms_icons: the DMS icon chain end-to-end. DMS resolves icons via
+		// QT_QPA_PLATFORMTHEME=gtk3 → ~/.config/gtk-3.0/settings.ini →
+		// gtk-icon-theme-name — unset on our installs it fell back to
+		// hicolor generics (the missing-icons effect). Three assertions:
+		// icon theme PACKAGES present (dms-shell deps: adwaita + hicolor),
+		// the Adwaita theme actually ON DISK (index.theme), and the seeded
+		// GTK settings pointing DMS at it.
+		checks["dms_icons"] = fmt.Sprintf("apk info -e adwaita-icon-theme hicolor-icon-theme && test -f /usr/share/icons/Adwaita/index.theme && grep -q '^gtk-icon-theme-name=Adwaita' /home/%s/.config/gtk-3.0/settings.ini && echo 'icon themes OK (Adwaita via gtk3 platform theme)'", cfg.InstalledUser)
 		// bluetooth_service: DMS BT widget speaks org.bluez dbus — the stack
 		// must be alive. Name UNIFIED at "bluetooth" on both inits (feralos
 		// bluez-dinit r2 ships /lib/dinit.d/bluetooth). Three assertions:
