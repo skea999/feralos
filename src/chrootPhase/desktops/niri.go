@@ -339,11 +339,18 @@ include "dms/colors.kdl"
 	// package ships NO /etc/dconf/profile/user (Debian ships it) — without
 	// the profile GLib never consults the user/system dbs and `gsettings
 	// get` returns schema defaults, verified live. `dconf update` compiles
-	// the (now empty) system db so user-level writes from the plugin take
-	// effect immediately.
+	// the (empty) system db so user-level writes from the plugin take
+	// effect immediately. Alpine's dconf also ships NO /etc/dconf at all
+	// (verified: apk add dconf in a clean container) — `dconf update` errors
+	// "Error opening directory /etc/dconf/db" without the system-db:local
+	// dir, so create it (harness run 2026-10-12T22-09-52Z caught the failure
+	// after the former seed write stopped creating it as a side effect).
 	dconfProfile := "user-db:user\nsystem-db:local\n"
 	if err := writeFile(chroot, "/etc/dconf/profile/user", dconfProfile); err != nil {
 		return fmt.Errorf("seed dconf profile: %w", err)
+	}
+	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /etc/dconf/db/local.d"); err != nil {
+		return fmt.Errorf("create dconf system db dir: %w", err)
 	}
 	if _, err := shell.ExecuteCmd(chroot, "dconf update"); err != nil {
 		return fmt.Errorf("dconf update: %w", err)
