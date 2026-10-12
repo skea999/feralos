@@ -9,7 +9,7 @@
 
 ## Current Focus
 
-**KDE apps dark (2026-10-12)**: KDE apps read KColorScheme → ~/.config/kdeglobals [Colors:*] (NOT portal). Installer seeds self-contained BreezeDark values (+ [Icons] breeze-dark), no breeze/plasma package. Harness theme_dark extended. + [UiSettings] ColorScheme=BreezeDark pin (okular manager apps bypass [Colors:*]; embedded BreezeDark forced). Greeter user now system UID (adduser -S) → hidden from ReGreet.
+**KDE apps dark (2026-10-12)**: KDE apps read KColorScheme → ~/.config/kdeglobals [Colors:*] (NOT portal). Installer seeds self-contained BreezeDark values (+ [Icons] breeze-dark), no breeze/plasma package. Harness theme_dark extended. + [UiSettings] ColorScheme=BreezeDark pin (okular manager apps bypass [Colors:*]; embedded BreezeDark forced). Greeter user now system UID (explicit `addgroup -S greeter` + `adduser -S -G greeter` — busybox -S alone defaults the group to nogroup and creates no same-name group, breaking the greeter:greeter chown; caught by harness run 18-42-54Z) → hidden from ReGreet. Harness greetd_config apostrophe echo now double-quoted (fish login shell rejects the POSIX `'\''` escape).
 
 **DMS reboot fixed without elogind rebuild (2026-10-12)**: root cause = elogind execs busybox /sbin/reboot (SIGTERM → dinit overwrites REBOOT→HALT). DMS custom power command `sudo -n /usr/bin/reboot` + sudoers.d/zz-power NOPASSWD (dinit-only; named zz- to sort AFTER /etc/sudoers.d/wheel — sudo-rs last-match-wins, `power` was overridden by `%wheel ALL=(ALL) ALL`, live-caught). Terminal reboot was never affected. CLI loginctl reboot remains broken (documented). Live-validated: reboot: Restarting system, SSH back ~20s, TPM auto-unlock.
 

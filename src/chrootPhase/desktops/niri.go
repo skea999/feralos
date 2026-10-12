@@ -107,10 +107,14 @@ hotkey-overlay {
 	// -S (system user, UID 100-999): ReGreet 0.2.0 lists /etc/passwd users
 	// with UID in [UID_MIN, UID_MAX] (1000-60000 per /etc/login.defs) —
 	// without -S the greeter account (UID 1001) shows up as a login option.
-	// System UIDs are filtered out. Side effects checked: turnstile spawns
-	// the user dinit for any non-root login (greeter included); explicit
-	// -s /bin/sh overrides the busybox system-user nologin default.
-	if _, err := shell.ExecuteCmd(chroot, "getent passwd greeter >/dev/null 2>&1 || adduser -S -D -s /bin/sh -h /var/lib/greetd greeter"); err != nil {
+	// System UIDs are filtered out. GOTCHA: busybox adduser -S without -G
+	// defaults the primary group to "nogroup" and creates NO same-name
+	// group (loginutils/adduser.c: usegroup = "nogroup"), breaking the
+	// later chown greeter:greeter — so create the system group explicitly
+	// and pass -G. Side effects checked: turnstile spawns the user dinit
+	// for any non-root login (greeter included); explicit -s /bin/sh
+	// overrides the busybox system-user /bin/false default.
+	if _, err := shell.ExecuteCmd(chroot, "getent passwd greeter >/dev/null 2>&1 || { getent group greeter >/dev/null 2>&1 || addgroup -S greeter; adduser -S -G greeter -D -s /bin/sh -h /var/lib/greetd greeter; }"); err != nil {
 		return fmt.Errorf("create greeter user: %w", err)
 	}
 	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /var/lib/greetd/.config/niri"); err != nil {

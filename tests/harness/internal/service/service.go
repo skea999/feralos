@@ -1431,7 +1431,7 @@ echo 'fish history clean (no clap error)'`,
 	// DMS (native apk package dms-shell + quickshell, feralos-aports).
 	if cfg.DesktopEnvironment == desktopNiri {
 		checks["niri_config_valid"] = fmt.Sprintf("niri validate --config /var/lib/greetd/.config/niri/config.kdl && niri validate --config /home/%s/.config/niri/config.kdl && grep -q '^prefer-no-csd' /home/%s/.config/niri/config.kdl && grep -q 'QT_WAYLAND_DISABLE_WINDOWDECORATION \"1\"' /home/%s/.config/niri/config.kdl && echo 'niri config valid (prefer-no-csd + Qt no-decoration)'", cfg.InstalledUser, cfg.InstalledUser, cfg.InstalledUser)
-		checks["greetd_config"] = "ls /etc/greetd/config.toml /etc/greetd/greeter.sh /etc/greetd/regreet.toml /var/lib/greetd/.config/niri/config.kdl && test -x /etc/greetd/greeter.sh && [ \"$(id -u greeter)\" -lt 1000 ] && echo 'greeter is a system user (hidden from ReGreet'\\''s UID-filtered list)'"
+		checks["greetd_config"] = "ls /etc/greetd/config.toml /etc/greetd/greeter.sh /etc/greetd/regreet.toml /var/lib/greetd/.config/niri/config.kdl && test -x /etc/greetd/greeter.sh && [ \"$(id -u greeter)\" -lt 1000 ] && echo \"greeter is a system user (hidden from ReGreet's UID-filtered list)\""
 		// greetd_socket: greetd daemon alive (IPC socket). Runtime complement
 		// to the static greetd_config check. Works on BOTH init systems —
 		// regreet itself cannot be runtime-checked on verify boots (the
