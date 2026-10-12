@@ -14,6 +14,7 @@
 - **Installer**: flatpak user-global override `~/.local/share/flatpak/overrides/global` — `filesystems=xdg-config/kdeglobals:ro;xdg-config/gtk-3.0:ro;xdg-config/gtk-4.0:ro;` + `GTK_THEME=Adwaita:dark` (KDE flatpaks read the bound kdeglobals incl. BreezeDark pin; GTK3 flatpaks get the dark theme env; GTK4/libadwaita + portal-aware flatpaks already follow the portal).
 - **UX catch (found in validation)**: the "Important Hotkeys" niri overlay popped on EVERY login — user config lacked `hotkey-overlay { skip-at-startup }` (greeter config had it). Added.
 - **Harness**: theme_dark += flatpak override asserts; niri_config_valid += skip-at-startup assert.
+- **Corrections (user review, same day)**: (a) hotkey-overlay `skip-at-startup` REVERTED in the user niri config — the "Important Hotkeys" cheatsheet at login is WANTED (user request); do not touch (greeter config untouched); (b) flatpak override = **binds only** — `[Environment] GTK_THEME=Adwaita:dark` removed (user: apps must FOLLOW the theme chosen in DMS, not be force-themed); (c) new step 14 final `chown -R user:user ~/.config ~/.local` sweep — user-reported root-owned seeded dirs (per-seed chowns cover files; the mkdir-created dirs stayed root because the general chown runs before the seeds).
 
 ### 2026-10-12 18:30 - theme: KDE apps dark via kdeglobals (okular/ksystemlog were light)
 **Agent:** codebase

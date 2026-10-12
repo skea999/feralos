@@ -210,12 +210,9 @@ environment {
     WINIT_WAYLAND_NO_AVOID_RESIZE "1"
 }
 
-// "Important Hotkeys" overlay pops on EVERY login otherwise (validation
-// side-finding, run 2026-10-12T18-52-07Z). The greeter config already
-// skips it; mirror the same top-level block here.
-hotkey-overlay {
-    skip-at-startup
-}
+// NOTE: no hotkey-overlay skip-at-startup here — the "Important Hotkeys"
+// overlay is wanted (user request; shows the keybind cheatsheet at login).
+// Do not add a skip block.
 
 // --- XWayland for X11 apps ---
 xwayland-satellite {
@@ -505,20 +502,20 @@ ColorScheme=BreezeDark
 	// Flatpak user-global override: the sandbox does NOT see host config —
 	// KDE flatpaks stayed light. Bind the host config read-only (KDE flatpaks
 	// read the bound kdeglobals: BreezeDark [Colors:*] + the [UiSettings]
-	// BreezeDark pin; GTK3 flatpaks read the bound gtk settings.ini) and force
-	// GTK_THEME=Adwaita:dark for GTK3 flatpaks. GTK4/libadwaita + portal-aware
-	// flatpaks already follow the portal color-scheme (host portal reports
-	// prefer-dark via the dconf system default below). Format verified against
-	// flatpak sources: file = <user base dir>/overrides/global
-	// (flatpak-dir.c: override file for app_id == NULL), [Context] filesystems
-	// parsed as a GLib keyfile string list (`;`-separated, trailing `;`), and
-	// [Environment] KEY=VALUE pairs (flatpak-context.c). Harmless without
-	// flatpak (plain files).
+	// BreezeDark pin; GTK3 flatpaks read the bound gtk settings.ini). GTK4/
+	// libadwaita + portal-aware flatpaks already follow the portal
+	// color-scheme (host portal reports prefer-dark via the dconf system
+	// default below). BINDS ONLY — no [Environment] forcing (user request:
+	// apps must FOLLOW the theme chosen in DMS, not be force-themed): the
+	// read-only binds let flatpak KDE apps read the host kdeglobals
+	// (BreezeDark + pin) and GTK apps the host gtk settings. Format verified
+	// against flatpak sources: file =
+	// <user base dir>/overrides/global (flatpak-dir.c: override file for
+	// app_id == NULL), [Context] filesystems parsed as a GLib keyfile string
+	// list (`;`-separated, trailing `;`) (flatpak-context.c). Harmless
+	// without flatpak (plain files).
 	flatpakOverride := `[Context]
 filesystems=xdg-config/kdeglobals:ro;xdg-config/gtk-3.0:ro;xdg-config/gtk-4.0:ro;
-
-[Environment]
-GTK_THEME=Adwaita:dark
 `
 	if err := writeFile(chroot, fmt.Sprintf("/home/%s/.local/share/flatpak/overrides/global", u.UserName), flatpakOverride); err != nil {
 		return fmt.Errorf("seed flatpak user-global override: %w", err)
@@ -703,6 +700,17 @@ exec /usr/bin/xdg-su "$@"
 	userServices := "dbus.user pipewire.user pipewire-pulse.user wireplumber.user wait-wayland.user"
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p /usr/lib/dinit.d/user/boot.d && for s in %s; do [ -f /etc/dinit.d/user/$s ] && ln -sf /etc/dinit.d/user/$s /usr/lib/dinit.d/user/boot.d/$s; done", userServices)); err != nil {
 		fmt.Printf("[WARNING] Failed to enable user dinit services: %v\n", err)
+	}
+
+	// 14. Final ownership sweep — user-reported: seeded configs were
+	// root-owned in places. The per-seed chowns cover the FILES, but the
+	// DIRECTORIES created by the seeds' mkdir run as root (the general
+	// chown -R at step 13 runs BEFORE the seeds), leaving e.g.
+	// ~/.config/DankMaterialShell, ~/.config/gtk-4.0 and
+	// ~/.local/state/DankMaterialShell root-owned → DMS (user) could not
+	// create/save files there. Sweep AFTER every seed.
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("chown -R %s:%s /home/%s/.config /home/%s/.local", u.UserName, u.UserName, u.UserName, u.UserName)); err != nil {
+		return fmt.Errorf("final chown user config: %w", err)
 	}
 
 	fmt.Println("[INFO] niri desktop environment configured.")

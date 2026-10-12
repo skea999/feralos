@@ -9,7 +9,7 @@
 
 ## Current Focus
 
-**Flatpak theming + KDE verified (2026-10-12)**: host KDE apps provably dark (pixel-checked okular+ksystemlog on run 18-52-07Z). Flatpak gap fixed: ~/.local/share/flatpak/overrides/global (kdeglobals+gtk binds ro, GTK_THEME=Adwaita:dark). Hotkey overlay skip-at-startup added (popped every login). Harness asserts.
+**Flatpak theming + KDE verified (2026-10-12)**: host KDE apps provably dark (pixel-checked okular+ksystemlog on run 18-52-07Z). Flatpak gap fixed: ~/.local/share/flatpak/overrides/global (kdeglobals+gtk binds ro ONLY — no forced env; apps follow the theme). Hotkey overlay intentionally KEPT (user request). Harness asserts. Corrections round: overlay skip reverted, flatpak env removed (binds only), final chown -R sweep (root-owned seeded dirs).
 
 **KDE apps dark (2026-10-12)**: KDE apps read KColorScheme → ~/.config/kdeglobals [Colors:*] (NOT portal). Installer seeds self-contained BreezeDark values (+ [Icons] breeze-dark), no breeze/plasma package. Harness theme_dark extended. + [UiSettings] ColorScheme=BreezeDark pin (okular manager apps bypass [Colors:*]; embedded BreezeDark forced). Greeter user now system UID (explicit `addgroup -S greeter` + `adduser -S -G greeter` — busybox -S alone defaults the group to nogroup and creates no same-name group, breaking the greeter:greeter chown; caught by harness run 18-42-54Z) → hidden from ReGreet. Harness greetd_config apostrophe echo now double-quoted (fish login shell rejects the POSIX `'\''` escape).
 
