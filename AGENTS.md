@@ -40,6 +40,7 @@
 - **aports** `dms-window-buttons` 1.0.0 (`b8604c1`, CI green): installs to `/etc/xdg/quickshell/dms-plugins/dmsWindowButtons/` (DMS system plugin dir — no per-user seed needed for the files).
 - **Installer** (`niri.go`): settings.json seed — `dankBarAtBottom` REMOVED (v1→v2 migration default = Top), `dankBarRightWidgets` pinned (defaults + `dmsWindowButtons` at the end); NEW `plugin_settings.json` seed `{"dmsWindowButtons":{"enabled":true}}` (widget plugins default-disabled; file shape verified against 1.6.2 `parsePluginSettings` — bare map, no wrapper). `internal_rules`: niri packages += `dms-window-buttons`.
 - **Harness**: `dms_window_buttons` check (plugin files + enabled + right-widget wiring).
+- **v1.0.1 (same day user report)**: v1.0.0 buttons 1-2 silently did nothing — they used `NiriService.send` behind a `Quickshell.env("NIRI_SOCKET")` guard, but DMS has NO NIRI_SOCKET in its env (starts from the user dinit, not as a niri child; only close worked = native `toplevel.close()`). Rework: buttons = ↓ `move-column-to-workspace-down` · ↑ `move-column-to-workspace-up` · ⛶ `maximize-column` (= Mod+F) · ✕ close; actions via `niri msg action` with self-resolved `$XDG_RUNTIME_DIR/niri*.sock`. Plugin v1.0.1 (`0bc7da7`) + aports bump (`1a80c51`, CI green).
 
 ### 2026-10-11 20:30 - update: feralos-update script wired to the DMS System Update button
 **Agent:** codebase
