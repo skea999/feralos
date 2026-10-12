@@ -8,6 +8,13 @@
 
 ## Recent Rounds (latest first)
 
+### 2026-10-13 - theme: ALL manual theme seeds removed (dms-theme-sync plugin round, Phase A)
+**Agent:** codebase
+**Summary:** User decision: adopt third-party DMS plugin `arqueon/dms-theme-sync` (GPL-3.0) as the theming authority — it propagates the DMS appearance (mode/colors/icons) to GTK, Qt, KDE, Flatpak. To avoid conflicts, ALL manual theme seeds removed from `niri.go` in the same install: kdeglobals (BreezeDark [Colors:*] + [Icons] breeze-dark + [UiSettings] BreezeDark pin), gtk-3.0/4.0 settings.ini, flatpak user-global override (`overrides/global` + its chown), dconf system default `/etc/dconf/db/local.d/00-feralos-theme`.
+- **KEPT**: dconf package + `/etc/dconf/profile/user` + `dconf update` (gsettings INFRASTRUCTURE — without the profile GLib ignores user/system dbs; not a theme override), `session.json` dark seed (DMS session state), XDG env `QT_QPA_PLATFORMTHEME=xdgdesktopportal`. chown batch trimmed to xdg-terminals.list + mimeapps.list. NOTE comment in niri.go documents plugin ownership.
+- **Harness**: `theme_dark` check REMOVED (97→96 checks expected; plugin-based check re-added after adoption validation); `dms_icons` trimmed to package + on-disk asserts (settings.ini assert dropped — plugin-owned now).
+- **Committed**: `899f28b` (develop). Phase B (pending): live plugin test on the fresh harness VM.
+
 ### 2026-10-12 20:00 - theme: flatpak overrides + hotkey overlay skip; KDE dark confirmed visually
 **Agent:** codebase
 **Summary:** User-reported ksystemlog still light (fresh install): live visual validation (screenshots, pixel-checked) on run `2026-10-12T18-52-07Z` shows BOTH okular AND ksystemlog fully DARK (BreezeDark View bg RGB 36,36,36) — host-side theme chain is complete. Remaining gap = FLATPAK apps: the sandbox doesn't see host config (user's app likely a flatpak).
