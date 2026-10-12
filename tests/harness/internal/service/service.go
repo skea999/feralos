@@ -1448,6 +1448,11 @@ echo 'fish history clean (no clap error)'`,
 		// take ~30s, so 60s worst case still fits.
 		checks["niri_greeter"] = "i=0; while [ $i -lt 60 ]; do pgrep -x niri >/dev/null && { echo 'niri running'; exit 0; }; sleep 1; i=$((i+1)); done; echo 'niri not running'; exit 1"
 		checks["dms_installed"] = "apk info -e dms-shell quickshell && test -x /usr/bin/dms"
+		// matugen: DMS dynamic-theming backend (feralos-aports 4.2.0, absent
+		// in Alpine). dms-shell runs it for wallpaper palettes; the generated
+		// DankMatugen KColorScheme export is what the theme-sync plugin
+		// propagates to GTK/Qt/KDE. Package present + binary runs (musl).
+		checks["matugen_installed"] = `apk info -e matugen >/dev/null && v=$(matugen --version 2>&1) && echo "matugen OK ($v)" || { echo "matugen BROKEN"; exit 1; }`
 		// dms_icons: the DMS icon chain end-to-end. DMS resolves icons via
 		// QT_QPA_PLATFORMTHEME=gtk3 → ~/.config/gtk-3.0/settings.ini →
 		// gtk-icon-theme-name — unset it falls back to hicolor generics

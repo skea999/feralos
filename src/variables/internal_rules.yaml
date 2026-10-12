@@ -195,7 +195,7 @@ desktopEnvironments:
     services: {"sddm": "default", "dbus": "default"}
     groups: ["video", "input"]
   niri:
-    packages: ["niri", "niri-portalsconf", "greetd", "greetd-regreet", "greetd-openrc", "elogind", "elogind-openrc", "dbus", "alacritty", "xdg-desktop-portal-wlr", "xdg-desktop-portal-gtk", "polkit-elogind", "polkit-gnome", "xwayland-satellite", "xwayland", "mesa-dri-gallium", "wayland-libs-server", "dms-shell", "dms-window-buttons", "turnstile", "niri-user-dinit", "accountsservice", "power-profiles-daemon", "cups-pk-helper", "iptables", "ip6tables", "ebtables", "dbus-user-dinit", "pipewire-user-dinit", "pipewire-pulse-user-dinit", "wireplumber-user-dinit", "wayland-wait-user-dinit", "polkit-agent-user-dinit", "wayvnc", "wayvnc-user-dinit", "networkmanager", "networkmanager-cli", "networkmanager-tui", "networkmanager-dinit", "networkmanager-wifi", "wireless-regdb", "bluez", "bluez-openrc", "bluez-dinit", "wpa_supplicant", "wireguard-tools", "qt6-qtmultimedia", "i2c-tools", "wtype", "simple-scan", "sane", "sane-backends", "sane-utils", "sane-airscan", "gnome-keyring", "cosmic-edit", "eog", "cups", "cups-filters", "avahi", "cosmic-player", "libreoffice", "galculator", "firefox", "firewalld-gui", "gnome-firmware", "thunderbird", "gnome-disk-utility", "kcron", "ksystemlog", "kimageformats", "khal", "adw-gtk3", "dconf", "font-terminus", "font-inconsolata", "font-dejavu", "font-noto", "font-noto-cjk", "font-awesome", "font-noto-extra", "gnome-maps", "gnome-calendar"]
+    packages: ["niri", "niri-portalsconf", "greetd", "greetd-regreet", "greetd-openrc", "elogind", "elogind-openrc", "dbus", "alacritty", "xdg-desktop-portal-wlr", "xdg-desktop-portal-gtk", "polkit-elogind", "polkit-gnome", "xwayland-satellite", "xwayland", "mesa-dri-gallium", "wayland-libs-server", "dms-shell", "dms-window-buttons", "matugen", "turnstile", "niri-user-dinit", "accountsservice", "power-profiles-daemon", "cups-pk-helper", "iptables", "ip6tables", "ebtables", "dbus-user-dinit", "pipewire-user-dinit", "pipewire-pulse-user-dinit", "wireplumber-user-dinit", "wayland-wait-user-dinit", "polkit-agent-user-dinit", "wayvnc", "wayvnc-user-dinit", "networkmanager", "networkmanager-cli", "networkmanager-tui", "networkmanager-dinit", "networkmanager-wifi", "wireless-regdb", "bluez", "bluez-openrc", "bluez-dinit", "wpa_supplicant", "wireguard-tools", "qt6-qtmultimedia", "i2c-tools", "wtype", "simple-scan", "sane", "sane-backends", "sane-utils", "sane-airscan", "gnome-keyring", "cosmic-edit", "eog", "cups", "cups-filters", "avahi", "cosmic-player", "libreoffice", "galculator", "firefox", "firewalld-gui", "gnome-firmware", "thunderbird", "gnome-disk-utility", "kcron", "ksystemlog", "kimageformats", "khal", "adw-gtk3", "dconf", "font-terminus", "font-inconsolata", "font-dejavu", "font-noto", "font-noto-cjk", "font-awesome", "font-noto-extra", "gnome-maps", "gnome-calendar"]
     # turnstile + niri-user-dinit: PAM session → user dinit (turnstiled);
     # Alpine niri-session's dinit branch starts the `niri` user service.
     # Login-shell trick: passwd shell = /usr/libexec/feralos/login-shell
@@ -227,9 +227,12 @@ desktopEnvironments:
     # lpadmin: CUPS SystemGroup (printer admin — cups-files.conf default)
     groups: ["video", "input", "audio", "plugdev", "netdev", "lpadmin"]
     # DMS 1.6.x + quickshell 0.3.x ship as NATIVE apk packages (feralos-aports)
-    # — the nix stack (dms-shell/quickshell/matugen/dgop/nixGL/execfilter) is
-    # gone. matugen (dynamic wallpaper theming) and rclone-ui are not on
-    # Alpine: DMS degrades gracefully without them.
+    # — the nix stack (dms-shell/quickshell/dgop/nixGL/execfilter) is gone.
+    # matugen (dynamic wallpaper theming backend) now ships from OUR repo
+    # (feralos-aports 4.2.0 — absent in Alpine): dms-shell runs it for
+    # wallpaper palettes; the generated DankMatugen KColorScheme export is
+    # what the dms-theme-sync plugin propagates to GTK/Qt/KDE. rclone-ui
+    # remains unpackaged (unrelated to the desktop stack).
     # RustDesk removed (round 43 cleanup + user decision): wayvnc is the
     # remote-desktop path (user dinit service, loopback by default).
   cosmic:
