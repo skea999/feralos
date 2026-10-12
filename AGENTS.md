@@ -8,6 +8,12 @@
 
 ## Recent Rounds (latest first)
 
+### 2026-10-12 18:30 - theme: KDE apps dark via kdeglobals (okular/ksystemlog were light)
+**Agent:** codebase
+**Summary:** User-reported: KDE apps (okular, ksystemlog, kcron...) stayed light. Root cause (KF6 source-verified): KDE apps read colors via KColorScheme → `~/.config/kdeglobals` `[Colors:*]` — NOT the portal/QPalette path (that part was already dark via xdgdesktopportal + portal prefer-dark; Qt 6.11 fusion palette is dark). Manager-instantiation apps (okular) look for `.colors` scheme FILES in XDG data dirs; non-manager consumers (ksystemlog) read kdeglobals `[Colors:*]` directly with hardcoded Breeze Light defaults when absent.
+- **Fix (installer, no new packages)**: seed `~/.config/kdeglobals` with the self-contained BreezeDark `[Colors:*]` + `[ColorEffects:*]` values (upstream BreezeDark.colors, LGPL-2.0-or-later; translations dropped) + `[Icons] Theme=breeze-dark`. Alpine's `breeze` package (only repo carrier of the .colors files) would pull qt5+kf5 stacks (~100MB) — rejected.
+- **Harness**: `theme_dark` extended (kdeglobals + Colors:View + breeze-dark asserts).
+
 ### 2026-10-12 04:00 - fix: DMS reboot via custom power command (no elogind rebuild)
 **Agent:** codebase
 **Summary:** Live diagnosis (debug_run of run 2026-10-11T20-38-40Z): DMS `loginctl reboot` → elogind execs the ABSOLUTE `/sbin/reboot` (busybox) AFTER the hooks → busybox sends SIGTERM (its reboot signal; poweroff=SIGUSR2, ignored by dinit) → dinit's sigterm handler calls `stop_all_services(HALT)` OVERWRITING the REBOOT type → "System halted", machine frozen. Terminal `reboot` is unaffected (PATH → our /usr/bin wrapper). Upstream NOT fixed (dinit master identical; upgrading useless). Artix rebuilds elogind with `-Dreboot-path=/usr/bin/reboot` — we chose the lighter route per user decision.

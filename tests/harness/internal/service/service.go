@@ -1461,7 +1461,7 @@ echo 'fish history clean (no clap error)'`,
 		// it → libadwaita/GTK4 apps go dark), GTK4 settings seed present,
 		// and the value actually EFFECTIVE for the user (gsettings merges
 		// the system db into the user view).
-		checks["theme_dark"] = fmt.Sprintf("test -f /etc/dconf/db/local.d/00-feralos-theme && grep -q \"color-scheme='prefer-dark'\" /etc/dconf/db/local.d/00-feralos-theme && test -f /home/%s/.config/gtk-4.0/settings.ini && su - %s -s /bin/sh -c 'gsettings get org.gnome.desktop.interface color-scheme' 2>/dev/null | grep -q prefer-dark && echo 'dark preference OK (dconf system db + gtk4 seed)'", cfg.InstalledUser, cfg.InstalledUser)
+		checks["theme_dark"] = fmt.Sprintf("test -f /etc/dconf/db/local.d/00-feralos-theme && grep -q \"color-scheme='prefer-dark'\" /etc/dconf/db/local.d/00-feralos-theme && test -f /home/%s/.config/gtk-4.0/settings.ini && test -f /home/%s/.config/kdeglobals && grep -q 'Colors:View' /home/%s/.config/kdeglobals && grep -q 'Theme=breeze-dark' /home/%s/.config/kdeglobals && su - %s -s /bin/sh -c 'gsettings get org.gnome.desktop.interface color-scheme' 2>/dev/null | grep -q prefer-dark && echo 'dark preference OK (dconf system db + gtk4 + kdeglobals)'", cfg.InstalledUser, cfg.InstalledUser, cfg.InstalledUser, cfg.InstalledUser, cfg.InstalledUser)
 		// dms_window_buttons: the window-controls plugin chain — package
 		// installed (system dir /etc/xdg/quickshell/dms-plugins), plugin
 		// enabled in plugin_settings.json, widget wired in the bar's right

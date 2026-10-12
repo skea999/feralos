@@ -330,6 +330,150 @@ gtk-application-prefer-dark-theme=true`
 	if err := writeFile(chroot, fmt.Sprintf("/home/%s/.config/gtk-4.0/settings.ini", u.UserName), gtkSettings); err != nil {
 		return fmt.Errorf("seed GTK4 settings (icon theme + dark): %w", err)
 	}
+	// KDE globals: KDE apps (okular, ksystemlog, kcron...) read colors from
+	// KColorScheme → ~/.config/kdeglobals [Colors:*] — NOT from the portal,
+	// so they stayed light. No plasma/breeze package needed: the values are
+	// self-contained here (upstream BreezeDark.colors, KDE Breeze,
+	// LGPL-2.0-or-later; translations dropped, color groups verbatim).
+	// [Icons] pins breeze-dark (breeze-icons is installed).
+	kdeGlobals := `[ColorEffects:Disabled]
+Color=56,56,56
+ColorAmount=0
+ColorEffect=0
+ContrastAmount=0.65
+ContrastEffect=1
+IntensityAmount=0.1
+IntensityEffect=2
+
+[ColorEffects:Inactive]
+ChangeSelectionColor=true
+Color=112,111,110
+ColorAmount=0.025
+ColorEffect=2
+ContrastAmount=0.1
+ContrastEffect=2
+Enable=false
+IntensityAmount=0
+IntensityEffect=0
+
+[Colors:Button]
+BackgroundAlternate=30,87,116
+BackgroundNormal=41,44,48
+DecorationFocus=61,174,233
+DecorationHover=61,174,233
+ForegroundActive=61,174,233
+ForegroundInactive=161,169,177
+ForegroundLink=29,153,243
+ForegroundNegative=218,68,83
+ForegroundNeutral=246,116,0
+ForegroundNormal=252,252,252
+ForegroundPositive=39,174,96
+ForegroundVisited=155,89,182
+
+[Colors:Complementary]
+BackgroundAlternate=30,87,116
+BackgroundNormal=32,35,38
+DecorationFocus=61,174,233
+DecorationHover=61,174,233
+ForegroundActive=61,174,233
+ForegroundInactive=161,169,177
+ForegroundLink=29,153,243
+ForegroundNegative=218,68,83
+ForegroundNeutral=246,116,0
+ForegroundNormal=252,252,252
+ForegroundPositive=39,174,96
+ForegroundVisited=155,89,182
+
+[Colors:Header]
+BackgroundAlternate=32,35,38
+BackgroundNormal=41,44,48
+DecorationFocus=61,174,233
+DecorationHover=61,174,233
+ForegroundActive=61,174,233
+ForegroundInactive=161,169,177
+ForegroundLink=29,153,243
+ForegroundNegative=218,68,83
+ForegroundNeutral=246,116,0
+ForegroundNormal=252,252,252
+ForegroundPositive=39,174,96
+ForegroundVisited=155,89,182
+
+[Colors:Header][Inactive]
+BackgroundAlternate=41,44,48
+BackgroundNormal=32,35,38
+DecorationFocus=61,174,233
+DecorationHover=61,174,233
+ForegroundActive=61,174,233
+ForegroundInactive=161,169,177
+ForegroundLink=29,153,243
+ForegroundNegative=218,68,83
+ForegroundNeutral=246,116,0
+ForegroundNormal=252,252,252
+ForegroundPositive=39,174,96
+ForegroundVisited=155,89,182
+
+[Colors:Selection]
+BackgroundAlternate=30,87,116
+BackgroundNormal=61,174,233
+DecorationFocus=61,174,233
+DecorationHover=61,174,233
+ForegroundActive=252,252,252
+ForegroundInactive=161,169,177
+ForegroundLink=253,188,75
+ForegroundNegative=176,55,69
+ForegroundNeutral=198,92,0
+ForegroundNormal=252,252,252
+ForegroundPositive=23,104,57
+ForegroundVisited=155,89,182
+
+[Colors:Tooltip]
+BackgroundAlternate=32,35,38
+BackgroundNormal=41,44,48
+DecorationFocus=61,174,233
+DecorationHover=61,174,233
+ForegroundActive=61,174,233
+ForegroundInactive=161,169,177
+ForegroundLink=29,153,243
+ForegroundNegative=218,68,83
+ForegroundNeutral=246,116,0
+ForegroundNormal=252,252,252
+ForegroundPositive=39,174,96
+ForegroundVisited=155,89,182
+
+[Colors:View]
+BackgroundAlternate=29,31,34
+BackgroundNormal=20,22,24
+DecorationFocus=61,174,233
+DecorationHover=61,174,233
+ForegroundActive=61,174,233
+ForegroundInactive=161,169,177
+ForegroundLink=29,153,243
+ForegroundNegative=218,68,83
+ForegroundNeutral=246,116,0
+ForegroundNormal=252,252,252
+ForegroundPositive=39,174,96
+ForegroundVisited=155,89,182
+
+[Colors:Window]
+BackgroundAlternate=41,44,48
+BackgroundNormal=32,35,38
+DecorationFocus=61,174,233
+DecorationHover=61,174,233
+ForegroundActive=61,174,233
+ForegroundInactive=161,169,177
+ForegroundLink=29,153,243
+ForegroundNegative=218,68,83
+ForegroundNeutral=246,116,0
+ForegroundNormal=252,252,252
+ForegroundPositive=39,174,96
+ForegroundVisited=155,89,182
+
+[Icons]
+Theme=breeze-dark
+`
+	if err := writeFile(chroot, fmt.Sprintf("/home/%s/.config/kdeglobals", u.UserName), kdeGlobals); err != nil {
+		return fmt.Errorf("seed kdeglobals (BreezeDark): %w", err)
+	}
 	// System-wide dark preference for the xdg-desktop-portal color-scheme.
 	// Verified live: apps following the portal (libadwaita/GTK4 such as
 	// gnome-maps/calendar, Firefox, Qt via xdgdesktopportal) stayed LIGHT
@@ -383,7 +527,7 @@ x-scheme-handler/webcals=org.gnome.Calendar.desktop`
 	if err := writeFile(chroot, fmt.Sprintf("/home/%s/.config/mimeapps.list", u.UserName), mimeapps); err != nil {
 		return fmt.Errorf("seed default apps (mimeapps.list): %w", err)
 	}
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("chown %s:%s '/home/%s/.config/xdg-terminals.list' '/home/%s/.config/mimeapps.list' '/home/%s/.config/gtk-3.0/settings.ini' '/home/%s/.config/gtk-4.0/settings.ini'", u.UserName, u.UserName, u.UserName, u.UserName, u.UserName, u.UserName)); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("chown %s:%s '/home/%s/.config/xdg-terminals.list' '/home/%s/.config/mimeapps.list' '/home/%s/.config/gtk-3.0/settings.ini' '/home/%s/.config/gtk-4.0/settings.ini' '/home/%s/.config/kdeglobals'", u.UserName, u.UserName, u.UserName, u.UserName, u.UserName, u.UserName, u.UserName)); err != nil {
 		return fmt.Errorf("chown default app seeds: %w", err)
 	}
 	// DMS 1.6 layout template emits `background-effect { xray false }` — a
