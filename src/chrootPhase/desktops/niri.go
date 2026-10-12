@@ -329,221 +329,21 @@ include "dms/colors.kdl"
 	if err := writeFile(chroot, fmt.Sprintf("/home/%s/.config/xdg-terminals.list", u.UserName), "Alacritty.desktop"); err != nil {
 		return fmt.Errorf("seed default terminal (Alacritty): %w", err)
 	}
-	// GTK settings (3.0 + 4.0): without gtk-icon-theme-name apps fall back to
-	// hicolor generics (the "missing icons" effect); prefer-dark keeps GTK
-	// apps coherent with DMS dark mode. Adwaita = GNOME default. Icon themes
-	// = dms-shell deps (aports 14f124b). GTK4 file added because libadwaita/
-	// GTK4 apps read gtk-4.0 — but they primarily follow the PORTAL color
-	// scheme (see the dconf system default below).
-	gtkSettings := `[Settings]
-gtk-icon-theme-name=Adwaita
-gtk-application-prefer-dark-theme=true`
-	if err := writeFile(chroot, fmt.Sprintf("/home/%s/.config/gtk-3.0/settings.ini", u.UserName), gtkSettings); err != nil {
-		return fmt.Errorf("seed GTK3 settings (icon theme + dark): %w", err)
-	}
-	if err := writeFile(chroot, fmt.Sprintf("/home/%s/.config/gtk-4.0/settings.ini", u.UserName), gtkSettings); err != nil {
-		return fmt.Errorf("seed GTK4 settings (icon theme + dark): %w", err)
-	}
-	// KDE globals: KDE apps (okular, ksystemlog, kcron...) read colors from
-	// KColorScheme → ~/.config/kdeglobals — NOT from the portal, so they
-	// stayed light. No plasma/breeze package needed: the values are
-	// self-contained here (upstream BreezeDark.colors, KDE Breeze,
-	// LGPL-2.0-or-later; translations dropped, color groups verbatim).
-	// [Icons] pins breeze-dark (breeze-icons is installed).
-	// [UiSettings] ColorScheme=BreezeDark: KColorSchemeManager apps (okular)
-	// BYPASS [Colors:*] — the manager resolves the scheme by id from the
-	// EMBEDDED BreezeDark/BreezeLight Qt resources (kcolorscheme ships them)
-	// and, without a pin, follows styleHints colorScheme which is not dark
-	// in their process → embedded LIGHT applied. The pin forces embedded
-	// BreezeDark. Consequence: pinned apps stop following portal light/dark
-	// toggles (fixed-dark box; remove the pin if auto-switching is wanted).
-	// The [Colors:*] seed still covers non-manager consumers (ksystemlog).
-	kdeGlobals := `[ColorEffects:Disabled]
-Color=56,56,56
-ColorAmount=0
-ColorEffect=0
-ContrastAmount=0.65
-ContrastEffect=1
-IntensityAmount=0.1
-IntensityEffect=2
-
-[ColorEffects:Inactive]
-ChangeSelectionColor=true
-Color=112,111,110
-ColorAmount=0.025
-ColorEffect=2
-ContrastAmount=0.1
-ContrastEffect=2
-Enable=false
-IntensityAmount=0
-IntensityEffect=0
-
-[Colors:Button]
-BackgroundAlternate=30,87,116
-BackgroundNormal=41,44,48
-DecorationFocus=61,174,233
-DecorationHover=61,174,233
-ForegroundActive=61,174,233
-ForegroundInactive=161,169,177
-ForegroundLink=29,153,243
-ForegroundNegative=218,68,83
-ForegroundNeutral=246,116,0
-ForegroundNormal=252,252,252
-ForegroundPositive=39,174,96
-ForegroundVisited=155,89,182
-
-[Colors:Complementary]
-BackgroundAlternate=30,87,116
-BackgroundNormal=32,35,38
-DecorationFocus=61,174,233
-DecorationHover=61,174,233
-ForegroundActive=61,174,233
-ForegroundInactive=161,169,177
-ForegroundLink=29,153,243
-ForegroundNegative=218,68,83
-ForegroundNeutral=246,116,0
-ForegroundNormal=252,252,252
-ForegroundPositive=39,174,96
-ForegroundVisited=155,89,182
-
-[Colors:Header]
-BackgroundAlternate=32,35,38
-BackgroundNormal=41,44,48
-DecorationFocus=61,174,233
-DecorationHover=61,174,233
-ForegroundActive=61,174,233
-ForegroundInactive=161,169,177
-ForegroundLink=29,153,243
-ForegroundNegative=218,68,83
-ForegroundNeutral=246,116,0
-ForegroundNormal=252,252,252
-ForegroundPositive=39,174,96
-ForegroundVisited=155,89,182
-
-[Colors:Header][Inactive]
-BackgroundAlternate=41,44,48
-BackgroundNormal=32,35,38
-DecorationFocus=61,174,233
-DecorationHover=61,174,233
-ForegroundActive=61,174,233
-ForegroundInactive=161,169,177
-ForegroundLink=29,153,243
-ForegroundNegative=218,68,83
-ForegroundNeutral=246,116,0
-ForegroundNormal=252,252,252
-ForegroundPositive=39,174,96
-ForegroundVisited=155,89,182
-
-[Colors:Selection]
-BackgroundAlternate=30,87,116
-BackgroundNormal=61,174,233
-DecorationFocus=61,174,233
-DecorationHover=61,174,233
-ForegroundActive=252,252,252
-ForegroundInactive=161,169,177
-ForegroundLink=253,188,75
-ForegroundNegative=176,55,69
-ForegroundNeutral=198,92,0
-ForegroundNormal=252,252,252
-ForegroundPositive=23,104,57
-ForegroundVisited=155,89,182
-
-[Colors:Tooltip]
-BackgroundAlternate=32,35,38
-BackgroundNormal=41,44,48
-DecorationFocus=61,174,233
-DecorationHover=61,174,233
-ForegroundActive=61,174,233
-ForegroundInactive=161,169,177
-ForegroundLink=29,153,243
-ForegroundNegative=218,68,83
-ForegroundNeutral=246,116,0
-ForegroundNormal=252,252,252
-ForegroundPositive=39,174,96
-ForegroundVisited=155,89,182
-
-[Colors:View]
-BackgroundAlternate=29,31,34
-BackgroundNormal=20,22,24
-DecorationFocus=61,174,233
-DecorationHover=61,174,233
-ForegroundActive=61,174,233
-ForegroundInactive=161,169,177
-ForegroundLink=29,153,243
-ForegroundNegative=218,68,83
-ForegroundNeutral=246,116,0
-ForegroundNormal=252,252,252
-ForegroundPositive=39,174,96
-ForegroundVisited=155,89,182
-
-[Colors:Window]
-BackgroundAlternate=41,44,48
-BackgroundNormal=32,35,38
-DecorationFocus=61,174,233
-DecorationHover=61,174,233
-ForegroundActive=61,174,233
-ForegroundInactive=161,169,177
-ForegroundLink=29,153,243
-ForegroundNegative=218,68,83
-ForegroundNeutral=246,116,0
-ForegroundNormal=252,252,252
-ForegroundPositive=39,174,96
-ForegroundVisited=155,89,182
-
-[Icons]
-Theme=breeze-dark
-
-[UiSettings]
-ColorScheme=BreezeDark
-`
-	if err := writeFile(chroot, fmt.Sprintf("/home/%s/.config/kdeglobals", u.UserName), kdeGlobals); err != nil {
-		return fmt.Errorf("seed kdeglobals (BreezeDark): %w", err)
-	}
-	// Flatpak user-global override: the sandbox does NOT see host config —
-	// KDE flatpaks stayed light. Bind the host config read-only (KDE flatpaks
-	// read the bound kdeglobals: BreezeDark [Colors:*] + the [UiSettings]
-	// BreezeDark pin; GTK3 flatpaks read the bound gtk settings.ini). GTK4/
-	// libadwaita + portal-aware flatpaks already follow the portal
-	// color-scheme (host portal reports prefer-dark via the dconf system
-	// default below). BINDS ONLY — no [Environment] forcing (user request:
-	// apps must FOLLOW the theme chosen in DMS, not be force-themed): the
-	// read-only binds let flatpak KDE apps read the host kdeglobals
-	// (BreezeDark + pin) and GTK apps the host gtk settings. Format verified
-	// against flatpak sources: file =
-	// <user base dir>/overrides/global (flatpak-dir.c: override file for
-	// app_id == NULL), [Context] filesystems parsed as a GLib keyfile string
-	// list (`;`-separated, trailing `;`) (flatpak-context.c). Harmless
-	// without flatpak (plain files).
-	flatpakOverride := `[Context]
-filesystems=xdg-config/kdeglobals:ro;xdg-config/gtk-3.0:ro;xdg-config/gtk-4.0:ro;
-`
-	if err := writeFile(chroot, fmt.Sprintf("/home/%s/.local/share/flatpak/overrides/global", u.UserName), flatpakOverride); err != nil {
-		return fmt.Errorf("seed flatpak user-global override: %w", err)
-	}
-	// writeFile ran as root: also the intermediate flatpak dirs are root-owned.
-	// flatpak (running as the user) must be able to write in ~/.local/share/flatpak.
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("chown -R %s:%s /home/%s/.local/share/flatpak", u.UserName, u.UserName, u.UserName)); err != nil {
-		return fmt.Errorf("chown flatpak overrides: %w", err)
-	}
-	// System-wide dark preference for the xdg-desktop-portal color-scheme.
-	// Verified live: apps following the portal (libadwaita/GTK4 such as
-	// gnome-maps/calendar, Firefox, Qt via xdgdesktopportal) stayed LIGHT
-	// because dconf was absent and the color-scheme key was never set — the
-	// portal reported "no preference" (`v u 0`). The system dconf db is
-	// compiled with `dconf update` (no session bus needed in the chroot) and
-	// is inherited by every user (a user-set value still wins).
-	// Alpine's dconf package ships NO /etc/dconf/profile/user (Debian ships
-	// it) — without the profile GLib never consults the system db and
-	// `gsettings get` returns the schema default (`'default'`), verified
-	// live. The standard GNOME profile is written explicitly.
+	// NOTE: no manual theme seeds here (no kdeglobals/gtk settings.ini/dconf
+	// color-scheme/flatpak overrides) — the DMS plugin `dms-theme-sync`
+	// (third-party, GPL-3.0) is the theming authority: it propagates the
+	// DMS appearance (mode/colors/icons) to GTK, Qt, KDE, Flatpak. Manual
+	// seeds would conflict with it. The plugin + enablement are installed
+	// separately (see the plugin round).
+	// gsettings INFRASTRUCTURE kept (not a theme override): Alpine's dconf
+	// package ships NO /etc/dconf/profile/user (Debian ships it) — without
+	// the profile GLib never consults the user/system dbs and `gsettings
+	// get` returns schema defaults, verified live. `dconf update` compiles
+	// the (now empty) system db so user-level writes from the plugin take
+	// effect immediately.
 	dconfProfile := "user-db:user\nsystem-db:local\n"
 	if err := writeFile(chroot, "/etc/dconf/profile/user", dconfProfile); err != nil {
 		return fmt.Errorf("seed dconf profile: %w", err)
-	}
-	dconfDefault := `[org/gnome/desktop/interface]
-color-scheme='prefer-dark'`
-	if err := writeFile(chroot, "/etc/dconf/db/local.d/00-feralos-theme", dconfDefault); err != nil {
-		return fmt.Errorf("seed dconf color-scheme default: %w", err)
 	}
 	if _, err := shell.ExecuteCmd(chroot, "dconf update"); err != nil {
 		return fmt.Errorf("dconf update: %w", err)
@@ -578,7 +378,7 @@ x-scheme-handler/webcals=org.gnome.Calendar.desktop`
 	if err := writeFile(chroot, fmt.Sprintf("/home/%s/.config/mimeapps.list", u.UserName), mimeapps); err != nil {
 		return fmt.Errorf("seed default apps (mimeapps.list): %w", err)
 	}
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("chown %s:%s '/home/%s/.config/xdg-terminals.list' '/home/%s/.config/mimeapps.list' '/home/%s/.config/gtk-3.0/settings.ini' '/home/%s/.config/gtk-4.0/settings.ini' '/home/%s/.config/kdeglobals'", u.UserName, u.UserName, u.UserName, u.UserName, u.UserName, u.UserName, u.UserName)); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("chown %s:%s '/home/%s/.config/xdg-terminals.list' '/home/%s/.config/mimeapps.list'", u.UserName, u.UserName, u.UserName, u.UserName)); err != nil {
 		return fmt.Errorf("chown default app seeds: %w", err)
 	}
 	// DMS 1.6 layout template emits `background-effect { xray false }` — a

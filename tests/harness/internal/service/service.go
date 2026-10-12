@@ -1450,20 +1450,12 @@ echo 'fish history clean (no clap error)'`,
 		checks["dms_installed"] = "apk info -e dms-shell quickshell && test -x /usr/bin/dms"
 		// dms_icons: the DMS icon chain end-to-end. DMS resolves icons via
 		// QT_QPA_PLATFORMTHEME=gtk3 → ~/.config/gtk-3.0/settings.ini →
-		// gtk-icon-theme-name — unset on our installs it fell back to
-		// hicolor generics (the missing-icons effect). Three assertions:
-		// icon theme PACKAGES present (dms-shell deps: adwaita + hicolor),
-		// the Adwaita theme actually ON DISK (index.theme), and the seeded
-		// GTK settings pointing DMS at it.
-		checks["dms_icons"] = fmt.Sprintf("apk info -e adwaita-icon-theme hicolor-icon-theme && test -f /usr/share/icons/Adwaita/index.theme && grep -q '^gtk-icon-theme-name=Adwaita' /home/%s/.config/gtk-3.0/settings.ini && echo 'icon themes OK (Adwaita via gtk3 platform theme)'", cfg.InstalledUser)
-		// theme_dark: system-wide dark preference end-to-end — dconf system
-		// default (color-scheme=prefer-dark; the xdg-desktop-portal reads
-		// it → libadwaita/GTK4 apps go dark), GTK4 settings seed present,
-		// kdeglobals BreezeDark seed (+ BreezeDark pin), flatpak user-global
-		// override (kdeglobals/gtk binds ONLY — no forced env, apps follow
-		// the theme), and the value actually EFFECTIVE for the user
-		// (gsettings merges the system db into the user view).
-		checks["theme_dark"] = fmt.Sprintf("test -f /etc/dconf/db/local.d/00-feralos-theme && grep -q \"color-scheme='prefer-dark'\" /etc/dconf/db/local.d/00-feralos-theme && test -f /home/%s/.config/gtk-4.0/settings.ini && test -f /home/%s/.config/kdeglobals && grep -q 'Colors:View' /home/%s/.config/kdeglobals && grep -q 'Theme=breeze-dark' /home/%s/.config/kdeglobals && grep -q 'ColorScheme=BreezeDark' /home/%s/.config/kdeglobals && test -f /home/%s/.local/share/flatpak/overrides/global && grep -q 'xdg-config/kdeglobals:ro' /home/%s/.local/share/flatpak/overrides/global && su - %s -s /bin/sh -c 'gsettings get org.gnome.desktop.interface color-scheme' 2>/dev/null | grep -q prefer-dark && echo 'dark preference OK (dconf system db + gtk4 + kdeglobals + BreezeDark pin + flatpak binds)'", cfg.InstalledUser, cfg.InstalledUser, cfg.InstalledUser, cfg.InstalledUser, cfg.InstalledUser, cfg.InstalledUser, cfg.InstalledUser, cfg.InstalledUser)
+		// gtk-icon-theme-name — unset it falls back to hicolor generics
+		// (the missing-icons effect). Two assertions: icon theme PACKAGES
+		// present (dms-shell deps: adwaita + hicolor) and the Adwaita theme
+		// actually ON DISK (index.theme). The settings.ini is NOT seeded
+		// anymore — dms-theme-sync (plugin) writes it at runtime.
+		checks["dms_icons"] = "apk info -e adwaita-icon-theme hicolor-icon-theme && test -f /usr/share/icons/Adwaita/index.theme && echo 'icon themes OK (Adwaita present; settings.ini owned by dms-theme-sync)'"
 		// dms_window_buttons: the window-controls plugin chain — package
 		// installed (system dir /etc/xdg/quickshell/dms-plugins), plugin
 		// enabled in plugin_settings.json, widget wired in the bar's right
