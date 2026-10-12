@@ -210,6 +210,13 @@ environment {
     WINIT_WAYLAND_NO_AVOID_RESIZE "1"
 }
 
+// "Important Hotkeys" overlay pops on EVERY login otherwise (validation
+// side-finding, run 2026-10-12T18-52-07Z). The greeter config already
+// skips it; mirror the same top-level block here.
+hotkey-overlay {
+    skip-at-startup
+}
+
 // --- XWayland for X11 apps ---
 xwayland-satellite {
     path "xwayland-satellite"
@@ -494,6 +501,32 @@ ColorScheme=BreezeDark
 `
 	if err := writeFile(chroot, fmt.Sprintf("/home/%s/.config/kdeglobals", u.UserName), kdeGlobals); err != nil {
 		return fmt.Errorf("seed kdeglobals (BreezeDark): %w", err)
+	}
+	// Flatpak user-global override: the sandbox does NOT see host config —
+	// KDE flatpaks stayed light. Bind the host config read-only (KDE flatpaks
+	// read the bound kdeglobals: BreezeDark [Colors:*] + the [UiSettings]
+	// BreezeDark pin; GTK3 flatpaks read the bound gtk settings.ini) and force
+	// GTK_THEME=Adwaita:dark for GTK3 flatpaks. GTK4/libadwaita + portal-aware
+	// flatpaks already follow the portal color-scheme (host portal reports
+	// prefer-dark via the dconf system default below). Format verified against
+	// flatpak sources: file = <user base dir>/overrides/global
+	// (flatpak-dir.c: override file for app_id == NULL), [Context] filesystems
+	// parsed as a GLib keyfile string list (`;`-separated, trailing `;`), and
+	// [Environment] KEY=VALUE pairs (flatpak-context.c). Harmless without
+	// flatpak (plain files).
+	flatpakOverride := `[Context]
+filesystems=xdg-config/kdeglobals:ro;xdg-config/gtk-3.0:ro;xdg-config/gtk-4.0:ro;
+
+[Environment]
+GTK_THEME=Adwaita:dark
+`
+	if err := writeFile(chroot, fmt.Sprintf("/home/%s/.local/share/flatpak/overrides/global", u.UserName), flatpakOverride); err != nil {
+		return fmt.Errorf("seed flatpak user-global override: %w", err)
+	}
+	// writeFile ran as root: also the intermediate flatpak dirs are root-owned.
+	// flatpak (running as the user) must be able to write in ~/.local/share/flatpak.
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("chown -R %s:%s /home/%s/.local/share/flatpak", u.UserName, u.UserName, u.UserName)); err != nil {
+		return fmt.Errorf("chown flatpak overrides: %w", err)
 	}
 	// System-wide dark preference for the xdg-desktop-portal color-scheme.
 	// Verified live: apps following the portal (libadwaita/GTK4 such as

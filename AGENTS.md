@@ -8,6 +8,13 @@
 
 ## Recent Rounds (latest first)
 
+### 2026-10-12 20:00 - theme: flatpak overrides + hotkey overlay skip; KDE dark confirmed visually
+**Agent:** codebase
+**Summary:** User-reported ksystemlog still light (fresh install): live visual validation (screenshots, pixel-checked) on run `2026-10-12T18-52-07Z` shows BOTH okular AND ksystemlog fully DARK (BreezeDark View bg RGB 36,36,36) — host-side theme chain is complete. Remaining gap = FLATPAK apps: the sandbox doesn't see host config (user's app likely a flatpak).
+- **Installer**: flatpak user-global override `~/.local/share/flatpak/overrides/global` — `filesystems=xdg-config/kdeglobals:ro;xdg-config/gtk-3.0:ro;xdg-config/gtk-4.0:ro;` + `GTK_THEME=Adwaita:dark` (KDE flatpaks read the bound kdeglobals incl. BreezeDark pin; GTK3 flatpaks get the dark theme env; GTK4/libadwaita + portal-aware flatpaks already follow the portal).
+- **UX catch (found in validation)**: the "Important Hotkeys" niri overlay popped on EVERY login — user config lacked `hotkey-overlay { skip-at-startup }` (greeter config had it). Added.
+- **Harness**: theme_dark += flatpak override asserts; niri_config_valid += skip-at-startup assert.
+
 ### 2026-10-12 18:30 - theme: KDE apps dark via kdeglobals (okular/ksystemlog were light)
 **Agent:** codebase
 **Summary:** User-reported: KDE apps (okular, ksystemlog, kcron...) stayed light. Root cause (KF6 source-verified): KDE apps read colors via KColorScheme → `~/.config/kdeglobals` `[Colors:*]` — NOT the portal/QPalette path (that part was already dark via xdgdesktopportal + portal prefer-dark; Qt 6.11 fusion palette is dark). Manager-instantiation apps (okular) look for `.colors` scheme FILES in XDG data dirs; non-manager consumers (ksystemlog) read kdeglobals `[Colors:*]` directly with hardcoded Breeze Light defaults when absent.
