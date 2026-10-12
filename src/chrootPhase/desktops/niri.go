@@ -104,7 +104,13 @@ hotkey-overlay {
     skip-at-startup
 }
 `, u.Keymap)
-	if _, err := shell.ExecuteCmd(chroot, "getent passwd greeter >/dev/null 2>&1 || adduser -D -s /bin/sh -h /var/lib/greetd greeter"); err != nil {
+	// -S (system user, UID 100-999): ReGreet 0.2.0 lists /etc/passwd users
+	// with UID in [UID_MIN, UID_MAX] (1000-60000 per /etc/login.defs) —
+	// without -S the greeter account (UID 1001) shows up as a login option.
+	// System UIDs are filtered out. Side effects checked: turnstile spawns
+	// the user dinit for any non-root login (greeter included); explicit
+	// -s /bin/sh overrides the busybox system-user nologin default.
+	if _, err := shell.ExecuteCmd(chroot, "getent passwd greeter >/dev/null 2>&1 || adduser -S -D -s /bin/sh -h /var/lib/greetd greeter"); err != nil {
 		return fmt.Errorf("create greeter user: %w", err)
 	}
 	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /var/lib/greetd/.config/niri"); err != nil {
@@ -331,11 +337,19 @@ gtk-application-prefer-dark-theme=true`
 		return fmt.Errorf("seed GTK4 settings (icon theme + dark): %w", err)
 	}
 	// KDE globals: KDE apps (okular, ksystemlog, kcron...) read colors from
-	// KColorScheme → ~/.config/kdeglobals [Colors:*] — NOT from the portal,
-	// so they stayed light. No plasma/breeze package needed: the values are
+	// KColorScheme → ~/.config/kdeglobals — NOT from the portal, so they
+	// stayed light. No plasma/breeze package needed: the values are
 	// self-contained here (upstream BreezeDark.colors, KDE Breeze,
 	// LGPL-2.0-or-later; translations dropped, color groups verbatim).
 	// [Icons] pins breeze-dark (breeze-icons is installed).
+	// [UiSettings] ColorScheme=BreezeDark: KColorSchemeManager apps (okular)
+	// BYPASS [Colors:*] — the manager resolves the scheme by id from the
+	// EMBEDDED BreezeDark/BreezeLight Qt resources (kcolorscheme ships them)
+	// and, without a pin, follows styleHints colorScheme which is not dark
+	// in their process → embedded LIGHT applied. The pin forces embedded
+	// BreezeDark. Consequence: pinned apps stop following portal light/dark
+	// toggles (fixed-dark box; remove the pin if auto-switching is wanted).
+	// The [Colors:*] seed still covers non-manager consumers (ksystemlog).
 	kdeGlobals := `[ColorEffects:Disabled]
 Color=56,56,56
 ColorAmount=0
@@ -470,6 +484,9 @@ ForegroundVisited=155,89,182
 
 [Icons]
 Theme=breeze-dark
+
+[UiSettings]
+ColorScheme=BreezeDark
 `
 	if err := writeFile(chroot, fmt.Sprintf("/home/%s/.config/kdeglobals", u.UserName), kdeGlobals); err != nil {
 		return fmt.Errorf("seed kdeglobals (BreezeDark): %w", err)

@@ -1431,7 +1431,7 @@ echo 'fish history clean (no clap error)'`,
 	// DMS (native apk package dms-shell + quickshell, feralos-aports).
 	if cfg.DesktopEnvironment == desktopNiri {
 		checks["niri_config_valid"] = fmt.Sprintf("niri validate --config /var/lib/greetd/.config/niri/config.kdl && niri validate --config /home/%s/.config/niri/config.kdl && grep -q '^prefer-no-csd' /home/%s/.config/niri/config.kdl && grep -q 'QT_WAYLAND_DISABLE_WINDOWDECORATION \"1\"' /home/%s/.config/niri/config.kdl && echo 'niri config valid (prefer-no-csd + Qt no-decoration)'", cfg.InstalledUser, cfg.InstalledUser, cfg.InstalledUser)
-		checks["greetd_config"] = "ls /etc/greetd/config.toml /etc/greetd/greeter.sh /etc/greetd/regreet.toml /var/lib/greetd/.config/niri/config.kdl && test -x /etc/greetd/greeter.sh"
+		checks["greetd_config"] = "ls /etc/greetd/config.toml /etc/greetd/greeter.sh /etc/greetd/regreet.toml /var/lib/greetd/.config/niri/config.kdl && test -x /etc/greetd/greeter.sh && [ \"$(id -u greeter)\" -lt 1000 ] && echo 'greeter is a system user (hidden from ReGreet'\\''s UID-filtered list)'"
 		// greetd_socket: greetd daemon alive (IPC socket). Runtime complement
 		// to the static greetd_config check. Works on BOTH init systems —
 		// regreet itself cannot be runtime-checked on verify boots (the
@@ -1461,7 +1461,7 @@ echo 'fish history clean (no clap error)'`,
 		// it → libadwaita/GTK4 apps go dark), GTK4 settings seed present,
 		// and the value actually EFFECTIVE for the user (gsettings merges
 		// the system db into the user view).
-		checks["theme_dark"] = fmt.Sprintf("test -f /etc/dconf/db/local.d/00-feralos-theme && grep -q \"color-scheme='prefer-dark'\" /etc/dconf/db/local.d/00-feralos-theme && test -f /home/%s/.config/gtk-4.0/settings.ini && test -f /home/%s/.config/kdeglobals && grep -q 'Colors:View' /home/%s/.config/kdeglobals && grep -q 'Theme=breeze-dark' /home/%s/.config/kdeglobals && su - %s -s /bin/sh -c 'gsettings get org.gnome.desktop.interface color-scheme' 2>/dev/null | grep -q prefer-dark && echo 'dark preference OK (dconf system db + gtk4 + kdeglobals)'", cfg.InstalledUser, cfg.InstalledUser, cfg.InstalledUser, cfg.InstalledUser, cfg.InstalledUser)
+		checks["theme_dark"] = fmt.Sprintf("test -f /etc/dconf/db/local.d/00-feralos-theme && grep -q \"color-scheme='prefer-dark'\" /etc/dconf/db/local.d/00-feralos-theme && test -f /home/%s/.config/gtk-4.0/settings.ini && test -f /home/%s/.config/kdeglobals && grep -q 'Colors:View' /home/%s/.config/kdeglobals && grep -q 'Theme=breeze-dark' /home/%s/.config/kdeglobals && grep -q 'ColorScheme=BreezeDark' /home/%s/.config/kdeglobals && su - %s -s /bin/sh -c 'gsettings get org.gnome.desktop.interface color-scheme' 2>/dev/null | grep -q prefer-dark && echo 'dark preference OK (dconf system db + gtk4 + kdeglobals + BreezeDark pin)'", cfg.InstalledUser, cfg.InstalledUser, cfg.InstalledUser, cfg.InstalledUser, cfg.InstalledUser, cfg.InstalledUser)
 		// dms_window_buttons: the window-controls plugin chain — package
 		// installed (system dir /etc/xdg/quickshell/dms-plugins), plugin
 		// enabled in plugin_settings.json, widget wired in the bar's right
