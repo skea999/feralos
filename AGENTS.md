@@ -8,6 +8,14 @@
 
 ## Recent Rounds (latest first)
 
+### 2026-10-13 - matugen: packaged in feralos-aports + wired into the niri stack (DMS dynamic theming backend)
+**Agent:** codebase
+**Summary:** matugen — the wallpaper→palette backend `dms-shell` runs for dynamic theming (its generated `DankMatugen` KColorScheme export is what the dms-theme-sync plugin propagates to GTK/Qt/KDE) — is absent from Alpine entirely, so it now ships from OUR repo and is wired into the niri package list.
+- **Package** (feralos-aports `ad34f4d`, CI run `38322829277` all-green + published): matugen 4.2.0, GPL-2.0-or-later, FIRST Rust/cargo package in the repo (Alpine `bottom` pattern: `cargo fetch --target="$CTARGET" --locked` + `build`/`test --frozen --release`; upstream suite 6/6 in `check()`). Docker rehearsal: sha512-pinned source, signed 4.8 MB apk, signature-verified install, `matugen --version` = 4.2.0. CI `client-test` now also asserts the matugen binary from Pages (`build.yml`).
+- **Installer wiring** (`eb20a4d`): `internal_rules.yaml` niri packages += `matugen` + comment rewrite (old "matugen not on Alpine" note obsolete); new harness check `matugen_installed` (package present + binary runs); `docs/guides/niri.md` theming paragraph updated.
+- **Harness**: run `2026-10-12T23-58-32Z` (fixture `btrfs_standard_niri_full_test.yaml` — dinit + edge + secureboot/tpm full stack) **97/97 PASS**, zero failures/skips (96→97); `matugen_installed` = "matugen OK (matugen 4.2.0)".
+- **Open (next)**: live-session proof that KDE apps go dark end-to-end (DMS Auto/dynamic theme → matugen palette → store-installed dms-theme-sync plugin → kdeglobals) — a debug_run round; plugin stays user-installed from the DMS store (user decision). Optional: upstream reports for the plugin (light-mode GTK `-dark-` substitution bug; BusyBox find `-printf`/`-regextype`).
+
 ### 2026-10-13 - theme: ALL manual theme seeds removed (dms-theme-sync plugin round, Phase A)
 **Agent:** codebase
 **Summary:** User decision: adopt third-party DMS plugin `arqueon/dms-theme-sync` (GPL-3.0) as the theming authority — it propagates the DMS appearance (mode/colors/icons) to GTK, Qt, KDE, Flatpak. To avoid conflicts, ALL manual theme seeds removed from `niri.go` in the same install: kdeglobals (BreezeDark [Colors:*] + [Icons] breeze-dark + [UiSettings] BreezeDark pin), gtk-3.0/4.0 settings.ini, flatpak user-global override (`overrides/global` + its chown), dconf system default `/etc/dconf/db/local.d/00-feralos-theme`.
