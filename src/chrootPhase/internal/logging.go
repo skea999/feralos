@@ -263,11 +263,13 @@ start() {
 	// vector); enablement via the boot runlevel (internal_rules). No runtime
 	// file writes.
 
-	// Dinit: no vector-setup service needed — vector-dinit ships a tmpfiles
-	// file (/run/vector, /dev/log, /var/log, /btrbk) processed by the
-	// dinit-chimera early chain; vector-setup stays OpenRC-only. The
-	// dinit-boot-log package (feralos-aports) ships the tmpfiles (/var/log/
-	// dinit), the mirror service and /usr/libexec/dinit-boot-log.
+	// vector-setup: the script written above is enabled on BOTH inits
+	// (OpenRC enablement is never conditional — fallback readiness); under
+	// dinit it is inert and vector-dinit's tmpfiles file (/run/vector,
+	// /dev/log, /var/log, /btrbk — processed by the dinit-chimera early
+	// chain) remains the active mechanism. The dinit-boot-log package
+	// (feralos-aports) ships the tmpfiles (/var/log/dinit), the mirror
+	// service and /usr/libexec/dinit-boot-log.
 
 	// Logrotate: vector does NOT rotate files — it only tails rotated ones
 	// (copytruncate + delaycompress recommended by vector docs). Covers the

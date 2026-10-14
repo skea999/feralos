@@ -490,20 +490,19 @@ exec /usr/bin/xdg-su "$@"
 	}
 
 	// 12. turnstiled — system service: the PAM module talks to it over its
-	// socket; it spawns the per-user dinit at login. Init-conditional:
-	//   dinit  — symlink into boot.d (admin dir; FeralOS dinit runs as PID1)
-	//   OpenRC — rc-update enable; the service ships in the restored
+	// socket; it spawns the per-user dinit at login.
+	//   dinit  — boot.d symlink (active-init enablement; FeralOS dinit = PID1)
+	//   OpenRC — ALWAYS enabled, never conditional: a dinit install must stay
+	//            bootable under OpenRC (fallback). The service ships in the
 	//            turnstile-openrc subpackage (same daemon, same dinit user
-	//            backend: turnstile is service-manager-agnostic, so the
-	//            -user-dinit session stack works under OpenRC too)
+	//            backend — turnstile is service-manager-agnostic).
 	if u.EnableDinit {
 		if _, err := shell.ExecuteCmd(chroot, "mkdir -p /etc/dinit.d/boot.d && test -f /etc/dinit.d/turnstiled && ln -sf /etc/dinit.d/turnstiled /etc/dinit.d/boot.d/turnstiled || true"); err != nil {
 			fmt.Printf("[WARNING] Failed to enable turnstiled: %v\n", err)
 		}
-	} else {
-		if _, err := shell.ExecuteCmd(chroot, "rc-update add turnstiled default"); err != nil {
-			fmt.Printf("[WARNING] Failed to enable turnstiled (OpenRC): %v\n", err)
-		}
+	}
+	if _, err := shell.ExecuteCmd(chroot, "rc-update add turnstiled default"); err != nil {
+		fmt.Printf("[WARNING] Failed to enable turnstiled (OpenRC): %v\n", err)
 	}
 
 	// 13. user session services: enable INFRASTRUCTURE services in boot.d of

@@ -42,7 +42,10 @@ func SetupHardening(conf *config.Config) error {
 		if _, err := shell.ExecuteCmd(chroot, "mkdir -p /etc/dinit.d/boot.d && test -f /lib/dinit.d/apparmor && ln -sf /lib/dinit.d/apparmor /etc/dinit.d/boot.d/apparmor || true"); err != nil {
 			fmt.Printf("[WARNING] Failed to enable apparmor dinit service: %v\n", err)
 		}
-	} else if _, err := shell.ExecuteCmd(chroot, "rc-update add apparmor boot"); err != nil {
+	}
+	// OpenRC enablement — ALWAYS, never conditional (fallback readiness:
+	// a dinit install must stay bootable under OpenRC).
+	if _, err := shell.ExecuteCmd(chroot, "rc-update add apparmor boot"); err != nil {
 		fmt.Printf("[WARNING] Failed to add apparmor to boot: %v\n", err)
 	}
 

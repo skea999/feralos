@@ -59,17 +59,17 @@ trusted-users = root @wheel`
 		fmt.Printf("[WARNING] Failed to add user to nix group: %v\n", err)
 	}
 
-	// nix-daemon enablement: OpenRC runlevels under OpenRC; under dinit the
-	// converted nix-daemon-dinit service is enabled via boot.d symlink
-	// (no rules map entry covers it — the nix feature owns its service).
+	// nix-daemon enablement: dinit gets the boot.d symlink (no rules map
+	// entry covers it — the nix feature owns its service); OpenRC is ALWAYS
+	// enabled, never conditional (a dinit install must stay bootable under
+	// OpenRC — the symlink is inert under dinit).
 	if conf.User.EnableDinit {
 		if _, err := shell.ExecuteCmd(chroot, "mkdir -p /etc/dinit.d/boot.d && test -f /lib/dinit.d/nix-daemon && ln -sf /lib/dinit.d/nix-daemon /etc/dinit.d/boot.d/nix-daemon || true"); err != nil {
 			fmt.Printf("[WARNING] Failed to enable nix-daemon dinit service: %v\n", err)
 		}
-	} else {
-		if _, err := shell.ExecuteCmdArgs(chroot, "rc-update", "add", "nix-daemon", "default"); err != nil {
-			fmt.Printf("[WARNING] Failed to add nix-daemon to default: %v\n", err)
-		}
+	}
+	if _, err := shell.ExecuteCmdArgs(chroot, "rc-update", "add", "nix-daemon", "default"); err != nil {
+		fmt.Printf("[WARNING] Failed to add nix-daemon to default: %v\n", err)
 	}
 
 	if _, err := shell.ExecuteCmdArgs(chroot, "nix-channel", "--add", "https://nixos.org/channels/nixos-26.05", "nixpkgs"); err != nil {

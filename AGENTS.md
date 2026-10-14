@@ -8,6 +8,13 @@
 
 ## Recent Rounds (latest first)
 
+### 2026-10-14 - openrc-always: OpenRC enablement never conditional (dinit installs stay OpenRC-bootable) — dinit 98/98, OpenRC 82/82
+**Agent:** codebase
+**Summary:** User review correction: "OpenRC is never conditional — it gets enabled always". A dinit install must remain bootable under OpenRC (fallback), so every OpenRC enablement now runs regardless of the active init; the dinit-side enablement stays conditional (active-init only). The rc-update links are inert under dinit.
+- **services.go**: the rc-update runlevel loop + the swap-ordering sed run ALWAYS (was gated `!EnableDinit`); **niri.go** step 12: `rc-update add turnstiled default` unconditional; **podman.go**/**nix.go**/**hardening.go**: rc-update (podman/cgroups, nix-daemon, apparmor) unconditional; **packages.go**: `klogd-openrc` installed on BOTH inits (vector-compatible klogd for the fallback); **logging.go**: vector-setup comment updated (script already written unconditionally — now enabled always).
+- **Harness**: new `openrc_fallback_ready` check (dinit installs): asserts the runlevel links (turnstiled/greetd/vector-setup/klogd) + installer-written OpenRC services exist while dinit is PID1.
+- **Validated**: dinit full `2026-10-14T21-53-12Z` **98/98** (51 rc-update adds under dinit, klogd-openrc installed, conversion 0 missing/0 failed, log_errors clean); OpenRC niri `2026-10-14T21-59-42Z` **82/82** regression.
+
 ### 2026-10-14 - turnstile: OpenRC user-session stack (dual-init) + rules cleanup validated — dinit 97/97, OpenRC 82/82
 **Agent:** codebase
 **Summary:** The niri `-user-dinit` session services now run under BOTH inits: turnstile is service-manager-agnostic (only its backend is dinit), so OpenRC gets the identical per-user dinit instance — the DMS/wayvnc/pipewire/polkit-agent session stack is no longer dinit-only.

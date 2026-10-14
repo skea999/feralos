@@ -1522,6 +1522,13 @@ echo 'fish history clean (no clap error)'`,
 		} else {
 			checks["turnstile_pkg"] = "test -f /etc/dinit.d/turnstiled && test -f /etc/init.d/turnstiled && test -f /usr/lib/security/pam_turnstile.so && rc-status --all 2>/dev/null | grep -E 'turnstiled[^[]*\\[ *started' && pgrep -f '/usr/bin/turnstiled' >/dev/null && echo 'turnstile OK (openrc)'"
 		}
+		// openrc_fallback_ready (dinit installs): OpenRC enablement is never
+		// conditional — a dinit install must stay bootable under OpenRC. The
+		// rc-update links + installer-written OpenRC services must exist
+		// even while dinit is PID 1 (inert until the fallback boot).
+		if cfg.EnableDinit {
+			checks["openrc_fallback_ready"] = "test -L /etc/runlevels/default/turnstiled && test -L /etc/runlevels/default/greetd && test -L /etc/runlevels/boot/vector-setup && test -L /etc/runlevels/boot/klogd && test -x /etc/init.d/vector-setup && test -x /etc/init.d/turnstiled && apk info -e klogd-openrc >/dev/null && echo 'OpenRC fallback ready (runlevels + services)'"
+		}
 		// user_services_enabled: infrastructure services only in the
 		// system-wide boot.d. Session apps (polkit-agent/dms/wayvnc) are
 		// bound to the niri session (started by niri-session, upstream
