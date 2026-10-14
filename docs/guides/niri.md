@@ -133,7 +133,7 @@ NetworkManager replaces ifupdown as the niri network service (`FIX-niri-dms.md` 
 
 ## Flatpak (generic feature)
 
-- APK: `flatpak` added only when `flatpakPackages` non-empty (`chrootPhase/features/flatpak.go:FlatpakPackages`) — niri no longer sets a default (`internal_rules.yaml` niri `flatpakPackages` removed)
+- APK: `flatpak` added only when `flatpakPackages` non-empty (`chrootPhase/features/flatpak.go:FlatpakPackages`) — niri sets a default (`internal_rules.yaml` niri `flatpakPackages`: RClone Manager + Flatseal)
 - Setup: `features.SetupFlatpak` — `flatpak remote-add --if-not-exists flathub`, then `flatpak install -y --noninteractive <remote> <appID>` per entry
 - **/lib/modules handling**: `src/chrootPhase/internal/packages.go:SetupPackages` ensures `mkdir -p /lib/modules` **before** `apk update`/`apk add` (flatpak and others check kernel module path)
 - **xdg-user-dirs**: added to `standardPackages` (always installed) for flatpak portal `XDG` directory access
