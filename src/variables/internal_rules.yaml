@@ -97,8 +97,7 @@ standardPackages:
   - dosfstools   # real fsck.vfat (busybox stub lacks -C, errors at boot fsck)
   # Services
   - cronie
-  - cpufrequtils       # CPU governor settings (scripted dinit service; skips on VMs)
-  - cpufrequtils-dinit
+  - cpufrequtils       # CPU governor settings (dinit service via conversion; skips on VMs)
   - chrony
   - dbus
   - shadow
@@ -112,7 +111,6 @@ standardPackages:
   # Hardware
   - pciutils
   - usbutils
-  - cpufrequtils
   - smartmontools
   # Logging
   # logrotate: vector does NOT rotate files — it only tails rotated ones
@@ -120,7 +118,6 @@ standardPackages:
   # dinit service logs; runs via /etc/periodic/daily (cronie).
   - logrotate
   - vector
-  - vector-openrc
   # Shell
   - fish
   - fish-tools
@@ -128,7 +125,6 @@ standardPackages:
   - booster
   # Firmware
   - fwupd
-  - fwupd-openrc
   - fwupd-efi
   # Monitoring
   - rasdaemon
@@ -195,9 +191,13 @@ desktopEnvironments:
     services: {"sddm": "default", "dbus": "default"}
     groups: ["video", "input"]
   niri:
-    packages: ["niri", "niri-portalsconf", "greetd", "greetd-regreet", "greetd-openrc", "elogind", "elogind-openrc", "dbus", "alacritty", "xdg-desktop-portal-wlr", "xdg-desktop-portal-gtk", "polkit-elogind", "polkit-gnome", "xwayland-satellite", "xwayland", "mesa-dri-gallium", "wayland-libs-server", "dms-shell", "dms-window-buttons", "matugen", "turnstile", "niri-user-dinit", "accountsservice", "power-profiles-daemon", "cups-pk-helper", "iptables", "ip6tables", "ebtables", "dbus-user-dinit", "pipewire-user-dinit", "pipewire-pulse-user-dinit", "wireplumber-user-dinit", "wayland-wait-user-dinit", "polkit-agent-user-dinit", "wayvnc", "wayvnc-user-dinit", "networkmanager", "networkmanager-cli", "networkmanager-tui", "networkmanager-dinit", "networkmanager-wifi", "wireless-regdb", "bluez", "bluez-openrc", "bluez-dinit", "wpa_supplicant", "wireguard-tools", "qt6-qtmultimedia", "i2c-tools", "wtype", "simple-scan", "sane", "sane-backends", "sane-utils", "sane-airscan", "gnome-keyring", "cosmic-edit", "eog", "cups", "cups-filters", "avahi", "cosmic-player", "libreoffice", "galculator", "firefox", "firewalld-gui", "gnome-firmware", "thunderbird", "gnome-disk-utility", "kcron", "ksystemlog", "kimageformats", "khal", "adw-gtk3", "dconf", "font-terminus", "font-inconsolata", "font-dejavu", "font-noto", "font-noto-cjk", "font-awesome", "font-noto-extra", "gnome-maps", "gnome-calendar"]
+    packages: ["niri", "niri-portalsconf", "greetd", "greetd-regreet", "elogind", "dbus", "alacritty", "xdg-desktop-portal-wlr", "xdg-desktop-portal-gtk", "polkit-elogind", "polkit-gnome", "xwayland-satellite", "xwayland", "mesa-dri-gallium", "wayland-libs-server", "dms-shell", "dms-window-buttons", "matugen", "turnstile", "niri-user-dinit", "accountsservice", "power-profiles-daemon", "cups-pk-helper", "iptables", "ip6tables", "ebtables", "dbus-user-dinit", "pipewire-user-dinit", "pipewire-pulse-user-dinit", "wireplumber-user-dinit", "wayland-wait-user-dinit", "polkit-agent-user-dinit", "wayvnc", "wayvnc-user-dinit", "networkmanager", "networkmanager-cli", "networkmanager-tui", "networkmanager-wifi", "wireless-regdb", "bluez", "wpa_supplicant", "wireguard-tools", "qt6-qtmultimedia", "i2c-tools", "wtype", "simple-scan", "sane", "sane-backends", "sane-utils", "sane-airscan", "gnome-keyring", "cosmic-edit", "eog", "cups", "cups-filters", "avahi", "cosmic-player", "libreoffice", "galculator", "firefox", "firewalld-gui", "gnome-firmware", "gnome-disk-utility", "kcron", "ksystemlog", "kimageformats", "khal", "adw-gtk3", "dconf", "font-terminus", "font-inconsolata", "font-dejavu", "font-noto", "font-noto-cjk", "font-awesome", "font-noto-extra", "gnome-maps", "gnome-calendar"]
     # turnstile + niri-user-dinit: PAM session → user dinit (turnstiled);
     # Alpine niri-session's dinit branch starts the `niri` user service.
+    # DUAL-INIT: turnstiled runs as a system service on BOTH inits (dinit:
+    # boot.d link; OpenRC: rc-update — service ships in the turnstile-openrc
+    # subpackage). The dinit USER backend is identical on both, so the
+    # -user-dinit session stack below works under OpenRC too.
     # Login-shell trick: passwd shell = /usr/libexec/feralos/login-shell
     # (not in /etc/shells) skips niri-session's bash re-exec (see users.go)
     # cava (DMS audio visualizer) NOT on Alpine v3.24 — re-add when packaged
@@ -211,8 +211,10 @@ desktopEnvironments:
     # without it NM has NO wifi support and the DMS network widget shows no
     # wifi at all. wireless-regdb = regulatory table (real radios need it);
     # wpa_supplicant already in the list (NM spawns/supervises it itself).
-    # bluez + bluez-openrc + bluez-dinit: DMS bluetooth widget speaks the
-    # org.bluez dbus API. Service name UNIFIED at "bluetooth" on BOTH inits
+    # bluez: DMS bluetooth widget speaks the org.bluez dbus API. The
+    # -openrc/-dinit service packages are NOT listed: Alpine auto-pulls
+    # bluez-openrc (install_if), the dinit conversion turns it into
+    # bluez-dinit. Service name UNIFIED at "bluetooth" on BOTH inits
     # (feralos bluez-dinit r2 ships /lib/dinit.d/bluetooth — we own the
     # package, aports e9ac00c) → the single "bluetooth": "default" in the
     # services map below enables it for dinit AND OpenRC, niri-only
@@ -236,7 +238,7 @@ desktopEnvironments:
     # RustDesk removed (round 43 cleanup + user decision): wayvnc is the
     # remote-desktop path (user dinit service, loopback by default).
   cosmic:
-    packages: ["cosmic-session", "cosmic-term", "cosmic-greeter", "cosmic-edit", "cosmic-player", "cosmic-store", "cosmic-settings", "cosmic-screenshot", "cosmic-icons", "cosmic-initial-setup", "adwaita-icon-theme", "desktop-file-utils", "hicolor-icon-theme", "seatd", "seatd-openrc", "dbus", "polkit", "pipewire", "xdg-desktop-portal-cosmic"]
+    packages: ["cosmic-session", "cosmic-term", "cosmic-greeter", "cosmic-edit", "cosmic-player", "cosmic-store", "cosmic-settings", "cosmic-screenshot", "cosmic-icons", "cosmic-initial-setup", "adwaita-icon-theme", "desktop-file-utils", "hicolor-icon-theme", "seatd", "dbus", "polkit", "pipewire", "xdg-desktop-portal-cosmic"]
     services: {"cosmic-greeter": "default", "seatd": "default", "dbus": "default"}
     groups: ["video", "input"]
 
@@ -290,7 +292,7 @@ packageLogic:
     groups: ["kvm", "qemu"]
     modules: ["kvm"]
   podman:
-    packages: ["podman", "podman-openrc", "iptables", "podman-compose", "podman-docker", "fuse-overlayfs"]
+    packages: ["podman", "iptables", "podman-compose", "podman-docker", "fuse-overlayfs"]
     services: {"podman": "default", "cgroups": "default"}
     modules: ["overlay"]
   zram-init:
