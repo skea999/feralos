@@ -8,6 +8,15 @@
 
 ## Recent Rounds (latest first)
 
+### 2026-10-14 - turnstile: OpenRC user-session stack (dual-init) + rules cleanup validated — dinit 97/97, OpenRC 82/82
+**Agent:** codebase
+**Summary:** The niri `-user-dinit` session services now run under BOTH inits: turnstile is service-manager-agnostic (only its backend is dinit), so OpenRC gets the identical per-user dinit instance — the DMS/wayvnc/pipewire/polkit-agent session stack is no longer dinit-only.
+- **aports turnstile** (`42fac31` + `a963556`, CI green): restored Alpine's `turnstiled.initd` + `turnstiled.confd` in the `turnstile-openrc` subpackage (dropped as "no OpenRC on FeralOS" — obsolete) + boot-order fix `depend(): need elogind; before greetd`.
+- **Root cause (debug_run on failed run `2026-10-14T00-24-08Z`)**: boot-order race — greetd's autologin session opened before turnstiled's control socket listened; `pam_turnstile.so` is optional/silent → session never registered → no user dinit (8 failed checks). Proof: greetd restart after the socket is up registers the session + spawns the user dinit. Fix = `before greetd` (dinit parity: `before: login.target`).
+- **Installer/harness**: `niri.go` step 12 init-conditional (`rc-update add turnstiled default`); `packages.go` conversion skip += `turnstile` (dinit service ships in the MAIN package — the auto-pulled `turnstile-openrc` no longer triggers a failing `apk add turnstile-dinit` under dinit); `turnstile_pkg` init-conditional + busybox `pgrep -x` false-negative fixed (`pgrep -f '/usr/bin/turnstiled'`); 5 session-stack checks un-gated to both inits.
+- **Rules cleanup (user) + restore**: redundant `-openrc`/`-dinit` entries dropped (Alpine `install_if` auto-pull + dinit conversion cover them); `wireless-regdb` restored (accidental removal — `nm_wifi_support` caught it, run `2026-10-13T23-44-16Z` 96/97).
+- **Validated**: dinit full `2026-10-14T18-44-11Z` **97/97** (`turnstile OK (dinit)`, conversion `0 missing, 0 failed`); OpenRC niri `2026-10-14T18-50-50Z` **82/82** (`turnstile OK (openrc)`; all 8 former OpenRC fails resolved). Builds/vet/gofmt/lint/tests green. NOTE: `features/podman.go`/`nix.go` still list `podman-openrc`/`nix-openrc` explicitly (redundant, harmless).
+
 ### 2026-10-13 - matugen: packaged in feralos-aports + wired into the niri stack (DMS dynamic theming backend)
 **Agent:** codebase
 **Summary:** matugen — the wallpaper→palette backend `dms-shell` runs for dynamic theming (its generated `DankMatugen` KColorScheme export is what the dms-theme-sync plugin propagates to GTK/Qt/KDE) — is absent from Alpine entirely, so it now ships from OUR repo and is wired into the niri package list.

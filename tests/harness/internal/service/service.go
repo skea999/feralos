@@ -1511,7 +1511,17 @@ echo 'fish history clean (no clap error)'`,
 		// boot.d enables.
 		checks["niri_user_service"] = "test -f /etc/dinit.d/user/niri && grep -q 'niri --session' /etc/dinit.d/user/niri"
 		checks["login_shell_trick"] = fmt.Sprintf("getent passwd %s | cut -d: -f7 | grep -q feralos/login-shell && test -L /usr/libexec/feralos/login-shell && grep -qxF /usr/libexec/feralos/login-shell /etc/shells", cfg.InstalledUser)
-		checks["turnstile_pkg"] = "test -f /etc/dinit.d/turnstiled && test -e /etc/dinit.d/boot.d/turnstiled && test -f /usr/lib/security/pam_turnstile.so"
+		// turnstile_pkg: dual-init session launcher — files on BOTH inits;
+		// the service must actually RUN (dinit: boot.d link + started
+		// marker; OpenRC: init.d file + rc-status started + process).
+		// GOTCHA (live-caught): busybox `pgrep -x turnstiled` matches the
+		// WHOLE argv[0] — the daemon runs as /usr/bin/turnstiled — so -x can
+		// never match; use -f against the binary path.
+		if cfg.EnableDinit {
+			checks["turnstile_pkg"] = "test -f /etc/dinit.d/turnstiled && test -e /etc/dinit.d/boot.d/turnstiled && test -f /usr/lib/security/pam_turnstile.so && dinitctl list | grep -E '\\[[^]]*\\] *turnstiled' && echo 'turnstile OK (dinit)'"
+		} else {
+			checks["turnstile_pkg"] = "test -f /etc/dinit.d/turnstiled && test -f /etc/init.d/turnstiled && test -f /usr/lib/security/pam_turnstile.so && rc-status --all 2>/dev/null | grep -E 'turnstiled[^[]*\\[ *started' && pgrep -f '/usr/bin/turnstiled' >/dev/null && echo 'turnstile OK (openrc)'"
+		}
 		// user_services_enabled: infrastructure services only in the
 		// system-wide boot.d. Session apps (polkit-agent/dms/wayvnc) are
 		// bound to the niri session (started by niri-session, upstream
@@ -1562,41 +1572,40 @@ echo 'fish history clean (no clap error)'`,
 		// XDG_RUNTIME_DIR (DMS_SOCKET may override); NIRI_SOCKET exported
 		// for symmetry with the niri checks.
 		checks["dms_ipc"] = fmt.Sprintf("i=0; while [ $i -lt 60 ]; do su - %s -s /bin/sh -c 'export XDG_RUNTIME_DIR=/run/user/$(id -u); NIRI_SOCKET=$(ls /run/user/$(id -u)/niri*.sock 2>/dev/null | head -1); timeout 10 dms ipc call outputs status' >/dev/null 2>&1 && { echo 'dms IPC OK'; exit 0; }; sleep 1; i=$((i+1)); done; echo 'dms IPC failed'; exit 1", cfg.InstalledUser)
-		// User dinit session stack (dinit only): every boot.d user service
-		// must show the started marker. dinitctl list renders started
-		// services as `[{+}] name (pid: ...)` — '{+' appears only when
-		// running. ERE anchors the name so '] niri' cannot match
-		// '] niri-shutdown'; VERIFY the exact format on the first real
-		// harness run (dinitctl list output) and adjust if needed.
-		if cfg.EnableDinit {
-			// dinitctl list marks DEPENDENCY-started services `[{+}]` and
-			// EXPLICITLY-started ones `[[+]]`. Accept both bracket styles;
-			// both mean running. wayvnc.user stays REQUIRED on every host:
-			// the GPU chain renders (virtio-vga-gl + egl-headless,gl=on +
-			// guest mesa edge 26.2.4 virgl restored), wayvnc holds an
-			// output and stays up.
-			checks["niri_user_dinit_runtime"] = fmt.Sprintf("uid=$(id -u %s); export XDG_RUNTIME_DIR=/run/user/$uid; i=0; while [ $i -lt 90 ]; do out=$(dinitctl --user list 2>/dev/null) || { sleep 1; i=$((i+1)); continue; }; missing=''; svcs='niri dbus.user pipewire.user pipewire-pulse.user wireplumber.user polkit-agent.user dms.user wayvnc.user'; for s in $svcs; do echo \"$out\" | grep -Eq '(\\{\\+|\\[\\+).*\\] '\"$s\"'( |$)' || missing=\"$missing $s\"; done; if [ -z \"$missing\" ]; then echo 'user dinit stack running'; exit 0; fi; sleep 1; i=$((i+1)); done; echo \"user services not running:$missing\"; exit 1", cfg.InstalledUser)
-			// dms_runtime: process-level check (deeper than the dms.user
-			// service-list entry above). dms-session wrapper execs `dms run`;
-			// quickshell is the actual shell process — match both; adjust the
-			// pattern after run 1 if the cmdline differs.
-			checks["dms_runtime"] = fmt.Sprintf("i=0; while [ $i -lt 90 ]; do pgrep -u %s -f 'dms run|quickshell' >/dev/null && { echo 'dms shell running'; exit 0; }; sleep 1; i=$((i+1)); done; echo 'dms not running'; exit 1", cfg.InstalledUser)
-			// niri_layers: layer-shell surfaces MAPPED to an output — the
-			// "it actually displays" proof. DMS's bar is a layer-shell
-			// client (quickshell); a session with DMS running always maps
-			// >=1 layer surface, so `niri msg layers` must list an Output
-			// heading. Deeper than dms_runtime (process alive) and
-			// dms_ipc (IPC answers): proves the shell RENDERS.
-			// VERIFY the exact `niri msg layers` output shape on run 1.
-			checks["niri_layers"] = fmt.Sprintf("uid=$(id -u %s); i=0; while [ $i -lt 90 ]; do s=$(ls /run/user/$uid/niri*.sock 2>/dev/null | head -1); if [ -n \"$s\" ]; then out=$(NIRI_SOCKET=\"$s\" XDG_RUNTIME_DIR=/run/user/$uid niri msg layers 2>&1); if [ $? -eq 0 ]; then n=$(echo \"$out\" | grep -c '^Output'); if [ \"$n\" -ge 1 ]; then echo \"layer surfaces mapped on $n output(s)\"; echo \"$out\" | head -5; exit 0; fi; fi; fi; sleep 1; i=$((i+1)); done; echo 'no layer surfaces (DMS bar not rendered?)'; exit 1", cfg.InstalledUser)
-			// Session runtime sockets — the services being "started" in
-			// niri_user_dinit_runtime is necessary but not sufficient; the
-			// consumer endpoints must EXIST:
-			//   session_dbus_socket   — /run/user/$uid/bus (session bus)
-			//   session_pipewire_socket — /run/user/$uid/pipewire-0 (audio)
-			checks["session_dbus_socket"] = fmt.Sprintf("uid=$(id -u %s); i=0; while [ $i -lt 60 ]; do test -S /run/user/$uid/bus && { echo 'session dbus socket OK'; exit 0; }; sleep 1; i=$((i+1)); done; echo 'no session dbus socket'; exit 1", cfg.InstalledUser)
-			checks["session_pipewire_socket"] = fmt.Sprintf("uid=$(id -u %s); i=0; while [ $i -lt 60 ]; do test -S /run/user/$uid/pipewire-0 && { echo 'pipewire socket OK'; exit 0; }; sleep 1; i=$((i+1)); done; echo 'no pipewire socket'; exit 1", cfg.InstalledUser)
-		}
+		// User dinit session stack — BOTH inits: turnstile spawns the
+		// per-user dinit instance under OpenRC too (turnstiled runs as an
+		// OpenRC system service from the turnstile-openrc subpackage; the
+		// user backend is the same dinit). Every boot.d user service must
+		// show the started marker. dinitctl list renders started services
+		// as `[{+}] name (pid: ...)` — '{+' appears only when running. ERE
+		// anchors the name so '] niri' cannot match '] niri-shutdown'.
+		// dinitctl list marks DEPENDENCY-started services `[{+}]` and
+		// EXPLICITLY-started ones `[[+]]`. Accept both bracket styles;
+		// both mean running. wayvnc.user stays REQUIRED on every host:
+		// the GPU chain renders (virtio-vga-gl + egl-headless,gl=on +
+		// guest mesa edge 26.2.4 virgl restored), wayvnc holds an
+		// output and stays up.
+		checks["niri_user_dinit_runtime"] = fmt.Sprintf("uid=$(id -u %s); export XDG_RUNTIME_DIR=/run/user/$uid; i=0; while [ $i -lt 90 ]; do out=$(dinitctl --user list 2>/dev/null) || { sleep 1; i=$((i+1)); continue; }; missing=''; svcs='niri dbus.user pipewire.user pipewire-pulse.user wireplumber.user polkit-agent.user dms.user wayvnc.user'; for s in $svcs; do echo \"$out\" | grep -Eq '(\\{\\+|\\[\\+).*\\] '\"$s\"'( |$)' || missing=\"$missing $s\"; done; if [ -z \"$missing\" ]; then echo 'user dinit stack running'; exit 0; fi; sleep 1; i=$((i+1)); done; echo \"user services not running:$missing\"; exit 1", cfg.InstalledUser)
+		// dms_runtime: process-level check (deeper than the dms.user
+		// service-list entry above). dms-session wrapper execs `dms run`;
+		// quickshell is the actual shell process — match both; adjust the
+		// pattern after run 1 if the cmdline differs.
+		checks["dms_runtime"] = fmt.Sprintf("i=0; while [ $i -lt 90 ]; do pgrep -u %s -f 'dms run|quickshell' >/dev/null && { echo 'dms shell running'; exit 0; }; sleep 1; i=$((i+1)); done; echo 'dms not running'; exit 1", cfg.InstalledUser)
+		// niri_layers: layer-shell surfaces MAPPED to an output — the
+		// "it actually displays" proof. DMS's bar is a layer-shell
+		// client (quickshell); a session with DMS running always maps
+		// >=1 layer surface, so `niri msg layers` must list an Output
+		// heading. Deeper than dms_runtime (process alive) and
+		// dms_ipc (IPC answers): proves the shell RENDERS.
+		// VERIFY the exact `niri msg layers` output shape on run 1.
+		checks["niri_layers"] = fmt.Sprintf("uid=$(id -u %s); i=0; while [ $i -lt 90 ]; do s=$(ls /run/user/$uid/niri*.sock 2>/dev/null | head -1); if [ -n \"$s\" ]; then out=$(NIRI_SOCKET=\"$s\" XDG_RUNTIME_DIR=/run/user/$uid niri msg layers 2>&1); if [ $? -eq 0 ]; then n=$(echo \"$out\" | grep -c '^Output'); if [ \"$n\" -ge 1 ]; then echo \"layer surfaces mapped on $n output(s)\"; echo \"$out\" | head -5; exit 0; fi; fi; fi; sleep 1; i=$((i+1)); done; echo 'no layer surfaces (DMS bar not rendered?)'; exit 1", cfg.InstalledUser)
+		// Session runtime sockets — the services being "started" in
+		// niri_user_dinit_runtime is necessary but not sufficient; the
+		// consumer endpoints must EXIST:
+		//   session_dbus_socket   — /run/user/$uid/bus (session bus)
+		//   session_pipewire_socket — /run/user/$uid/pipewire-0 (audio)
+		checks["session_dbus_socket"] = fmt.Sprintf("uid=$(id -u %s); i=0; while [ $i -lt 60 ]; do test -S /run/user/$uid/bus && { echo 'session dbus socket OK'; exit 0; }; sleep 1; i=$((i+1)); done; echo 'no session dbus socket'; exit 1", cfg.InstalledUser)
+		checks["session_pipewire_socket"] = fmt.Sprintf("uid=$(id -u %s); i=0; while [ $i -lt 60 ]; do test -S /run/user/$uid/pipewire-0 && { echo 'pipewire socket OK'; exit 0; }; sleep 1; i=$((i+1)); done; echo 'no pipewire socket'; exit 1", cfg.InstalledUser)
 		// GPU userspace drivers (videoDriver: virtio) — packages must be
 		// installed AND the gallium megadriver must exist under /usr/lib/dri
 		// (virtio_gpu_dri.so; verify the exact filename on run 1 and adjust

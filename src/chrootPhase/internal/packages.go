@@ -289,7 +289,8 @@ func installDinitPackages(conf *config.Config) error {
 		replaced[base] = true
 	}
 
-	// Daemons managed ELSEWHERE — no system dinit service:
+	// Daemons managed ELSEWHERE — never converted (no system dinit service,
+	// or the dinit service already ships in the main package):
 	//   pipewire/pipewire-pulse/wireplumber — user dinit (niri-session
 	//     wrapper starts the user manager; system instances would run as
 	//     root and fight the session ones)
@@ -300,6 +301,10 @@ func installDinitPackages(conf *config.Config) error {
 	//   wireguard-tools — wg-quick is per-interface; WireGuard goes through
 	//     NetworkManager (native support) or manual config
 	//   openconnect/vpnc — VPN clients spawned by NetworkManager on demand
+	//   turnstile — the dinit service (/etc/dinit.d/turnstiled) ships in the
+	//     MAIN turnstile package (upstream data/dinit, kept: FeralOS dinit is
+	//     PID 1); there is no turnstile-dinit subpackage. Its -openrc
+	//     subpackage (turnstile-openrc) exists for the OpenRC flow only.
 	sessionSkip := map[string]bool{
 		"pipewire":        true,
 		"pipewire-pulse":  true,
@@ -311,6 +316,7 @@ func installDinitPackages(conf *config.Config) error {
 		"wireguard-tools": true,
 		"openconnect":     true,
 		"vpnc":            true,
+		"turnstile":       true,
 	}
 
 	installed, skipped, managedSkipped := 0, 0, 0
@@ -349,7 +355,7 @@ func installDinitPackages(conf *config.Config) error {
 		fmt.Printf("[INFO] Dinit conversion: %d -openrc packages covered by dinit-chimera (not converted)\n", skipped)
 	}
 	if managedSkipped > 0 {
-		fmt.Printf("[INFO] Dinit conversion: %d session/NM-managed services skipped (pipewire stack, wpa_supplicant, wireguard-tools, alsa-utils, pulseaudio, gnome-keyring, openconnect, vpnc)\n", managedSkipped)
+		fmt.Printf("[INFO] Dinit conversion: %d session/NM-managed services skipped (pipewire stack, wpa_supplicant, wireguard-tools, alsa-utils, pulseaudio, gnome-keyring, openconnect, vpnc, turnstile)\n", managedSkipped)
 	}
 	if len(missing) > 0 {
 		fmt.Printf("[WARNING] %d -dinit packages missing from repo (create them):\n", len(missing))
