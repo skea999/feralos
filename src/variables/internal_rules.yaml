@@ -238,6 +238,22 @@ desktopEnvironments:
     # remains unpackaged (unrelated to the desktop stack).
     # RustDesk removed (round 43 cleanup + user decision): wayvnc is the
     # remote-desktop path (user dinit service, loopback by default).
+  niriWayle:
+    packages: ["niri", "niri-portalsconf", "greetd", "greetd-regreet", "elogind", "dbus", "alacritty", "xdg-desktop-portal-wlr", "xdg-desktop-portal-gtk", "polkit-elogind", "polkit-gnome", "xwayland-satellite", "xwayland", "mesa-dri-gallium", "wayland-libs-server", "turnstile", "accountsservice", "power-profiles-daemon", "upower", "wl-clipboard-rs", "wayle", "wayle-session", "veila", "raffi", "oo7", "oo7-pam", "oo7-cli", "oo7-portal", "matugen", "dbus-user-dinit", "pipewire-user-dinit", "pipewire-pulse-user-dinit", "wireplumber-user-dinit", "wayland-wait-user-dinit", "polkit-agent-user-dinit", "wayvnc", "wayvnc-user-dinit", "networkmanager", "networkmanager-cli", "networkmanager-tui", "networkmanager-wifi", "wireless-regdb", "bluez", "wpa_supplicant", "wireguard-tools", "firewalld", "iptables", "ip6tables", "ebtables", "dconf", "xdg-user-dirs", "wtype", "i2c-tools", "adwaita-icon-theme", "hicolor-icon-theme", "font-terminus", "font-inconsolata", "font-dejavu", "font-noto", "font-noto-cjk", "font-awesome", "font-noto-extra"]
+    # niriWayle: niri compositor + Wayle shell (bar/notifications/OSD/wallpaper)
+    # + Veila lock screen + Raffi launcher + oo7 secrets (gnome-keyring replacement).
+    # Shares the session infra with niri: turnstile + per-user dinit, pipewire
+    # stack via *-user-dinit, portals, polkit agent, wayvnc.
+    # wayle-session depends on niri-user-dinit (login-shell + niri user service)
+    # and ships the wayle-session script + wayle.user/veila.user + niriwayle.desktop.
+    # No stasis in v1 — veila daemon covers lock-on-idle + lock-before-sleep
+    # (elogind PrepareForSleep); stasis (dpms/suspend plans) is a future add.
+    # Apps (browser/office/etc) are intentionally NOT listed — added per-install.
+    services: {"greetd": "default", "elogind": "default", "firewalld": "default", "polkit": "default", "networkmanager": "default", "bluetooth": "default"}
+    # upower has no dinit service: upowerd is dbus system-activated when Wayle
+    # queries org.freedesktop.UPower (upower ships the dbus system-service file).
+    # OpenRC side: upower-openrc is install_if-pulled like every -openrc pkg.
+    groups: ["video", "input", "audio", "plugdev", "netdev"]
   cosmic:
     packages: ["cosmic-session", "cosmic-term", "cosmic-greeter", "cosmic-edit", "cosmic-player", "cosmic-store", "cosmic-settings", "cosmic-screenshot", "cosmic-icons", "cosmic-initial-setup", "adwaita-icon-theme", "desktop-file-utils", "hicolor-icon-theme", "seatd", "dbus", "polkit", "pipewire", "xdg-desktop-portal-cosmic"]
     services: {"cosmic-greeter": "default", "seatd": "default", "dbus": "default"}

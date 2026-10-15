@@ -24,7 +24,7 @@ variables:
 
   # Layout
   diskLayout: "btrfsStandard"       # Options: btrfsStandardServer, btrfsStandard, btrfsRaid0, btrfsUnencrypted
-  desktopEnvironment: "niri"        # Options: none, kde, niri, cosmic
+  desktopEnvironment: "niri"        # Options: none, kde, niri, niriWayle, cosmic
   videoDriver: "virtio"               # Options: none, amdgpu, nvidia, intel, virtio (QEMU)
 
   # SSH (optional)

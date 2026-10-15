@@ -34,6 +34,7 @@ const (
 	layoutBtrfsRaid0          = "btrfsRaid0"
 	sshUserSkea               = "skea"
 	desktopNiri               = "niri"
+	desktopNiriWayle          = "niriWayle"
 	// targetShutdownTimeout bounds the wait for the target VM to power off
 	// after a shutdown request — fail the run instead of hanging forever.
 	targetShutdownTimeout = 5 * time.Minute
@@ -1170,12 +1171,17 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg *RunConfig,
 		return RunResult{}, diagErr
 	}
 
-	// TEST-ONLY (niri): inject greetd autologin so the verification boot
-	// starts the real user niri session — required by the niri runtime
-	// checks (niri_session_user, niri_wayland_socket, niri_ipc, ...). The
-	// VM disk is discarded after the run; the installer never writes this.
-	if cfg.DesktopEnvironment == desktopNiri {
-		err = enableNiriTestAutologin(ctx, targetGuest, cfg.InstalledUser)
+	// TEST-ONLY (niri family): inject greetd autologin so the verification
+	// boot starts the real user session (niri-session / wayle-session) —
+	// required by the niri runtime checks (niri_session_user,
+	// niri_wayland_socket, niri_ipc, ...). The VM disk is discarded after
+	// the run; the installer never writes this.
+	if cfg.DesktopEnvironment == desktopNiri || cfg.DesktopEnvironment == desktopNiriWayle {
+		sessionCmd := "niri-session"
+		if cfg.DesktopEnvironment == desktopNiriWayle {
+			sessionCmd = "wayle-session"
+		}
+		err = enableNiriTestAutologin(ctx, targetGuest, cfg.InstalledUser, sessionCmd)
 		if err != nil {
 			_ = targetInstance.Kill()
 			active.Status = statusFailed
@@ -1183,7 +1189,7 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg *RunConfig,
 			_ = stateStore.Save(active)
 			return RunResult{}, err
 		}
-		logHarness("harness: test-only greetd autologin enabled for niri runtime verification (VM discarded after run)\n")
+		logHarness("harness: test-only greetd autologin enabled for niri-family runtime verification (session: %s, VM discarded after run)\n", sessionCmd)
 	}
 
 	// Power off and restart swtpm for verification boot
@@ -1336,10 +1342,10 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 	if cfg.Timeout <= 0 {
 		cfg.Timeout = 2 * time.Minute
 	}
-	// niri runtime checks (test-only greetd autologin session) poll up to
-	// 90s each for the session to come up; six of them in the worst case
-	// (session never starts) far exceed the 2min default verify budget.
-	if cfg.DesktopEnvironment == desktopNiri && cfg.Timeout < 10*time.Minute {
+	// niri-family runtime checks (test-only greetd autologin session) poll
+	// up to 90s each for the session to come up; six of them in the worst
+	// case (session never starts) far exceed the 2min default verify budget.
+	if (cfg.DesktopEnvironment == desktopNiri || cfg.DesktopEnvironment == desktopNiriWayle) && cfg.Timeout < 10*time.Minute {
 		cfg.Timeout = 10 * time.Minute
 	}
 
@@ -1427,9 +1433,24 @@ echo 'fish history clean (no clap error)'`,
 		"nix_packages_missing": fmt.Sprintf("su - %s -c 'nix profile list 2>/dev/null' | grep -oE \"quickshell|dms-shell|rclone-ui|rclone|mission-center|cups-browsed\" | sort -u | wc -l", cfg.InstalledUser),
 	}
 
-	// niri desktop environment checks — greetd session, niri configs,
-	// DMS (native apk package dms-shell + quickshell, feralos-aports).
-	if cfg.DesktopEnvironment == desktopNiri {
+	// niri family checks — niri AND niriWayle share the compositor (niri),
+	// greeter (greetd/regreet), session stack (turnstile + per-user dinit),
+	// pipewire stack, portals, polkit agent and wayvnc. DMS-specific checks
+	// are niri-only; Wayle/Veila/Raffi/oo7 checks are niriWayle-only.
+	isNiriFamily := cfg.DesktopEnvironment == desktopNiri || cfg.DesktopEnvironment == desktopNiriWayle
+	// Per-DE session service lists:
+	//   dinit_user_services     — user service FILES shipped by the packages
+	//   user_services_enabled   — boot.d links (infra present, session apps absent)
+	//   niri_user_dinit_runtime — services that must hold a started marker
+	dinitUserSvcFiles := "dbus.user pipewire.user pipewire-pulse.user wireplumber.user wait-wayland.user polkit-agent.user dms.user"
+	sessionAppsAbsent := "polkit-agent.user dms.user wayvnc.user"
+	userDinitRuntimeSvcs := "niri dbus.user pipewire.user pipewire-pulse.user wireplumber.user polkit-agent.user dms.user wayvnc.user"
+	if cfg.DesktopEnvironment == desktopNiriWayle {
+		dinitUserSvcFiles = "dbus.user pipewire.user pipewire-pulse.user wireplumber.user wait-wayland.user polkit-agent.user wayle.user veila.user"
+		sessionAppsAbsent = "wayle.user veila.user polkit-agent.user"
+		userDinitRuntimeSvcs = "niri dbus.user pipewire.user pipewire-pulse.user wireplumber.user polkit-agent.user wayle.user veila.user wayvnc.user"
+	}
+	if isNiriFamily {
 		checks["niri_config_valid"] = fmt.Sprintf("niri validate --config /var/lib/greetd/.config/niri/config.kdl && niri validate --config /home/%s/.config/niri/config.kdl && grep -q '^prefer-no-csd' /home/%s/.config/niri/config.kdl && grep -q 'QT_WAYLAND_DISABLE_WINDOWDECORATION \"1\"' /home/%s/.config/niri/config.kdl && echo 'niri config valid (prefer-no-csd + Qt no-decoration; hotkey overlay intentionally NOT skipped)'", cfg.InstalledUser, cfg.InstalledUser, cfg.InstalledUser)
 		checks["greetd_config"] = "ls /etc/greetd/config.toml /etc/greetd/greeter.sh /etc/greetd/regreet.toml /var/lib/greetd/.config/niri/config.kdl && test -x /etc/greetd/greeter.sh && [ \"$(id -u greeter)\" -lt 1000 ] && echo \"greeter is a system user (hidden from ReGreet's UID-filtered list)\""
 		// greetd_socket: greetd daemon alive (IPC socket). Runtime complement
@@ -1447,7 +1468,15 @@ echo 'fish history clean (no clap error)'`,
 		// the check races boot. Whole Verify budget is 2min; other checks
 		// take ~30s, so 60s worst case still fits.
 		checks["niri_greeter"] = "i=0; while [ $i -lt 60 ]; do pgrep -x niri >/dev/null && { echo 'niri running'; exit 0; }; sleep 1; i=$((i+1)); done; echo 'niri not running'; exit 1"
-		checks["dms_installed"] = "apk info -e dms-shell quickshell && test -x /usr/bin/dms"
+		// DMS-only (niri DE): niriWayle has NO DMS — Wayle is the shell.
+		if cfg.DesktopEnvironment == desktopNiri {
+			checks["dms_installed"] = "apk info -e dms-shell quickshell && test -x /usr/bin/dms"
+			// dms_window_buttons: the window-controls plugin chain — package
+			// installed (system dir /etc/xdg/quickshell/dms-plugins), plugin
+			// enabled in plugin_settings.json, widget wired in the bar's right
+			// section (settings.json seed).
+			checks["dms_window_buttons"] = fmt.Sprintf("apk info -e dms-window-buttons && test -f /etc/xdg/quickshell/dms-plugins/dmsWindowButtons/plugin.json && test -f /etc/xdg/quickshell/dms-plugins/dmsWindowButtons/WindowButtons.qml && grep -q dmsWindowButtons /home/%s/.config/DankMaterialShell/plugin_settings.json && grep -q dmsWindowButtons /home/%s/.config/DankMaterialShell/settings.json && echo 'window buttons plugin OK'", cfg.InstalledUser, cfg.InstalledUser)
+		}
 		// matugen: DMS dynamic-theming backend (feralos-aports 4.2.0, absent
 		// in Alpine). dms-shell runs it for wallpaper palettes; the generated
 		// DankMatugen KColorScheme export is what the theme-sync plugin
@@ -1461,11 +1490,6 @@ echo 'fish history clean (no clap error)'`,
 		// actually ON DISK (index.theme). The settings.ini is NOT seeded
 		// anymore — dms-theme-sync (plugin) writes it at runtime.
 		checks["dms_icons"] = "apk info -e adwaita-icon-theme hicolor-icon-theme && test -f /usr/share/icons/Adwaita/index.theme && echo 'icon themes OK (Adwaita present; settings.ini owned by dms-theme-sync)'"
-		// dms_window_buttons: the window-controls plugin chain — package
-		// installed (system dir /etc/xdg/quickshell/dms-plugins), plugin
-		// enabled in plugin_settings.json, widget wired in the bar's right
-		// section (settings.json seed).
-		checks["dms_window_buttons"] = fmt.Sprintf("apk info -e dms-window-buttons && test -f /etc/xdg/quickshell/dms-plugins/dmsWindowButtons/plugin.json && test -f /etc/xdg/quickshell/dms-plugins/dmsWindowButtons/WindowButtons.qml && grep -q dmsWindowButtons /home/%s/.config/DankMaterialShell/plugin_settings.json && grep -q dmsWindowButtons /home/%s/.config/DankMaterialShell/settings.json && echo 'window buttons plugin OK'", cfg.InstalledUser, cfg.InstalledUser)
 		// bluetooth_service: DMS BT widget speaks org.bluez dbus — the stack
 		// must be alive. Name UNIFIED at "bluetooth" on both inits (feralos
 		// bluez-dinit r2 ships /lib/dinit.d/bluetooth). Three assertions:
@@ -1503,8 +1527,9 @@ echo 'fish history clean (no clap error)'`,
 			checks["console_keymap"] = "grep -q 'bkeymaps' /etc/conf.d/loadkmap && rc-status --all 2>/dev/null | grep -E 'loadkmap[^[]*\\[ *started' && echo 'console keymap loaded (openrc)'"
 		}
 		// user dinit services: supervised session stack (dbus/audio/wayland
-		// gate/polkit-agent/dms) shipped by *-user-dinit packages + dms-shell
-		checks["dinit_user_services"] = "for s in dbus.user pipewire.user pipewire-pulse.user wireplumber.user wait-wayland.user polkit-agent.user dms.user; do test -f /etc/dinit.d/user/$s || { echo \"missing $s\"; exit 1; }; done; echo 'user services OK'"
+		// gate/polkit-agent + dms OR wayle/veila) shipped by *-user-dinit
+		// packages (per-DE list above)
+		checks["dinit_user_services"] = fmt.Sprintf("for s in %s; do test -f /etc/dinit.d/user/$s || { echo \"missing $s\"; exit 1; }; done; echo 'user services OK'", dinitUserSvcFiles)
 		// niri session wiring: FeralOS niri-session (niri-user-dinit, no
 		// shells/re-exec traps), login-shell trick (passwd shell listed in
 		// /etc/shells — pkexec requires it), turnstile PAM → user dinit,
@@ -1530,13 +1555,18 @@ echo 'fish history clean (no clap error)'`,
 			checks["openrc_fallback_ready"] = "test -L /etc/runlevels/default/turnstiled && test -L /etc/runlevels/default/greetd && test -L /etc/runlevels/boot/vector-setup && test -L /etc/runlevels/boot/klogd && test -x /etc/init.d/vector-setup && test -x /etc/init.d/turnstiled && apk info -e klogd-openrc >/dev/null && echo 'OpenRC fallback ready (runlevels + services)'"
 		}
 		// user_services_enabled: infrastructure services only in the
-		// system-wide boot.d. Session apps (polkit-agent/dms/wayvnc) are
-		// bound to the niri session (started by niri-session, upstream
+		// system-wide boot.d. Session apps (per-DE absent list: niri →
+		// polkit-agent/dms/wayvnc; niriWayle → wayle/veila/polkit-agent)
+		// are bound to the session (started by the session script, upstream
 		// "add-wants niri.service" model) — they must NOT be in boot.d,
 		// or every login (greetd greeter included) would start them.
-		checks["user_services_enabled"] = "for s in dbus.user pipewire.user pipewire-pulse.user wireplumber.user wait-wayland.user; do test -e /usr/lib/dinit.d/user/boot.d/$s || { echo \"missing $s\"; exit 1; }; done; for s in polkit-agent.user dms.user wayvnc.user; do test -e /usr/lib/dinit.d/user/boot.d/$s && { echo \"session app $s must not be in boot.d\"; exit 1; }; done; echo ok"
-		// gnome-keyring: package + D-Bus secrets service + PAM unlock lines in greetd
-		checks["gnome_keyring"] = "apk info -e gnome-keyring && test -f /usr/share/dbus-1/services/org.freedesktop.secrets.service && grep -q pam_gnome_keyring /etc/pam.d/greetd"
+		checks["user_services_enabled"] = fmt.Sprintf("for s in dbus.user pipewire.user pipewire-pulse.user wireplumber.user wait-wayland.user; do test -e /usr/lib/dinit.d/user/boot.d/$s || { echo \"missing $s\"; exit 1; }; done; for s in %s; do test -e /usr/lib/dinit.d/user/boot.d/$s && { echo \"session app $s must not be in boot.d\"; exit 1; }; done; echo ok", sessionAppsAbsent)
+		// gnome-keyring: package + D-Bus secrets service + PAM unlock lines
+		// in greetd. NIRI-ONLY: niriWayle has NO gnome-keyring (oo7 handles
+		// secrets there).
+		if cfg.DesktopEnvironment == desktopNiri {
+			checks["gnome_keyring"] = "apk info -e gnome-keyring && test -f /usr/share/dbus-1/services/org.freedesktop.secrets.service && grep -q pam_gnome_keyring /etc/pam.d/greetd"
+		}
 		// Runtime checks — the verification boot runs the REAL user session:
 		// the harness injected a test-only greetd [initial_session]
 		// (enableNiriTestAutologin, VM discarded after run) because nobody
@@ -1562,7 +1592,8 @@ echo 'fish history clean (no clap error)'`,
 		// host virglrenderer 1.3.0 + kernel >=6.13) — niri holds Virtual-1
 		// 1280x800 in QEMU too.
 		checks["niri_outputs_count"] = fmt.Sprintf("uid=$(id -u %s); s=$(ls /run/user/$uid/niri*.sock 2>/dev/null | head -1); out=$(NIRI_SOCKET=\"$s\" XDG_RUNTIME_DIR=/run/user/$uid niri msg outputs 2>&1); if [ $? -ne 0 ]; then echo 'niri msg outputs failed'; exit 1; fi; n=$(echo \"$out\" | grep -c '^Output'); if [ \"$n\" -ge 1 ]; then echo \"outputs: $n\"; exit 0; fi; echo 'no outputs'; exit 1", cfg.InstalledUser)
-		// dms_ipc: DMS IPC liveness through the real CLI. Syntax VERIFIED
+		// dms_ipc (NIRI-ONLY: niriWayle has no DMS): DMS IPC liveness
+		// through the real CLI. Syntax VERIFIED
 		// empirically on the LIVE target of run 2026-10-05T00-42-34Z:
 		// `dms ipc call outputs status` answers `auto: off / active: none /
 		// outputs: []` rc 0 (the empty list is the QEMU zero-output
@@ -1578,7 +1609,9 @@ echo 'fish history clean (no clap error)'`,
 		// The client locates the running shell's socket via
 		// XDG_RUNTIME_DIR (DMS_SOCKET may override); NIRI_SOCKET exported
 		// for symmetry with the niri checks.
-		checks["dms_ipc"] = fmt.Sprintf("i=0; while [ $i -lt 60 ]; do su - %s -s /bin/sh -c 'export XDG_RUNTIME_DIR=/run/user/$(id -u); NIRI_SOCKET=$(ls /run/user/$(id -u)/niri*.sock 2>/dev/null | head -1); timeout 10 dms ipc call outputs status' >/dev/null 2>&1 && { echo 'dms IPC OK'; exit 0; }; sleep 1; i=$((i+1)); done; echo 'dms IPC failed'; exit 1", cfg.InstalledUser)
+		if cfg.DesktopEnvironment == desktopNiri {
+			checks["dms_ipc"] = fmt.Sprintf("i=0; while [ $i -lt 60 ]; do su - %s -s /bin/sh -c 'export XDG_RUNTIME_DIR=/run/user/$(id -u); NIRI_SOCKET=$(ls /run/user/$(id -u)/niri*.sock 2>/dev/null | head -1); timeout 10 dms ipc call outputs status' >/dev/null 2>&1 && { echo 'dms IPC OK'; exit 0; }; sleep 1; i=$((i+1)); done; echo 'dms IPC failed'; exit 1", cfg.InstalledUser)
+		}
 		// User dinit session stack — BOTH inits: turnstile spawns the
 		// per-user dinit instance under OpenRC too (turnstiled runs as an
 		// OpenRC system service from the turnstile-openrc subpackage; the
@@ -1588,16 +1621,19 @@ echo 'fish history clean (no clap error)'`,
 		// anchors the name so '] niri' cannot match '] niri-shutdown'.
 		// dinitctl list marks DEPENDENCY-started services `[{+}]` and
 		// EXPLICITLY-started ones `[[+]]`. Accept both bracket styles;
-		// both mean running. wayvnc.user stays REQUIRED on every host:
-		// the GPU chain renders (virtio-vga-gl + egl-headless,gl=on +
-		// guest mesa edge 26.2.4 virgl restored), wayvnc holds an
-		// output and stays up.
-		checks["niri_user_dinit_runtime"] = fmt.Sprintf("uid=$(id -u %s); export XDG_RUNTIME_DIR=/run/user/$uid; i=0; while [ $i -lt 90 ]; do out=$(dinitctl --user list 2>/dev/null) || { sleep 1; i=$((i+1)); continue; }; missing=''; svcs='niri dbus.user pipewire.user pipewire-pulse.user wireplumber.user polkit-agent.user dms.user wayvnc.user'; for s in $svcs; do echo \"$out\" | grep -Eq '(\\{\\+|\\[\\+).*\\] '\"$s\"'( |$)' || missing=\"$missing $s\"; done; if [ -z \"$missing\" ]; then echo 'user dinit stack running'; exit 0; fi; sleep 1; i=$((i+1)); done; echo \"user services not running:$missing\"; exit 1", cfg.InstalledUser)
-		// dms_runtime: process-level check (deeper than the dms.user
-		// service-list entry above). dms-session wrapper execs `dms run`;
-		// quickshell is the actual shell process — match both; adjust the
-		// pattern after run 1 if the cmdline differs.
-		checks["dms_runtime"] = fmt.Sprintf("i=0; while [ $i -lt 90 ]; do pgrep -u %s -f 'dms run|quickshell' >/dev/null && { echo 'dms shell running'; exit 0; }; sleep 1; i=$((i+1)); done; echo 'dms not running'; exit 1", cfg.InstalledUser)
+		// both mean running. Service list is PER-DE (niri: dms.user;
+		// niriWayle: wayle.user + veila.user). wayvnc.user stays REQUIRED
+		// on every host: the GPU chain renders (virtio-vga-gl +
+		// egl-headless,gl=on + guest mesa edge 26.2.4 virgl restored),
+		// wayvnc holds an output and stays up.
+		checks["niri_user_dinit_runtime"] = fmt.Sprintf("uid=$(id -u %s); export XDG_RUNTIME_DIR=/run/user/$uid; i=0; while [ $i -lt 90 ]; do out=$(dinitctl --user list 2>/dev/null) || { sleep 1; i=$((i+1)); continue; }; missing=''; svcs='%s'; for s in $svcs; do echo \"$out\" | grep -Eq '(\\{\\+|\\[\\+).*\\] '\"$s\"'( |$)' || missing=\"$missing $s\"; done; if [ -z \"$missing\" ]; then echo 'user dinit stack running'; exit 0; fi; sleep 1; i=$((i+1)); done; echo \"user services not running:$missing\"; exit 1", cfg.InstalledUser, userDinitRuntimeSvcs)
+		// dms_runtime (NIRI-ONLY): process-level check (deeper than the
+		// dms.user service-list entry above). dms-session wrapper execs
+		// `dms run`; quickshell is the actual shell process — match both;
+		// adjust the pattern after run 1 if the cmdline differs.
+		if cfg.DesktopEnvironment == desktopNiri {
+			checks["dms_runtime"] = fmt.Sprintf("i=0; while [ $i -lt 90 ]; do pgrep -u %s -f 'dms run|quickshell' >/dev/null && { echo 'dms shell running'; exit 0; }; sleep 1; i=$((i+1)); done; echo 'dms not running'; exit 1", cfg.InstalledUser)
+		}
 		// niri_layers: layer-shell surfaces MAPPED to an output — the
 		// "it actually displays" proof. DMS's bar is a layer-shell
 		// client (quickshell); a session with DMS running always maps
@@ -1638,7 +1674,27 @@ echo 'fish history clean (no clap error)'`,
 		// immediate ls -t keeps seeing the previous shot (n == f race,
 		// lost 90/90 on the live target 2026-10-09). 1s settle after the
 		// action lets the write land.
-		checks["niri_screenshot"] = fmt.Sprintf("uid=$(id -u %s); i=0; while [ $i -lt 60 ]; do s=$(ls /run/user/$uid/niri*.sock 2>/dev/null | head -1); if [ -n \"$s\" ]; then b=$(ls /home/%s/Pictures/Screenshots/*.png 2>/dev/null | wc -l); XDG_RUNTIME_DIR=/run/user/$uid WAYLAND_DISPLAY=wayland-1 NIRI_SOCKET=\"$s\" niri msg action screenshot-screen >/dev/null 2>&1; sleep 1; a=$(ls /home/%s/Pictures/Screenshots/*.png 2>/dev/null | wc -l); if [ \"$a\" -gt \"$b\" ]; then n=$(ls -t /home/%s/Pictures/Screenshots/*.png 2>/dev/null | head -1); if ! head -c 8 \"$n\" | od -An -tx1 | grep -q '89 50 4e 47 0d 0a 1a 0a'; then echo \"screenshot NOT a valid PNG: $n\"; exit 1; fi; echo \"screenshot OK (valid PNG): $n ($(wc -c < \"$n\") bytes)\"; exit 0; fi; fi; sleep 1; i=$((i+1)); done; echo 'screenshot failed'; exit 1", cfg.InstalledUser, cfg.InstalledUser, cfg.InstalledUser, cfg.InstalledUser)
+		checks["niri_screenshot"] = fmt.Sprintf("uid=$(id -u %s); i=0; while [ $i -lt 60 ]; do s=$(ls /run/user/$uid/niri*.sock 2>/dev/null | head -1); if [ -n \"$s\" ]; then b=$(ls /home/%s/Pictures/Screenshots/*.png 2>/dev/null | wc -l); XDG_RUNTIME_DIR=/run/user/$uid WAYLAND_DISPLAY=wayland-1 NIRI_SOCKET=\"$s\" niri msg action screenshot-screen >/dev/null 2>&1; sleep 1; a=$(ls /home/%s/Pictures/Screenshots/*.png 2>/dev/null | wc -l); if [ \"$a\" -gt \"$b\" ]; then n=$(ls -t /home/%s/Pictures/Screenshots/*.png 2>/dev/null | head -1); if ! head -c 8 \"$n\" | od -An -tx1 | grep -q '89 50 4e 47 0d 0a 1a 0a'; then echo \"screenshot NOT a valid PNG: $n\"; exit 1; fi; echo \"screenshot OK (valid PNG): $n ($(wc -c < \"$n\") bytes)\"; exit 0; fi; fi; sleep 1; i=$((i+1)); 		done; echo 'screenshot failed'; exit 1", cfg.InstalledUser, cfg.InstalledUser, cfg.InstalledUser, cfg.InstalledUser)
+	}
+
+	// niriWayle-only checks — Wayle shell, Veila lock daemon, Raffi
+	// launcher, oo7 secrets. niri has no counterpart here (and vice versa:
+	// the DMS checks above are niri-only).
+	if cfg.DesktopEnvironment == desktopNiriWayle {
+		// wayle_running: the Wayle shell process (bar/notifications/OSD/
+		// wallpaper) alive for the session user. Poll 90s like the other
+		// session checks — the shell starts after greetd + turnstile +
+		// user dinit + niri.
+		checks["wayle_running"] = fmt.Sprintf("i=0; while [ $i -lt 90 ]; do pgrep -u %s -f '/usr/bin/wayle' >/dev/null && { echo 'wayle shell running'; exit 0; }; sleep 1; i=$((i+1)); done; echo 'wayle not running'; exit 1", cfg.InstalledUser)
+		// veila_daemon: the Veila lock-screen daemon (lock-on-idle +
+		// lock-before-sleep via elogind PrepareForSleep).
+		checks["veila_daemon"] = fmt.Sprintf("i=0; while [ $i -lt 90 ]; do pgrep -u %s -f 'veilad' >/dev/null && { echo 'veila daemon running'; exit 0; }; sleep 1; i=$((i+1)); done; echo 'veilad not running'; exit 1", cfg.InstalledUser)
+		// raffi_installed: launcher package + binary on PATH.
+		checks["raffi_installed"] = "apk info -e raffi && test -x /usr/bin/raffi && echo 'raffi installed'"
+		// oo7_secrets: gnome-keyring replacement — suite core + PAM module
+		// packages present (runtime unlock wiring is a documented
+		// follow-up; this asserts the packages the DE ships).
+		checks["oo7_secrets"] = "apk info -e oo7 oo7-pam && echo 'oo7 secrets installed'"
 	}
 
 	// Flatpak checks — generic, only when a fixture explicitly requests
@@ -1710,11 +1766,18 @@ echo 'fish history clean (no clap error)'`,
 		// exec target is the busybox /sbin/poweroff (SIGUSR2, ignored).
 		// + polkit power rule: NoSessionForPID under dinit otherwise turns
 		// every login1 power action into an auth challenge.
-		// + DMS custom reboot: customPowerActionReboot (sudo -n /usr/bin/reboot)
-		// via /etc/sudoers.d/zz-power — must sort AFTER /etc/sudoers.d/wheel
-		// (`%wheel ALL=(ALL) ALL`; sudo-rs last-match-wins would override
-		// the NOPASSWD tag otherwise — live-caught 2026-10-11).
-		checks["dinit_shutdown_commands"] = fmt.Sprintf("test -x /usr/bin/poweroff -a -x /usr/bin/reboot -a -x /usr/bin/halt -a -x /usr/bin/shutdown -a -x /usr/bin/soft-reboot && test -x /etc/elogind/system-shutdown/50-feralos-dinit.sh && grep -q dinit-poweroff /etc/elogind/system-shutdown/50-feralos-dinit.sh && test -f /etc/polkit-1/rules.d/49-feralos-power.rules && grep -q login1.power-off /etc/polkit-1/rules.d/49-feralos-power.rules && test -f /etc/sudoers.d/zz-power && grep -q '/usr/bin/reboot' /etc/sudoers.d/zz-power && grep -q customPowerActionReboot /home/%s/.config/DankMaterialShell/settings.json && echo 'shutdown commands OK' || { echo 'shutdown commands MISSING'; exit 1; }", cfg.InstalledUser)
+		// + DMS custom reboot (niri only): customPowerActionReboot
+		// (sudo -n /usr/bin/reboot) via /etc/sudoers.d/zz-power — must sort
+		// AFTER /etc/sudoers.d/wheel (`%wheel ALL=(ALL) ALL`; sudo-rs
+		// last-match-wins would override the NOPASSWD tag otherwise —
+		// live-caught 2026-10-11). niriWayle writes the same zz-power rule
+		// but has NO DMS settings.json (Wayle power-module wiring is a
+		// follow-up) — the customPowerActionReboot grep is niri-only.
+		shutdownCmd := "test -x /usr/bin/poweroff -a -x /usr/bin/reboot -a -x /usr/bin/halt -a -x /usr/bin/shutdown -a -x /usr/bin/soft-reboot && test -x /etc/elogind/system-shutdown/50-feralos-dinit.sh && grep -q dinit-poweroff /etc/elogind/system-shutdown/50-feralos-dinit.sh && test -f /etc/polkit-1/rules.d/49-feralos-power.rules && grep -q login1.power-off /etc/polkit-1/rules.d/49-feralos-power.rules && test -f /etc/sudoers.d/zz-power && grep -q '/usr/bin/reboot' /etc/sudoers.d/zz-power"
+		if cfg.DesktopEnvironment == desktopNiri {
+			shutdownCmd += fmt.Sprintf(" && grep -q customPowerActionReboot /home/%s/.config/DankMaterialShell/settings.json", cfg.InstalledUser)
+		}
+		checks["dinit_shutdown_commands"] = shutdownCmd + " && echo 'shutdown commands OK' || { echo 'shutdown commands MISSING'; exit 1; }"
 		// conf.d-equivalent config files (Artix pattern): every -dinit
 		// package ships /etc/dinit.d/config/<svc>.conf sourced by its
 		// wrapper. Core set on any dinstall: dbus chronyd cronie acpid sshd
@@ -2348,8 +2411,10 @@ echo 'fish history clean (no clap error)'`,
 				"acpid", "irqbalance", "fwupd", "earlyoom", "incusd", "udev-postmount",
 			}
 			states := parseRCStatus(svcCheck.Detail)
-			// greetd + elogind are only expected when the niri desktop is enabled.
-			if cfg.DesktopEnvironment == desktopNiri {
+			// greetd + elogind are only expected when a niri-family desktop
+			// is enabled (niri, niriWayle — both enable them in their rules
+			// services map).
+			if cfg.DesktopEnvironment == desktopNiri || cfg.DesktopEnvironment == desktopNiriWayle {
 				expected = append(expected, "greetd", "elogind")
 			}
 			// swap service is conditional: only when swap exists (enableSwap for
@@ -3542,22 +3607,27 @@ done
 }
 
 // enableNiriTestAutologin appends a greetd [initial_session] stanza so the
-// verification boot logs straight into the niri user session — the runtime
+// verification boot logs straight into the user session — the runtime
 // checks (niri_session_user, niri_wayland_socket, niri_ipc, ...) need a real
-// session and nobody is present to log in.
+// session and nobody is present to log in. sessionCommand is DE-aware:
+// "niri-session" for niri, "wayle-session" for niriWayle.
 //
-// POLICY: harness = test + autologin config only; if niri-session does not
-// hold the greetd initial_session (async user-dinit spawn, dinitctl start
+// POLICY: harness = test + autologin config only; if the session command does
+// not hold the greetd initial_session (async user-dinit spawn, dinitctl start
 // returns early), the fix belongs in the installer or aports, never here.
 //
 // TEST-ONLY: the target disk is discarded after the harness run; the
 // installer itself never writes this stanza (the stock greetd config from
 // hostPhase stays untouched).
-func enableNiriTestAutologin(ctx context.Context, targetGuest guest.Options, installedUser string) error {
+func enableNiriTestAutologin(ctx context.Context, targetGuest guest.Options, installedUser, sessionCommand string) error {
+	// The [initial_session] stanza is built Go-side (no shell-printf format
+	// verbs — the command is parameterized, so printf '%s' gets the whole
+	// stanza as ONE pre-rendered argument).
+	stanza := fmt.Sprintf("\n[initial_session]\ncommand = %q\nuser = %q\n", sessionCommand, installedUser)
 	script := fmt.Sprintf(`set -eu
 f=/etc/greetd/config.toml
 if ! grep -q 'initial_session' "$f"; then
-	printf '\n[initial_session]\ncommand = "niri-session"\nuser = "%%s"\n' %s >> "$f"
+	printf '%%b' %s >> "$f"
 fi
 grep -q 'initial_session' "$f" || { echo 'initial_session marker missing after append'; exit 1; }
 if ! grep -Fq %s "$f"; then
@@ -3572,7 +3642,7 @@ fi
 install -d -o %s -g %s -m 2700 /home/%s/Pictures
 install -d -o %s -g %s -m 2700 /home/%s/Pictures/Screenshots
 echo 'test-only greetd autologin enabled'
-`, shellQuote(installedUser), shellQuote(`user = "`+installedUser+`"`), installedUser, installedUser, installedUser, installedUser, installedUser, installedUser)
+`, shellQuote(stanza), shellQuote(`user = "`+installedUser+`"`), installedUser, installedUser, installedUser, installedUser, installedUser, installedUser)
 	diag, err := runScriptOnTarget(ctx, targetGuest, script)
 	if err != nil {
 		return fmt.Errorf("niri test autologin: %w", err)

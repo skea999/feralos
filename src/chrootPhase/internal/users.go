@@ -12,7 +12,10 @@ import (
 func SetupUsers(conf *config.Config) error {
 	chroot := conf.Internal.ChrootDir
 	u := conf.User
-	isNiri := u.DesktopEnvironment == "niri"
+	// niri family (niri + niriWayle): both run the niri compositor with the
+	// turnstile/per-user-dinit session; wayle-session DEPENDS on
+	// niri-user-dinit, so the login-shell prerequisites arrive either way.
+	isNiri := u.DesktopEnvironment == "niri" || u.DesktopEnvironment == "niriWayle"
 
 	// 1. Root password — uses exec.Command with stdin (no shell, no logging)
 	fmt.Println("[INFO] Setting root password...")
@@ -23,10 +26,11 @@ func SetupUsers(conf *config.Config) error {
 	}
 
 	// 2. Create user — no shell, safe for variable username.
-	// niri: passwd shell = /usr/libexec/feralos/login-shell (shipped by
+	// niri family: passwd shell = /usr/libexec/feralos/login-shell (shipped by
 	// niri-user-dinit; installer re-points the symlink to fish, see below).
 	// The path is ALSO listed in /etc/shells (see below) so pkexec accepts
-	// the session shell.
+	// the session shell. niriWayle inherits this via its wayle-session →
+	// niri-user-dinit dependency.
 	fmt.Printf("[INFO] Creating user %s...\n", u.UserName)
 	adduserArgs := []string{"-D"}
 	if isNiri {

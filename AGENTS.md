@@ -8,6 +8,16 @@
 
 ## Recent Rounds (latest first)
 
+### 2026-10-16 - niriWayle: second desktop environment (niri + Wayle shell + Veila + Raffi + oo7) — harness 97/97
+**Agent:** codebase
+**Summary:** New `desktopEnvironment: niriWayle` — the niri compositor with the Wayle shell (bar/notifications/OSD/wallpaper built-in), Veila lock screen, Raffi launcher (native iced) and oo7 secrets (gnome-keyring replacement). Shares with the niri DE: turnstile + per-user dinit session, pipewire stack, portals, polkit agent, wayvnc, greetd+regreet greeter, elogind, matugen.
+- **aports** (`49fa80d` + `f040ebc` + `6934607`, CI green): wayle-0.7.0, veila-0.4.4, raffi-0.24.0, wl-clipboard-rs-0.9.4 (Rust wl-copy/wl-paste — niri author YaLTeR), upower-dinit, wayle-session-0.1.0-r2 (session script + wayle.user/veila.user + niriwayle.desktop; depends niri-user-dinit for login-shell + niri user service).
+- **Session gotchas (live-caught)**: (1) `wayle panel start` daemonizes+exits → dinit restart loop, started marker never held → `wayle shell` (foreground); (2) user-dinit services start before the compositor env exists → GTK init panic → `wayle-shell-session` wrapper resolves WAYLAND_DISPLAY/NIRI_SOCKET (mirrors wayvnc-session).
+- **installer**: `desktops/niri_wayle.go` (niri.go derivation minus DMS: no settings/plugin/session seeds, no dms includes, own binds block from upstream default-config minus the post-25.11 `toggle-touchpad` action — live-caught invalid in niri 25.11), `users.go` isNiri → niri|niriWayle (login-shell trick applies), gnome-keyring → oo7 (daemon + PAM + portal + CLI from Alpine; login-unlock wiring = follow-up), stasis deferred to v2 (veila daemon idle covers lock-on-idle + before-sleep).
+- **harness**: checks split niri-family vs niri-only(DMS) vs niriWayle-only (wayle_running, veila_daemon, raffi_installed, oo7_secrets); per-DE user-service lists; enableNiriTestAutologin DE-aware session command (wayle-session).
+- **Validated**: niriWayle dinit `2026-10-15T22-40-19Z` **97/97** (wayle shell + veilad + wayle-bar layer surface + full user dinit stack + wayvnc + screenshot); niri regression `2026-10-15T20-01-45Z` **98/98**.
+- **Follow-ups**: oo7 login-unlock PAM wiring (greetd stack); stasis v2 (dpms/suspend plans + media/gamepad); Wayle power-module → zz-power equivalent (Wayle power config key unknown, sudoers rule ready).
+
 ### 2026-10-14 - openrc-always: OpenRC enablement never conditional (dinit installs stay OpenRC-bootable) — dinit 98/98, OpenRC 82/82
 **Agent:** codebase
 **Summary:** User review correction: "OpenRC is never conditional — it gets enabled always". A dinit install must remain bootable under OpenRC (fallback), so every OpenRC enablement now runs regardless of the active init; the dinit-side enablement stays conditional (active-init only). The rc-update links are inert under dinit.

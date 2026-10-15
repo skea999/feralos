@@ -319,6 +319,12 @@ func installDinitPackages(conf *config.Config) error {
 		"openconnect":     true,
 		"vpnc":            true,
 		"turnstile":       true,
+		// oo7-portal / oo7-server — user-session secret daemons (Alpine ships
+		//   them with -openrc scripts; there are no -dinit variants). The
+		//   daemons are dbus/session-activated; the -openrc scripts stay
+		//   installed for the OpenRC fallback boot.
+		"oo7-portal": true,
+		"oo7-server": true,
 	}
 
 	installed, skipped, managedSkipped := 0, 0, 0
@@ -357,7 +363,7 @@ func installDinitPackages(conf *config.Config) error {
 		fmt.Printf("[INFO] Dinit conversion: %d -openrc packages covered by dinit-chimera (not converted)\n", skipped)
 	}
 	if managedSkipped > 0 {
-		fmt.Printf("[INFO] Dinit conversion: %d session/NM-managed services skipped (pipewire stack, wpa_supplicant, wireguard-tools, alsa-utils, pulseaudio, gnome-keyring, openconnect, vpnc, turnstile)\n", managedSkipped)
+		fmt.Printf("[INFO] Dinit conversion: %d session/NM-managed services skipped (pipewire stack, wpa_supplicant, wireguard-tools, alsa-utils, pulseaudio, gnome-keyring, openconnect, vpnc, turnstile, oo7)\n", managedSkipped)
 	}
 	if len(missing) > 0 {
 		fmt.Printf("[WARNING] %d -dinit packages missing from repo (create them):\n", len(missing))
