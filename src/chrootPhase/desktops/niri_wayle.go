@@ -137,17 +137,22 @@ hotkey-overlay {
 	// resolves niri-portals.conf from XDG_CURRENT_DESKTOP, and the xdg-su
 	// wrapper matches *niri*; the compositor IS niri either way.
 	environmentFile := fmt.Sprintf(`XDG_SESSION_DESKTOP=niri
-XDG_DATA_DIRS=/home/%s/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share:/usr/share
-`, u.UserName)
+XDG_DATA_DIRS=/home/%s/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share:/usr/share:/home/%s/.nix-profile/share
+`, u.UserName, u.UserName)
 	if err := writeFile(chroot, "/etc/environment", environmentFile); err != nil {
 		return fmt.Errorf("write /etc/environment: %w", err)
 	}
 
 	// 6. xdg-desktop-portal portal backend for the user — niri-portalsconf
 	// ships system default=gnome;gtk but ScreenCast needs the explicit wlr
-	// backend (shared with niri).
+	// backend (shared with niri). The Secret interface is pinned to
+	// oo7-portal (exact config the oo7 README prescribes; without the pin
+	// Secret would resolve implicitly to the gtk backend — niriWayle has
+	// NO gnome-keyring, so the org.freedesktop.secrets D-Bus name must be
+	// owned by oo7's portal).
 	userPortals := `[preferred]
 org.freedesktop.impl.portal.ScreenCast=wlr;
+org.freedesktop.impl.portal.Secret=oo7-portal;
 `
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p /home/%s/.config/xdg-desktop-portal", u.UserName)); err != nil {
 		return fmt.Errorf("mkdir user portals dir: %w", err)
@@ -182,7 +187,7 @@ environment {
     XDG_SESSION_TYPE "wayland"
     XDG_SESSION_DESKTOP "niri"
     XDG_CURRENT_DESKTOP "niri"
-    XDG_DATA_DIRS "/home/%s/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share:/usr/share"
+    XDG_DATA_DIRS "/home/%s/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share:/usr/share:/home/%s/.nix-profile/share"
     QT_QPA_PLATFORM "wayland"
     QT_QPA_PLATFORMTHEME "xdgdesktopportal"
     // Hard override: Qt drops client-side decorations (niri's prefer-no-csd
@@ -214,7 +219,7 @@ spawn-at-startup "sh" "-c" "command -v xdg-user-dirs-update >/dev/null 2>&1 && x
 
 // NO background-effect awk strip here (niri.go has one): the DMS layout.kdl
 // include does not exist in this DE — nothing to strip.
-`, u.Keymap, u.UserName)
+`, u.Keymap, u.UserName, u.UserName)
 	// Binds: niri's upstream default-config.kdl binds section, embedded
 	// verbatim with TWO adjustments (raw string — NOT passed through
 	// Sprintf, it contains % width arguments):
@@ -388,7 +393,7 @@ exec /usr/bin/xdg-su "$@"
 	// add-wants model) starts them after niri, so the greetd greeter session
 	// (greeter.sh, which never runs wayle-session) never gets desktop apps.
 	// Existence-filtered — only installed packages get enabled.
-	userServices := "dbus.user pipewire.user pipewire-pulse.user wireplumber.user wait-wayland.user"
+	userServices := "dbus.user pipewire.user pipewire-pulse.user wireplumber.user wait-wayland.user secrets.user oo7-portal.user xdg-desktop-portal.user xdg-document-portal.user xdg-permission-store.user"
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p /usr/lib/dinit.d/user/boot.d && for s in %s; do [ -f /etc/dinit.d/user/$s ] && ln -sf /etc/dinit.d/user/$s /usr/lib/dinit.d/user/boot.d/$s; done", userServices)); err != nil {
 		fmt.Printf("[WARNING] Failed to enable user dinit services: %v\n", err)
 	}

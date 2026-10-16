@@ -1442,13 +1442,15 @@ echo 'fish history clean (no clap error)'`,
 	//   dinit_user_services     — user service FILES shipped by the packages
 	//   user_services_enabled   — boot.d links (infra present, session apps absent)
 	//   niri_user_dinit_runtime — services that must hold a started marker
-	dinitUserSvcFiles := "dbus.user pipewire.user pipewire-pulse.user wireplumber.user wait-wayland.user polkit-agent.user dms.user"
+	dinitUserSvcFiles := "dbus.user pipewire.user pipewire-pulse.user wireplumber.user wait-wayland.user xdg-desktop-portal.user xdg-document-portal.user xdg-permission-store.user polkit-agent.user dms.user"
 	sessionAppsAbsent := "polkit-agent.user dms.user wayvnc.user"
-	userDinitRuntimeSvcs := "niri dbus.user pipewire.user pipewire-pulse.user wireplumber.user polkit-agent.user dms.user wayvnc.user"
+	userDinitRuntimeSvcs := "niri dbus.user pipewire.user pipewire-pulse.user wireplumber.user xdg-desktop-portal.user xdg-document-portal.user xdg-permission-store.user polkit-agent.user dms.user wayvnc.user"
+	userSvcBootLinks := "dbus.user pipewire.user pipewire-pulse.user wireplumber.user wait-wayland.user xdg-desktop-portal.user xdg-document-portal.user xdg-permission-store.user"
 	if cfg.DesktopEnvironment == desktopNiriWayle {
-		dinitUserSvcFiles = "dbus.user pipewire.user pipewire-pulse.user wireplumber.user wait-wayland.user polkit-agent.user wayle.user veila.user"
+		dinitUserSvcFiles = "dbus.user pipewire.user pipewire-pulse.user wireplumber.user wait-wayland.user xdg-desktop-portal.user xdg-document-portal.user xdg-permission-store.user secrets.user oo7-portal.user polkit-agent.user wayle.user veila.user"
 		sessionAppsAbsent = "wayle.user veila.user polkit-agent.user"
-		userDinitRuntimeSvcs = "niri dbus.user pipewire.user pipewire-pulse.user wireplumber.user polkit-agent.user wayle.user veila.user wayvnc.user"
+		userDinitRuntimeSvcs = "niri dbus.user pipewire.user pipewire-pulse.user wireplumber.user xdg-desktop-portal.user xdg-document-portal.user xdg-permission-store.user secrets.user oo7-portal.user polkit-agent.user wayle.user veila.user wayvnc.user"
+		userSvcBootLinks = "dbus.user pipewire.user pipewire-pulse.user wireplumber.user wait-wayland.user xdg-desktop-portal.user xdg-document-portal.user xdg-permission-store.user secrets.user oo7-portal.user"
 	}
 	if isNiriFamily {
 		checks["niri_config_valid"] = fmt.Sprintf("niri validate --config /var/lib/greetd/.config/niri/config.kdl && niri validate --config /home/%s/.config/niri/config.kdl && grep -q '^prefer-no-csd' /home/%s/.config/niri/config.kdl && grep -q 'QT_WAYLAND_DISABLE_WINDOWDECORATION \"1\"' /home/%s/.config/niri/config.kdl && echo 'niri config valid (prefer-no-csd + Qt no-decoration; hotkey overlay intentionally NOT skipped)'", cfg.InstalledUser, cfg.InstalledUser, cfg.InstalledUser)
@@ -1560,7 +1562,7 @@ echo 'fish history clean (no clap error)'`,
 		// are bound to the session (started by the session script, upstream
 		// "add-wants niri.service" model) — they must NOT be in boot.d,
 		// or every login (greetd greeter included) would start them.
-		checks["user_services_enabled"] = fmt.Sprintf("for s in dbus.user pipewire.user pipewire-pulse.user wireplumber.user wait-wayland.user; do test -e /usr/lib/dinit.d/user/boot.d/$s || { echo \"missing $s\"; exit 1; }; done; for s in %s; do test -e /usr/lib/dinit.d/user/boot.d/$s && { echo \"session app $s must not be in boot.d\"; exit 1; }; done; echo ok", sessionAppsAbsent)
+		checks["user_services_enabled"] = fmt.Sprintf("for s in %s; do test -e /usr/lib/dinit.d/user/boot.d/$s || { echo \"missing $s\"; exit 1; }; done; for s in %s; do test -e /usr/lib/dinit.d/user/boot.d/$s && { echo \"session app $s must not be in boot.d\"; exit 1; }; done; echo ok", userSvcBootLinks, sessionAppsAbsent)
 		// gnome-keyring: package + D-Bus secrets service + PAM unlock lines
 		// in greetd. NIRI-ONLY: niriWayle has NO gnome-keyring (oo7 handles
 		// secrets there).
@@ -1695,6 +1697,14 @@ echo 'fish history clean (no clap error)'`,
 		// packages present (runtime unlock wiring is a documented
 		// follow-up; this asserts the packages the DE ships).
 		checks["oo7_secrets"] = "apk info -e oo7 oo7-pam && echo 'oo7 secrets installed'"
+		// keyrack_flatpak: Key Rack (app.drey.KeyRack) is the niriWayle
+		// secrets GUI — Flathub flatpak, NOT an apk (seahorse conflicts
+		// with oo7-server on org.freedesktop.secrets.service; nixpkgs too
+		// old at 0.4.0). Asserts the system flatpak install AND the
+		// Secret portal pin (oo7 README config: niriWayle has no
+		// gnome-keyring, so Secret must resolve to oo7-portal explicitly).
+		// No DMI guard: flatpak + the portals conf are real on every host.
+		checks["keyrack_flatpak"] = fmt.Sprintf("flatpak info app.drey.KeyRack >/dev/null 2>&1 && grep -q 'org.freedesktop.impl.portal.Secret=oo7-portal' /home/%s/.config/xdg-desktop-portal/niri-portals.conf && echo 'Key Rack flatpak installed + Secret=oo7-portal pinned'", cfg.InstalledUser)
 	}
 
 	// Flatpak checks — generic, only when a fixture explicitly requests

@@ -151,8 +151,8 @@ hotkey-overlay {
 	// (pam_env in the turnstiled PAM stack) + the niri config environment
 	// block below.
 	environmentFile := fmt.Sprintf(`XDG_SESSION_DESKTOP=niri
-XDG_DATA_DIRS=/home/%s/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share:/usr/share
-`, u.UserName)
+XDG_DATA_DIRS=/home/%s/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share:/usr/share:/home/%s/.nix-profile/share
+`, u.UserName, u.UserName)
 	if err := writeFile(chroot, "/etc/environment", environmentFile); err != nil {
 		return fmt.Errorf("write /etc/environment: %w", err)
 	}
@@ -196,7 +196,7 @@ environment {
     XDG_SESSION_TYPE "wayland"
     XDG_SESSION_DESKTOP "niri"
     XDG_CURRENT_DESKTOP "niri"
-    XDG_DATA_DIRS "/home/%s/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share:/usr/share"
+    XDG_DATA_DIRS "/home/%s/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share:/usr/share:/home/%s/.nix-profile/share"
     QT_QPA_PLATFORM "wayland"
     QT_QPA_PLATFORMTHEME "xdgdesktopportal"
     // Hard override: Qt drops client-side decorations (niri's prefer-no-csd
@@ -229,7 +229,7 @@ spawn-at-startup "sh" "-c" "command -v xdg-user-dirs-update >/dev/null 2>&1 && x
 include "dms/binds.kdl"
 include "dms/layout.kdl"
 include "dms/colors.kdl"
-`, u.Keymap, u.UserName)
+`, u.Keymap, u.UserName, u.UserName)
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p /home/%s/.config/niri", u.UserName)); err != nil {
 		return fmt.Errorf("mkdir user niri config dir: %w", err)
 	}
@@ -513,7 +513,7 @@ exec /usr/bin/xdg-su "$@"
 	// after niri (aports niri-user-dinit), so the greetd greeter session
 	// (greeter.sh, which never runs niri-session) never gets desktop apps.
 	// Existence-filtered — only installed packages get enabled.
-	userServices := "dbus.user pipewire.user pipewire-pulse.user wireplumber.user wait-wayland.user"
+	userServices := "dbus.user pipewire.user pipewire-pulse.user wireplumber.user wait-wayland.user xdg-desktop-portal.user xdg-document-portal.user xdg-permission-store.user"
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p /usr/lib/dinit.d/user/boot.d && for s in %s; do [ -f /etc/dinit.d/user/$s ] && ln -sf /etc/dinit.d/user/$s /usr/lib/dinit.d/user/boot.d/$s; done", userServices)); err != nil {
 		fmt.Printf("[WARNING] Failed to enable user dinit services: %v\n", err)
 	}
