@@ -8,6 +8,15 @@
 
 ## Recent Rounds (latest first)
 
+### 2026-10-17 17:53 - aports: stasis 1.6.3 idle manager + wayle-session r3 published (CI green)
+**Agent:** codebase
+**Summary:** Placeholder round completed — sha512 sums computed + filled in both APKBUILDs, 3 commits pushed (`ab002fb`, `6acfe87`, `e9401f4`), CI run `39046348443` all green (build+deploy+client-test), `stasis-1.6.3-r0` + `wayle-session-0.1.0-r3` live on Pages.
+- **stasis 1.6.3**: context-aware Wayland idle manager (Rust, matugen cargo pattern: `fetch --target --locked` + `build/test --frozen`), dinit user service `stasis.user` + `stasis-session` script; dual-license GPL-3.0-only + AGPL-3.0-only (bundled lib_game_detector).
+- **CI catch 1** (`39045036898`): upstream v1.6.3 tarball ships ONLY `LICENSE` — no LICENSES dir → `package()` install failed. Fix: canonical GNU AGPL-3.0 text (661 lines) vendored from gnu.org into the package dir, hash-pinned (`3568a766…`), installed next to LICENSE (AGPL §13 posture kept).
+- **CI catch 2** (`39045865048`): the r3 `wayle-session` script (stasis.user wiring, sum `79437b…`) was left UNSTAGED while only the APKBUILD was committed — abuild checksum verify ran against the stale r2 script. Fix: commit the matching script (`e9401f4`); no checksum edit needed. LESSON: an APKBUILD sum bump must always bring its source files in the SAME commit.
+- wayle-session session script ALREADY referenced `stasis.user` in its existence-filtered session-apps loop (committed earlier) — r3 APKBUILD adds the `stasis` depends; stasis now actually starts on niriWayle logins.
+- **Next**: installer (PAM oo7 login-unlock + config seeds) → harness → docs.
+
 ### 2026-10-17 - user-services completion + Key Rack flatpak GUI + Secret portal pin + nix XDG gap + supervision rule
 **Agent:** codebase
 **Summary:** Completes the niri/niriWayle per-user service round on top of the validated uncommitted tree (niriWayle dinit 96/97 — ONLY fail = seahorse/oo7-server file conflict; niri dinit 98/98; OpenRC niri 82/82).
