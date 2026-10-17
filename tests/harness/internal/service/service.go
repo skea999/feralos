@@ -1704,8 +1704,8 @@ echo 'fish history clean (no clap error)'`,
 		// raffi_installed: launcher package + binary on PATH.
 		checks["raffi_installed"] = "apk info -e raffi && test -x /usr/bin/raffi && echo 'raffi installed'"
 		// oo7_secrets: gnome-keyring replacement — suite core + PAM module
-		// packages present (runtime unlock wiring is a documented
-		// follow-up; this asserts the packages the DE ships).
+		// packages present (the unlock wiring has its own runtime check
+		// below).
 		checks["oo7_secrets"] = "apk info -e oo7 oo7-pam && echo 'oo7 secrets installed'"
 		// keyrack_flatpak: Key Rack (app.drey.KeyRack) is the niriWayle
 		// secrets GUI — Flathub flatpak, NOT an apk (seahorse conflicts
@@ -1715,6 +1715,21 @@ echo 'fish history clean (no clap error)'`,
 		// gnome-keyring, so Secret must resolve to oo7-portal explicitly).
 		// No DMI guard: flatpak + the portals conf are real on every host.
 		checks["keyrack_flatpak"] = fmt.Sprintf("flatpak info app.drey.KeyRack >/dev/null 2>&1 && grep -q 'org.freedesktop.impl.portal.Secret=oo7-portal' /home/%s/.config/xdg-desktop-portal/niri-portals.conf && echo 'Key Rack flatpak installed + Secret=oo7-portal pinned'", cfg.InstalledUser)
+		// oo7_pam_unlock: full login-unlock parity proof for the oo7 stack.
+		//   Static — pam_oo7.so on disk, the greetd auth+session lines the
+		//   installer appends, the /etc/pam.d/passwd override (password
+		//   re-sync stack).
+		//   Live — the daemon's PAM listener socket /run/user/$uid/oo7-pam.sock
+		//   (secrets.user creates it at startup; short poll for session
+		//   bring-up).
+		//   Runtime proof — the harness autologin is a REAL greetd PAM
+		//   login with the configured password, so the daemon's
+		//   "Received unlock request" line in secrets.log proves the whole
+		//   chain fired on a real login (auth stash -> session auto_start ->
+		//   socket -> daemon unlock attempt). secrets.log only gains lines
+		//   from real user-dinit sessions (no login during install), so any
+		//   such line = the PAM wiring worked.
+		checks["oo7_pam_unlock"] = fmt.Sprintf("uid=$(id -u %s); i=0; while [ $i -lt 30 ]; do test -S /run/user/$uid/oo7-pam.sock && break; sleep 1; i=$((i+1)); done; test -f /usr/lib/security/pam_oo7.so || { echo 'pam_oo7.so missing'; exit 1; }; grep -q 'auth.*pam_oo7.so' /etc/pam.d/greetd || { echo 'greetd auth line missing'; exit 1; }; grep -q 'session.*pam_oo7.so' /etc/pam.d/greetd || { echo 'greetd session line missing'; exit 1; }; grep -q 'password.*pam_oo7.so' /etc/pam.d/passwd || { echo 'passwd override missing'; exit 1; }; test -S /run/user/$uid/oo7-pam.sock || { echo 'oo7 PAM listener socket missing'; exit 1; }; grep -q 'Received unlock request' /home/%s/.local/share/dinit/secrets.log && { echo 'oo7 PAM unlock chain OK (daemon received the unlock request)'; } || { echo 'no unlock request in secrets.log'; exit 1; }", cfg.InstalledUser, cfg.InstalledUser)
 	}
 
 	// Flatpak checks — generic, only when a fixture explicitly requests

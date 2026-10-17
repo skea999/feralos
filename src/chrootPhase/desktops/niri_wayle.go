@@ -18,8 +18,10 @@ import (
 //   - The user niri config embeds niri's DEFAULT binds (upstream
 //     default-config.kdl) with terminal=alacritty, launcher=raffi and
 //     lock=veila instead of fuzzel/swaylock.
-//   - NO gnome-keyring PAM unlock: oo7 handles secrets; login-unlock wiring
-//     for oo7 is a documented follow-up.
+//   - oo7 PAM login-unlock (greetd stack) + passwd-stack keyring password
+//     re-sync — the gnome-keyring analogue for this DE (step 11). The
+//     secrets daemon itself stays a supervised per-user dinit service
+//     (secrets.user); the PAM module talks to its unix-socket listener.
 //   - The /etc/sudoers.d/zz-power reboot NOPASSWD rule is KEPT (dinit-gated):
 //     Wayle's power module likely goes through the same logind/loginctl path
 //     that broke DMS reboots under dinit; a Wayle power-action equivalent of
@@ -363,11 +365,51 @@ exec /usr/bin/xdg-su "$@"
 		fmt.Printf("[WARNING] Failed to add %s to audio group: %v\n", u.UserName, err)
 	}
 
-	// 11. NO gnome-keyring PAM unlock here (niri.go adds pam_gnome_keyring
-	// to greetd PAM): niriWayle has NO gnome-keyring — oo7 handles secrets.
-	// Login-unlock wiring for oo7 (PAM module + keyring bootstrap) is a
-	// documented follow-up; until then apps use oo7's session-keyring
-	// prompt path.
+	// 11. oo7 PAM wiring — the gnome-keyring analogue for this DE.
+	//   greetd stack: `auth` stashes the login password in the PAM handle;
+	//   `session auto_start` (appended LAST, after the base-session
+	//   includes, so pam_turnstile/pam_elogind have run and /run/user
+	//   exists) forks as the user and connects to the daemon's PAM
+	//   listener /run/user/$UID/oo7-pam.sock (0600, peer must be root or
+	//   same UID) with a 20x100ms retry window — the supervised
+	//   secrets.user daemon (started after dbus.user) listens there and
+	//   unlocks all locked collections with the login password.
+	//   oo7 0.6.0's auto_start also execs /usr/bin/oo7-daemon on a missing
+	//   socket — harmless no-op on Alpine (binary lives in /usr/libexec);
+	//   the retry loop then hits our supervised daemon. Nothing is left
+	//   unsupervised (no D-Bus activation, no daemon self-spawn).
+	//   passwd stack: the /etc/pam.d/passwd override adds pam_oo7 after
+	//   base-password so a user-initiated `passwd` re-encrypts every
+	//   keyring with the new password (root resets via chpasswd carry no
+	//   old authtok and cannot sync — universal limitation, same as
+	//   GNOME).
+	//   First use needs no prompt: the daemon auto-creates an EMPTY
+	//   "Login" keyring aliased default; an empty keyring accepts any
+	//   password, so the PAM unlock binds it to the login password and
+	//   the first stored secret persists it encrypted with exactly that.
+	pamGreetd := "/etc/pam.d/greetd"
+	if _, err := shell.ExecuteCmd(chroot, "grep -q 'auth.*pam_oo7.so' "+pamGreetd+" || echo 'auth       optional pam_oo7.so' >> "+pamGreetd); err != nil {
+		fmt.Printf("[WARNING] Failed to add pam_oo7 auth to greetd PAM: %v\n", err)
+	}
+	if _, err := shell.ExecuteCmd(chroot, "grep -q 'session.*pam_oo7.so' "+pamGreetd+" || echo 'session    optional pam_oo7.so auto_start' >> "+pamGreetd); err != nil {
+		fmt.Printf("[WARNING] Failed to add pam_oo7 session to greetd PAM: %v\n", err)
+	}
+	// Alpine ships NO /etc/pam.d/passwd (passwd falls back to the vendor
+	// `other` stack); this override shadows ONLY the passwd service.
+	//nolint:gosec // G101: PAM stack config text, not a credential
+	passwdPam := `#%PAM-1.0
+#
+# FeralOS (niriWayle): oo7 keyring password re-sync. The password stack
+# runs for user-initiated passwd changes; pam_oo7 (after base-password,
+# which sets PAM_OLDAUTHTOK/PAM_AUTHTOK) sends old+new to the oo7 daemon,
+# which re-encrypts all matching keyrings. Root resets (chpasswd) carry
+# no old authtok and cannot sync - universal limitation, same as GNOME.
+password include base-password
+password optional pam_oo7.so
+`
+	if err := writeFile(chroot, "/etc/pam.d/passwd", passwdPam); err != nil {
+		return fmt.Errorf("write /etc/pam.d/passwd override: %w", err)
+	}
 
 	// 12. turnstiled — system service: the PAM module talks to it over its
 	// socket; it spawns the per-user dinit at login.
