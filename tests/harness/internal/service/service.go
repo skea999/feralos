@@ -1563,6 +1563,16 @@ echo 'fish history clean (no clap error)'`,
 		// "add-wants niri.service" model) — they must NOT be in boot.d,
 		// or every login (greetd greeter included) would start them.
 		checks["user_services_enabled"] = fmt.Sprintf("for s in %s; do test -e /usr/lib/dinit.d/user/boot.d/$s || { echo \"missing $s\"; exit 1; }; done; for s in %s; do test -e /usr/lib/dinit.d/user/boot.d/$s && { echo \"session app $s must not be in boot.d\"; exit 1; }; done; echo ok", userSvcBootLinks, sessionAppsAbsent)
+		// user_session_env: the Chimera turnstile env chain, proven
+		// END-TO-END. /etc/environment -> pam_env (session optional
+		// pam_env.so in /etc/pam.d/turnstiled, appended by the aports
+		// turnstile package) -> turnstiled pam_getenvlist -> user dinit
+		// spawn env. pipewire runs ONLY as a user-dinit service, so its
+		// /proc environ is direct proof the seed reaches user services.
+		// Asserts BOTH seed tails: flatpak exports (original) and
+		// .nix-profile/share (nix XDG gap fix). Init-agnostic: turnstile
+		// spawns the same user dinit under OpenRC too.
+		checks["user_session_env"] = fmt.Sprintf("pid=$(pgrep -u %s -x pipewire | head -n1); [ -n \"$pid\" ] || { echo 'no pipewire process (user dinit down?)'; exit 1; }; tr '\\0' '\\n' < /proc/$pid/environ | grep -q '^XDG_DATA_DIRS=.*flatpak/exports' || { echo 'XDG_DATA_DIRS missing flatpak exports in user service env'; exit 1; }; tr '\\0' '\\n' < /proc/$pid/environ | grep -q '^XDG_DATA_DIRS=.*\\.nix-profile/share' || { echo 'XDG_DATA_DIRS missing nix profile in user service env'; exit 1; }; echo 'session env OK (pam_env -> user dinit chain delivers XDG_DATA_DIRS)'", cfg.InstalledUser)
 		// gnome-keyring: package + D-Bus secrets service + PAM unlock lines
 		// in greetd. NIRI-ONLY: niriWayle has NO gnome-keyring (oo7 handles
 		// secrets there).
