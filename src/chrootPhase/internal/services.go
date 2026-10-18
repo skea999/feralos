@@ -200,20 +200,26 @@ esac
 	return nil
 }
 
-// writePowerPolkitRule installs the wheel login1 rule for the power actions
-// (power-off/reboot/halt/suspend). Written for BOTH inits: under dinit,
-// elogind cannot map PIDs to sessions (NoSessionForPID — no session
-// cgroups), so polkit never sees "allow_active" and every loginctl power
-// action becomes an auth challenge (or a silent timeout with no agent) —
-// this covers the DMS/Wayle power buttons AND stasis' automatic
-// `loginctl suspend` idle step. wheel = admin already — granting the
-// seat-owner actions changes no security posture (none of these is a
-// privilege escalation), and matches standard desktop behavior (no password
-// for the owner's own machine). Harmless under OpenRC.
+// writePowerPolkitRule installs the wheel rule for the login1 power actions
+// (power-off/reboot/halt/suspend) AND the power-profiles-daemon
+// switch/hold actions. Written for BOTH inits: under dinit, elogind cannot
+// map PIDs to sessions (NoSessionForPID — no session cgroups), so polkit
+// never sees "allow_active" and the upstream policies are unsatisfiable —
+// every loginctl power action would become an auth challenge (or a silent
+// timeout with no agent) and every power-profile switch (Wayle battery
+// dropdown / DMS power UI) would be denied (PPD's policy is
+// allow_active=yes upstream; action ids renamed in PPD 0.30 — the policy
+// file on Alpine is power-profiles-daemon.policy). Covers the DMS/Wayle
+// power buttons, stasis' automatic `loginctl suspend` idle step and
+// power-profile switching. wheel = admin already — none of these is a
+// privilege escalation, and this matches standard desktop behavior (no
+// password for the owner's own machine). Harmless under OpenRC.
 func writePowerPolkitRule(chroot string) error {
-	polkitRule := `// FeralOS: allow wheel to power off/reboot/suspend without an auth prompt.
-// elogind cannot attribute PIDs to sessions under dinit (NoSessionForPID),
-// so the default "allow_active" policy never matches. wheel is admin anyway.
+	polkitRule := `// FeralOS: allow wheel to power off/reboot/suspend and to switch power
+// profiles without an auth prompt. elogind cannot attribute PIDs to
+// sessions under dinit (NoSessionForPID), so the default "allow_active"
+// policy never matches (login1 power actions AND PowerProfiles switch/hold
+// share that class). wheel is admin anyway.
 polkit.addRule(function(action, subject) {
     if (subject.isInGroup("wheel") &&
         (action.id == "org.freedesktop.login1.power-off" ||
@@ -223,7 +229,9 @@ polkit.addRule(function(action, subject) {
          action.id == "org.freedesktop.login1.halt" ||
          action.id == "org.freedesktop.login1.halt-multiple-sessions" ||
          action.id == "org.freedesktop.login1.suspend" ||
-         action.id == "org.freedesktop.login1.suspend-multiple-sessions")) {
+         action.id == "org.freedesktop.login1.suspend-multiple-sessions" ||
+         action.id == "org.freedesktop.UPower.PowerProfiles.switch-profile" ||
+         action.id == "org.freedesktop.UPower.PowerProfiles.hold-profile")) {
         return polkit.Result.YES;
     }
 });

@@ -18,6 +18,7 @@ Second desktop environment: the **niri compositor** with the **Wayle shell** (ba
 - Network: same as niri (NetworkManager + wifi + wireless-regdb, bluez, wpa_supplicant, wireguard-tools)
 - Extras: `wl-clipboard-rs` (Rust wl-copy/wl-paste), `dconf`, `xdg-user-dirs`, `wtype`, `i2c-tools`; Key Rack secrets GUI via Flathub (`flatpakPackages: ["app.drey.KeyRack"]` — installer adds the Flathub remote + `flatpak install -y --noninteractive`)
 - Idle: `stasis` (context-aware idle manager — supervised `stasis.user` session service started by the wayle-session script; FeralOS system config `/etc/stasis/stasis.rune` read via `-c` — see [Locking & idle](#locking--idle); veila remains the lock screen)
+- Power profiles: `power-profiles-daemon` (PPD) — D-Bus ACTIVATED (Alpine ships no init script for it by design: the `0001-dbus-no-systemd` patch sets `Exec=/usr/libexec/power-profiles-daemon`; both bus names are activatable: `net.hadess.PowerProfiles` alias + `org.freedesktop.UPower.PowerProfiles`); the Wayle battery dropdown lists/switches profiles (harness `power_profiles` — real switch round trip). Switching rides the installer's wheel polkit rule (`49-feralos-power.rules`, action ids `org.freedesktop.UPower.PowerProfiles.switch-profile/.hold-profile`) — upstream policy is `allow_active=yes`, unsatisfiable under dinit (`NoSessionForPID`), same class as the power buttons
 - NOT included (add per-install): browser/office/apps
 
 ## Session startup

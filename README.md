@@ -135,7 +135,7 @@ Stack: **k3s** + **LINSTOR/Pirateus** as distributed storage backend for **Incus
 
 ## Project Status
 
-**Experimental.** FeralOS is in active development. The installer works and passes all automated tests (up to 103 checks per fixture via the QEMU harness; the flagship niriWayle fixture runs 103/103), but expect rough edges on real hardware. Everything needs more testing on real hardware before production use.
+**Experimental.** FeralOS is in active development. The installer works and passes all automated tests (up to 104 checks per fixture via the QEMU harness; the flagship niriWayle fixture runs 104/104), but expect rough edges on real hardware. Everything needs more testing on real hardware before production use.
 
 ### Installer Status
 

@@ -1484,7 +1484,22 @@ echo 'fish history clean (no clap error)'`,
 		// become an auth challenge; wheel = admin already, standard desktop
 		// posture). Covers the DMS/Wayle power buttons and stasis' automatic
 		// `loginctl suspend` idle step.
-		checks["power_polkit_rule"] = "test -f /etc/polkit-1/rules.d/49-feralos-power.rules && grep -q login1.power-off /etc/polkit-1/rules.d/49-feralos-power.rules && grep -q login1.suspend /etc/polkit-1/rules.d/49-feralos-power.rules && grep -q isInGroup /etc/polkit-1/rules.d/49-feralos-power.rules && echo 'power polkit rule OK (wheel: power-off/reboot/halt/suspend)'"
+		checks["power_polkit_rule"] = "test -f /etc/polkit-1/rules.d/49-feralos-power.rules && grep -q login1.power-off /etc/polkit-1/rules.d/49-feralos-power.rules && grep -q login1.suspend /etc/polkit-1/rules.d/49-feralos-power.rules && grep -q org.freedesktop.UPower.PowerProfiles.switch-profile /etc/polkit-1/rules.d/49-feralos-power.rules && grep -q isInGroup /etc/polkit-1/rules.d/49-feralos-power.rules && echo 'power polkit rule OK (wheel: power-off/reboot/halt/suspend + power profiles)'"
+		// power_profiles: power-profiles-daemon reachable AND switchable
+		// from the session (Wayle battery dropdown; DMS power UI shares it).
+		// Alpine ships PPD D-Bus ACTIVATED (no init script by design — the
+		// 0001-dbus-no-systemd patch sets Exec=/usr/libexec/... on the
+		// shared service template, so BOTH bus names are activatable:
+		// net.hadess.PowerProfiles alias + org.freedesktop.UPower
+		// .PowerProfiles). The static half asserts the activation wiring +
+		// the polkit policy (power-profiles-daemon.policy; action ids
+		// renamed in 0.30). The runtime half performs a REAL switch:
+		// `set power-saver` walks ...PowerProfiles.switch-profile
+		// (allow_active=yes upstream — under dinit only the wheel polkit
+		// rule authorizes it), asserts it took effect, then restores the
+		// previous profile. The placeholder driver (QEMU: no
+		// platform-profile hardware) still offers power-saver + balanced.
+		checks["power_profiles"] = fmt.Sprintf("test -f /usr/share/dbus-1/system-services/net.hadess.PowerProfiles.service && grep -q 'Exec=/usr/libexec/power-profiles-daemon' /usr/share/dbus-1/system-services/net.hadess.PowerProfiles.service && test -f /usr/share/dbus-1/system-services/org.freedesktop.UPower.PowerProfiles.service && grep -q 'Exec=/usr/libexec/power-profiles-daemon' /usr/share/dbus-1/system-services/org.freedesktop.UPower.PowerProfiles.service || { echo 'PPD dbus activation wiring missing'; exit 1; }; test -f /usr/share/polkit-1/actions/power-profiles-daemon.policy && grep -q 'org.freedesktop.UPower.PowerProfiles.switch-profile' /usr/share/polkit-1/actions/power-profiles-daemon.policy || { echo 'PPD polkit policy missing'; exit 1; }; su - %s -s /bin/sh -c 'p=$(powerprofilesctl get) || exit 1; powerprofilesctl set power-saver || exit 1; n=$(powerprofilesctl get); powerprofilesctl set \"$p\" || exit 1; if [ \"$n\" = power-saver ]; then echo \"power profiles OK (real switch: $p -> power-saver -> $p)\"; else echo \"power profile switch did not take effect ($n)\"; exit 1; fi'", cfg.InstalledUser)
 		// DMS-only (niri DE): niriWayle has NO DMS — Wayle is the shell.
 		if cfg.DesktopEnvironment == desktopNiri {
 			checks["dms_installed"] = "apk info -e dms-shell quickshell && test -x /usr/bin/dms"

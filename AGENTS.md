@@ -8,6 +8,14 @@
 
 ## Recent Rounds (latest first)
 
+### 2026-10-18 19:10 - power-profiles-daemon for niriWayle: verified + polkit fix — harness 104/104 (dinit) + 88/88 (OpenRC)
+**Agent:** codebase
+**Summary:** user question "i profile powerdaemon per wayle sono stati fatti?" → audit found: PPD (`power-profiles-daemon` 0.30) IS in both DE package lists and Wayle v0.7.0 ships a battery-dropdown `power_profile` section — but switching was never validated and, under dinit, `switch-profile` (`allow_active=yes` upstream) is unsatisfiable (NoSessionForPID) → switches would be silently denied. Verified, fixed, proven.
+- **Facts (source-verified):** Alpine ships PPD **D-Bus ACTIVATED** (no init script by design — `0001-dbus-no-systemd.patch` sets `Exec=/usr/libexec/power-profiles-daemon` on the shared service template → BOTH bus names activatable: `net.hadess.PowerProfiles` alias + `org.freedesktop.UPower.PowerProfiles`); 0.30 renamed the polkit ids to `org.freedesktop.UPower.PowerProfiles.switch-profile/.hold-profile` (policy file `power-profiles-daemon.policy`, defaults `allow_active=yes`); the placeholder driver (QEMU: no platform-profile hw) still offers power-saver + balanced.
+- **Installer:** `writePowerPolkitRule` extended with both PowerProfiles actions (same NoSessionForPID class as the login1 power buttons; written for both inits).
+- **Harness:** NEW `power_profiles` (niri family, both inits) — static activation wiring (BOTH `.service` files' Exec + the policy file) + **REAL switch round trip** as the session user (`powerprofilesctl get` → `set power-saver` → assert effect → restore); `power_polkit_rule` extended with the switch-profile id.
+- **Validated:** src + harness gofmt/vet/golangci-lint/build/test green; dinit `16-42-07Z` **104/104**; OpenRC `16-48-00Z` **88/88** — `power profiles OK (real switch: balanced -> power-saver -> balanced)` verbatim on both inits.
+
 ### 2026-10-18 18:10 - stasis system config shipped in aports + veilad env wrapper + suspend polkit — harness 103/103 (dinit) + 87/87 (OpenRC)
 **Agent:** codebase
 **Summary:** user audit of "lock screen + its trigger + zz-power + automatic suspend" exposed a REAL gap: stasis (the idle orchestrator) had NO FeralOS config — its first-run bootstrap would generate a generic template (`swaylock` + `systemctl suspend`, absent on FeralOS) and PREFER it over any system file (source-verified `daemon_mode.rs`: the bootstrap is skipped only with `-c`) → lock-on-idle and auto-suspend were dead. Fixed following the upstream NixOS-module system-deployment pattern — everything in feralos-aports.
