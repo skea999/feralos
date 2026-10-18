@@ -8,9 +8,10 @@
 
 ## Recent Rounds (latest first)
 
-### 2026-10-18 15:50 - FERALOS_NAME: wolf→bear, fork-of-Alpine explicit; variables.yaml default niriWayle pushed
+### 2026-10-18 15:50 - FERALOS_NAME: wolf→bear, based-on-Alpine framing; variables.yaml default niriWayle pushed
 **Agent:** codebase
-**Summary:** `docs/FERALOS_NAME.md` reworked: "The Wolf as Spirit" → "The Bear as Spirit" (brown bear as the Alpine rewilding symbol — *Life Ursus*; traits: feral/powerful/resilient/self-sufficient; rewilding ↔ fork metaphor) and the fork framing fixed — the old "It is not a fork of Alpine" contradicted the intent; now explicit "FeralOS is a fork of Alpine" (feral = descendant of something established living wild = exactly a git fork). Review: unique, particular name (double meaning + Alpine-native animal, less overused than the wolf). `src/variables/variables.yaml` template default `desktopEnvironment` niri→niriWayle committed + pushed.
+**Summary:** `docs/FERALOS_NAME.md` reworked: "The Wolf as Spirit" → "The Bear as Spirit" (brown bear as the Alpine rewilding symbol — *Life Ursus*; traits: feral/powerful/resilient/self-sufficient; rewilding ↔ wild evolution) and the wording settled — FeralOS is **based on Alpine** (it consumes Alpine's repositories; "Alpine fork" was already on the vocabulary Avoid-list), the feral metaphor = descendant of something established living wild (not an archive-level fork). `src/variables/variables.yaml` template default `desktopEnvironment` niri→niriWayle committed + pushed.
+- Review: unique, particular name (double meaning: wild + descendant; Alpine-native animal, less overused than the wolf).
 - Files: `docs/FERALOS_NAME.md`, `src/variables/variables.yaml`, AGENTS.md, state/handoff.
 
 ### 2026-10-18 15:40 - niriWayle review nits + whole-project doc refresh; README flagship statement

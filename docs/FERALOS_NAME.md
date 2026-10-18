@@ -11,7 +11,7 @@ In modern English, **"feral"** means:
 
 ## The Connection with Alpine Linux
 
-The choice of this name is no coincidence. FeralOS is a **fork of Alpine Linux**, a distribution born in the **Alps** — Europe's most iconic mountains. The name creates a perfect semantic bridge:
+The choice of this name is no coincidence. FeralOS is **based on Alpine Linux**, a distribution born in the **Alps** — Europe's most iconic mountains. The name creates a perfect semantic bridge:
 
 ### The Mountain as Metaphor
 
@@ -78,7 +78,7 @@ This subtitle captures the essence:
 - **Alpine Linux** — the solid and lightweight base
 - **Wild** — the transformation FeralOS brings
 
-FeralOS **is a fork of Alpine** — and the name says exactly that: a *feral* animal is not a new species invented from nothing, it is the **descendant of something established, living free in the wild**. That is what a fork is to its upstream — and it is what FeralOS is to Alpine: **unleashed**, free from obsolete C components, free from security compromises, free to become what Alpine should be.
+FeralOS **is based on Alpine** — and the name says exactly that: a *feral* animal is not a new species invented from nothing, it is the **descendant of something established, living free in the wild**. That is precisely the relationship between FeralOS and Alpine — descended from it, yet living free: **unleashed**, free from obsolete C components, free from security compromises, free to become what Alpine should be.
 
 ## Comparison with Other Distributions
 
@@ -90,7 +90,7 @@ FeralOS **is a fork of Alpine** — and the name says exactly that: a *feral* an
 | **Arch** | Architecture | DIY, customization |
 | **FeralOS** | Wild | Security, freedom, excellence |
 
-FeralOS does not compete with these distributions — it **complements** the landscape by offering what is missing: a truly secure distribution, **forked from Alpine**, with a clear and ambitious vision.
+FeralOS does not compete with these distributions — it **complements** the landscape by offering what is missing: a truly secure distribution, **based on Alpine**, with a clear and ambitious vision.
 
 ## The Name as a Promise
 
