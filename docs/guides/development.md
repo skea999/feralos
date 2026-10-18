@@ -152,5 +152,5 @@ Conventional Commits: `feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `chore:` +
 
 - `AGENTS.md` — all rules (source)
 - `docs/INSTALLER.md` — flow + structure
-- `docs/architecture/isolation.md`, `logging.md`, `feature_confinement.md`, `storage.md`, `firstboot.md`
+- `docs/architecture/isolation.md`, `logging.md`, `feature_confinement.md`, `storage.md`, `firstboot.md`, `dbus-activation.md`, `boot-oneshots.md`
 - `docs/adr/README.md` — ADRs 001-006

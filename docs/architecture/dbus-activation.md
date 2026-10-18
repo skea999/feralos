@@ -77,7 +77,9 @@ Shim behavior (`feralos-dbus-activate`):
 via the rules; activation targets work regardless. `dbus-services-setup`
 (feralos-dbus-activate, enabled on both inits via `defaultRunlevels.boot`)
 materializes the system overrides before dbus starts; the `dbus-session` wrapper
-does the same for the session overrides at login.
+does the same for the session overrides at login. `dbus-services-setup` is also
+the reference implementation of the general boot-oneshot pattern — see
+`docs/architecture/boot-oneshots.md`.
 
 ## Activation environment
 
@@ -91,19 +93,60 @@ environment.
 
 ## Checklist — adding a new D-Bus-activatable service
 
-1. Identify the canonical well-known bus name and any aliases.
-2. aports: ship the dinit unit (bus-name naming; ADR-008 wrapper+config for
-   daemons with configuration).
-3. aports: ship the override `.service` file (shim Exec + upstream fallback)
-   in `/usr/share/feralos/dbus-system-services/` (system) or
-   `/usr/share/feralos/dbus-services/` (session) — **never** in
-   `/etc/dbus-1/system-services` (not helper-activatable). No further step:
-   the boot/login materializers pick up new files automatically.
+1. Identify the canonical well-known bus name and any aliases (each alias gets
+   its own `<Alias>.service` file pointing at the same unit).
+2. aports: ship the dinit unit `/lib/dinit.d/<Name>` (canonical bus-name
+   naming; ADR-008 wrapper+config for daemons with configuration;
+   `depends-on = dbus` like the other bus daemons).
+3. aports: ship the override `.service` file in
+   `/usr/share/feralos/dbus-system-services/` (system bus) or
+   `/usr/share/feralos/dbus-services/` (session bus) — **never** in
+   `/etc/dbus-1/system-services` (not helper-activatable). Content:
+
+   ```ini
+   [D-BUS Service]
+   Name=<Name>
+   Exec=/usr/libexec/feralos/dbus-activate <unit> -- <upstream exec...>
+   User=root
+   ```
+
+   (`User=` is required by the system-bus launch helper.) APKBUILD:
+   `depends="feralos-dbus-activate"`, pkgrel bump, sha512sums. No materializer
+   change needed — `dbus-services-setup` / `dbus-session` pick up new files
+   automatically.
 4. `internal_rules.yaml`: package list += the `-dinit` package; `dinitServices`
-   += unit name; `services` += OpenRC name only if an OpenRC script exists.
-5. Harness: the generic `dbus_activation_uniform` check covers the override
-   automatically; add the unit to the per-DE service lists when required.
-6. Docs: update this file's inventory and the matching desktop guide.
+   += the unit name (only when it differs from the OpenRC script name);
+   `services` += the OpenRC name (only when an OpenRC script exists).
+5. Harness: `dbus_activation_uniform` covers the override automatically
+   (packaged sources + boot materialization + upstream coverage on dinit); add
+   the unit to the per-DE service lists when it must be boot-enabled.
+6. Docs: this file's inventory + the matching desktop guide + the aports
+   pattern doc (`feralos-aports` `DBUS-ACTIVATION.md`).
+
+## Verifying / troubleshooting activation routing (on a target)
+
+- `dbus-send --system --print-reply --dest=org.freedesktop.DBus / org.freedesktop.DBus.ListActivatableNames`
+  — a name in this list only means "enumerated", NOT "activatable" (the
+  launch-helper gate above).
+- trigger activation:
+  `dbus-send --system --print-reply --dest=<Name> /org/freedesktop/DBus org.freedesktop.DBus.Peer.Ping`
+  (or `org.freedesktop.DBus.StartServiceByName string:<Name> uint32:0`).
+- did it route through dinit? `dinitctl --system list | grep <unit>` must show
+  a started marker AND the daemon environ must NOT carry `DBUS_STARTER_*`
+  (`tr '\0' '\n' < /proc/<pid>/environ | grep DBUS_STARTER_`) — the shim
+  excludes them; a raw helper spawn leaves them. Exactly what
+  `dbus_activation_env` asserts.
+- raw spawn / `Spawn.ServiceNotFound` → the helper could not resolve the name
+  in the standard dirs: check the materialized override
+  `/usr/local/share/dbus-1/system-services/<Name>.service` (source in
+  `/usr/share/feralos/dbus-system-services/`) and that `dbus-services-setup`
+  ran (`dinitctl list` / `rc-status`); pattern details in `boot-oneshots.md`.
+- wrong `Exec=` used → the helper picks the first standard-dir twin
+  (`/usr/local/share` > `/usr/share`); stray files in
+  `/etc/dbus-1/system-services` are inert (daemon-enumerated only) — the
+  uniform check fails if any are left there.
+- session side: `$XDG_RUNTIME_DIR/dbus-1/services/<Name>.service` (materialized
+  at login by `dbus-session`); no helper — `Exec=` runs directly.
 
 ## Inventory / status (tracking)
 
