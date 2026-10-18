@@ -374,10 +374,13 @@ exec /usr/bin/xdg-su "$@"
 	//   same UID) with a 20x100ms retry window — the supervised
 	//   secrets.user daemon (started after dbus.user) listens there and
 	//   unlocks all locked collections with the login password.
-	//   oo7 0.6.0's auto_start also execs /usr/bin/oo7-daemon on a missing
-	//   socket — harmless no-op on Alpine (binary lives in /usr/libexec);
-	//   the retry loop then hits our supervised daemon. Nothing is left
-	//   unsupervised (no D-Bus activation, no daemon self-spawn).
+	//   On a missing socket the module also execs /usr/bin/oo7-daemon —
+	//   that path is OUR recovery wrapper (aports oo7-user-dinit), which
+	//   delegates to `dinitctl --user` (start, or restart when the service
+	//   is up but its socket was lost with /run/user): the daemon may only
+	//   ever run as a supervised user-dinit service (user rule — nothing
+	//   unsupervised, ever). Nothing is left to D-Bus activation or
+	//   daemon self-spawn.
 	//   passwd stack: the /etc/pam.d/passwd override adds pam_oo7 after
 	//   base-password so a user-initiated `passwd` re-encrypts every
 	//   keyring with the new password (root resets via chpasswd carry no
@@ -409,6 +412,19 @@ password optional pam_oo7.so
 `
 	if err := writeFile(chroot, "/etc/pam.d/passwd", passwdPam); err != nil {
 		return fmt.Errorf("write /etc/pam.d/passwd override: %w", err)
+	}
+	// Daemon log level — the INFO line "Received unlock request" is the
+	// end-to-end delivery proof (the harness oo7_pam_unlock runtime check
+	// greps it), but per user directive only enableDebug installs carry
+	// INFO logging. Written into the ADR-008 config the secrets wrapper
+	// (aports oo7-user-dinit) sources and exports before exec'ing the
+	// daemon, so it survives user-dinit respawns (dinitctl setenv would
+	// apply too late — boot.d starts the daemon before the session
+	// scripts run). Idempotent: set in place or append.
+	if u.EnableDebug {
+		if _, err := shell.ExecuteCmd(chroot, "mkdir -p /etc/dinit.d/config && f=/etc/dinit.d/config/secrets.conf; touch \"$f\"; if grep -q '^RUST_LOG=' \"$f\"; then sed -i 's/^RUST_LOG=.*/RUST_LOG=info/' \"$f\"; else echo 'RUST_LOG=info' >> \"$f\"; fi"); err != nil {
+			fmt.Printf("[WARNING] Failed to set RUST_LOG=info for the oo7 daemon: %v\n", err)
+		}
 	}
 
 	// 12. turnstiled — system service: the PAM module talks to it over its

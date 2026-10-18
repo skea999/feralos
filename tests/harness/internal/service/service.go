@@ -288,12 +288,18 @@ type RunResult struct {
 }
 
 type VerifyConfig struct {
-	ArtifactsRoot      string
-	RunDir             string
-	SSHPort            int
-	SSHUser            string
-	PrivateKey         string
-	InstalledUser      string
+	ArtifactsRoot string
+	RunDir        string
+	SSHPort       int
+	SSHUser       string
+	PrivateKey    string
+	InstalledUser string
+	// InstalledPassword — the user's login password; the oo7_pam_unlock
+	// runtime proof drives a real greetd-IPC password login with it. The
+	// run flow populates it from RunConfig; standalone `verify` resolves
+	// it from the run dir's variables.yaml copy (see
+	// resolveInstalledPassword).
+	InstalledPassword  string
 	DesktopEnvironment string
 	VideoDriver        string
 	EnableSwap         bool
@@ -1267,6 +1273,7 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg *RunConfig,
 		SSHUser:            "root",
 		PrivateKey:         keyPair.PrivateKeyPath,
 		InstalledUser:      cfg.InstalledUser,
+		InstalledPassword:  cfg.InstalledPassword,
 		DesktopEnvironment: cfg.DesktopEnvironment,
 		VideoDriver:        cfg.VideoDriver,
 		EnableSwap:         cfg.EnableSwap,
@@ -1716,20 +1723,30 @@ echo 'fish history clean (no clap error)'`,
 		// No DMI guard: flatpak + the portals conf are real on every host.
 		checks["keyrack_flatpak"] = fmt.Sprintf("flatpak info app.drey.KeyRack >/dev/null 2>&1 && grep -q 'org.freedesktop.impl.portal.Secret=oo7-portal' /home/%s/.config/xdg-desktop-portal/niri-portals.conf && echo 'Key Rack flatpak installed + Secret=oo7-portal pinned'", cfg.InstalledUser)
 		// oo7_pam_unlock: full login-unlock parity proof for the oo7 stack.
-		//   Static — pam_oo7.so on disk, the greetd auth+session lines the
-		//   installer appends, the /etc/pam.d/passwd override (password
-		//   re-sync stack).
-		//   Live — the daemon's PAM listener socket /run/user/$uid/oo7-pam.sock
-		//   (secrets.user creates it at startup; short poll for session
-		//   bring-up).
-		//   Runtime proof — the harness autologin is a REAL greetd PAM
-		//   login with the configured password, so the daemon's
-		//   "Received unlock request" line in secrets.log proves the whole
-		//   chain fired on a real login (auth stash -> session auto_start ->
-		//   socket -> daemon unlock attempt). secrets.log only gains lines
-		//   from real user-dinit sessions (no login during install), so any
-		//   such line = the PAM wiring worked.
-		checks["oo7_pam_unlock"] = fmt.Sprintf("uid=$(id -u %s); i=0; while [ $i -lt 30 ]; do test -S /run/user/$uid/oo7-pam.sock && break; sleep 1; i=$((i+1)); done; test -f /usr/lib/security/pam_oo7.so || { echo 'pam_oo7.so missing'; exit 1; }; grep -q 'auth.*pam_oo7.so' /etc/pam.d/greetd || { echo 'greetd auth line missing'; exit 1; }; grep -q 'session.*pam_oo7.so' /etc/pam.d/greetd || { echo 'greetd session line missing'; exit 1; }; grep -q 'password.*pam_oo7.so' /etc/pam.d/passwd || { echo 'passwd override missing'; exit 1; }; test -S /run/user/$uid/oo7-pam.sock || { echo 'oo7 PAM listener socket missing'; exit 1; }; grep -q 'Received unlock request' /home/%s/.local/share/dinit/secrets.log && { echo 'oo7 PAM unlock chain OK (daemon received the unlock request)'; } || { echo 'no unlock request in secrets.log'; exit 1; }", cfg.InstalledUser, cfg.InstalledUser)
+		// STATIC half registered here; the RUNTIME half (authenticated PAM
+		// login on service "greetd" + secrets.log proof) is driven by
+		// verifyOO7PamUnlock (oo7_pam_unlock.go) — greetd 0.10.3 never
+		// authenticates the autologin initial_session, so a plain
+		// autologin boot can NEVER produce an unlock request (run
+		// 2026-10-17T17-29-10Z + live debug proved it). The login runs
+		// TARGET-side (python3+ctypes libpam over plain exec SSH): host
+		// ssh -L is denied by Alpine's stock `AllowTcpForwarding no` and a
+		// greetd-IPC second start_session kills the one-session greetd
+		// autologin (turns the whole user session down — runs
+		// 2026-10-18T00-52-02Z / 01-49-53Z). Direct PAM chain leaves the
+		// live session + daemon untouched: no race, no collateral fails.
+		// Statics:
+		//   - pam_oo7.so on disk, the greetd auth+session lines the
+		//     installer appends, the /etc/pam.d/passwd override (password
+		//     re-sync stack)
+		//   - /usr/bin/oo7-daemon recovery wrapper delegating to
+		//     dinitctl --user (pam_oo7 auto_start fallback; the daemon may
+		//     only ever start as a supervised user-dinit service)
+		//   - /etc/dinit.d/config/secrets.conf (+ RUST_LOG=info when
+		//     enableDebug — the INFO line the runtime proof greps)
+		//   - the daemon's live PAM listener socket
+		//   - python3 present (remote PAM login client)
+		checks["oo7_pam_unlock"] = fmt.Sprintf("uid=$(id -u %s); i=0; while [ $i -lt 30 ]; do test -S /run/user/$uid/oo7-pam.sock && break; sleep 1; i=$((i+1)); done; test -f /usr/lib/security/pam_oo7.so || { echo 'pam_oo7.so missing'; exit 1; }; grep -q 'auth.*pam_oo7.so' /etc/pam.d/greetd || { echo 'greetd auth line missing'; exit 1; }; grep -q 'session.*pam_oo7.so' /etc/pam.d/greetd || { echo 'greetd session line missing'; exit 1; }; grep -q 'password.*pam_oo7.so' /etc/pam.d/passwd || { echo 'passwd override missing'; exit 1; }; test -f /usr/bin/oo7-daemon && test -x /usr/bin/oo7-daemon || { echo 'oo7-daemon recovery wrapper missing/not executable'; exit 1; }; grep -q 'dinitctl' /usr/bin/oo7-daemon || { echo 'recovery wrapper does not delegate to dinitctl (unsupervised daemon risk)'; exit 1; }; test -f /etc/dinit.d/config/secrets.conf || { echo 'secrets.conf missing'; exit 1; }; %s test -S /run/user/$uid/oo7-pam.sock || { echo 'oo7 PAM listener socket missing'; exit 1; }; command -v python3 >/dev/null || { echo 'python3 missing (remote PAM login client needs it)'; exit 1; }; echo 'oo7 PAM static wiring OK'", cfg.InstalledUser, debugRUSTLogAssert(cfg))
 	}
 
 	// Flatpak checks — generic, only when a fixture explicitly requests
@@ -1825,7 +1842,17 @@ echo 'fish history clean (no clap error)'`,
 
 	result := VerifyResult{RunDir: cfg.RunDir, Success: true, Checks: map[string]CheckResult{}}
 	for name, command := range checks {
-		output, err := guest.Output(verifyCtx, guestOpts, command)
+		var output []byte
+		var err error
+		if name == "oo7_pam_unlock" {
+			// Special case: statics (registered command) + the
+			// authenticated greetd-IPC login runtime proof — the
+			// autologin boot can never exercise pam_oo7 (greetd does
+			// not authenticate initial_session). See oo7_pam_unlock.go.
+			output, err = verifyOO7PamUnlock(verifyCtx, guestOpts, cfg, command)
+		} else {
+			output, err = guest.Output(verifyCtx, guestOpts, command)
+		}
 		check := CheckResult{Pass: err == nil, Detail: strings.TrimSpace(string(output))}
 		if err != nil {
 			check.Detail = err.Error()
@@ -3647,6 +3674,14 @@ done
 // session and nobody is present to log in. sessionCommand is DE-aware:
 // "niri-session" for niri, "wayle-session" for niriWayle.
 //
+// GREETD FACT (0.10.3-r11, source + live-verified run 2026-10-17T17-29-10Z):
+// [initial_session] carries ONLY command/user/service — there is NO password
+// key and greetd NEVER runs pam_authenticate for the initial session
+// (start_unauthenticated_session). Consequence: the PAM conversation has no
+// authtok, so PAM-based unlock proofs (pam_oo7 stash) can NEVER fire on the
+// autologin boot — the oo7_pam_unlock check proves it with an authenticated
+// greetd-IPC login instead.
+//
 // POLICY: harness = test + autologin config only; if the session command does
 // not hold the greetd initial_session (async user-dinit spawn, dinitctl start
 // returns early), the fix belongs in the installer or aports, never here.
@@ -3656,7 +3691,7 @@ done
 // hostPhase stays untouched).
 func enableNiriTestAutologin(ctx context.Context, targetGuest guest.Options, installedUser, sessionCommand string) error {
 	// The [initial_session] stanza is built Go-side (no shell-printf format
-	// verbs — the command is parameterized, so printf '%s' gets the whole
+	// verbs — the command is parameterized, so printf '%b' gets the whole
 	// stanza as ONE pre-rendered argument).
 	stanza := fmt.Sprintf("\n[initial_session]\ncommand = %q\nuser = %q\n", sessionCommand, installedUser)
 	script := fmt.Sprintf(`set -eu
