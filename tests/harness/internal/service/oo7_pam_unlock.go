@@ -60,6 +60,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -97,6 +98,30 @@ func resolveInstalledPassword(cfg *VerifyConfig) (string, error) {
 	return "", fmt.Errorf("installed user password unavailable (empty InstalledPassword, no usable variables.yaml in run dir)")
 }
 
+// oo7UnlockRequestCountCmd builds the target-side count snippet for
+// "Received unlock request" lines in secrets.log. The `c=$(...); echo
+// ${c:-0}` shape collapses both grep's no-match exit (rc 1, prints "0") and
+// a missing secrets.log (empty stdout) into a plain "0" — a bare
+// `grep -c ... || echo 0` would print TWO zeros when there is no match
+// (grep prints "0" AND exits 1, so the fallback appends another). Runs
+// under the verify transport's `sh -lc`.
+func oo7UnlockRequestCountCmd(user string) string {
+	return fmt.Sprintf("c=$(grep -cF 'Received unlock request' /home/%s/.local/share/dinit/secrets.log 2>/dev/null); echo ${c:-0}", user)
+}
+
+// oo7UnlockRequestCount runs the snippet and parses the number.
+func oo7UnlockRequestCount(ctx context.Context, opts guest.Options, user string) (int, error) {
+	out, err := guest.Output(ctx, opts, oo7UnlockRequestCountCmd(user))
+	if err != nil {
+		return 0, err
+	}
+	n, convErr := strconv.Atoi(strings.TrimSpace(string(out)))
+	if convErr != nil {
+		return 0, fmt.Errorf("unexpected count output %q: %w", strings.TrimSpace(string(out)), convErr)
+	}
+	return n, nil
+}
+
 // verifyOO7PamUnlock runs the static wiring asserts (command, registered
 // under the check name) and then the authenticated PAM login (service
 // "greetd") + log proof. Registered command = statics only, so a refactor
@@ -112,6 +137,18 @@ func verifyOO7PamUnlock(ctx context.Context, opts guest.Options, cfg *VerifyConf
 		return nil, err
 	}
 
+	// Baseline for the enableDebug delta proof: count the delivery lines
+	// BEFORE the login, so the poll below must observe an INCREMENT — a
+	// stale "Received unlock request" line from an earlier proof on the
+	// same boot can never pass the check trivially.
+	unlockBefore := 0
+	if cfg.EnableDebug {
+		unlockBefore, err = oo7UnlockRequestCount(ctx, opts, cfg.InstalledUser)
+		if err != nil {
+			return nil, fmt.Errorf("secrets.log baseline count: %w", err)
+		}
+	}
+
 	// REAL authenticated PAM login on service "greetd": full conversation
 	// with the fixture password, then pam_open_session — pam_oo7 auto_start
 	// delivers to the LIVE supervised daemon (autologin session untouched,
@@ -124,17 +161,17 @@ func verifyOO7PamUnlock(ctx context.Context, opts guest.Options, cfg *VerifyConf
 	if cfg.EnableDebug {
 		// The daemon logs the delivery at INFO (RUST_LOG=info from
 		// secrets.conf when enableDebug). secrets.log only gains lines from
-		// the supervised user-dinit daemon, so the line = end-to-end proof.
-		proof := fmt.Sprintf("grep -F 'Received unlock request' /home/%s/.local/share/dinit/secrets.log 2>/dev/null", cfg.InstalledUser)
+		// the supervised user-dinit daemon, so a NEW line after the login =
+		// end-to-end proof.
 		proofDeadline := time.Now().Add(30 * time.Second)
 		for {
-			out, grepErr := guest.Output(ctx, opts, proof)
-			if grepErr == nil && len(strings.TrimSpace(string(out))) > 0 {
+			after, countErr := oo7UnlockRequestCount(ctx, opts, cfg.InstalledUser)
+			if countErr == nil && after > unlockBefore {
 				runtimeOut = "runtime proof OK (authenticated PAM login on service greetd -> pam_oo7 delivered the unlock request to the daemon)"
 				break
 			}
 			if time.Now().After(proofDeadline) {
-				return nil, fmt.Errorf("no 'Received unlock request' in secrets.log after authenticated PAM login (RUST_LOG=info active?)")
+				return nil, fmt.Errorf("no new 'Received unlock request' in secrets.log after authenticated PAM login (RUST_LOG=info active?)")
 			}
 			select {
 			case <-ctx.Done():
@@ -173,8 +210,10 @@ func pamLoginSh(username, password string) string {
 // service — pam_start -> pam_authenticate (pam_oo7 stashes the authtok) ->
 // pam_open_session (pam_oo7 auto_start delivers to the live daemon; the
 // daemon's listener accepts root or same-UID peers, we run as root) ->
-// pam_close_session -> pam_end. Exit codes: 10 pam_start, 11 auth,
-// 12 acct, 13 open, 14 close, 15 end, 16 marker.
+// pam_close_session -> pam_end. Exit codes: 10 pam_start,
+// 11 pam_authenticate, 12 pam_acct_mgmt, 13 pam_open_session,
+// 14 pam_close_session, 15 pam_end; success prints the stdout marker
+// PAM_LOGIN_OK.
 //
 // The PAM conversation callback must hand back malloc'd responses (PAM
 // frees them with free()) — Python-owned arrays would corrupt the heap, so
@@ -225,7 +264,7 @@ def _conv(num_msg, msg_p, resp_p, appdata):
     try:
         arr_buf = libc.malloc(ctypes.sizeof(PamResponse) * num_msg)
         if not arr_buf:
-            return 14  # PAM_BUF_ERR
+            return 5  # PAM_BUF_ERR
         arr = ctypes.cast(arr_buf, ctypes.POINTER(PamResponse))
         for i in range(num_msg):
             style = msg_p[i].contents.msg_style
@@ -237,7 +276,7 @@ def _conv(num_msg, msg_p, resp_p, appdata):
         resp_p[0] = arr
         return PAM_SUCCESS
     except Exception:
-        return 12  # PAM_CONV_ERR
+        return 19  # PAM_CONV_ERR
 
 # RTLD_GLOBAL is MANDATORY: pam_oo7.so (oo7 0.6.0-r4) carries no
 # DT_NEEDED libpam.so.0 and leaves pam_get_item/pam_set_data/pam_get_data/

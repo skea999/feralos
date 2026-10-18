@@ -295,10 +295,10 @@ type VerifyConfig struct {
 	PrivateKey    string
 	InstalledUser string
 	// InstalledPassword — the user's login password; the oo7_pam_unlock
-	// runtime proof drives a real greetd-IPC password login with it. The
-	// run flow populates it from RunConfig; standalone `verify` resolves
-	// it from the run dir's variables.yaml copy (see
-	// resolveInstalledPassword).
+	// runtime proof drives a real authenticated PAM login (service
+	// "greetd", direct PAM chain over exec SSH) with it. The run flow
+	// populates it from RunConfig; standalone `verify` resolves it from
+	// the run dir's variables.yaml copy (see resolveInstalledPassword).
 	InstalledPassword  string
 	DesktopEnvironment string
 	VideoDriver        string
@@ -1746,7 +1746,7 @@ echo 'fish history clean (no clap error)'`,
 		//     enableDebug — the INFO line the runtime proof greps)
 		//   - the daemon's live PAM listener socket
 		//   - python3 present (remote PAM login client)
-		checks["oo7_pam_unlock"] = fmt.Sprintf("uid=$(id -u %s); i=0; while [ $i -lt 30 ]; do test -S /run/user/$uid/oo7-pam.sock && break; sleep 1; i=$((i+1)); done; test -f /usr/lib/security/pam_oo7.so || { echo 'pam_oo7.so missing'; exit 1; }; grep -q 'auth.*pam_oo7.so' /etc/pam.d/greetd || { echo 'greetd auth line missing'; exit 1; }; grep -q 'session.*pam_oo7.so' /etc/pam.d/greetd || { echo 'greetd session line missing'; exit 1; }; grep -q 'password.*pam_oo7.so' /etc/pam.d/passwd || { echo 'passwd override missing'; exit 1; }; test -f /usr/bin/oo7-daemon && test -x /usr/bin/oo7-daemon || { echo 'oo7-daemon recovery wrapper missing/not executable'; exit 1; }; grep -q 'dinitctl' /usr/bin/oo7-daemon || { echo 'recovery wrapper does not delegate to dinitctl (unsupervised daemon risk)'; exit 1; }; test -f /etc/dinit.d/config/secrets.conf || { echo 'secrets.conf missing'; exit 1; }; %s test -S /run/user/$uid/oo7-pam.sock || { echo 'oo7 PAM listener socket missing'; exit 1; }; command -v python3 >/dev/null || { echo 'python3 missing (remote PAM login client needs it)'; exit 1; }; echo 'oo7 PAM static wiring OK'", cfg.InstalledUser, debugRUSTLogAssert(cfg))
+		checks["oo7_pam_unlock"] = fmt.Sprintf("uid=$(id -u %s); i=0; while [ $i -lt 30 ]; do test -S /run/user/$uid/oo7-pam.sock && break; sleep 1; i=$((i+1)); done; test -f /usr/lib/security/pam_oo7.so || { echo 'pam_oo7.so missing'; exit 1; }; grep -q 'auth.*pam_oo7.so' /etc/pam.d/greetd || { echo 'greetd auth line missing'; exit 1; }; grep -q 'session.*pam_oo7.so' /etc/pam.d/greetd || { echo 'greetd session line missing'; exit 1; }; grep -q 'password.*pam_oo7.so' /etc/pam.d/passwd || { echo 'passwd override missing'; exit 1; }; test -f /usr/bin/oo7-daemon && test -x /usr/bin/oo7-daemon || { echo 'oo7-daemon recovery wrapper missing/not executable'; exit 1; }; grep -q 'dinitctl --user start' /usr/bin/oo7-daemon || { echo 'recovery wrapper does not delegate to dinitctl --user start (unsupervised daemon risk)'; exit 1; }; test -f /etc/dinit.d/config/secrets.conf || { echo 'secrets.conf missing'; exit 1; }; %s test -S /run/user/$uid/oo7-pam.sock || { echo 'oo7 PAM listener socket missing'; exit 1; }; command -v python3 >/dev/null || { echo 'python3 missing (remote PAM login client needs it)'; exit 1; }; echo 'oo7 PAM static wiring OK'", cfg.InstalledUser, debugRUSTLogAssert(cfg))
 	}
 
 	// Flatpak checks — generic, only when a fixture explicitly requests
@@ -1845,10 +1845,11 @@ echo 'fish history clean (no clap error)'`,
 		var output []byte
 		var err error
 		if name == "oo7_pam_unlock" {
-			// Special case: statics (registered command) + the
-			// authenticated greetd-IPC login runtime proof — the
-			// autologin boot can never exercise pam_oo7 (greetd does
-			// not authenticate initial_session). See oo7_pam_unlock.go.
+			// Special case: statics (registered command) + a direct
+			// PAM-chain login over exec SSH (python3+ctypes libpam,
+			// service greetd) as the runtime proof — the autologin boot
+			// can never exercise pam_oo7 (greetd does not authenticate
+			// initial_session). See oo7_pam_unlock.go.
 			output, err = verifyOO7PamUnlock(verifyCtx, guestOpts, cfg, command)
 		} else {
 			output, err = guest.Output(verifyCtx, guestOpts, command)
