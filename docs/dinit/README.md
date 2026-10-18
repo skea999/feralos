@@ -1,10 +1,11 @@
 # Dinit Integration — Installer Side
 
-> **Status**: packaging underway in [feralos-aports](https://github.com/skea999/feralos-aports)
+> **Status**: shipped — merged into `develop` (2026-10-10); Dinit is selectable via
+> `enableDinit` (configuration template default), OpenRC stays co-installed as fallback.
+> Packaging lives in [feralos-aports](https://github.com/skea999/feralos-aports)
 > (CI live: build → sign → publish → client-verify; **rule 0** active: use Alpine
 > packages whenever they exist — sd-tools dropped, Alpine community provides it).
-> **Branch**: `developDinit`
-> **Updated**: 2026-09-10
+> **Updated**: 2026-10-18
 
 ## What lives here vs the aports repo
 

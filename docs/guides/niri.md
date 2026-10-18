@@ -1,6 +1,7 @@
 # Niri — Wayland Compositor Desktop
 
 > Niri desktop on FeralOS: greetd + regreet + niri + DMS (DankMaterialShell, native apk) + NetworkManager + wayvnc remote desktop.
+> **Flagship desktop**: for the recommended experience (niri + Wayle shell + Veila + Raffi + oo7 secrets) see [`niriwayle.md`](./niriwayle.md).
 
 ## Overview
 

@@ -1,12 +1,19 @@
 # Project Context
 
 **Stack**: Go 1.22 (installer) + Shell (legacy reference) + YAML config
-**Project**: FeralOS — Alpine-based distribution, memory safety + security, Nix for glibc, Dinit replaces OpenRC later, custom repo
-**Status**: Installer Phase 1
+**Project**: FeralOS — Alpine-based distribution, memory safety + security, Nix for glibc, Dinit selectable (OpenRC fallback), custom repo
+**Status**: Phase 1 refining · Phase 2 shipping (niriWayle flagship desktop, Dinit selectable)
 
 > **Primary context for AI agents.** This file keeps full project info. Detailed copies live in `docs/` (double documentation). Read this file first, then follow `→` pointers for deep dives.
 
 ## Recent Rounds (latest first)
+
+### 2026-10-18 15:40 - niriWayle review nits + whole-project doc refresh; README flagship statement
+**Agent:** codebase
+**Summary:** Post-review polish on green `8808578` (review: APPROVE WITH NITS, 7 nits, all harness-side) + docs refreshed project-wide; **niriWayle declared the flagship / true FeralOS experience** in README/ROADMAP/AGENTS (other DEs = user convenience, never as ready-to-use). Zero product changes; full harness validation green.
+- **Harness nits** (`oo7_pam_unlock.go`, `service.go`): stale "greetd-IPC" comments → direct PAM chain over exec SSH; PAM labels fixed (`PAM_BUF_ERR=5`, `PAM_CONV_ERR=19`); exit-code comment = real codes 10-15 + stdout `PAM_LOGIN_OK`; `secrets.log` proof = **count-delta** (baseline before login, poll requires increment — new `oo7UnlockRequestCountCmd/Count` helpers, `strconv` import, sh-safe `c=$(grep -cF ... 2>/dev/null); echo ${c:-0}`); recovery-wrapper assert = `dinitctl --user start`.
+- **Docs**: README (flagship paragraph + Dinit "Available" section + up-to-100 checks + niriWayle in DE status + RustDesk→wayvnc), `getting_started.md`/`variables.md` (enum + 28 fixtures), `docs/guides/README.md` + `niri.md` (niriwayle.md pointers), ROADMAP (v2.4 row, Phase 2/3 statuses, DMS native apk), `artifacts.md` (selective list header, Key Rack/`oo7_pam_unlock` rows, latest 100/100), `docs/dinit/README.md`+`PLAN.md` (shipped, definition-of-done checked), AGENTS.md (header, DE bullet, Roadmap table, guides index).
+- **Validated**: harness gofmt/vet/golangci-lint/build + `go test` green; embedded python `py_compile` green; count snippet 0/2 in sh.
 
 ### 2026-10-18 03:15 - oo7_pam_unlock GREEN: authenticated PAM proof — niriWayle harness 100/100
 **Agent:** codebase
@@ -626,7 +633,7 @@ Each `Enable*` flag (and `DesktopEnvironment`) is owned by exactly ONE file unde
 **Desktop environments supported:**
 - `niri` — custom config (greetd, regreet, niri config, DMS, xdg-su) in `chrootPhase/desktops/niri.go`; session wiring = turnstile (PAM → user dinit) + `niri-session` via login-shell trick (`-s /usr/libexec/feralos/login-shell`, not in `/etc/shells`, symlink re-pointed to fish — busybox applet dispatch breaks the package's `/bin/ash` target; user `chsh` skipped) + `niri`/`niri-shutdown` user services (`niri-user-dinit`); installer enables `/etc/dinit.d/boot.d/turnstiled` + user `boot.d` stack in `/usr/lib/dinit.d/user/boot.d/`
   - Session startup: real path = greetd/regreet → `niri-session` (fixed dinit branch shipped by `niri-user-dinit`, `replaces="niri"`: full login-env setenv + dinit-monitor wait — upstream post-25.11 mechanism). greetd autologin exists ONLY as a harness test fixture (simulates the real login); the installer never writes `[initial_session]`. Harness = real-life simulation; installer = the product; harness-discovered fixes go to installer/aports, never the harness.
-- `niriWayle` — custom config in `chrootPhase/desktops/niri_wayle.go` (niri.go derivation minus DMS), Wayle shell + Veila + Raffi + oo7; Key Rack secrets GUI via Flathub flatpak (`app.drey.KeyRack`, NOT an apk — seahorse conflicts with oo7-server on org.freedesktop.secrets.service), portals Secret interface pinned to `oo7-portal`; same turnstile/login-shell session wiring.
+- `niriWayle` — **the flagship/recommended desktop** (the only DE developed and verified as a complete daily-driver experience; the others ship for user convenience): custom config in `chrootPhase/desktops/niri_wayle.go` (niri.go derivation minus DMS), Wayle shell + Veila + Raffi + oo7; Key Rack secrets GUI via Flathub flatpak (`app.drey.KeyRack`, NOT an apk — seahorse conflicts with oo7-server on org.freedesktop.secrets.service), portals Secret interface pinned to `oo7-portal`; oo7 login auto-unlock via PAM (`oo7_pam_unlock` harness check — authenticated PAM proof); same turnstile/login-shell session wiring.
 - `kde` — packages only via `internal_rules.yaml`, no custom config
 - `cosmic` — packages only via `internal_rules.yaml` (uses seatd, not elogind), no custom config
 
@@ -678,7 +685,7 @@ Full tree → `docs/INSTALLER.md#project-structure` and `docs/architecture/overv
 
 - **Architecture**: `docs/architecture/overview.md` (principle + tree), `isolation.md` (entry-point + internal rule + hostPhase order), `logging.md` (ExecuteCmd rule), `feature_confinement.md` (single-owner), `storage.md` (layouts: btrfsStandardServer, btrfsStandard, btrfsRaid0, btrfsUnencrypted), `firstboot.md` (secureboot/tpm 3-boot) — all double of AGENTS.md above
 - **ADRs**: `docs/adr/README.md` → ADR-001 Go installer, 002 isolation, 003 internal rule, 004 ExecuteCmd, 005 LUKS+Btrfs+booster+UKI, 006 no compat, 007 dinit shutdown ordering (decisions from AGENTS.md)
-- **Guides** (user guides only): `docs/guides/README.md` (index) → `getting_started.md` (real hardware), `first_boot.md` (secureboot/tpm post-install), `variables.md` (variables.yaml compilation), `niri.md` (niri + NetworkManager + wayvnc), `webmin.md` (podman-based web admin), `podman.md` (btrfs driver), `development.md` (how to code / separation)
+- **Guides** (user guides only): `docs/guides/README.md` (index) → `getting_started.md` (real hardware), `first_boot.md` (secureboot/tpm post-install), `variables.md` (variables.yaml compilation), `niriwayle.md` (flagship niriWayle desktop — Wayle/Veila/Raffi/oo7 + PAM unlock), `niri.md` (niri + NetworkManager + wayvnc), `webmin.md` (podman-based web admin), `podman.md` (btrfs driver), `development.md` (how to code / separation)
 - **Harness**: `docs/harness/README.md` (index) → `overview.md` (what it does), `workflow.md` (3-phase + 3-boot), `artifacts.md` (where generated, gitignored), `building.md` (where compiled binary goes), `development.md` (how to code), `commands.md` (CLI+MCP), `debug_run.md` (`tests/debug_run/` boot existing run, LUKS inject). `tests/harness/README.md` is pointer only.
 - **Intent / Ideas**: `docs/intent/vision.md`, `docs/intent/goals.md`, `docs/intent/vocabulary.md`, `docs/ideas/backlog.md` ← `CONTEXT.md` / `ROADMAP.md` / `TASKS.md`
 
@@ -692,8 +699,10 @@ Full tree → `docs/INSTALLER.md#project-structure` and `docs/architecture/overv
 | Phase 1 | Generator, Test harness, Nix | Completed |
 | Phase 1 | btrfsUnencrypted | Completed |
 | Phase 1 | niri + NetworkManager + wayvnc + firewall + webmin/podman | Completed |
-| Phase 1 | Refining | Planned |
-| Phase 2 | Dinit, Custom repo, Full release | Planned |
+| Phase 1 | niriWayle flagship desktop (Wayle + Veila + Raffi + oo7) | Completed |
+| Phase 1 | Refining | In progress |
+| Phase 2 | Dinit (shipped, selectable via `enableDinit`), Custom repo (live) | In progress |
+| Phase 2 | Full release (Dinit as default) | Planned |
 
 See `ROADMAP.md` for pipeline priorities. Memory-safe alternatives table → `CONTEXT.md`. Backlog → `docs/ideas/backlog.md`.
 

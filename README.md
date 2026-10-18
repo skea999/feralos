@@ -2,7 +2,7 @@
 
 **Experimental Linux distribution based on Alpine Linux.**
 
-FeralOS is not another clone. It's a different approach: take Alpine's solid foundation (musl, apk) and rebuild the userland with memory-safe alternatives. The init system will be Dinit instead of OpenRC, with the ability to choose between both. The goal is a secure, modern distribution that's actually good for desktop use — something Alpine has always struggled with.
+FeralOS is not another clone. It's a different approach: take Alpine's solid foundation (musl, apk) and rebuild the userland with memory-safe alternatives. The init system is Dinit instead of OpenRC, with the ability to choose between both. The goal is a secure, modern distribution that's actually good for desktop use — something Alpine has always struggled with.
 
 ## Getting Started
 
@@ -80,7 +80,11 @@ FeralOS is designed to be a real desktop distribution. Alpine has always been se
 - Replacing coreutils with uutils (Rust, no more `ls` segfaults)
 - Using fish as default shell (Rust, modern, user-friendly)
 - Using micro as editor (Go, intuitive, fast)
-- Integrating desktop environments: **niri** (Wayland compositor), **KDE Plasma** and **COSMIC** — remote access via RustDesk (flatpak), firewall via firewalld
+- Shipping **niriWayle** as the flagship desktop: niri compositor + Wayle shell, Veila lock screen, Raffi launcher, oo7 secrets — see below
+- Also installable for convenience: **niri** (DMS shell), **KDE Plasma**, **COSMIC**
+- Remote access via **wayvnc** (user dinit, loopback), firewall via firewalld
+
+**niriWayle is the true FeralOS experience.** Choose `desktopEnvironment: niriWayle` for the complete desktop: niri with the Wayle shell (bar, notifications, OSD, wallpaper), Veila lock screen, Raffi launcher and oo7 secrets with automatic keyring unlock at login. It is the only desktop environment developed and verified as a full daily-driver experience — the other environments ship for user convenience and will never be as ready-to-use for every need as niriWayle is.
 
 The `btrfsStandard` layout is ideal for desktop machines: single disk, Btrfs with subvolumes, LUKS2 encryption, swapfile on dedicated subvolume.
 
@@ -131,7 +135,7 @@ Stack: **k3s** + **LINSTOR/Pirateus** as distributed storage backend for **Incus
 
 ## Project Status
 
-**Experimental.** FeralOS is in active development. The installer works and passes all automated tests (41–51 checks per fixture via the QEMU harness), but expect rough edges on real hardware. Everything needs more testing on real hardware before production use.
+**Experimental.** FeralOS is in active development. The installer works and passes all automated tests (up to 100 checks per fixture via the QEMU harness; the flagship niriWayle fixture runs 100/100), but expect rough edges on real hardware. Everything needs more testing on real hardware before production use.
 
 ### Installer Status
 
@@ -139,7 +143,7 @@ Stack: **k3s** + **LINSTOR/Pirateus** as distributed storage backend for **Incus
 - **btrfsStandardServer**: Working
 - **btrfsRaid0**: Working
 - **btrfsStandardUnencrypted**: Working
-- **Desktop environments**: niri, KDE Plasma, COSMIC — Working
+- **Desktop environments**: **niriWayle** (flagship/recommended), niri, KDE Plasma, COSMIC — Working
 - **Secure Boot**: Working (signed UKI)
 - **TPM**: Working (automatic LUKS unlock via Clevis)
 - **Nix**: Working (package manager for software not in Alpine repos)
@@ -154,9 +158,9 @@ Two distinct goals — don't confuse them:
 1. **Today — delta repository (live)**: per rule 0 we use Alpine packages whenever they exist, so our repository hosts **only what Alpine is missing** or what needs FeralOS patches (e.g. `dinit-chimera`; later turnstile + patched polkit).
 2. **Future — full repository** (requires maintainers): a complete FeralOS-built package set that would replace the Alpine repositories entirely. **Not started** — rule 0 exists precisely because we are not there yet.
 
-### Dinit Init System — In Progress
+### Dinit Init System — Available
 
-Dinit replaces OpenRC on the `developDinit` branch: the Chimera boot suite (`dinit-chimera`) is already packaged, signed and published in our repository. OpenRC stays installed — the switch is a kernel-cmdline choice (`init=`).
+Dinit replaces OpenRC when `enableDinit: true` (the configuration template default): the Chimera boot suite (`dinit-chimera`) and the full `-dinit` service suite are packaged, signed and published in our repository. OpenRC stays installed and enabled either way — the active init is a kernel-cmdline choice (`init=`), so a Dinit install remains OpenRC-bootable as a fallback.
 
 We're looking for contributors, especially people interested in:
 - Testing on real hardware

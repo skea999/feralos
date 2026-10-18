@@ -53,7 +53,7 @@ sudo bash <(curl -fsSL https://raw.githubusercontent.com/skea999/feralos/main/se
    # also: src/variables/variables.yaml, tests/fixtures/variables/*.yaml (28 fixtures, full template mirror)
    ```
 
-   Wizard asks: target `disks` → `diskLayout` (`btrfsStandard`/`btrfsRaid0`/`btrfsStandardServer`/`btrfsUnencrypted`) → `hostname` → `userName`/`password` (also LUKS passphrase) → `desktopEnvironment` (`none`/`niri`/`kde`/`cosmic`) → optional `Enable*` flags. Full list + `swapSize`/`extraPackages` → `docs/guides/variables.md`; rules → `internal_rules.yaml`.
+   Wizard asks: target `disks` → `diskLayout` (`btrfsStandard`/`btrfsRaid0`/`btrfsStandardServer`/`btrfsUnencrypted`) → `hostname` → `userName`/`password` (also LUKS passphrase) → `desktopEnvironment` (`none`/`niri`/`niriWayle`/`kde`/`cosmic` — `niriWayle` is the flagship/recommended desktop, see `docs/guides/niriwayle.md`) → optional `Enable*` flags. Full list + `swapSize`/`extraPackages` → `docs/guides/variables.md`; rules → `internal_rules.yaml`.
 
 5. **Wait** — partitioning → LUKS → Btrfs → bootstrap → chroot → UKI. ~5-10 min. Reboot, remove USB.
 
@@ -61,7 +61,7 @@ Non-interactive: `SKEA_NONINTERACTIVE=1 SKEA_NONINTERACTIVE_DECISION=ignore sudo
 
 ## Post-Install — First Boot
 
-System boots UKI directly (`BOOTX64.EFI`), prompts LUKS passphrase, starts OpenRC.
+System boots UKI directly (`BOOTX64.EFI`), prompts LUKS passphrase, starts the init system (Dinit when `enableDinit: true` — the template default — else OpenRC).
 
 Verify:
 
