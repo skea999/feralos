@@ -11,7 +11,7 @@ In modern English, **"feral"** means:
 
 ## The Connection with Alpine Linux
 
-The choice of this name is no coincidence. FeralOS is based on **Alpine Linux**, a distribution born in the **Alps** — Europe's most iconic mountains. The name creates a perfect semantic bridge:
+The choice of this name is no coincidence. FeralOS is a **fork of Alpine Linux**, a distribution born in the **Alps** — Europe's most iconic mountains. The name creates a perfect semantic bridge:
 
 ### The Mountain as Metaphor
 
@@ -27,19 +27,19 @@ FeralOS embodies these qualities in the world of software:
 - **Wildness** → Not conforming to conventions, seeking better solutions
 - **Resilience** → System that resists attacks, recovers from crashes
 
-### The Wolf as Spirit
+### The Bear as Spirit
 
-In the Alps lives the **wolf** (*Canis lupus*), the quintessential predator:
-- **Feral** in the purest sense — wild, untamed
-- **Intelligent** — hunts in packs, strategy, adaptability
-- **Efficient** — no waste, every movement has a purpose
-- **Essential** — balances the ecosystem, eliminates the weak
+In the Alps lives the **brown bear** (*Ursus arctos*) — from Bern's heraldry to the Trentino forests, the most charged symbol of Alpine wilderness. Extirpated from the mountains, then reintroduced (the *Life Ursus* project): the Alps are rewilding, and the bear is the wild coming back.
+- **Feral** in the purest sense — wild, untamed, never domesticated
+- **Powerful** — strength without excess, every action has a purpose
+- **Resilient** — survives the long winter and the harshest climates
+- **Self-sufficient** — autonomous, territorial, needs no permission to exist
 
-FeralOS aims to be the wolf of the Linux world:
-- **Efficient** — Alpine as base, minimal overhead
-- **Intelligent** — dynamic rules, automatic configuration
-- **Essential** — fills the gap for secure and modern distributions
-- **Predatory** — never settles, always seeking better
+FeralOS aims to be the bear of the Linux world:
+- **Powerful** — memory-safe core, built to last
+- **Resilient** — resists attacks, recovers from crashes
+- **Self-sufficient** — Alpine as base, minimal overhead, no useless components
+- **Rewilding** — like the bear returning to the Alps, FeralOS brings the wild back to Alpine
 
 ## The "Feral" Philosophy
 
@@ -78,7 +78,7 @@ This subtitle captures the essence:
 - **Alpine Linux** — the solid and lightweight base
 - **Wild** — the transformation FeralOS brings
 
-It is not a fork of Alpine. It is Alpine **unleashed** — free from obsolete C components, free from security compromises, free to become what it should be.
+FeralOS **is a fork of Alpine** — and the name says exactly that: a *feral* animal is not a new species invented from nothing, it is the **descendant of something established, living free in the wild**. That is what a fork is to its upstream — and it is what FeralOS is to Alpine: **unleashed**, free from obsolete C components, free from security compromises, free to become what Alpine should be.
 
 ## Comparison with Other Distributions
 
@@ -90,7 +90,7 @@ It is not a fork of Alpine. It is Alpine **unleashed** — free from obsolete C 
 | **Arch** | Architecture | DIY, customization |
 | **FeralOS** | Wild | Security, freedom, excellence |
 
-FeralOS does not compete with these distributions — it **complements** the landscape by offering what is missing: a truly secure distribution, based on Alpine, with a clear and ambitious vision.
+FeralOS does not compete with these distributions — it **complements** the landscape by offering what is missing: a truly secure distribution, **forked from Alpine**, with a clear and ambitious vision.
 
 ## The Name as a Promise
 

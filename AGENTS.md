@@ -8,6 +8,11 @@
 
 ## Recent Rounds (latest first)
 
+### 2026-10-18 15:50 - FERALOS_NAME: wolf→bear, fork-of-Alpine explicit; variables.yaml default niriWayle pushed
+**Agent:** codebase
+**Summary:** `docs/FERALOS_NAME.md` reworked: "The Wolf as Spirit" → "The Bear as Spirit" (brown bear as the Alpine rewilding symbol — *Life Ursus*; traits: feral/powerful/resilient/self-sufficient; rewilding ↔ fork metaphor) and the fork framing fixed — the old "It is not a fork of Alpine" contradicted the intent; now explicit "FeralOS is a fork of Alpine" (feral = descendant of something established living wild = exactly a git fork). Review: unique, particular name (double meaning + Alpine-native animal, less overused than the wolf). `src/variables/variables.yaml` template default `desktopEnvironment` niri→niriWayle committed + pushed.
+- Files: `docs/FERALOS_NAME.md`, `src/variables/variables.yaml`, AGENTS.md, state/handoff.
+
 ### 2026-10-18 15:40 - niriWayle review nits + whole-project doc refresh; README flagship statement
 **Agent:** codebase
 **Summary:** Post-review polish on green `8808578` (review: APPROVE WITH NITS, 7 nits, all harness-side) + docs refreshed project-wide; **niriWayle declared the flagship / true FeralOS experience** in README/ROADMAP/AGENTS (other DEs = user convenience, never as ready-to-use). Zero product changes; full harness validation green.
