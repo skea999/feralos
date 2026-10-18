@@ -3,9 +3,14 @@ chrootDir: "/mnt"
 # Default system runlevels — only base OS services
 # NOTE: 'modules' service not needed with booster (loads /etc/modules automatically)
 # NOTE: udev services are in packageLogic under eudev (Alpine uses mdev by default)
+# NOTE: dbus-services-setup (feralos-dbus-activate): copies the packaged ADR-010
+#       system-bus D-Bus overrides into /usr/local/share/dbus-1/system-services
+#       — the launch helper's FIRST eligible dir — before dbus starts. Enabled
+#       on both inits (OpenRC initd + dinit unit, same name); no-op when no
+#       overrides are installed.
 defaultRunlevels:
   sysinit: ["devfs", "dmesg", "sysctl", "sysfs"]
-  boot: ["hwclock", "hostname", "bootmisc", "binfmt", "fsck", "root", "procfs", "loadkmap", "localmount", "klogd"]
+  boot: ["hwclock", "hostname", "bootmisc", "binfmt", "fsck", "root", "procfs", "loadkmap", "localmount", "klogd", "dbus-services-setup"]
   default: ["cgroups", "cpufrequtils", "networking"]
   shutdown: ["mount-ro", "killprocs", "savecache"]
 
@@ -32,6 +37,10 @@ defaultRunlevelsDinit:
 #     via defaultRunlevelsDinit — skipping here prevents a duplicate boot.d
 #     link from the OpenRC boot list (same service name, both lists)
 #   - vector-setup: replaced under dinit by vector-dinit's tmpfiles file
+#   - polkit/fwupd: units renamed to their D-Bus names (ADR-010:
+#     org.freedesktop.PolicyKit1 / org.freedesktop.fwupd) and enabled via
+#     `dinitServices`; skipping the OpenRC names here prevents a duplicate
+#     boot.d attempt (and a warning) from the `services` maps
 dinitSkipServices:
   - hwclock
   - hostname
@@ -51,6 +60,10 @@ dinitSkipServices:
   - btrfs-scan
   - dmcrypt
   - vector-setup
+  - polkit
+  - fwupd
+  - bluetooth
+  - elogind
 
 # -openrc subpackages whose service is already provided by the dinit-chimera
 # suite — never converted to -dinit (their -dinit equivalent does not exist
@@ -100,6 +113,13 @@ standardPackages:
   - cpufrequtils       # CPU governor settings (dinit service via conversion; skips on VMs)
   - chrony
   - dbus
+  # ADR-010: D-Bus activation shim (every activation starts a dinit unit) +
+  # the dbus-services-setup boot materializer that copies the packaged system-
+  # bus overrides into /usr/local/share/dbus-1/system-services (the launch
+  # helper's first eligible dir — /etc is daemon-enumerated but NOT helper-
+  # activatable). Installed everywhere; the setup unit is enabled on both
+  # inits and no-ops without overrides.
+  - feralos-dbus-activate
   - shadow
   - eudev
   - udev-init-scripts
@@ -191,7 +211,7 @@ desktopEnvironments:
     services: {"sddm": "default", "dbus": "default"}
     groups: ["video", "input"]
   niri:
-    packages: ["niri", "niri-portalsconf", "greetd", "greetd-regreet", "elogind", "dbus", "alacritty", "xdg-desktop-portal-wlr", "xdg-desktop-portal-gtk", "polkit-elogind", "polkit-gnome", "xwayland-satellite", "xwayland", "mesa-dri-gallium", "wayland-libs-server", "dms-shell", "dms-window-buttons", "matugen", "turnstile", "niri-user-dinit", "accountsservice", "power-profiles-daemon", "cups-pk-helper", "iptables", "ip6tables", "ebtables", "dbus-user-dinit", "pipewire-user-dinit", "pipewire-pulse-user-dinit", "wireplumber-user-dinit", "wayland-wait-user-dinit", "xdg-desktop-portal-user-dinit", "seahorse", "polkit-agent-user-dinit", "wayvnc", "wayvnc-user-dinit", "networkmanager", "networkmanager-cli", "networkmanager-tui", "networkmanager-wifi", "wireless-regdb", "bluez", "wpa_supplicant", "wireguard-tools", "qt6-qtmultimedia", "i2c-tools", "wtype", "simple-scan", "sane", "sane-backends", "sane-utils", "sane-airscan", "gnome-keyring", "cosmic-edit", "eog", "cups", "cups-filters", "avahi", "cosmic-player", "libreoffice", "galculator", "firefox", "firewalld-gui", "gnome-firmware", "gnome-disk-utility", "kcron", "ksystemlog", "kimageformats", "khal", "adw-gtk3", "dconf", "font-terminus", "font-inconsolata", "font-dejavu", "font-noto", "font-noto-cjk", "font-awesome", "font-noto-extra", "gnome-maps", "gnome-calendar"]
+    packages: ["niri", "niri-portalsconf", "greetd", "greetd-regreet", "elogind", "dbus", "alacritty", "xdg-desktop-portal-wlr", "xdg-desktop-portal-gtk", "polkit-elogind", "polkit-gnome", "xwayland-satellite", "xwayland", "mesa-dri-gallium", "wayland-libs-server", "dms-shell", "dms-window-buttons", "matugen", "turnstile", "niri-user-dinit", "accountsservice", "power-profiles-daemon", "cups-pk-helper", "iptables", "ip6tables", "ebtables", "dbus-user-dinit", "pipewire-user-dinit", "pipewire-pulse-user-dinit", "wireplumber-user-dinit", "wayland-wait-user-dinit", "xdg-desktop-portal-user-dinit", "seahorse", "polkit-agent-user-dinit", "wayvnc", "wayvnc-user-dinit", "networkmanager", "networkmanager-cli", "networkmanager-tui", "networkmanager-wifi", "wireless-regdb", "bluez", "wpa_supplicant", "wireguard-tools", "qt6-qtmultimedia", "i2c-tools", "wtype", "simple-scan", "sane", "sane-backends", "sane-utils", "sane-airscan", "gnome-keyring", "cosmic-edit", "eog", "cups", "cups-filters", "avahi", "cosmic-player", "libreoffice", "galculator", "firefox", "firewalld-gui", "gnome-firmware", "gnome-disk-utility", "kcron", "ksystemlog", "kimageformats", "khal", "adw-gtk3", "dconf", "font-terminus", "font-inconsolata", "font-dejavu", "font-noto", "font-noto-cjk", "font-awesome", "font-noto-extra", "gnome-maps", "gnome-calendar", "power-profiles-daemon-dinit", "accountsservice-dinit", "flatpak-dinit", "flatpak-user-dinit", "at-spi2-core-user-dinit", "dconf-user-dinit", "kwallet-user-dinit", "kded-user-dinit", "signond-user-dinit", "localsearch-user-dinit", "xdg-desktop-portal-gtk-user-dinit", "xdg-desktop-portal-wlr-user-dinit", "wpa_supplicant-dinit", "kio-user-dinit", "nautilus-user-dinit", "glib-networking-user-dinit", "signon-ui-user-dinit"]
     flatpakPackages: ["io.github.zarestia_dev.rclone-manager", "com.github.tchx84.Flatseal"]
     # turnstile + niri-user-dinit: PAM session → user dinit (turnstiled);
     # Alpine niri-session's dinit branch starts the `niri` user service.
@@ -224,6 +244,9 @@ desktopEnvironments:
     # wayvnc = VNC server (round 37) — RustDesk flatpak REMOVED (round 43
     # cleanup philosophy: not part of the validated stack)
     services: {"greetd": "default", "elogind": "default", "firewalld": "default", "polkit": "default", "cupsd": "default", "networkmanager": "default", "bluetooth": "default"}
+    # ADR-010: dinit unit names for activation targets (named after the
+    # well-known D-Bus name; `services` above keeps the OpenRC fallback names).
+    dinitServices: {"org.freedesktop.PolicyKit1": "default", "org.freedesktop.UPower.PowerProfiles": "default", "org.bluez": "default", "org.freedesktop.login1": "default"}
     # render group does not exist on Alpine (video covers DRM access);
     # audio group: /dev/snd/* for pipewire (real-hardware audio);
     # plugdev: NM polkit rule allows GUI connection management (round 30);
@@ -239,7 +262,7 @@ desktopEnvironments:
     # RustDesk removed (round 43 cleanup + user decision): wayvnc is the
     # remote-desktop path (user dinit service, loopback by default).
   niriWayle:
-    packages: ["niri", "niri-portalsconf", "greetd", "greetd-regreet", "elogind", "dbus", "alacritty", "xdg-desktop-portal-wlr", "xdg-desktop-portal-gtk", "polkit-elogind", "polkit-gnome", "xwayland-satellite", "xwayland", "mesa-dri-gallium", "wayland-libs-server", "turnstile", "accountsservice", "power-profiles-daemon", "upower", "wl-clipboard-rs", "wayle", "wayle-session", "veila", "stasis", "raffi", "oo7", "oo7-pam", "oo7-cli", "oo7-portal", "matugen", "dbus-user-dinit", "pipewire-user-dinit", "pipewire-pulse-user-dinit", "wireplumber-user-dinit", "wayland-wait-user-dinit", "oo7-user-dinit", "xdg-desktop-portal-user-dinit", "polkit-agent-user-dinit", "wayvnc", "wayvnc-user-dinit", "networkmanager", "networkmanager-cli", "networkmanager-tui", "networkmanager-wifi", "wireless-regdb", "bluez", "wpa_supplicant", "wireguard-tools", "firewalld", "iptables", "ip6tables", "ebtables", "dconf", "xdg-user-dirs", "wtype", "i2c-tools", "adwaita-icon-theme", "hicolor-icon-theme", "font-terminus", "font-inconsolata", "font-dejavu", "font-noto", "font-noto-cjk", "font-awesome", "font-noto-extra"]
+    packages: ["niri", "niri-portalsconf", "greetd", "greetd-regreet", "elogind", "dbus", "alacritty", "xdg-desktop-portal-wlr", "xdg-desktop-portal-gtk", "polkit-elogind", "polkit-gnome", "xwayland-satellite", "xwayland", "mesa-dri-gallium", "wayland-libs-server", "turnstile", "accountsservice", "power-profiles-daemon", "upower", "wl-clipboard-rs", "wayle", "wayle-session", "veila", "stasis", "raffi", "oo7", "oo7-pam", "oo7-cli", "oo7-portal", "matugen", "dbus-user-dinit", "pipewire-user-dinit", "pipewire-pulse-user-dinit", "wireplumber-user-dinit", "wayland-wait-user-dinit", "oo7-user-dinit", "xdg-desktop-portal-user-dinit", "polkit-agent-user-dinit", "wayvnc", "wayvnc-user-dinit", "networkmanager", "networkmanager-cli", "networkmanager-tui", "networkmanager-wifi", "wireless-regdb", "bluez", "wpa_supplicant", "wireguard-tools", "firewalld", "iptables", "ip6tables", "ebtables", "dconf", "xdg-user-dirs", "wtype", "i2c-tools", "adwaita-icon-theme", "hicolor-icon-theme", "font-terminus", "font-inconsolata", "font-dejavu", "font-noto", "font-noto-cjk", "font-awesome", "font-noto-extra", "power-profiles-daemon-dinit", "accountsservice-dinit", "flatpak-dinit", "flatpak-user-dinit", "at-spi2-core-user-dinit", "dconf-user-dinit", "kwallet-user-dinit", "kded-user-dinit", "signond-user-dinit", "localsearch-user-dinit", "xdg-desktop-portal-gtk-user-dinit", "xdg-desktop-portal-wlr-user-dinit", "xdg-desktop-portal-gnome-user-dinit", "upower-dinit", "wpa_supplicant-dinit", "kio-user-dinit", "nautilus-user-dinit", "glib-networking-user-dinit", "signon-ui-user-dinit"]
     # Key Rack (app.drey.KeyRack) = the niriWayle secrets GUI — Flathub
     # flatpak, NOT an apk: oo7-server and seahorse both ship
     # /usr/share/dbus-1/services/org.freedesktop.secrets.service, so the
@@ -261,6 +284,9 @@ desktopEnvironments:
     # screen (ext-session-lock; idle timing owned by stasis).
     # Apps (browser/office/etc) are intentionally NOT listed — added per-install.
     services: {"greetd": "default", "elogind": "default", "firewalld": "default", "polkit": "default", "networkmanager": "default", "bluetooth": "default"}
+    # ADR-010: dinit unit names for activation targets (named after the
+    # well-known D-Bus name; `services` above keeps the OpenRC fallback names).
+    dinitServices: {"org.freedesktop.PolicyKit1": "default", "org.freedesktop.UPower.PowerProfiles": "default", "org.bluez": "default", "org.freedesktop.login1": "default"}
     # upower has no dinit service: upowerd is dbus system-activated when Wayle
     # queries org.freedesktop.UPower (upower ships the dbus system-service file).
     # OpenRC side: upower-openrc is install_if-pulled like every -openrc pkg.
@@ -355,6 +381,7 @@ packageLogic:
     services: {"irqbalance": "default"}
   fwupd:
     services: {"fwupd": "default"}
+    dinitServices: {"org.freedesktop.fwupd": "default"}
   earlyoom:
     services: {"earlyoom": "default"}
   vlan:

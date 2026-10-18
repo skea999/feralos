@@ -490,6 +490,11 @@
       "date": "2026-10-18",
       "decision": "power-profiles-daemon stays D-Bus activated (Alpine upstream design — no init script; nothing to supervise); profile switching authorized by the wheel polkit rule (org.freedesktop.UPower.PowerProfiles.switch-profile/.hold-profile, written for both inits)",
       "rationale": "PPD's upstream policy is allow_active=yes — under dinit NoSessionForPID makes that unsatisfiable, so switches from the Wayle battery dropdown (or the DMS power UI) would be silently denied (same class as the login1 power buttons). Alpine's 0001-dbus-no-systemd patch provides the activation Exec on the shared service template (both bus names: net.hadess alias + org.freedesktop.UPower); the placeholder driver still exposes power-saver + balanced, so the harness performs a real switch."
+    },
+    {
+      "date": "2026-10-18",
+      "decision": "D-Bus activation uniformly routes through dinit services (ADR-010): unit name = canonical well-known bus name (+.user for user units); effective .service file Exec = /usr/libexec/feralos/dbus-activate <unit> -- <upstream exec>; system overrides ship in /usr/share/feralos/dbus-system-services + materialized at boot by dbus-services-setup (dinit unit + OpenRC initd, ordered before dbus) into /usr/local/share/dbus-1/system-services; session overrides ship in /usr/share/feralos/dbus-services + materialized at login by dbus-session into $XDG_RUNTIME_DIR/dbus-1/services; activation environment forwarded to dinit with one dinitctl setenv call; OpenRC system-bus fallback execs upstream when no system dinit; session bus always uses turnstile user dinit (works on both inits)",
+      "rationale": "User directive: nothing dbus-activatable may run unsupervised; the mechanism must be identical for every service (no per-app exceptions) and documented so future services follow it. CRITICAL live finding (dbus 1.16.2): the system bus activates through the setuid dbus-daemon-launch-helper, whose trivial config parser resolves names ONLY against the standard dirs (/usr/local/share > /usr/share > /lib) — /etc/dbus-1/system-services is daemon-enumerated (ListActivatableNames) but NEVER helper-activatable (raw spawn / Spawn.ServiceNotFound when no standard twin). Hence the boot materialization into /usr/local/share (first helper-eligible dir; live-proven to route activation through dinit). Session activation runs Exec directly (no helper) so the runtime-dir materialization works; abuild forbids /usr/local packaging, hence the materializer pattern on both sides. Chimera designed the same architecture (dinit-dbus Activator) but its routing is not implemented upstream; Artix and systemd provide the reference for system-vs-user placement."
     }
   ],
   "next_actions": [
@@ -498,6 +503,7 @@
     "Booster initramfs module policy PARKED: host-specific autodetect by default + user modulesForceLoad list sufficient — revisit universal mode only if a real-hw case demands it",
     "Pages race hardening (structural): harness installs feralos repo packages from CI artifact, not live Pages URL",
     "Test with partial features (Secure Boot only, TPM only)",
-    "Add more unit tests for verify checks"
+    "Add more unit tests for verify checks",
+    "D-Bus→dinit (ADR-010) CLOSED 2026-10-18: shim + system/session units + overrides + installer/harness wiring + docs all done; validated 106/106 (dinit niriWayle) + 90/90 (OpenRC niriWayle). NEXT: real-hw validation (DMS/Wayle widgets trigger activation on real boots); retire the shim if Chimera ships native dinit-dbus routing"
   ]
 }

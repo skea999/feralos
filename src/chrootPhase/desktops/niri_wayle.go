@@ -21,7 +21,7 @@ import (
 //   - oo7 PAM login-unlock (greetd stack) + passwd-stack keyring password
 //     re-sync — the gnome-keyring analogue for this DE (step 11). The
 //     secrets daemon itself stays a supervised per-user dinit service
-//     (secrets.user); the PAM module talks to its unix-socket listener.
+//     (org.freedesktop.secrets.user); the PAM module talks to its unix-socket listener.
 //   - Wayle session actions ARE wired (step 7b): the dashboard dropdown's
 //     user-row buttons (lock/logout/reboot/poweroff — upstream v0.7.0
 //     source-verified) run installer-seeded commands from
@@ -435,7 +435,7 @@ exec /usr/bin/xdg-su "$@"
 	//   exists) forks as the user and connects to the daemon's PAM
 	//   listener /run/user/$UID/oo7-pam.sock (0600, peer must be root or
 	//   same UID) with a 20x100ms retry window — the supervised
-	//   secrets.user daemon (started after dbus.user) listens there and
+	//   org.freedesktop.secrets.user daemon (started after dbus.user) listens there and
 	//   unlocks all locked collections with the login password.
 	//   On a missing socket the module also execs /usr/bin/oo7-daemon —
 	//   that path is OUR recovery wrapper (aports oo7-user-dinit), which
@@ -514,7 +514,7 @@ password optional pam_oo7.so
 	// add-wants model) starts them after niri, so the greetd greeter session
 	// (greeter.sh, which never runs wayle-session) never gets desktop apps.
 	// Existence-filtered — only installed packages get enabled.
-	userServices := "dbus.user pipewire.user pipewire-pulse.user wireplumber.user wait-wayland.user secrets.user oo7-portal.user xdg-desktop-portal.user xdg-document-portal.user xdg-permission-store.user"
+	userServices := "dbus.user pipewire.user pipewire-pulse.user wireplumber.user wait-wayland.user org.freedesktop.secrets.user org.freedesktop.impl.portal.desktop.oo7.user org.freedesktop.portal.Desktop.user org.freedesktop.portal.Documents.user org.freedesktop.impl.portal.PermissionStore.user"
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p /usr/lib/dinit.d/user/boot.d && for s in %s; do [ -f /etc/dinit.d/user/$s ] && ln -sf /etc/dinit.d/user/$s /usr/lib/dinit.d/user/boot.d/$s; done", userServices)); err != nil {
 		fmt.Printf("[WARNING] Failed to enable user dinit services: %v\n", err)
 	}

@@ -513,7 +513,7 @@ exec /usr/bin/xdg-su "$@"
 	// after niri (aports niri-user-dinit), so the greetd greeter session
 	// (greeter.sh, which never runs niri-session) never gets desktop apps.
 	// Existence-filtered — only installed packages get enabled.
-	userServices := "dbus.user pipewire.user pipewire-pulse.user wireplumber.user wait-wayland.user xdg-desktop-portal.user xdg-document-portal.user xdg-permission-store.user"
+	userServices := "dbus.user pipewire.user pipewire-pulse.user wireplumber.user wait-wayland.user org.freedesktop.portal.Desktop.user org.freedesktop.portal.Documents.user org.freedesktop.impl.portal.PermissionStore.user"
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p /usr/lib/dinit.d/user/boot.d && for s in %s; do [ -f /etc/dinit.d/user/$s ] && ln -sf /etc/dinit.d/user/$s /usr/lib/dinit.d/user/boot.d/$s; done", userServices)); err != nil {
 		fmt.Printf("[WARNING] Failed to enable user dinit services: %v\n", err)
 	}

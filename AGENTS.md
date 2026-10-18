@@ -8,6 +8,13 @@
 
 ## Recent Rounds (latest first)
 
+### 2026-10-18 23:15 - D-Bus activation → dinit services (ADR-010) CLOSED — system-bus helper-eligibility fix + full validation, harness 106/106 (dinit) + 90/90 (OpenRC)
+**Agent:** codebase
+**Summary:** user directive "nothing dbus-activatable may run unsupervised" implemented end-to-end and validated on both inits: every activation starts a dinit unit via the uniform shim (`Exec=/usr/libexec/feralos/dbus-activate <unit> -- <upstream exec>`; R1 naming = canonical bus name (+`.user`); activation env forwarded with one `dinitctl setenv`; OpenRC system-bus fallback = exec upstream).
+- **Validation round 2 root cause (live debug_run + dbus 1.16.2 source):** system-bus activation runs through the setuid `dbus-daemon-launch-helper`, whose "trivial" parser resolves names ONLY against the standard dirs (`/usr/local/share` > `/usr/share` > `/lib`); `/etc/dbus-1/system-services` is daemon-enumerated (`ListActivatableNames`) but NEVER helper-activatable (raw spawn; `Spawn.ServiceNotFound` with no standard twin). Live-proven: the shim override in `/usr/local/share/dbus-1/system-services` routes activation through dinit instantly (unit started, no `DBUS_STARTER_*`).
+- **Fix:** aports `2e0caa8` — 13 system overrides moved to `/usr/share/feralos/dbus-system-services` + NEW `dbus-services-setup` (feralos-dbus-activate r2; dinit unit + OpenRC initd, both ordered before dbus) materializes them at boot into `/usr/local/share/dbus-1/system-services`; `5f729ea` stale unit-file comments. Feralos: `defaultRunlevels.boot` += `dbus-services-setup`, `standardPackages` += `feralos-dbus-activate`; `dbus_activation_uniform` reworked (init-aware: sources + materialization + `/etc` clean; upstream coverage loop dinit-only) + `dbus_activation_env` system half reworked (real activation: no `DBUS_STARTER_*`; direct-shim `setenv` proof).
+- **Validated:** harness gofmt/vet/golangci-lint/build green; dinit niriWayle `2026-10-18T22-56-20Z` **106/106**; OpenRC niriWayle `2026-10-18T23-03-31Z` **90/90**; aports CI `39172523572` + `39175407432` green. Docs: ADR-010 + ADR index + `docs/architecture/dbus-activation.md` + AGENTS policy section synced.
+
 ### 2026-10-18 19:10 - power-profiles-daemon for niriWayle: verified + polkit fix — harness 104/104 (dinit) + 88/88 (OpenRC)
 **Agent:** codebase
 **Summary:** user question "i profile powerdaemon per wayle sono stati fatti?" → audit found: PPD (`power-profiles-daemon` 0.30) IS in both DE package lists and Wayle v0.7.0 ships a battery-dropdown `power_profile` section — but switching was never validated and, under dinit, `switch-profile` (`allow_active=yes` upstream) is unsatisfiable (NoSessionForPID) → switches would be silently denied. Verified, fixed, proven.
@@ -670,6 +677,16 @@ Each `Enable*` flag (and `DesktopEnvironment`) is owned by exactly ONE file unde
 **Dinit services** ship `/etc/dinit.d/config/<svc>.conf` (Artix pattern, ADR-008): service → `/usr/lib/dinit/<svc>` wrapper → sources config → exec daemon. User-editable, apk-protected; service conventions per ADR-009 (no restart, before=login.target, pre-network ordering, dbus-wait-for readiness).
 
 → Details: `docs/architecture/feature_confinement.md`, `docs/guides/development.md` (how to add feature)
+
+## D-Bus Activation Rule (ADR-010)
+
+**Rule: every D-Bus-activatable daemon is a dinit service; activation only triggers dinit.** No exceptions, no per-application special cases (user directive 2026-10-18; decision `docs/adr/ADR-010-dbus-activation-dinit.md`, mechanism + checklist `docs/architecture/dbus-activation.md`).
+
+- Unit name = canonical well-known bus name (+`.user` for user units; aliases map to the same unit); system units `/lib/dinit.d/`, user units `/etc/dinit.d/user/`.
+- The effective `.service` file carries `Exec=/usr/libexec/feralos/dbus-activate <unit> -- <upstream exec>`; overrides ship in `/usr/share/feralos/dbus-system-services` (system) + `/usr/share/feralos/dbus-services` (session) and are materialized into the effective servicedirs: `/usr/local/share/dbus-1/system-services` at boot via `dbus-services-setup` (the system bus activates through the setuid launch helper, which resolves names ONLY against the standard dirs — `/etc/dbus-1/system-services` is daemon-enumerated but NOT helper-activatable on dbus 1.16.2) and `$XDG_RUNTIME_DIR/dbus-1/services` at login via the `dbus-session` wrapper; upstream files untouched.
+- Shim: forwards the activation environment to dinit (single `dinitctl setenv`) then `dinitctl start` (waits) and exits; OpenRC system-bus fallback = upstream exec when no system dinit; session bus always user dinit (both inits).
+- Enablement is orthogonal: `dinitServices` in the rules enables dinit units whose names differ from the OpenRC fallback names in `services`.
+- Enforcement: harness `dbus_activation_uniform` (override sources + boot materialization + unit exists; fails if anything is left in the helper-ineligible `/etc/dbus-1/system-services`) + `dbus_activation_env` (real activation proof: unit started with no `DBUS_STARTER_*` in the daemon environ, plus `setenv` forwarding via a direct shim marker run).
 
 ## Compatibility
 

@@ -93,8 +93,12 @@ type DynamicPackageRules struct {
 	FlatpakPackages []string          `yaml:"flatpakPackages"`
 	Groups          []string          `yaml:"groups"`
 	Services        map[string]string `yaml:"services"`
-	Modules         []string          `yaml:"modules"`
-	KernelCmdline   []string          `yaml:"kernelCmdline"`
+	// DinitServices enables dinit units whose names differ from the OpenRC
+	// service names (ADR-010: activation targets are named after their
+	// well-known D-Bus name; `services` keeps the OpenRC fallback names).
+	DinitServices map[string]string `yaml:"dinitServices"`
+	Modules       []string          `yaml:"modules"`
+	KernelCmdline []string          `yaml:"kernelCmdline"`
 }
 
 func LoadConfig(userPath string) (*Config, error) {

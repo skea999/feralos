@@ -1449,15 +1449,15 @@ echo 'fish history clean (no clap error)'`,
 	//   dinit_user_services     — user service FILES shipped by the packages
 	//   user_services_enabled   — boot.d links (infra present, session apps absent)
 	//   niri_user_dinit_runtime — services that must hold a started marker
-	dinitUserSvcFiles := "dbus.user pipewire.user pipewire-pulse.user wireplumber.user wait-wayland.user xdg-desktop-portal.user xdg-document-portal.user xdg-permission-store.user polkit-agent.user dms.user"
+	dinitUserSvcFiles := "dbus.user pipewire.user pipewire-pulse.user wireplumber.user wait-wayland.user org.freedesktop.portal.Desktop.user org.freedesktop.portal.Documents.user org.freedesktop.impl.portal.PermissionStore.user polkit-agent.user dms.user ca.desrt.dconf.user org.a11y.Bus.user org.kde.kwalletd6.user org.kde.kded6.user com.google.code.AccountsSSO.SingleSignOn.user org.freedesktop.LocalSearch3.user org.freedesktop.LocalSearch3.Control.user org.freedesktop.LocalSearch3.Writeback.user org.freedesktop.Flatpak.user org.freedesktop.portal.Flatpak.user org.flatpak.Authenticator.Oci.user org.freedesktop.impl.portal.desktop.gtk.user org.freedesktop.impl.portal.desktop.wlr.user org.kde.kiod6.user org.kde.kioexecd6.user org.kde.kpasswdserver6.user org.kde.kssld6.user org.gnome.Nautilus.user org.gtk.GLib.PACRunner.user com.canonical.indicators.webcredentials.user com.nokia.singlesignonui.user org.freedesktop.portal.Tracker.user org.kde.secretservicecompat.user org.freedesktop.impl.portal.desktop.kwallet.user"
 	sessionAppsAbsent := "polkit-agent.user dms.user wayvnc.user"
-	userDinitRuntimeSvcs := "niri dbus.user pipewire.user pipewire-pulse.user wireplumber.user xdg-desktop-portal.user xdg-document-portal.user xdg-permission-store.user polkit-agent.user dms.user wayvnc.user"
-	userSvcBootLinks := "dbus.user pipewire.user pipewire-pulse.user wireplumber.user wait-wayland.user xdg-desktop-portal.user xdg-document-portal.user xdg-permission-store.user"
+	userDinitRuntimeSvcs := "niri dbus.user pipewire.user pipewire-pulse.user wireplumber.user org.freedesktop.portal.Desktop.user org.freedesktop.portal.Documents.user org.freedesktop.impl.portal.PermissionStore.user polkit-agent.user dms.user wayvnc.user"
+	userSvcBootLinks := "dbus.user pipewire.user pipewire-pulse.user wireplumber.user wait-wayland.user org.freedesktop.portal.Desktop.user org.freedesktop.portal.Documents.user org.freedesktop.impl.portal.PermissionStore.user"
 	if cfg.DesktopEnvironment == desktopNiriWayle {
-		dinitUserSvcFiles = "dbus.user pipewire.user pipewire-pulse.user wireplumber.user wait-wayland.user xdg-desktop-portal.user xdg-document-portal.user xdg-permission-store.user secrets.user oo7-portal.user polkit-agent.user wayle.user veila.user stasis.user"
+		dinitUserSvcFiles = "dbus.user pipewire.user pipewire-pulse.user wireplumber.user wait-wayland.user org.freedesktop.portal.Desktop.user org.freedesktop.portal.Documents.user org.freedesktop.impl.portal.PermissionStore.user org.freedesktop.secrets.user org.freedesktop.impl.portal.desktop.oo7.user polkit-agent.user wayle.user veila.user stasis.user ca.desrt.dconf.user org.a11y.Bus.user org.kde.kwalletd6.user org.kde.kded6.user com.google.code.AccountsSSO.SingleSignOn.user org.freedesktop.LocalSearch3.user org.freedesktop.LocalSearch3.Control.user org.freedesktop.LocalSearch3.Writeback.user org.freedesktop.Flatpak.user org.freedesktop.portal.Flatpak.user org.flatpak.Authenticator.Oci.user org.freedesktop.impl.portal.desktop.gtk.user org.freedesktop.impl.portal.desktop.wlr.user org.freedesktop.impl.portal.desktop.gnome.user org.kde.kiod6.user org.kde.kioexecd6.user org.kde.kpasswdserver6.user org.kde.kssld6.user org.gnome.Nautilus.user org.gtk.GLib.PACRunner.user com.canonical.indicators.webcredentials.user com.nokia.singlesignonui.user org.freedesktop.portal.Tracker.user org.kde.secretservicecompat.user org.freedesktop.impl.portal.desktop.kwallet.user"
 		sessionAppsAbsent = "wayle.user veila.user stasis.user polkit-agent.user"
-		userDinitRuntimeSvcs = "niri dbus.user pipewire.user pipewire-pulse.user wireplumber.user xdg-desktop-portal.user xdg-document-portal.user xdg-permission-store.user secrets.user oo7-portal.user polkit-agent.user wayle.user veila.user stasis.user wayvnc.user"
-		userSvcBootLinks = "dbus.user pipewire.user pipewire-pulse.user wireplumber.user wait-wayland.user xdg-desktop-portal.user xdg-document-portal.user xdg-permission-store.user secrets.user oo7-portal.user"
+		userDinitRuntimeSvcs = "niri dbus.user pipewire.user pipewire-pulse.user wireplumber.user org.freedesktop.portal.Desktop.user org.freedesktop.portal.Documents.user org.freedesktop.impl.portal.PermissionStore.user org.freedesktop.secrets.user org.freedesktop.impl.portal.desktop.oo7.user polkit-agent.user wayle.user veila.user stasis.user wayvnc.user"
+		userSvcBootLinks = "dbus.user pipewire.user pipewire-pulse.user wireplumber.user wait-wayland.user org.freedesktop.portal.Desktop.user org.freedesktop.portal.Documents.user org.freedesktop.impl.portal.PermissionStore.user org.freedesktop.secrets.user org.freedesktop.impl.portal.desktop.oo7.user"
 	}
 	if isNiriFamily {
 		checks["niri_config_valid"] = fmt.Sprintf("niri validate --config /var/lib/greetd/.config/niri/config.kdl && niri validate --config /home/%s/.config/niri/config.kdl && grep -q '^prefer-no-csd' /home/%s/.config/niri/config.kdl && grep -q 'QT_WAYLAND_DISABLE_WINDOWDECORATION \"1\"' /home/%s/.config/niri/config.kdl && echo 'niri config valid (prefer-no-csd + Qt no-decoration; hotkey overlay intentionally NOT skipped)'", cfg.InstalledUser, cfg.InstalledUser, cfg.InstalledUser)
@@ -1499,7 +1499,176 @@ echo 'fish history clean (no clap error)'`,
 		// rule authorizes it), asserts it took effect, then restores the
 		// previous profile. The placeholder driver (QEMU: no
 		// platform-profile hardware) still offers power-saver + balanced.
-		checks["power_profiles"] = fmt.Sprintf("test -f /usr/share/dbus-1/system-services/net.hadess.PowerProfiles.service && grep -q 'Exec=/usr/libexec/power-profiles-daemon' /usr/share/dbus-1/system-services/net.hadess.PowerProfiles.service && test -f /usr/share/dbus-1/system-services/org.freedesktop.UPower.PowerProfiles.service && grep -q 'Exec=/usr/libexec/power-profiles-daemon' /usr/share/dbus-1/system-services/org.freedesktop.UPower.PowerProfiles.service || { echo 'PPD dbus activation wiring missing'; exit 1; }; test -f /usr/share/polkit-1/actions/power-profiles-daemon.policy && grep -q 'org.freedesktop.UPower.PowerProfiles.switch-profile' /usr/share/polkit-1/actions/power-profiles-daemon.policy || { echo 'PPD polkit policy missing'; exit 1; }; su - %s -s /bin/sh -c 'p=$(powerprofilesctl get) || exit 1; powerprofilesctl set power-saver || exit 1; n=$(powerprofilesctl get); powerprofilesctl set \"$p\" || exit 1; if [ \"$n\" = power-saver ]; then echo \"power profiles OK (real switch: $p -> power-saver -> $p)\"; else echo \"power profile switch did not take effect ($n)\"; exit 1; fi'", cfg.InstalledUser)
+		// power_profiles: power-profiles-daemon reachable AND switchable
+		// (Wayle battery dropdown / DMS power UI). ADR-010: both activation
+		// files route through the dinit shim to the
+		// org.freedesktop.UPower.PowerProfiles unit; the unit is boot-enabled
+		// on dinit (dinitServices). Override sources: /usr/share/feralos/
+		// dbus-system-services (materialized at boot into /usr/local/share —
+		// see dbus_activation_uniform). Runtime: a REAL switch as the session
+		// user (exercises the wheel polkit rule), asserted and restored.
+		powerProfilesCmd := "test -f /usr/share/feralos/dbus-system-services/org.freedesktop.UPower.PowerProfiles.service && grep -q 'Exec=/usr/libexec/feralos/dbus-activate org.freedesktop.UPower.PowerProfiles' /usr/share/feralos/dbus-system-services/org.freedesktop.UPower.PowerProfiles.service && test -f /usr/share/feralos/dbus-system-services/net.hadess.PowerProfiles.service && grep -q 'Exec=/usr/libexec/feralos/dbus-activate org.freedesktop.UPower.PowerProfiles' /usr/share/feralos/dbus-system-services/net.hadess.PowerProfiles.service && test -f /lib/dinit.d/org.freedesktop.UPower.PowerProfiles || { echo 'PPD dinit activation wiring missing'; exit 1; }; test -f /usr/share/polkit-1/actions/power-profiles-daemon.policy && grep -q 'org.freedesktop.UPower.PowerProfiles.switch-profile' /usr/share/polkit-1/actions/power-profiles-daemon.policy || { echo 'PPD polkit policy missing'; exit 1; };"
+		if cfg.EnableDinit {
+			powerProfilesCmd += " dinitctl list 2>/dev/null | grep -Eq '(\\{\\+|\\[\\+).*\\] org\\.freedesktop\\.UPower\\.PowerProfiles( |$)' || { echo 'PPD dinit unit not started (boot enablement missing)'; exit 1; };"
+		}
+		powerProfilesCmd += fmt.Sprintf(" su - %s -s /bin/sh -c 'p=$(powerprofilesctl get) || exit 1; powerprofilesctl set power-saver || exit 1; n=$(powerprofilesctl get); powerprofilesctl set \"$p\" || exit 1; if [ \"$n\" = power-saver ]; then echo \"power profiles OK (real switch: $p -> power-saver -> $p)\"; else echo \"power profile switch did not take effect ($n)\"; exit 1; fi'", cfg.InstalledUser)
+		checks["power_profiles"] = powerProfilesCmd
+		// dbus_activation_uniform: ADR-010 enforcement — every INSTALLED
+		// system-bus override must route through the uniform shim, its target
+		// unit must exist, and it must be materialized into the launch
+		// helper's first eligible dir; on dinit installs EVERY upstream
+		// activation file must have an override (no exceptions — the -openrc
+		// packages are converted to their -dinit equivalents there). OpenRC
+		// installs use the plain packages (no -dinit units to route to), so
+		// the coverage half applies to dinit installs only. Session
+		// overrides ship in /usr/share/feralos/dbus-services (abuild forbids
+		// /usr/local) and are materialized at login by the dbus-session
+		// wrapper into $XDG_RUNTIME_DIR/dbus-1/services — the highest-
+		// precedence servicedir (strict naming, read at bus start). System
+		// overrides ship in /usr/share/feralos/dbus-system-services and are
+		// materialized at boot (dbus-services-setup, ordered before dbus)
+		// into /usr/local/share/dbus-1/system-services — the setuid launch
+		// helper resolves activation names ONLY against the standard dirs
+		// (its config parser is the trivial one; /usr/local/share is first
+		// in precedence); /etc/dbus-1/system-services is daemon-enumerated
+		// but NOT helper-activatable (live-verified on dbus 1.16.2). The
+		// check also fails if any override is left in the helper-ineligible
+		// /etc dir.
+		uniformCoverage := ""
+		if cfg.EnableDinit {
+			uniformCoverage = `
+for f in /usr/share/dbus-1/system-services/*.service; do
+    [ -e "$f" ] || continue
+    name=$(sed -n 's/^Name=//p' "$f" | head -1)
+    [ -n "$name" ] || { echo "no Name= in $f"; fail=1; continue; }
+    [ -f "/usr/share/feralos/dbus-system-services/$name.service" ] || { echo "missing system override source: $name"; fail=1; }
+done
+`
+		}
+		checks["dbus_activation_uniform"] = fmt.Sprintf(`
+uid=$(id -u %s)
+fail=0
+for f in /usr/share/dbus-1/services/*.service; do
+    [ -e "$f" ] || continue
+    name=$(sed -n 's/^Name=//p' "$f" | head -1)
+    [ -n "$name" ] || { echo "no Name= in $f"; fail=1; continue; }
+    src=/usr/share/feralos/dbus-services/$name.service
+    [ -f "$src" ] || { echo "missing session override source: $name"; fail=1; continue; }
+    grep -q '^Exec=/usr/libexec/feralos/dbus-activate ' "$src" || { echo "session override not shim: $name"; fail=1; continue; }
+    unit=$(sed -n 's/^Exec=.*dbus-activate \([^ ]*\) .*/\1/p' "$src" | head -1)
+    [ -f "/etc/dinit.d/user/$unit" ] || { echo "user unit missing: $unit ($name)"; fail=1; continue; }
+    rt="/run/user/$uid/dbus-1/services/$name.service"
+    [ -f "$rt" ] || { echo "session override not materialized into the runtime dir: $name"; fail=1; continue; }
+done
+for f in /usr/share/feralos/dbus-system-services/*.service; do
+    [ -e "$f" ] || continue
+    name=$(sed -n 's/^Name=//p' "$f" | head -1)
+    [ -n "$name" ] || { echo "no Name= in $f"; fail=1; continue; }
+    grep -q '^Exec=/usr/libexec/feralos/dbus-activate ' "$f" || { echo "system override not shim: $name"; fail=1; continue; }
+    unit=$(sed -n 's/^Exec=.*dbus-activate \([^ ]*\) .*/\1/p' "$f" | head -1)
+    [ -f "/lib/dinit.d/$unit" ] || { echo "system unit missing: $unit ($name)"; fail=1; continue; }
+    eff=/usr/local/share/dbus-1/system-services/$name.service
+    [ -f "$eff" ] || { echo "system override not materialized into /usr/local/share: $name"; fail=1; continue; }
+    grep -q '^Exec=/usr/libexec/feralos/dbus-activate ' "$eff" || { echo "materialized system override not shim: $name"; fail=1; continue; }
+done
+%sfor f in /etc/dbus-1/system-services/*.service; do
+    [ -e "$f" ] || continue
+    echo "override in helper-ineligible dir (enumerated but not activatable): $f"; fail=1
+done
+[ "$fail" = 0 ] && echo 'dbus activation uniform OK (every activation file routes through the dinit shim)' || exit 1
+`, cfg.InstalledUser, uniformCoverage)
+		// dbus_activation_env: REAL activation-environment forwarding proof.
+		// Session: stop the dconf unit, push a marker var through the D-Bus
+		// activation environment, trigger activation with a Peer.Ping, then
+		// assert (a) the dinit unit is started (activation went through
+		// dinit, not a raw spawn) and (b) the daemon's environ carries the
+		// marker (the shim forwarded the activation env via dinitctl
+		// setenv). System (dinit only, when upower is installed): REAL
+		// activation must start the dinit unit with NO DBUS_STARTER_* in the
+		// daemon environ (a raw helper spawn would leave them); then a
+		// direct shim run with a marker proves the setenv forwarding to the
+		// system dinit (UpdateActivationEnvironment is denied on the system
+		// bus).
+		checks["dbus_activation_env"] = fmt.Sprintf(`
+su - %s -s /bin/sh -c '
+export XDG_RUNTIME_DIR=/run/user/$(id -u)
+export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
+diag() {
+    echo "--- diagnostics ---"
+    echo "stop: $stop_out"
+    echo "envpush: $env_out"
+    echo "dbus-send: $send_out"
+    dinitctl --user status ca.desrt.dconf.user 2>&1 || true
+    dinitctl --user list 2>/dev/null | grep -i dconf || echo "no dconf unit in list"
+    pgrep -f "^/usr/libexec/dconf-service$" || echo "no dconf-service process"
+    ls -l "$XDG_RUNTIME_DIR/dbus-1/services/" 2>&1 | head -5
+    echo "--- direct shim attempt (bypasses dbus) ---"
+    FERALOS_DBUS_ACT_TEST=session DBUS_STARTER_BUS_TYPE=session /usr/libexec/feralos/dbus-activate ca.desrt.dconf.user -- /usr/libexec/dconf-service
+    echo "shim rc=$?"
+    sleep 2
+    dinitctl --user status ca.desrt.dconf.user 2>&1 || true
+    pgrep -f "^/usr/libexec/dconf-service$" || true
+    tail -20 "$HOME/.local/share/dinit/ca.desrt.dconf.log" 2>&1 || true
+}
+stop_out=$(dinitctl --user stop ca.desrt.dconf.user 2>&1 || true)
+env_out=$(dbus-update-activation-environment --all 2>&1 || true)
+env_out="$env_out$(dbus-update-activation-environment FERALOS_DBUS_ACT_TEST=session 2>&1 || true)"
+send_out=$(dbus-send --session --print-reply --dest=ca.desrt.dconf /org/freedesktop/DBus org.freedesktop.DBus.Peer.Ping 2>&1 || true)
+i=0; ok=0
+while [ $i -lt 15 ]; do
+    if dinitctl --user list 2>/dev/null | grep -Eq "(\{\+|\[\+).*\] ca\.desrt\.dconf\.user( |$)" && pgrep -f "^/usr/libexec/dconf-service$" >/dev/null 2>&1; then ok=1; break; fi
+    sleep 1; i=$((i+1))
+done
+if [ "$ok" != 1 ]; then diag; echo "session: dconf unit did not start via dbus activation"; exit 1; fi
+pid=$(pgrep -f "^/usr/libexec/dconf-service$" | head -1)
+if ! tr "\0" "\n" < /proc/$pid/environ | grep -q "^FERALOS_DBUS_ACT_TEST=session$"; then diag; echo "session: activation env not forwarded to the dinit service"; exit 1; fi
+dinitctl --user stop ca.desrt.dconf.user >/dev/null 2>&1 || true
+echo "session activation env OK (dconf started via dinit with forwarded env)"
+' || exit 1
+sysdiag() {
+    echo "--- system diagnostics ---"
+    dinitctl --system status org.freedesktop.UPower 2>&1 || true
+    dinitctl --system list 2>/dev/null | grep -i upower || echo "no upower unit in list"
+    up=$(pgrep -f "^/usr/libexec/upowerd$" | head -1)
+    if [ -n "$up" ]; then
+        echo "upowerd pid=$up"
+        tr "\0" "\n" < /proc/$up/environ 2>/dev/null | grep -E "^(DBUS_STARTER_|FERALOS_DBUS_ACT_TEST)" || echo "no DBUS_STARTER_/feralos vars in upowerd env"
+    else
+        echo "no upowerd process"
+    fi
+    ls -l /usr/local/share/dbus-1/system-services/org.freedesktop.UPower.service 2>&1
+    ls -l /usr/share/feralos/dbus-system-services/org.freedesktop.UPower.service 2>&1
+    dinitctl --system catlog org.freedesktop.UPower 2>&1 | tail -10 || true
+}
+if [ "$(cat /proc/1/comm)" = "dinit" ] && apk info -e upower >/dev/null 2>&1; then
+    pkill -f "^/usr/libexec/upowerd$" 2>/dev/null || true
+    dinitctl --system stop org.freedesktop.UPower >/dev/null 2>&1 || true
+    sleep 2
+    ssend_out=$(dbus-send --system --print-reply --dest=org.freedesktop.UPower /org/freedesktop/DBus org.freedesktop.DBus.Peer.Ping 2>&1 || true)
+    i=0; ok=0
+    while [ $i -lt 30 ]; do
+        if dinitctl --system list 2>/dev/null | grep -Eq "(\{\+|\[\+).*\] org\.freedesktop\.UPower( |$)" && pgrep -f "^/usr/libexec/upowerd$" >/dev/null 2>&1; then ok=1; break; fi
+        sleep 1; i=$((i+1))
+    done
+    if [ "$ok" != 1 ]; then sysdiag; echo "system: UPower unit did not start via dbus activation (send: $ssend_out)"; exit 1; fi
+    pid=$(pgrep -f "^/usr/libexec/upowerd$" | head -1)
+    if tr "\0" "\n" < /proc/$pid/environ | grep -q "^DBUS_STARTER_"; then
+        sysdiag; echo "system: upowerd spawned raw (DBUS_STARTER_* present) - activation did not route through dinit"; exit 1
+    fi
+    echo "system: real activation OK (upowerd started via the shim + dinit, no DBUS_STARTER_*)"
+    dinitctl --system stop org.freedesktop.UPower >/dev/null 2>&1 || true
+    pkill -f "^/usr/libexec/upowerd$" 2>/dev/null || true
+    sleep 1
+    FERALOS_DBUS_ACT_TEST=system DBUS_STARTER_BUS_TYPE=system DBUS_STARTER_ADDRESS=unix:path=/run/dbus/system_bus_socket /usr/libexec/feralos/dbus-activate org.freedesktop.UPower -- /usr/libexec/upowerd
+    sleep 2
+    pid=$(pgrep -f "^/usr/libexec/upowerd$" | head -1)
+    if [ -z "$pid" ]; then sysdiag; echo "system: direct shim run did not start upowerd"; exit 1; fi
+    if ! tr "\0" "\n" < /proc/$pid/environ | grep -q "^FERALOS_DBUS_ACT_TEST=system$"; then sysdiag; echo "system: activation env not forwarded to the system dinit service"; exit 1; fi
+    echo "system activation env OK (upower started via dinit with forwarded env)"
+else
+    echo "system activation env SKIPPED (no system dinit or upower absent)"
+fi
+`, cfg.InstalledUser)
 		// DMS-only (niri DE): niriWayle has NO DMS — Wayle is the shell.
 		if cfg.DesktopEnvironment == desktopNiri {
 			checks["dms_installed"] = "apk info -e dms-shell quickshell && test -x /usr/bin/dms"
@@ -1530,7 +1699,7 @@ echo 'fish history clean (no clap error)'`,
 		// to). No BT adapter exists in QEMU — org.bluez registers anyway,
 		// adapter presence is real-hardware territory.
 		if cfg.EnableDinit {
-			checks["bluetooth_service"] = "dinitctl list | grep -E '\\[[^]]*\\] *bluetooth' && pgrep bluetoothd >/dev/null && dbus-send --system --print-reply --dest=org.freedesktop.DBus / org.freedesktop.DBus.ListNames 2>/dev/null | grep -q org.bluez && echo 'bluetooth stack OK (started, bluetoothd, org.bluez on bus)' || { echo 'bluetooth stack BROKEN'; exit 1; }"
+			checks["bluetooth_service"] = "dinitctl list | grep -E '\\[[^]]*\\] *org\\.bluez( |$)' && pgrep bluetoothd >/dev/null && dbus-send --system --print-reply --dest=org.freedesktop.DBus / org.freedesktop.DBus.ListNames 2>/dev/null | grep -q org.bluez && echo 'bluetooth stack OK (started, bluetoothd, org.bluez on bus)' || { echo 'bluetooth stack BROKEN'; exit 1; }"
 		} else {
 			checks["bluetooth_service"] = "rc-status --all 2>/dev/null | grep -E 'bluetooth[^[]*\\[ *started' && pgrep bluetoothd >/dev/null && dbus-send --system --print-reply --dest=org.freedesktop.DBus / org.freedesktop.DBus.ListNames 2>/dev/null | grep -q org.bluez && echo 'bluetooth stack OK (started, bluetoothd, org.bluez on bus)' || { echo 'bluetooth stack BROKEN'; exit 1; }"
 		}
@@ -2482,9 +2651,13 @@ echo 'fish history clean (no clap error)'`,
 				"login.target", "network.target", "pre-network.target",
 				// console
 				"getty@tty1", "getty@ttyS0",
-				// daemons (rules-driven boot.d enablement)
+				// daemons (rules-driven boot.d enablement; ADR-010 renames:
+				// fwupd/polkit/PPD units are named after their D-Bus names)
 				"networking", "incusd", "vector", "cronie", "chronyd", "dbus",
-				"sshd", "acpid", "irqbalance", "fwupd", "earlyoom",
+				"sshd", "acpid", "irqbalance", "org.freedesktop.fwupd", "earlyoom",
+			}
+			if cfg.DesktopEnvironment == desktopNiri || cfg.DesktopEnvironment == desktopNiriWayle {
+				expected = append(expected, "org.freedesktop.PolicyKit1", "org.freedesktop.UPower.PowerProfiles", "org.bluez", "org.freedesktop.login1")
 			}
 			started := map[string]bool{}
 			for _, line := range strings.Split(svcCheck.Detail, "\n") {
