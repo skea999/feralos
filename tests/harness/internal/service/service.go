@@ -1454,9 +1454,9 @@ echo 'fish history clean (no clap error)'`,
 	userDinitRuntimeSvcs := "niri dbus.user pipewire.user pipewire-pulse.user wireplumber.user xdg-desktop-portal.user xdg-document-portal.user xdg-permission-store.user polkit-agent.user dms.user wayvnc.user"
 	userSvcBootLinks := "dbus.user pipewire.user pipewire-pulse.user wireplumber.user wait-wayland.user xdg-desktop-portal.user xdg-document-portal.user xdg-permission-store.user"
 	if cfg.DesktopEnvironment == desktopNiriWayle {
-		dinitUserSvcFiles = "dbus.user pipewire.user pipewire-pulse.user wireplumber.user wait-wayland.user xdg-desktop-portal.user xdg-document-portal.user xdg-permission-store.user secrets.user oo7-portal.user polkit-agent.user wayle.user veila.user"
-		sessionAppsAbsent = "wayle.user veila.user polkit-agent.user"
-		userDinitRuntimeSvcs = "niri dbus.user pipewire.user pipewire-pulse.user wireplumber.user xdg-desktop-portal.user xdg-document-portal.user xdg-permission-store.user secrets.user oo7-portal.user polkit-agent.user wayle.user veila.user wayvnc.user"
+		dinitUserSvcFiles = "dbus.user pipewire.user pipewire-pulse.user wireplumber.user wait-wayland.user xdg-desktop-portal.user xdg-document-portal.user xdg-permission-store.user secrets.user oo7-portal.user polkit-agent.user wayle.user veila.user stasis.user"
+		sessionAppsAbsent = "wayle.user veila.user stasis.user polkit-agent.user"
+		userDinitRuntimeSvcs = "niri dbus.user pipewire.user pipewire-pulse.user wireplumber.user xdg-desktop-portal.user xdg-document-portal.user xdg-permission-store.user secrets.user oo7-portal.user polkit-agent.user wayle.user veila.user stasis.user wayvnc.user"
 		userSvcBootLinks = "dbus.user pipewire.user pipewire-pulse.user wireplumber.user wait-wayland.user xdg-desktop-portal.user xdg-document-portal.user xdg-permission-store.user secrets.user oo7-portal.user"
 	}
 	if isNiriFamily {
@@ -1641,7 +1641,7 @@ echo 'fish history clean (no clap error)'`,
 		// dinitctl list marks DEPENDENCY-started services `[{+}]` and
 		// EXPLICITLY-started ones `[[+]]`. Accept both bracket styles;
 		// both mean running. Service list is PER-DE (niri: dms.user;
-		// niriWayle: wayle.user + veila.user). wayvnc.user stays REQUIRED
+		// niriWayle: wayle.user + veila.user + stasis.user). wayvnc.user stays REQUIRED
 		// on every host: the GPU chain renders (virtio-vga-gl +
 		// egl-headless,gl=on + guest mesa edge 26.2.4 virgl restored),
 		// wayvnc holds an output and stays up.
@@ -1747,6 +1747,28 @@ echo 'fish history clean (no clap error)'`,
 		//   - the daemon's live PAM listener socket
 		//   - python3 present (remote PAM login client)
 		checks["oo7_pam_unlock"] = fmt.Sprintf("uid=$(id -u %s); i=0; while [ $i -lt 30 ]; do test -S /run/user/$uid/oo7-pam.sock && break; sleep 1; i=$((i+1)); done; test -f /usr/lib/security/pam_oo7.so || { echo 'pam_oo7.so missing'; exit 1; }; grep -q 'auth.*pam_oo7.so' /etc/pam.d/greetd || { echo 'greetd auth line missing'; exit 1; }; grep -q 'session.*pam_oo7.so' /etc/pam.d/greetd || { echo 'greetd session line missing'; exit 1; }; grep -q 'password.*pam_oo7.so' /etc/pam.d/passwd || { echo 'passwd override missing'; exit 1; }; test -f /usr/bin/oo7-daemon && test -x /usr/bin/oo7-daemon || { echo 'oo7-daemon recovery wrapper missing/not executable'; exit 1; }; grep -q 'dinitctl --user start' /usr/bin/oo7-daemon || { echo 'recovery wrapper does not delegate to dinitctl --user start (unsupervised daemon risk)'; exit 1; }; test -f /etc/dinit.d/config/secrets.conf || { echo 'secrets.conf missing'; exit 1; }; %s test -S /run/user/$uid/oo7-pam.sock || { echo 'oo7 PAM listener socket missing'; exit 1; }; command -v python3 >/dev/null || { echo 'python3 missing (remote PAM login client needs it)'; exit 1; }; echo 'oo7 PAM static wiring OK'", cfg.InstalledUser, debugRUSTLogAssert(cfg))
+		// wayle_session_actions: the Wayle session-action seed (installer
+		// step 7b). v0.7.0 source-verified: the dashboard dropdown's
+		// user-row buttons run `sh -c <dashboard.dropdown_*_command>` —
+		// upstream defaults are systemd-only and dead on FeralOS
+		// (`systemctl reboot|poweroff`; `loginctl lock-session` a no-op on
+		// niri), and the default bar layout has no session entry point.
+		// Static assert of the seed: 4 dropdown commands + power bar
+		// button + layout wiring. The reboot command runs the dinit
+		// wrapper via zz-power (asserted by dinit_shutdown_commands —
+		// same rule/rationale as niri/DMS). Init-aware: OpenRC fixtures
+		// expect `loginctl reboot`.
+		wayleRebootCmd := "loginctl reboot"
+		if cfg.EnableDinit {
+			wayleRebootCmd = "sudo -n /usr/bin/reboot"
+		}
+		checks["wayle_session_actions"] = fmt.Sprintf("f=/home/%s/.config/wayle/config.toml; test -f \"$f\" || { echo 'wayle config.toml missing'; exit 1; }; grep -q 'dropdown-lock-command = \"veila lock\"' \"$f\" || { echo 'lock command missing'; exit 1; }; grep -q 'dropdown-logout-command = \"niri msg action quit --skip-confirmation\"' \"$f\" || { echo 'logout command missing'; exit 1; }; grep -q 'dropdown-reboot-command = %q' \"$f\" || { echo 'reboot command missing'; exit 1; }; grep -q 'dropdown-poweroff-command = \"loginctl poweroff\"' \"$f\" || { echo 'poweroff command missing'; exit 1; }; grep -q 'left-click = \"dropdown:dashboard\"' \"$f\" || { echo 'power button click action missing'; exit 1; }; grep -qF 'right = [\"battery\", \"bluetooth\", \"network\", \"microphone\", \"volume\", \"power\"]' \"$f\" || { echo 'power module missing from bar layout'; exit 1; }; echo 'wayle session actions OK (dashboard dropdown commands + power bar button)'", cfg.InstalledUser, wayleRebootCmd)
+		// stasis_idle: the stasis context-aware idle manager (feralos-aports
+		// 1.6.3, dependency of wayle-session) — package + supervised
+		// session service stasis.user (started by the wayle-session script
+		// after niri, existence-filtered) holding a started marker in the
+		// user dinit.
+		checks["stasis_idle"] = fmt.Sprintf("apk info -e stasis >/dev/null && test -f /etc/dinit.d/user/stasis.user || { echo 'stasis package or stasis.user service missing'; exit 1; }; uid=$(id -u %s); export XDG_RUNTIME_DIR=/run/user/$uid; i=0; while [ $i -lt 90 ]; do out=$(dinitctl --user list 2>/dev/null) || { sleep 1; i=$((i+1)); continue; }; echo \"$out\" | grep -Eq '(\\{\\+|\\[\\+).*\\] stasis\\.user( |$)' && { echo 'stasis idle manager running (stasis.user started)'; exit 0; }; sleep 1; i=$((i+1)); done; echo 'stasis.user not running'; exit 1", cfg.InstalledUser)
 	}
 
 	// Flatpak checks — generic, only when a fixture explicitly requests
@@ -1818,16 +1840,18 @@ echo 'fish history clean (no clap error)'`,
 		// exec target is the busybox /sbin/poweroff (SIGUSR2, ignored).
 		// + polkit power rule: NoSessionForPID under dinit otherwise turns
 		// every login1 power action into an auth challenge.
-		// + DMS custom reboot (niri only): customPowerActionReboot
-		// (sudo -n /usr/bin/reboot) via /etc/sudoers.d/zz-power — must sort
-		// AFTER /etc/sudoers.d/wheel (`%wheel ALL=(ALL) ALL`; sudo-rs
-		// last-match-wins would override the NOPASSWD tag otherwise —
-		// live-caught 2026-10-11). niriWayle writes the same zz-power rule
-		// but has NO DMS settings.json (Wayle power-module wiring is a
-		// follow-up) — the customPowerActionReboot grep is niri-only.
+		// + Custom reboot seed per DE: niri via DMS customPowerActionReboot
+		// in settings.json; niriWayle via the seeded wayle config.toml
+		// dropdown-reboot-command — both `sudo -n /usr/bin/reboot` via
+		// /etc/sudoers.d/zz-power (must sort AFTER /etc/sudoers.d/wheel
+		// (`%wheel ALL=(ALL) ALL`; sudo-rs last-match-wins would override
+		// the NOPASSWD tag otherwise — live-caught 2026-10-11).
 		shutdownCmd := "test -x /usr/bin/poweroff -a -x /usr/bin/reboot -a -x /usr/bin/halt -a -x /usr/bin/shutdown -a -x /usr/bin/soft-reboot && test -x /etc/elogind/system-shutdown/50-feralos-dinit.sh && grep -q dinit-poweroff /etc/elogind/system-shutdown/50-feralos-dinit.sh && test -f /etc/polkit-1/rules.d/49-feralos-power.rules && grep -q login1.power-off /etc/polkit-1/rules.d/49-feralos-power.rules && test -f /etc/sudoers.d/zz-power && grep -q '/usr/bin/reboot' /etc/sudoers.d/zz-power"
 		if cfg.DesktopEnvironment == desktopNiri {
 			shutdownCmd += fmt.Sprintf(" && grep -q customPowerActionReboot /home/%s/.config/DankMaterialShell/settings.json", cfg.InstalledUser)
+		}
+		if cfg.DesktopEnvironment == desktopNiriWayle {
+			shutdownCmd += fmt.Sprintf(" && grep -q 'dropdown-reboot-command = \"sudo -n /usr/bin/reboot\"' /home/%s/.config/wayle/config.toml", cfg.InstalledUser)
 		}
 		checks["dinit_shutdown_commands"] = shutdownCmd + " && echo 'shutdown commands OK' || { echo 'shutdown commands MISSING'; exit 1; }"
 		// conf.d-equivalent config files (Artix pattern): every -dinit

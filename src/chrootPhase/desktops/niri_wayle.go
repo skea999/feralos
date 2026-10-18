@@ -22,11 +22,15 @@ import (
 //     re-sync — the gnome-keyring analogue for this DE (step 11). The
 //     secrets daemon itself stays a supervised per-user dinit service
 //     (secrets.user); the PAM module talks to its unix-socket listener.
-//   - The /etc/sudoers.d/zz-power reboot NOPASSWD rule is KEPT (dinit-gated):
-//     Wayle's power module likely goes through the same logind/loginctl path
-//     that broke DMS reboots under dinit; a Wayle power-action equivalent of
-//     DMS customPowerActionReboot is a follow-up once Wayle's power action
-//     config key is identified.
+//   - Wayle session actions ARE wired (step 7b): the dashboard dropdown's
+//     user-row buttons (lock/logout/reboot/poweroff — upstream v0.7.0
+//     source-verified) run installer-seeded commands from
+//     ~/.config/wayle/config.toml (upstream defaults are systemd-only and
+//     dead on FeralOS). Reboot goes through the dinit wrapper
+//     (`sudo -n /usr/bin/reboot`, the proven DMS path) via the zz-power
+//     NOPASSWD rule below; the power bar button is seeded into the bar
+//     layout (upstream's default bar has no session entry point) and opens
+//     the dashboard dropdown where those buttons live.
 func SetupNiriWayle(conf *config.Config) error {
 	chroot := conf.Internal.ChrootDir
 	u := conf.User
@@ -247,25 +251,84 @@ spawn-at-startup "sh" "-c" "command -v xdg-user-dirs-update >/dev/null 2>&1 && x
 		return fmt.Errorf("chown user config: %w", err)
 	}
 
+	// 7b. Wayle config seed — session actions. v0.7.0 source-verified: the
+	// dashboard dropdown's user-row icon buttons (lock/logout/reboot/
+	// poweroff) run `sh -c <dashboard.dropdown_*_command>`; upstream
+	// defaults are systemd-only and DEAD on FeralOS:
+	//   - reboot: `systemctl reboot`. Even the logind path is broken under
+	//     dinit — elogind execs the ABSOLUTE busybox /sbin/reboot after its
+	//     hooks and the SIGTERM makes dinit overwrite REBOOT -> HALT
+	//     (2026-10-12 diagnosis, "system halted" instead of a restart). The
+	//     proven path is the dinit wrapper via the zz-power rule below:
+	//     `sudo -n /usr/bin/reboot` (same command DMS got via
+	//     customPowerActionReboot). OpenRC keeps `loginctl reboot`
+	//     (busybox reboot is fine when dinit does not trap the signal).
+	//   - poweroff: `loginctl poweroff` works under BOTH inits — the
+	//     elogind system-shutdown hook (50-feralos-dinit.sh) execs
+	//     dinit-poweroff and dinit ignores the busybox follow-up SIGUSR2.
+	//   - lock: default `loginctl lock-session` is a no-op on niri (no
+	//     logind Lock handler) — veila owns the session lock.
+	//   - logout: `niri msg action quit --skip-confirmation` — exits the
+	//     compositor; wayle-session's dinit-monitor hold ends and the
+	//     session tears down to the greeter (the Mod+Shift+E path without
+	//     the interactive confirmation prompt). NOT loginctl
+	//     terminate-session: under dinit polkit cannot attribute the
+	//     session (NoSessionForPID) so it would hit an auth prompt, while
+	//     niri's quit action needs no polkit.
+	// The power bar button is seeded too: the default bar layout has NO
+	// session entry point (media/clock/status modules only) and the power
+	// module ships with no click action; `left-click = "dropdown:dashboard"`
+	// opens the dropdown holding the four buttons. Only `right` is
+	// restated — omitted BarLayout fields fall back to struct defaults
+	// (media/clock) per serde `default`, so upstream drift on left/center
+	// still applies. Wayle merges the file over its built-in defaults and
+	// only auto-creates a stub when missing, so this seed survives first
+	// launch and live-reloads (single-run installer — users edit freely
+	// via wayle-settings afterwards). Ownership: step 14 sweep.
+	wayleRebootCmd := "loginctl reboot"
+	if u.EnableDinit {
+		wayleRebootCmd = "sudo -n /usr/bin/reboot"
+	}
+	wayleConf := fmt.Sprintf(`# FeralOS: Wayle session actions. The dashboard dropdown's user-row
+# buttons (lock/logout/reboot/poweroff) run these commands; the power bar
+# button opens the dashboard (v0.7.0 has no dedicated power dropdown).
+# Rationale per choice: niri_wayle.go step 7b.
+[modules.dashboard]
+dropdown-lock-command = "veila lock"
+dropdown-logout-command = "niri msg action quit --skip-confirmation"
+dropdown-reboot-command = "%s"
+dropdown-poweroff-command = "loginctl poweroff"
+
+[modules.power]
+left-click = "dropdown:dashboard"
+
+# Upstream default layout + power button at the right end (the default bar
+# has no session entry point). left/center keep their upstream defaults.
+[[bar.layout]]
+monitor = "*"
+right = ["battery", "bluetooth", "network", "microphone", "volume", "power"]
+`, wayleRebootCmd)
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p /home/%s/.config/wayle", u.UserName)); err != nil {
+		return fmt.Errorf("mkdir wayle config dir: %w", err)
+	}
+	if err := writeFile(chroot, fmt.Sprintf("/home/%s/.config/wayle/config.toml", u.UserName), wayleConf); err != nil {
+		return fmt.Errorf("write wayle config: %w", err)
+	}
+
 	// NO DMS block in this DE (niri.go seeds settings.json/plugin_settings
 	// here): no dms-shell, no customPowerActionReboot, no session.json, no
 	// xdg-terminals.list/mimeapps.list seeds. Apps and defaults are
 	// per-install concerns for niriWayle v1.
 
-	// Wayle power follow-up (dinit): DMS reboots broke under dinit because
-	// elogind execs the ABSOLUTE busybox /sbin/reboot (SIGTERM → dinit
-	// overwrites REBOOT→HALT). DMS got customPowerActionReboot
-	// (sudo -n /usr/bin/reboot). Wayle's power module config key is UNKNOWN
-	// for now — the sudoers rule below is written so the wrapper works the
-	// moment Wayle's power action is pointed at it (or the user runs it
-	// manually); wiring it into Wayle settings is a documented follow-up.
-	// Reboot wrapper NOPASSWD (wheel = admin already; reboot is no
-	// privilege escalation). sudo-rs reads /etc/sudoers.d. FILENAME MUST
-	// SORT AFTER "wheel": sudo-rs applies the LAST matching rule, and
+	// Reboot NOPASSWD rule backing step 7b: the seeded Wayle reboot command
+	// (`sudo -n /usr/bin/reboot` — the dinit wrapper) runs without a
+	// password prompt. wheel = admin already; reboot is no privilege
+	// escalation. sudo-rs reads /etc/sudoers.d. FILENAME MUST SORT AFTER
+	// "wheel": sudo-rs applies the LAST matching rule, and
 	// /etc/sudoers.d/wheel (`%wheel ALL=(ALL) ALL`, password) would
 	// otherwise override the NOPASSWD tag (live-caught via debug_run
-	// 2026-10-11). Wired only under dinit (the wrapper is dinit's; OpenRC
-	// keeps loginctl default).
+	// 2026-10-11). Wired only under dinit (the wrapper is dinit's; the
+	// OpenRC seed keeps `loginctl reboot`).
 	if u.EnableDinit {
 		if err := writeFile(chroot, "/etc/sudoers.d/zz-power", "%wheel ALL=(root) NOPASSWD: /usr/bin/reboot\n"); err != nil {
 			return fmt.Errorf("write sudoers power rule: %w", err)

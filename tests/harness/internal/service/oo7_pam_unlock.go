@@ -109,13 +109,22 @@ func oo7UnlockRequestCountCmd(user string) string {
 	return fmt.Sprintf("c=$(grep -cF 'Received unlock request' /home/%s/.local/share/dinit/secrets.log 2>/dev/null); echo ${c:-0}", user)
 }
 
-// oo7UnlockRequestCount runs the snippet and parses the number.
+// oo7UnlockRequestCount runs the snippet and parses the number. Parses the
+// LAST non-empty line only: guest.Output merges the ssh client's stderr
+// into the output (CombinedOutput), and depending on the local OpenSSH
+// client a "Warning: Permanently added ... to the list of known hosts."
+// line can precede the remote stdout (observed run 2026-10-18T15-03-04Z —
+// Atoi choked on "Warning...\r\n0"). The snippet always prints the count
+// as its own final line, so the last line is the count regardless of any
+// ssh-client noise above it.
 func oo7UnlockRequestCount(ctx context.Context, opts guest.Options, user string) (int, error) {
 	out, err := guest.Output(ctx, opts, oo7UnlockRequestCountCmd(user))
 	if err != nil {
 		return 0, err
 	}
-	n, convErr := strconv.Atoi(strings.TrimSpace(string(out)))
+	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+	last := strings.TrimSpace(lines[len(lines)-1])
+	n, convErr := strconv.Atoi(last)
 	if convErr != nil {
 		return 0, fmt.Errorf("unexpected count output %q: %w", strings.TrimSpace(string(out)), convErr)
 	}

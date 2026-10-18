@@ -106,7 +106,9 @@ All 4 layouts PASS 35/35 with markers enabled. Markers appended at END of each c
 | `flatpak_installed` | Flatpak apps installed | Only when `flatpakPackages` is set (per-fixture or per-rule, e.g. niriWayle → `app.drey.KeyRack`): `flatpak list \| wc -l` |
 | `keyrack_flatpak` | Key Rack secrets GUI (niriWayle) | `flatpak info app.drey.KeyRack` rc 0 + user `niri-portals.conf` pins `org.freedesktop.impl.portal.Secret=oo7-portal` |
 | `oo7_pam_unlock` | oo7 login auto-unlock (niriWayle) | statics (pam_oo7.so + both greetd PAM lines + passwd override + recovery wrapper + live listener socket + `python3`) + authenticated PAM login on service `greetd` + NEW "Received unlock request" line in `secrets.log` (count-delta, `enableDebug`) — full chain in `docs/guides/niriwayle.md` |
-| `dinit_shutdown_commands` | dinit shutdown commands wired | `/usr/bin/{poweroff,halt,shutdown}` symlinks + `/usr/bin/{reboot,soft-reboot}` wrappers all executable when `enableDinit=true` |
+| `wayle_session_actions` | Wayle session-action seed (niriWayle) | `~/.config/wayle/config.toml` carries the 4 dashboard dropdown commands (lock/logout/reboot/poweroff) + `left-click = "dropdown:dashboard"` on the power module + the power button in the bar layout `right` list (reboot command init-aware: `sudo -n /usr/bin/reboot` dinit / `loginctl reboot` OpenRC) |
+| `stasis_idle` | stasis context-aware idle manager (niriWayle) | `apk info -e stasis` + `/etc/dinit.d/user/stasis.user` on disk + `stasis.user` started marker in the user dinit (90s poll) |
+| `dinit_shutdown_commands` | dinit shutdown commands wired | `/usr/bin/{poweroff,halt,shutdown}` symlinks + `/usr/bin/{reboot,soft-reboot}` wrappers all executable when `enableDinit=true`; per-DE custom reboot seed (niri: DMS `settings.json` `customPowerActionReboot`; niriWayle: wayle `config.toml` `dropdown-reboot-command`) |
 | `gnome_keyring` | gnome-keyring secrets service (niri) | `apk info -e gnome-keyring` + `/usr/share/dbus-1/services/org.freedesktop.secrets.service` exists + `pam_gnome_keyring` in `/etc/pam.d/greetd` (gated niri) |
 
 **Nix build sandbox:** upstream default build dir (`/tmp`) — `/tmp` is mounted exec (no `noexec`), so the old `@nix-var-nix-build` tmp workaround (777 tmp + scoped temp dir) is gone. `trusted-users = root @wheel` is permanent (NixOS default — wheel is root-equivalent, no escalation). Nix SSL: `NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt` prefixed to all `su - user` nix client cmds.
@@ -121,7 +123,7 @@ All 4 layouts PASS 35/35 with markers enabled. Markers appended at END of each c
 
 **Harness result (niri+dinit fixture, run 2026-09-29T22-07-20Z):** **63/63 PASS** — `niri_*` checks, `niri_user_service` (Alpine `niri-session` → `niri` user service), `login_shell_trick` (passwd shell `/usr/libexec/feralos/login-shell` → fish symlink, not in `/etc/shells`), `turnstile_pkg` + `user_services_enabled` (turnstiled service + 8 user `boot.d` links), `dinit_user_services`, `gnome_keyring` (pkg + `org.freedesktop.secrets` service file + `pam_gnome_keyring` in greetd PAM), `dms_installed` (apk check), NM + wayvnc active; rustdesk checks removed.
 
-**Latest flagship run (niriWayle fixture, run 2026-10-18T03-03-11Z):** **100/100 PASS** — wayle shell + veilad + Key Rack flatpak + Secret portal pin + `oo7_pam_unlock` (authenticated PAM proof) + full user-dinit stack, zero fail/skip.
+**Latest flagship run (niriWayle fixture, run 2026-10-18T15-10-54Z):** **102/102 PASS** — wayle shell + veilad + Key Rack flatpak + Secret portal pin + `oo7_pam_unlock` (authenticated PAM proof) + `wayle_session_actions` (seeded `~/.config/wayle/config.toml` session commands) + `stasis_idle` (supervised `stasis.user`) + full user-dinit stack, zero fail/skip.
 
 ## Cache reuse
 

@@ -252,9 +252,11 @@ desktopEnvironments:
     # Shares the session infra with niri: turnstile + per-user dinit, pipewire
     # stack via *-user-dinit, portals, polkit agent, wayvnc.
     # wayle-session depends on niri-user-dinit (login-shell + niri user service)
-    # and ships the wayle-session script + wayle.user/veila.user + niriwayle.desktop.
-    # No stasis in v1 — veila daemon covers lock-on-idle + lock-before-sleep
-    # (elogind PrepareForSleep); stasis (dpms/suspend plans) is a future add.
+    # + stasis, and ships the wayle-session script + wayle.user/veila.user/
+    # stasis.user + niriwayle.desktop. stasis (context-aware idle manager,
+    # supervised stasis.user session service started by the session script)
+    # is therefore INCLUDED via the wayle-session dependency; veila remains
+    # the lock screen (ext-session-lock + lock-before-sleep via elogind).
     # Apps (browser/office/etc) are intentionally NOT listed — added per-install.
     services: {"greetd": "default", "elogind": "default", "firewalld": "default", "polkit": "default", "networkmanager": "default", "bluetooth": "default"}
     # upower has no dinit service: upowerd is dbus system-activated when Wayle
