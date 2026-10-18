@@ -473,10 +473,14 @@
       "date": "2026-10-10",
       "decision": "In-repo identifiers renamed skeaAlpineInstaller -> feralos (Go modules feralos/tests/harness + feralos/tests/debug_run, imports, runner-VM guest path /home/<user>/feralos, docs examples); src module stays alpineInstaller",
       "rationale": "Coherence with folder + repo rename. Guest path safe: runner image has no baked repo (runtime tar copy via remoteRepoRoot, tar name derives from it). debug_run/old runs unaffected (target VM paths independent). Historical gitea-repo-name occurrences in AGENTS.md/state/.agent-memory kept (they describe the old repo)."
+    },
+    {
+      "date": "2026-10-18",
+      "decision": "niriWayle session actions are installer-seeded in ~/.config/wayle/config.toml (dashboard dropdown lock/logout/reboot/poweroff commands + [modules.power] left-click=dropdown:dashboard + power in the bar right list); stasis is INCLUDED (supersedes 'Stasis deferred to v2') via wayle-session r3 depends + supervised stasis.user",
+      "rationale": "Wayle v0.7.0 source-verified: dashboard dropdown user-row buttons exec sh -c <dashboard.dropdown_*_command>; the power module has no command fields (icon + ClickAction only); the default bar layout has no session entry point; upstream defaults are systemctl (systemd-only). Reboot under dinit uses sudo -n /usr/bin/reboot (zz-power NOPASSWD) because logind reboot hits the elogind->busybox SIGTERM->dinit REBOOT->HALT overwrite; OpenRC uses loginctl reboot. Poweroff = loginctl poweroff (both inits); logout = niri msg action quit --skip-confirmation (compositor exit ends the wayle-session dinit-monitor hold)."
     }
   ],
   "next_actions": [
-    "OPEN ROUND niriWayle (2026-10-18, resume): (a) Wayle power-module wiring — [modules.power] = shutdown/reboot/logout menu, NO command fields documented; NEXT = source inspection (github.com/wayle-rs/wayle crates/*) for the execution mechanism (likely logind -> reboot hits the elogind->busybox SIGTERM REBOOT->HALT overwrite, DMS-class 2026-10-12; working command = sudo -n /usr/bin/reboot, zz-power + /usr/bin/reboot wrapper already shipped by niri_wayle.go L270; options: config key / elogind -Dreboot-path rebuild (backlog) / upstream issue). (b) stasis cleanup: internal_rules.yaml L256-257 + docs/guides/niriwayle.md L20/L38 + harness service.go stasis.user (L1457 dinitUserSvcFiles / L1459 userDinitRuntimeSvcs) + new stasis_idle check; then builds/tests + harness run fixture btrfs_standard_niriwayle_test.yaml + round close (AGENTS/state/handoff/memory)",
     "User real-hw validation: console keymap (it layout) + niri rendering on real GPU",
     "dms windows depth (niri_windows check currently rc-only)",
     "Booster initramfs module policy PARKED: host-specific autodetect by default + user modulesForceLoad list sufficient — revisit universal mode only if a real-hw case demands it",

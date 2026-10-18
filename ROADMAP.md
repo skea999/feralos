@@ -72,7 +72,7 @@ See `docs/dinit/` (installer-side) and [feralos-aports](https://github.com/skea9
 | Nix integration | P1 | Done | nix.go, subvolumes, daemon config |
 | Podman + Webmin | P1 | Done | btrfs driver, web admin UI (firstboot binary) |
 | Incus | P1 | Done | incus-feature chain (containers + VMs) |
-| Test suite | P2 | Done | harness (QEMU) up to 100 checks/fixture + debug_run |
+| Test suite | P2 | Done | harness (QEMU) up to 102 checks/fixture + debug_run |
 | Real-hardware refining | P2 | In progress | rough edges blocking bare-metal installs |
 
 ## Phase 2 Pipeline
