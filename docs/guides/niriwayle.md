@@ -10,14 +10,14 @@ Second desktop environment: the **niri compositor** with the **Wayle shell** (ba
 - Session: `elogind`, `dbus`, portals (wlr/gtk), `polkit-elogind` + `polkit-gnome` agent, `power-profiles-daemon`, `upower` (Wayle battery/power module), `turnstile` + per-user dinit infra (`dbus-user-dinit`, `pipewire-user-dinit`, `pipewire-pulse-user-dinit`, `wireplumber-user-dinit`, `wayland-wait-user-dinit`, `oo7-user-dinit`, `xdg-desktop-portal-user-dinit`, `polkit-agent-user-dinit`); supervised boot.d stack (existence-filtered): `dbus.user pipewire.user pipewire-pulse.user wireplumber.user wait-wayland.user secrets.user oo7-portal.user xdg-desktop-portal.user xdg-document-portal.user xdg-permission-store.user` — standing rule: ALL user-session daemons are supervised per-user dinit services, nothing left to unsupervised D-Bus activation
 - Portals: the user `niri-portals.conf` pins `org.freedesktop.impl.portal.Secret=oo7-portal` (oo7 README config — niriWayle has NO gnome-keyring, so the Secret interface must not fall through to the gtk backend)
 - Session env: `/etc/environment` + the niri config `environment` block carry `XDG_DATA_DIRS` with flatpak exports first and `$HOME/.nix-profile/share` appended last (nix-installed desktop entries visible to Raffi/gio)
-- Lock screen: `veila` (0.4.4 — ext-session-lock-v1, PAM password unlock via /etc/pam.d/veila, daemon + idle config)
+- Lock screen: `veila` (0.4.4 — ext-session-lock-v1, PAM password unlock via /etc/pam.d/veila; the daemon `veilad` runs through the `veilad-session` env wrapper — WAYLAND_DISPLAY/NIRI_SOCKET resolution, same pattern as wayvnc-session)
 - Launcher: `raffi` (0.24.0 — native iced GUI, YAML config at ~/.config/raffi/raffi.yaml)
 - Secrets: `oo7` + `oo7-pam` + `oo7-cli` + `oo7-portal` (Rust Secret Service — org.freedesktop.secrets daemon + PAM + portal + CLI); full-desktop unlock parity — see [Secrets unlocking (PAM)](#secrets-unlocking-pam); secrets GUI = **Key Rack** (`app.drey.KeyRack`, Flathub flatpak via `flatpakPackages` — NOT an apk: seahorse conflicts with oo7-server on `/usr/share/dbus-1/services/org.freedesktop.secrets.service`; nixpkgs only has 0.4.0, too old; Flathub ships current 0.6.x, Rust + native oo7 client)
 - Theming: `matugen`; icons adwaita + hicolor; fonts (terminus/inconsolata/dejavu/noto/noto-cjk/font-awesome)
-- Session glue: `wayle-session` (feralos-aports — /usr/bin/wayle-session session script, wayle.user + veila.user + stasis.user user dinit services, niriwayle.desktop session entry; depends niri-user-dinit + stasis)
+- Session glue: `wayle-session` (feralos-aports — /usr/bin/wayle-session session script, wayle.user + veila.user user dinit services, niriwayle.desktop session entry; depends niri-user-dinit + veila + raffi + stasis)
 - Network: same as niri (NetworkManager + wifi + wireless-regdb, bluez, wpa_supplicant, wireguard-tools)
 - Extras: `wl-clipboard-rs` (Rust wl-copy/wl-paste), `dconf`, `xdg-user-dirs`, `wtype`, `i2c-tools`; Key Rack secrets GUI via Flathub (`flatpakPackages: ["app.drey.KeyRack"]` — installer adds the Flathub remote + `flatpak install -y --noninteractive`)
-- Idle: `stasis` (context-aware idle manager — included via the `wayle-session` dependency as a supervised `stasis.user` session service; veila remains the lock screen)
+- Idle: `stasis` (context-aware idle manager — supervised `stasis.user` session service started by the wayle-session script; FeralOS system config `/etc/stasis/stasis.rune` read via `-c` — see [Locking & idle](#locking--idle); veila remains the lock screen)
 - NOT included (add per-install): browser/office/apps
 
 ## Session startup
@@ -36,7 +36,9 @@ The oo7 stack reaches full gnome-keyring parity: auto-unlock at login, no-prompt
 
 ## Locking & idle
 
-`veila daemon` (veila.user) + `veila lock` (bind: Super+Alt+L; the dashboard dropdown's lock button runs the same command — see next section). The niri session lock protocol: ext-session-lock-v1; `stasis` (stasis.user — context-aware idle manager, included via `wayle-session`) handles the idle behavior.
+**Veila** is the lock screen: `veila lock` (bind: Super+Alt+L; the dashboard dropdown's lock button runs the same command — see next section) asks the supervised `veilad` daemon (veila.user) to arm the niri ext-session-lock-v1 surface; unlock is PAM password auth via `/etc/pam.d/veila`.
+
+**stasis** owns ALL idle timing (supervised `stasis.user`, started by wayle-session): it runs the FeralOS system config `/etc/stasis/stasis.rune` via `-c` in the stasis-session wrapper — the upstream NixOS-module system-deployment pattern (without `-c` the daemon would bootstrap a generic `~/.config` template with `swaylock`/`systemctl`, absent on FeralOS, and prefer it over the system file). Plan (desktop): lock at 5 min → display off (niri `power-off-monitors`) +1 min → `loginctl suspend` +30 min; laptops use `default.ac:` (2/3/10 min) / `default.battery:` (0.5/1/2 min). Media/app inhibitors are honored (vlc/mpv/Steam pause the plan; logind `PrepareForSleep` pauses timers around sleep). Suspend under dinit rides the wheel login1 polkit rule (written by the installer for both inits). Edit `/etc/stasis/stasis.rune` to customize (apk-protected).
 
 ## Session actions
 
@@ -56,9 +58,10 @@ Raffi: config `~/.config/raffi/raffi.yaml` (falls back to scanning desktop entri
 ## Config paths
 
 - Wayle: `~/.config/wayle/config.toml` (installer-seeded session commands + power bar button — see [Session actions](#session-actions); auto-created otherwise; live reload; GUI `wayle-settings`)
-- Veila: `~/.config/veila/config.toml` (auto-created; themes, widgets, idle)
+- Veila: `~/.config/veila/config.toml` (auto-created; themes, widgets)
+- stasis: `/etc/stasis/stasis.rune` (apk-shipped FeralOS plan — see [Locking & idle](#locking--idle); a per-user `~/.config/stasis/stasis.rune` is only a fallback for a missing/broken system file)
 - niri: `~/.config/niri/config.kdl` (installer-written: env block, prefer-no-csd, binds — launcher/lock/screenshots/window management; no DMS includes)
 
 ## Harness
 
-Fixture `tests/fixtures/variables/btrfs_standard_niriwayle_test.yaml` (dinit + edge). Checks: wayle shell running, veilad running, user dinit stack (incl. wayle.user/veila.user/stasis.user), niri layers (Wayle bar), session sockets, wayvnc, screenshot, oo7 packages installed, Key Rack flatpak installed + Secret=oo7-portal pinned (`keyrack_flatpak`), oo7 PAM unlock chain (`oo7_pam_unlock` — static PAM wiring + authenticated PAM login on service greetd + count-delta "Received unlock request" runtime proof with `enableDebug: true`), Wayle session-action seed (`wayle_session_actions` — dashboard dropdown commands + power bar button), stasis idle manager (`stasis_idle` — package + stasis.user started marker).
+Fixtures: `tests/fixtures/variables/btrfs_standard_niriwayle_test.yaml` (dinit + edge) and `tests/fixtures/variables/btrfs_standard_niriwayle.yaml` (OpenRC). Checks: wayle shell running, veilad running through the `veilad-session` wrapper (`veila_daemon`), user dinit stack (incl. wayle.user/veila.user/stasis.user), niri layers (Wayle bar), session sockets, wayvnc, screenshot, oo7 packages installed, Key Rack flatpak installed + Secret=oo7-portal pinned (`keyrack_flatpak`), oo7 PAM unlock chain (`oo7_pam_unlock` — static PAM wiring + authenticated PAM login on service greetd + count-delta "Received unlock request" runtime proof with `enableDebug: true`), Wayle session-action seed (`wayle_session_actions` — dashboard dropdown commands + power bar button), stasis idle manager (`stasis_idle` — package + `/etc/stasis/stasis.rune` content (veila lock + loginctl suspend) + `-c` in the stasis-session wrapper + no user-config bootstrap + started marker + `stasis info` IPC), power polkit rule (`power_polkit_rule` — wheel login1 rule incl. suspend).

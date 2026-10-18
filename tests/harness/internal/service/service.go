@@ -1477,6 +1477,14 @@ echo 'fish history clean (no clap error)'`,
 		// the check races boot. Whole Verify budget is 2min; other checks
 		// take ~30s, so 60s worst case still fits.
 		checks["niri_greeter"] = "i=0; while [ $i -lt 60 ]; do pgrep -x niri >/dev/null && { echo 'niri running'; exit 0; }; sleep 1; i=$((i+1)); done; echo 'niri not running'; exit 1"
+		// power_polkit_rule: the wheel login1 rule (written by the installer
+		// for BOTH inits — harmless under OpenRC, required under dinit
+		// because elogind cannot attribute PIDs to sessions there
+		// (NoSessionForPID): every loginctl power action would otherwise
+		// become an auth challenge; wheel = admin already, standard desktop
+		// posture). Covers the DMS/Wayle power buttons and stasis' automatic
+		// `loginctl suspend` idle step.
+		checks["power_polkit_rule"] = "test -f /etc/polkit-1/rules.d/49-feralos-power.rules && grep -q login1.power-off /etc/polkit-1/rules.d/49-feralos-power.rules && grep -q login1.suspend /etc/polkit-1/rules.d/49-feralos-power.rules && grep -q isInGroup /etc/polkit-1/rules.d/49-feralos-power.rules && echo 'power polkit rule OK (wheel: power-off/reboot/halt/suspend)'"
 		// DMS-only (niri DE): niriWayle has NO DMS — Wayle is the shell.
 		if cfg.DesktopEnvironment == desktopNiri {
 			checks["dms_installed"] = "apk info -e dms-shell quickshell && test -x /usr/bin/dms"
@@ -1705,9 +1713,12 @@ echo 'fish history clean (no clap error)'`,
 		// session checks — the shell starts after greetd + turnstile +
 		// user dinit + niri.
 		checks["wayle_running"] = fmt.Sprintf("i=0; while [ $i -lt 90 ]; do pgrep -u %s -f '/usr/bin/wayle' >/dev/null && { echo 'wayle shell running'; exit 0; }; sleep 1; i=$((i+1)); done; echo 'wayle not running'; exit 1", cfg.InstalledUser)
-		// veila_daemon: the Veila lock-screen daemon (lock-on-idle +
-		// lock-before-sleep via elogind PrepareForSleep).
-		checks["veila_daemon"] = fmt.Sprintf("i=0; while [ $i -lt 90 ]; do pgrep -u %s -f 'veilad' >/dev/null && { echo 'veila daemon running'; exit 0; }; sleep 1; i=$((i+1)); done; echo 'veilad not running'; exit 1", cfg.InstalledUser)
+		// veila_daemon: the Veila lock-screen daemon behind `veila lock`
+		// (stasis idle plan + Super+Alt+L keybind + dashboard dropdown).
+		// Runs through the veilad-session env wrapper (WAYLAND_DISPLAY/
+		// NIRI_SOCKET resolution — the user-dinit env carries neither;
+		// upstream's veilad.service PassEnvironment's the same variables).
+		checks["veila_daemon"] = fmt.Sprintf("test -f /etc/dinit.d/user/scripts/veilad-session && grep -q 'command = /etc/dinit.d/user/scripts/veilad-session' /etc/dinit.d/user/veila.user && grep -q 'exec veilad' /etc/dinit.d/user/scripts/veilad-session && i=0; while [ $i -lt 90 ]; do pgrep -u %s -f 'veilad' >/dev/null && { echo 'veila daemon running (veilad-session wrapper)'; exit 0; }; sleep 1; i=$((i+1)); done; echo 'veilad not running'; exit 1", cfg.InstalledUser)
 		// raffi_installed: launcher package + binary on PATH.
 		checks["raffi_installed"] = "apk info -e raffi && test -x /usr/bin/raffi && echo 'raffi installed'"
 		// oo7_secrets: gnome-keyring replacement — suite core + PAM module
@@ -1766,9 +1777,16 @@ echo 'fish history clean (no clap error)'`,
 		// stasis_idle: the stasis context-aware idle manager (feralos-aports
 		// 1.6.3, dependency of wayle-session) — package + supervised
 		// session service stasis.user (started by the wayle-session script
-		// after niri, existence-filtered) holding a started marker in the
-		// user dinit.
-		checks["stasis_idle"] = fmt.Sprintf("apk info -e stasis >/dev/null && test -f /etc/dinit.d/user/stasis.user || { echo 'stasis package or stasis.user service missing'; exit 1; }; uid=$(id -u %s); export XDG_RUNTIME_DIR=/run/user/$uid; i=0; while [ $i -lt 90 ]; do out=$(dinitctl --user list 2>/dev/null) || { sleep 1; i=$((i+1)); continue; }; echo \"$out\" | grep -Eq '(\\{\\+|\\[\\+).*\\] stasis\\.user( |$)' && { echo 'stasis idle manager running (stasis.user started)'; exit 0; }; sleep 1; i=$((i+1)); done; echo 'stasis.user not running'; exit 1", cfg.InstalledUser)
+		// after niri, existence-filtered). STATIC: the FeralOS system
+		// config /etc/stasis/stasis.rune (veila lock + loginctl suspend)
+		// and the `-c /etc/stasis/stasis.rune` startup in the
+		// stasis-session wrapper (without `-c` the daemon would bootstrap a
+		// ~/.config template with swaylock/systemctl — absent on FeralOS —
+		// and prefer it over the system file; the ABSENCE of that user file
+		// proves `-c` was honored). RUNTIME: started marker in the user
+		// dinit + `stasis info` as the session user (IPC round trip against
+		// the live daemon — only possible with a loaded config).
+		checks["stasis_idle"] = fmt.Sprintf("apk info -e stasis >/dev/null && test -f /etc/dinit.d/user/stasis.user || { echo 'stasis package or stasis.user service missing'; exit 1; }; test -f /etc/stasis/stasis.rune || { echo '/etc/stasis/stasis.rune missing'; exit 1; }; grep -q 'command \"veila lock\"' /etc/stasis/stasis.rune || { echo 'veila lock missing from stasis config'; exit 1; }; grep -q 'loginctl suspend' /etc/stasis/stasis.rune || { echo 'loginctl suspend missing from stasis config'; exit 1; }; grep -q -- '-c /etc/stasis/stasis.rune' /etc/dinit.d/user/scripts/stasis-session || { echo 'stasis-session does not use -c /etc/stasis/stasis.rune'; exit 1; }; test ! -f /home/%s/.config/stasis/stasis.rune || { echo 'user stasis config exists (bootstrap ran?)'; exit 1; }; uid=$(id -u %s); export XDG_RUNTIME_DIR=/run/user/$uid; i=0; ok=0; while [ $i -lt 90 ]; do out=$(dinitctl --user list 2>/dev/null) || { sleep 1; i=$((i+1)); continue; }; echo \"$out\" | grep -Eq '(\\{\\+|\\[\\+).*\\] stasis\\.user( |$)' && { ok=1; break; }; sleep 1; i=$((i+1)); done; [ \"$ok\" = 1 ] || { echo 'stasis.user not running'; exit 1; }; su - %s -s /bin/sh -c 'export XDG_RUNTIME_DIR=/run/user/$(id -u); for s in $XDG_RUNTIME_DIR/wayland-*; do [ -S \"$s\" ] && export WAYLAND_DISPLAY=\"${s##*/}\"; done; stasis info >/dev/null 2>&1' && echo 'stasis idle manager OK (system config + stasis.user started + info IPC)' || { echo 'stasis info failed'; exit 1; }", cfg.InstalledUser, cfg.InstalledUser, cfg.InstalledUser)
 	}
 
 	// Flatpak checks — generic, only when a fixture explicitly requests
@@ -1838,15 +1856,15 @@ echo 'fish history clean (no clap error)'`,
 		// + elogind shutdown hook: loginctl poweroff/reboot (DMS power menu)
 		// reaches dinit via /etc/elogind/system-shutdown — elogind's own
 		// exec target is the busybox /sbin/poweroff (SIGUSR2, ignored).
-		// + polkit power rule: NoSessionForPID under dinit otherwise turns
-		// every login1 power action into an auth challenge.
+		// (The polkit power rule is asserted separately by power_polkit_rule
+		// — written for both inits.)
 		// + Custom reboot seed per DE: niri via DMS customPowerActionReboot
 		// in settings.json; niriWayle via the seeded wayle config.toml
 		// dropdown-reboot-command — both `sudo -n /usr/bin/reboot` via
 		// /etc/sudoers.d/zz-power (must sort AFTER /etc/sudoers.d/wheel
 		// (`%wheel ALL=(ALL) ALL`; sudo-rs last-match-wins would override
 		// the NOPASSWD tag otherwise — live-caught 2026-10-11).
-		shutdownCmd := "test -x /usr/bin/poweroff -a -x /usr/bin/reboot -a -x /usr/bin/halt -a -x /usr/bin/shutdown -a -x /usr/bin/soft-reboot && test -x /etc/elogind/system-shutdown/50-feralos-dinit.sh && grep -q dinit-poweroff /etc/elogind/system-shutdown/50-feralos-dinit.sh && test -f /etc/polkit-1/rules.d/49-feralos-power.rules && grep -q login1.power-off /etc/polkit-1/rules.d/49-feralos-power.rules && test -f /etc/sudoers.d/zz-power && grep -q '/usr/bin/reboot' /etc/sudoers.d/zz-power"
+		shutdownCmd := "test -x /usr/bin/poweroff -a -x /usr/bin/reboot -a -x /usr/bin/halt -a -x /usr/bin/shutdown -a -x /usr/bin/soft-reboot && test -x /etc/elogind/system-shutdown/50-feralos-dinit.sh && grep -q dinit-poweroff /etc/elogind/system-shutdown/50-feralos-dinit.sh && test -f /etc/sudoers.d/zz-power && grep -q '/usr/bin/reboot' /etc/sudoers.d/zz-power"
 		if cfg.DesktopEnvironment == desktopNiri {
 			shutdownCmd += fmt.Sprintf(" && grep -q customPowerActionReboot /home/%s/.config/DankMaterialShell/settings.json", cfg.InstalledUser)
 		}

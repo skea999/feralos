@@ -239,7 +239,7 @@ desktopEnvironments:
     # RustDesk removed (round 43 cleanup + user decision): wayvnc is the
     # remote-desktop path (user dinit service, loopback by default).
   niriWayle:
-    packages: ["niri", "niri-portalsconf", "greetd", "greetd-regreet", "elogind", "dbus", "alacritty", "xdg-desktop-portal-wlr", "xdg-desktop-portal-gtk", "polkit-elogind", "polkit-gnome", "xwayland-satellite", "xwayland", "mesa-dri-gallium", "wayland-libs-server", "turnstile", "accountsservice", "power-profiles-daemon", "upower", "wl-clipboard-rs", "wayle", "wayle-session", "veila", "raffi", "oo7", "oo7-pam", "oo7-cli", "oo7-portal", "matugen", "dbus-user-dinit", "pipewire-user-dinit", "pipewire-pulse-user-dinit", "wireplumber-user-dinit", "wayland-wait-user-dinit", "oo7-user-dinit", "xdg-desktop-portal-user-dinit", "polkit-agent-user-dinit", "wayvnc", "wayvnc-user-dinit", "networkmanager", "networkmanager-cli", "networkmanager-tui", "networkmanager-wifi", "wireless-regdb", "bluez", "wpa_supplicant", "wireguard-tools", "firewalld", "iptables", "ip6tables", "ebtables", "dconf", "xdg-user-dirs", "wtype", "i2c-tools", "adwaita-icon-theme", "hicolor-icon-theme", "font-terminus", "font-inconsolata", "font-dejavu", "font-noto", "font-noto-cjk", "font-awesome", "font-noto-extra"]
+    packages: ["niri", "niri-portalsconf", "greetd", "greetd-regreet", "elogind", "dbus", "alacritty", "xdg-desktop-portal-wlr", "xdg-desktop-portal-gtk", "polkit-elogind", "polkit-gnome", "xwayland-satellite", "xwayland", "mesa-dri-gallium", "wayland-libs-server", "turnstile", "accountsservice", "power-profiles-daemon", "upower", "wl-clipboard-rs", "wayle", "wayle-session", "veila", "stasis", "raffi", "oo7", "oo7-pam", "oo7-cli", "oo7-portal", "matugen", "dbus-user-dinit", "pipewire-user-dinit", "pipewire-pulse-user-dinit", "wireplumber-user-dinit", "wayland-wait-user-dinit", "oo7-user-dinit", "xdg-desktop-portal-user-dinit", "polkit-agent-user-dinit", "wayvnc", "wayvnc-user-dinit", "networkmanager", "networkmanager-cli", "networkmanager-tui", "networkmanager-wifi", "wireless-regdb", "bluez", "wpa_supplicant", "wireguard-tools", "firewalld", "iptables", "ip6tables", "ebtables", "dconf", "xdg-user-dirs", "wtype", "i2c-tools", "adwaita-icon-theme", "hicolor-icon-theme", "font-terminus", "font-inconsolata", "font-dejavu", "font-noto", "font-noto-cjk", "font-awesome", "font-noto-extra"]
     # Key Rack (app.drey.KeyRack) = the niriWayle secrets GUI — Flathub
     # flatpak, NOT an apk: oo7-server and seahorse both ship
     # /usr/share/dbus-1/services/org.freedesktop.secrets.service, so the
@@ -252,11 +252,13 @@ desktopEnvironments:
     # Shares the session infra with niri: turnstile + per-user dinit, pipewire
     # stack via *-user-dinit, portals, polkit agent, wayvnc.
     # wayle-session depends on niri-user-dinit (login-shell + niri user service)
-    # + stasis, and ships the wayle-session script + wayle.user/veila.user/
-    # stasis.user + niriwayle.desktop. stasis (context-aware idle manager,
-    # supervised stasis.user session service started by the session script)
-    # is therefore INCLUDED via the wayle-session dependency; veila remains
-    # the lock screen (ext-session-lock + lock-before-sleep via elogind).
+    # + stasis, and ships the wayle-session script + wayle.user/veila.user
+    # (veilad runs through the veilad-session env wrapper) + niriwayle.desktop.
+    # stasis (context-aware idle manager; supervised stasis.user session service
+    # started by the session script; FeralOS system config /etc/stasis/stasis.rune
+    # = veila lock -> niri dpms -> loginctl suspend) is listed EXPLICITLY and
+    # also pulled via the wayle-session dependency; veila remains the lock
+    # screen (ext-session-lock; idle timing owned by stasis).
     # Apps (browser/office/etc) are intentionally NOT listed — added per-install.
     services: {"greetd": "default", "elogind": "default", "firewalld": "default", "polkit": "default", "networkmanager": "default", "bluetooth": "default"}
     # upower has no dinit service: upowerd is dbus system-activated when Wayle

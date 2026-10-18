@@ -33,6 +33,11 @@ func SetupServices(conf *config.Config) error {
 		return err
 	}
 
+	// polkit power rule — written for BOTH inits (see writePowerPolkitRule).
+	if err := writePowerPolkitRule(chroot); err != nil {
+		return err
+	}
+
 	// Dinit: enablement is data-driven (Alpine model: packages ship service
 	// files, rules decide what runs), mirroring the OpenRC flow:
 	//   - defaultRunlevelsDinit = base services chimera doesn't cover
@@ -189,15 +194,25 @@ esac
 		return fmt.Errorf("failed to install elogind shutdown hook: %w", err)
 	}
 
-	// polkit rule for the login1 power actions: under dinit, elogind cannot
-	// map PIDs to sessions (NoSessionForPID — no session cgroups), so polkit
-	// never sees "allow_active" and every loginctl power-off/reboot call
-	// becomes an auth challenge (or a silent timeout with no agent).
-	// wheel = admin already — granting the seat-owner actions changes no
-	// security posture (poweroff is no privilege escalation), and matches
-	// standard desktop behavior (no password for the owner's own machine).
-	polkitRule := `// FeralOS: allow wheel to power off/reboot without an auth prompt.
-// elogind under dinit cannot attribute PIDs to sessions (NoSessionForPID),
+	fmt.Println("[INFO] Dinit shutdown commands installed (poweroff/reboot/halt/shutdown/soft-reboot)")
+	fmt.Println("[INFO] elogind shutdown hook installed (loginctl poweroff/reboot → dinit)")
+
+	return nil
+}
+
+// writePowerPolkitRule installs the wheel login1 rule for the power actions
+// (power-off/reboot/halt/suspend). Written for BOTH inits: under dinit,
+// elogind cannot map PIDs to sessions (NoSessionForPID — no session
+// cgroups), so polkit never sees "allow_active" and every loginctl power
+// action becomes an auth challenge (or a silent timeout with no agent) —
+// this covers the DMS/Wayle power buttons AND stasis' automatic
+// `loginctl suspend` idle step. wheel = admin already — granting the
+// seat-owner actions changes no security posture (none of these is a
+// privilege escalation), and matches standard desktop behavior (no password
+// for the owner's own machine). Harmless under OpenRC.
+func writePowerPolkitRule(chroot string) error {
+	polkitRule := `// FeralOS: allow wheel to power off/reboot/suspend without an auth prompt.
+// elogind cannot attribute PIDs to sessions under dinit (NoSessionForPID),
 // so the default "allow_active" policy never matches. wheel is admin anyway.
 polkit.addRule(function(action, subject) {
     if (subject.isInGroup("wheel") &&
@@ -206,7 +221,9 @@ polkit.addRule(function(action, subject) {
          action.id == "org.freedesktop.login1.reboot" ||
          action.id == "org.freedesktop.login1.reboot-multiple-sessions" ||
          action.id == "org.freedesktop.login1.halt" ||
-         action.id == "org.freedesktop.login1.halt-multiple-sessions")) {
+         action.id == "org.freedesktop.login1.halt-multiple-sessions" ||
+         action.id == "org.freedesktop.login1.suspend" ||
+         action.id == "org.freedesktop.login1.suspend-multiple-sessions")) {
         return polkit.Result.YES;
     }
 });
@@ -215,9 +232,5 @@ polkit.addRule(function(action, subject) {
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p /etc/polkit-1/rules.d && echo '%s' > /etc/polkit-1/rules.d/49-feralos-power.rules && chmod 644 /etc/polkit-1/rules.d/49-feralos-power.rules", escapedRule)); err != nil {
 		return fmt.Errorf("failed to install polkit power rule: %w", err)
 	}
-
-	fmt.Println("[INFO] Dinit shutdown commands installed (poweroff/reboot/halt/shutdown/soft-reboot)")
-	fmt.Println("[INFO] elogind shutdown hook + polkit power rule installed (loginctl poweroff/reboot → dinit)")
-
 	return nil
 }
