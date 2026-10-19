@@ -497,19 +497,19 @@
       "rationale": "User directive: nothing dbus-activatable may run unsupervised; the mechanism must be identical for every service (no per-app exceptions) and documented so future services follow it. CRITICAL live finding (dbus 1.16.2): the system bus activates through the setuid dbus-daemon-launch-helper, whose trivial config parser resolves names ONLY against the standard dirs (/usr/local/share > /usr/share > /lib) — /etc/dbus-1/system-services is daemon-enumerated (ListActivatableNames) but NEVER helper-activatable (raw spawn / Spawn.ServiceNotFound when no standard twin). Hence the boot materialization into /usr/local/share (first helper-eligible dir; live-proven to route activation through dinit). Session activation runs Exec directly (no helper) so the runtime-dir materialization works; abuild forbids /usr/local packaging, hence the materializer pattern on both sides. Chimera designed the same architecture (dinit-dbus Activator) but its routing is not implemented upstream; Artix and systemd provide the reference for system-vs-user placement."
     },
     {
-      "date": "2026-10-18",
-      "decision": "KDE global shortcuts wired for niri + niriWayle: kglobalacceld (Alpine; daemon at /usr/lib/libexec/kglobalacceld, no upstream D-Bus activation file) + kglobalaccel-user-dinit (our org.kde.kglobalaccel.user unit + shim override) added to both DE package lists; activation-only via the ADR-010 chain; the Alpine XDG autostart desktop is inert because niri/Wayle do not process /etc/xdg/autostart",
-      "rationale": "The aports unit/override existed but were never installed (the -user-dinit package was not in the DE lists) and no upstream activation file exists — so org.kde.kglobalaccel could never be activated and KDE global shortcuts stayed inactive. Harness check kglobalaccel_daemon added (packages + daemon binary + unit + override)."
+      "date": "2026-10-19",
+      "decision": "kglobalaccel stays KDE/Plasma-only — NOT wired for niri/niriWayle (wiring commit 92116e4 reverted): the KDE global-shortcuts daemon serves KDE applications in a Plasma session; under niri there is no KWin/GlobalShortcuts integration for Wayland key grabbing, the KDE apps shipped on niri do not use it, and neither niri nor Wayle consumes it. The aports kglobalaccel-user-dinit unit + shim override remain available as optional coverage (not installed by the DE lists).",
+      "rationale": "User correction: kglobalaccel is a KDE global-shortcut service, not a niri/Wayle dependency. Installing it there adds packages with no working function and misleads the optional-daemon model. The revert removes the DE list entries + the kglobalaccel_daemon harness check; the generic dbus_activation_uniform still covers the override automatically if the package is ever installed."
     },
     {
-      "date": "2026-10-18",
+      "date": "2026-10-19",
       "decision": "dms-shell split (dms + dms-dinit) is NOT planned — dropped by user decision (do not pursue)",
-      "rationale": "User decision 2026-10-18: the split is not wanted; DMS stays as shipped (dms.user supervised per-user dinit service). Do not resurface it as a backlog item."
+      "rationale": "User decision 2026-10-19: the split is not wanted; DMS stays as shipped (dms.user supervised per-user dinit service). Do not resurface it as a backlog item."
     },
     {
-      "date": "2026-10-18",
+      "date": "2026-10-19",
       "decision": "Booster initramfs module policy RESOLVED: host-specific autodetect default + user modulesForceLoad list is the final behavior (no universal mode); not a backlog item",
-      "rationale": "User confirmed 2026-10-18 that this parked behavior is the intended final state — booster stays host-adaptive, users extend via modulesForceLoad. Removed from next_actions."
+      "rationale": "User confirmed 2026-10-19 that this parked behavior is the intended final state — booster stays host-adaptive, users extend via modulesForceLoad. Removed from next_actions."
     }
   ],
   "next_actions": [
