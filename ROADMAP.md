@@ -44,7 +44,7 @@ and custom repositories.
 | v2.1 | — | Done | KDE Plasma |
 | v2.2 | — | Done | COSMIC (seatd-based) |
 | v2.3 | — | Done | English-only + anonymization policy; content audit procedure |
-| v2.4 | — | Done | niriWayle flagship desktop (Wayle shell + Veila + Raffi + oo7 secrets — login auto-unlock, session actions wired, stasis system idle plan; harness 106/106) |
+| v2.4 | — | Done | niriWayle flagship desktop (Wayle shell + Veila + Raffi + oo7 secrets — login auto-unlock, session actions wired, stasis system idle plan; harness 107/107) |
 
 ## Phase 3 Milestones
 
@@ -82,7 +82,7 @@ See `docs/dinit/` (installer-side) and [feralos-aports](https://github.com/skea9
 | niri Wayland compositor | P0 | Done | greetd + regreet + DMS (native apk) |
 | KDE Plasma | P0 | Done | sddm |
 | COSMIC | P0 | Done | seatd (not elogind) + cosmic-greeter |
-| niriWayle flagship desktop | P0 | Done | Wayle shell + Veila lock + Raffi + oo7 secrets (login auto-unlock, session actions wired, stasis system idle plan — lock/dpms/suspend on both inits; power profiles switchable; D-Bus activation routes through dinit units — ADR-010; harness 106/106 dinit · 90/90 OpenRC) |
+| niriWayle flagship desktop | P0 | Done | Wayle shell + Veila lock + Raffi + oo7 secrets (login auto-unlock, session actions wired, stasis system idle plan — lock/dpms/suspend on both inits; power profiles switchable; D-Bus activation routes through dinit units — ADR-010; KDE global shortcuts via kglobalacceld; harness 107/107 dinit · 91/91 OpenRC) |
 | wayvnc remote desktop | P1 | Done | wayvnc-user-dinit, loopback 127.0.0.1:5900 (RustDesk removed) |
 | Unicode rc.conf for all DEs | P1 | Done | desktops.go (musl default off) |
 

@@ -169,7 +169,7 @@ environment.
 | dconf | session | `ca.desrt.dconf.user` | DONE (`be98f7f`) |
 | kwallet | session | `org.kde.kwalletd6.user` (+ `kwalletd5` alias override) | DONE (`be98f7f`) |
 | kded | session | `org.kde.kded6.user` | DONE (`be98f7f`) |
-| kglobalaccel | session | `org.kde.kglobalaccel.user` | DONE (`be98f7f`; NO upstream activation file — our override is the only route; daemon binary lives in `kglobalacceld`, package optional / not in the DE lists) |
+| kglobalaccel | session | `org.kde.kglobalaccel.user` | DONE (`be98f7f`; NO upstream activation file — our override is the only route; daemon `kglobalacceld` → `/usr/lib/libexec/kglobalacceld` + `kglobalaccel-user-dinit` ARE in the niri + niriWayle package lists (2026-10-18) — activation-only; the Alpine XDG autostart desktop is ignored by niri/Wayle) |
 | signond | session | `com.google.code.AccountsSSO.SingleSignOn.user` (+ backup alias override) | DONE (`be98f7f`) |
 | localsearch | session | `org.freedesktop.LocalSearch3.user`, `...LocalSearch3.Control.user`, `...LocalSearch3.Writeback.user` (Tracker3 names alias to the same units) | DONE (`be98f7f`) |
 | flatpak session helpers | session | `org.freedesktop.Flatpak.user`, `org.freedesktop.portal.Flatpak.user`, `org.flatpak.Authenticator.Oci.user` | DONE (`be98f7f`) |
