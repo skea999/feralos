@@ -61,6 +61,22 @@ For the system bus under OpenRC there is no system dinit: the shim detects this
 stored in the override. Supervision is a dinit property; the OpenRC fallback
 remains a bootable fallback, never the primary mode.
 
+**Third-party activation targets.** The app set brings activatable daemons of
+its own (avahi, udisks2, geoclue, cups-pk-helper, kcron, GNOME online accounts,
+evolution-data-server, and the GNOME app-launch files). FeralOS covers them with
+transitional `-dinit`/`-user-dinit` units plus overrides — exactly the shape
+dbus-broker's launcher expects (one manager unit per activation target). These
+are not FeralOS services: the retirement gate is the harness check
+`dbus_activation_migration`, which enumerates **every** activation file on the
+target live and fails only when **dbus-broker is installed AND every target is
+unit-covered** (an exact-name package unit, or an override aliasing the name onto
+an existing package unit). At that point the FeralOS overrides/shim are dropped
+and the units can move to the owning packages. Lifecycle notes: avahi runs
+foreground (its upstream `.service` is `Exec=/bin/false`, systemd-only), geoclue
+keeps its 60 s idle exit (activation-only semantics), kcron's KAuth helper is
+short-lived (no smooth-recovery), and the GNOME app files are GUI units in
+`--gapplication-service` mode.
+
 **Enablement** is orthogonal to activation: units that must run before login stay
 enabled through the rules (`dinitServices`), activation works regardless.
 

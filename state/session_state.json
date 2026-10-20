@@ -502,6 +502,16 @@
       "rationale": "User correction: kglobalaccel is a KDE global-shortcut service, not a niri/Wayle dependency. Installing it there adds packages with no working function and misleads the optional-daemon model. The revert removes the DE list entries + the kglobalaccel_daemon harness check; the generic dbus_activation_uniform still covers the override automatically if the package is ever installed."
     },
     {
+      "date": "2026-10-20",
+      "decision": "ADR-010 third-party activation targets covered by transitional package-shipped units (feralos-aports 44c598a): avahi, udisks2, geoclue, cups-pk-helper, kcron (system); goa daemon + goa-identity-service, evolution-data-server x4, GNOME Calendar/DiskUtility/Firmware/Maps (session). Exact Exec paths/args and lifecycle verified on Alpine 3.24 (avahi upstream file is Exec=/bin/false — systemd-only; UDisks2 path /usr/libexec/udisks2/udisksd; geoclue 60 s idle exit preserved; kcron KAuth helper short-lived; GNOME apps --gapplication-service; GOA two distinct binaries). Retirement gate = harness dbus_activation_migration: enumerates EVERY activation file live and fails only when dbus-broker is installed AND all targets are unit-covered (aliases count via override->existing unit).",
+      "rationale": "User decision: every D-Bus-activatable target goes under dinit now, anticipating dbus-broker (activation delegated to the service manager; explicit units are the first half of that model, transient/ephemeral services the second). Stability first: no blind auto-generation; each unit hand-written from inspected .service files and proven by a live activation check (UDisks2 + goa). App-launch files included because dbus-broker would create units for them too."
+    },
+    {
+      "date": "2026-10-19",
+      "decision": "niriWayle ships the FULL niri app set (supersedes the 2026-10-16 'no apps — user adds' scope): cosmic-edit, eog, cosmic-player, libreoffice, galculator, firefox, firewalld-gui, gnome-firmware, gnome-disk-utility, kcron, ksystemlog, khal, gnome-maps, gnome-calendar, simple-scan + support (cups/cups-filters/cups-pk-helper with cupsd enabled + lpadmin group, avahi, sane* stack, qt6-qtmultimedia, kimageformats, adw-gtk3) + the niri flatpaks (rclone-manager, Flatseal) alongside Key Rack",
+      "rationale": "User request 2026-10-19: bring ALL the old niri apps to niriWayle (they had already added cosmic-edit + cosmic-player themselves). Exclusions: the DMS shell packages (niri-only) and seahorse/gnome-keyring (oo7 + Key Rack own secrets; seahorse conflicts on org.freedesktop.secrets.service)."
+    },
+    {
       "date": "2026-10-19",
       "decision": "dms-shell split (dms + dms-dinit) is NOT planned — dropped by user decision (do not pursue)",
       "rationale": "User decision 2026-10-19: the split is not wanted; DMS stays as shipped (dms.user supervised per-user dinit service). Do not resurface it as a backlog item."

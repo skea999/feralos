@@ -183,12 +183,33 @@ environment.
 | bluez | system | `org.bluez` (renamed from `bluetooth`), `org.bluez.mesh` | DONE (`85646f4`; Alpine files had `Exec=/bin/false` — systemd-only; our override is the activation route) |
 | elogind | system | `org.freedesktop.login1` (renamed from `elogind`; greetd/sddm/turnstile unit deps updated) | DONE (`85646f4`) |
 | wpa_supplicant | system | `fi.w1.wpa_supplicant1` | DONE (`85646f4`) |
+| avahi | system | `org.freedesktop.Avahi` | DONE (`44c598a`; upstream file is `Exec=/bin/false` — systemd-only; unit runs `avahi-daemon` foreground, no `-D`) |
+| udisks2 | system | `org.freedesktop.UDisks2` | DONE (`44c598a`; Alpine path `/usr/libexec/udisks2/udisksd`) |
+| geoclue | system | `org.freedesktop.GeoClue2` | DONE (`44c598a`; `run-as = geoclue`; 60 s idle exit preserved — activation-only) |
+| cups-pk-helper | system | `org.opensuse.CupsPkHelper.Mechanism` | DONE (`44c598a`; depends on `cupsd`) |
+| kcron | system | `local.kcron.crontab` | DONE (`44c598a`; short-lived KAuth helper — no smooth-recovery) |
+| gnome-online-accounts | session | `org.gnome.OnlineAccounts`, `org.gnome.Identity` | DONE (`44c598a`; two distinct binaries — no alias dedupe) |
+| evolution-data-server | session | `org.gnome.evolution.dataserver.{Sources5,AddressBook10,Calendar8,UserPrompter0}` | DONE (`44c598a`) |
+| gnome apps | session | `org.gnome.{Calendar,DiskUtility,Firmware,Maps}` | DONE (`44c598a`; GUI units in `--gapplication-service` mode) |
 
 All system rows: override source `/usr/share/feralos/dbus-system-services/`,
 materialized at boot to `/usr/local/share/dbus-1/system-services/` by
 `dbus-services-setup` (2026-10-18 validation round — `/etc` proved
 helper-ineligible). All session rows: source `/usr/share/feralos/dbus-services/`,
 materialized at login to `$XDG_RUNTIME_DIR/dbus-1/services/`.
+
+**Third-party targets (the rows from `44c598a`)** live in feralos-aports as
+transitional packages (`avahi-dinit`, `udisks2-dinit`, `geoclue-dinit`,
+`cups-pk-helper-dinit`, `kcron-dinit`, `gnome-online-accounts-user-dinit`,
+`evolution-data-server-user-dinit`, `gnome-apps-user-dinit`; avahi/udisks2
+extend existing `-dinit` packages). They are the first half of the dbus-broker
+model (every activation target has a manager unit) and are **retired** when the
+second half lands. Retirement gate: harness `dbus_activation_migration` —
+enumerates **every** activation file on the target live (no static list) and
+fails only when **dbus-broker is installed AND all targets are unit-covered**
+(exact-name package unit, or an override aliasing the name onto an existing
+package unit). While not both it passes with "keep the FeralOS activation
+mechanism", so the migration cannot be forgotten.
 
 ## Implementation phases (tracking)
 

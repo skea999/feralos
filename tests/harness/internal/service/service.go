@@ -1669,6 +1669,109 @@ else
     echo "system activation env SKIPPED (no system dinit or upower absent)"
 fi
 `, cfg.InstalledUser)
+		// dbus_activation_migration: forward-looking migration gate (user
+		// request 2026-10-19). The FeralOS mechanism (override files + shim +
+		// hand-written units) can only be retired when BOTH hold (AND, not
+		// OR):
+		//   1) dbus-broker is installed (the launcher then activates units by
+		//      name itself), AND
+		//   2) EVERY D-Bus-activated service on the target is unit-covered —
+		//      enumerated live from the standard servicedirs, not from a static
+		//      list, so new apps count too. "Covered" = a package-shipped dinit
+		//      unit with that exact name, OR a FeralOS override whose shim Exec
+		//      maps the name onto an existing package-shipped unit (aliases
+		//      like net.hadess.PowerProfiles → org.freedesktop.UPower
+		//      .PowerProfiles).
+		// Either condition alone is not enough: with dbus-daemon the overrides
+		// are still the only route; with incomplete unit coverage the broker
+		// would fall back to ephemeral/raw starts. While not both, the check
+		// passes and says to keep the FeralOS mechanism. When both hold it
+		// FAILS with a "retire" message so the cleanup cannot be forgotten.
+		// Unit ownership via `apk info -W` (last field = pkg-version) across
+		// /lib, /usr/lib and the admin /etc dinit dirs.
+		checks["dbus_activation_migration"] = `
+broker=0
+apk info -e dbus-broker >/dev/null 2>&1 && broker=1
+check_covered() {
+    n=$1
+    for p in "/lib/dinit.d/$n" "/usr/lib/dinit.d/$n" "/etc/dinit.d/$n" "/etc/dinit.d/user/$n.user" "/usr/lib/dinit.d/user/$n.user"; do
+        [ -e "$p" ] || continue
+        o=$(apk info -W "$p" 2>/dev/null | sed -n 's/.* is owned by \(.*\)$/\1/p')
+        [ -n "$o" ] && return 0
+    done
+    for s in "/usr/share/feralos/dbus-system-services/$n.service" "/usr/share/feralos/dbus-services/$n.service"; do
+        [ -f "$s" ] || continue
+        u=$(sed -n 's/^Exec=.*dbus-activate \([^ ]*\) .*/\1/p' "$s" | head -1)
+        [ -n "$u" ] || continue
+        for p in "/lib/dinit.d/$u" "/usr/lib/dinit.d/$u" "/etc/dinit.d/$u" "/etc/dinit.d/user/$u" "/etc/dinit.d/user/$u.user" "/usr/lib/dinit.d/user/$u" "/usr/lib/dinit.d/user/$u.user"; do
+            [ -e "$p" ] || continue
+            o=$(apk info -W "$p" 2>/dev/null | sed -n 's/.* is owned by \(.*\)$/\1/p')
+            [ -n "$o" ] && return 0
+        done
+    done
+    return 1
+}
+total=0
+missing=0
+for f in /usr/share/dbus-1/system-services/*.service /usr/share/dbus-1/services/*.service; do
+    [ -e "$f" ] || continue
+    name=$(sed -n 's/^Name=//p' "$f" | head -1)
+    [ -n "$name" ] || continue
+    total=$((total+1))
+    check_covered "$name" || { missing=$((missing+1)); echo "no package-shipped dinit unit yet: $name"; }
+done
+if [ "$broker" = 1 ] && [ "$missing" = 0 ]; then
+    echo "MIGRATION READY: dbus-broker installed AND all $total activation targets have package-shipped dinit units — retire the FeralOS overrides/shim (ADR-010)"; exit 1
+fi
+echo "keep the FeralOS activation mechanism (dbus-broker=$broker, $missing/$total activation targets lack package-shipped units)"
+`
+		// dbus_activation_units_live: real activation proof for the third-party
+		// targets covered by the new units (ADR-010): one system daemon
+		// (org.freedesktop.UDisks2 → udisksd) and one session daemon
+		// (org.gnome.OnlineAccounts → goa-daemon). Asserts the dinit unit
+		// started via the shim AND the daemon environ has no DBUS_STARTER_*
+		// (a raw helper spawn leaves them; the shim path excludes them).
+		// The system half needs a system dinit (dinit installs only); the
+		// session half runs on both inits via the turnstile user dinit.
+		checks["dbus_activation_units_live"] = fmt.Sprintf(`
+if [ "$(cat /proc/1/comm)" = "dinit" ]; then
+    pkill -f "^/usr/libexec/udisks2/udisksd$" 2>/dev/null || true
+    dinitctl --system stop org.freedesktop.UDisks2 >/dev/null 2>&1 || true
+    sleep 1
+    dbus-send --system --print-reply --dest=org.freedesktop.UDisks2 /org/freedesktop/DBus org.freedesktop.DBus.Peer.Ping >/dev/null 2>&1 || true
+    i=0; ok=0
+    while [ $i -lt 30 ]; do
+        if dinitctl --system list 2>/dev/null | grep -Eq "(\{\+|\[\+).*\] org\.freedesktop\.UDisks2( |$)" && pgrep -f "^/usr/libexec/udisks2/udisksd$" >/dev/null 2>&1; then ok=1; break; fi
+        sleep 1; i=$((i+1))
+    done
+    if [ "$ok" != 1 ]; then dinitctl --system status org.freedesktop.UDisks2 2>&1 || true; dinitctl --system list 2>/dev/null | grep -i udisks || true; echo "system: UDisks2 unit did not start via dbus activation"; exit 1; fi
+    pid=$(pgrep -f "^/usr/libexec/udisks2/udisksd$" | head -1)
+    if tr "\0" "\n" < /proc/$pid/environ | grep -q "^DBUS_STARTER_"; then echo "system: udisksd spawned raw (DBUS_STARTER_* present)"; exit 1; fi
+    dinitctl --system stop org.freedesktop.UDisks2 >/dev/null 2>&1 || true
+    echo "system unit activation OK (UDisks2 via shim + dinit)"
+else
+    echo "system unit activation SKIPPED (no system dinit)"
+fi
+su - %s -s /bin/sh -c '
+export XDG_RUNTIME_DIR=/run/user/$(id -u)
+export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
+dinitctl --user stop org.gnome.OnlineAccounts.user >/dev/null 2>&1 || true
+pkill -f "^/usr/libexec/goa-daemon$" 2>/dev/null || true
+sleep 1
+dbus-send --session --print-reply --dest=org.gnome.OnlineAccounts /org/freedesktop/DBus org.freedesktop.DBus.Peer.Ping >/dev/null 2>&1 || true
+i=0; ok=0
+while [ $i -lt 20 ]; do
+    if dinitctl --user list 2>/dev/null | grep -Eq "(\{\+|\[\+).*\] org\.gnome\.OnlineAccounts\.user( |$)" && pgrep -f "^/usr/libexec/goa-daemon$" >/dev/null 2>&1; then ok=1; break; fi
+    sleep 1; i=$((i+1))
+done
+if [ "$ok" != 1 ]; then echo "session: goa unit did not start via dbus activation"; dinitctl --user list 2>/dev/null | grep -i onlineaccounts || true; exit 1; fi
+pid=$(pgrep -f "^/usr/libexec/goa-daemon$" | head -1)
+if tr "\0" "\n" < /proc/$pid/environ | grep -q "^DBUS_STARTER_"; then echo "session: goa spawned raw (DBUS_STARTER_* present)"; exit 1; fi
+dinitctl --user stop org.gnome.OnlineAccounts.user >/dev/null 2>&1 || true
+echo "session unit activation OK (goa via shim + dinit)"
+' || exit 1
+echo 'dbus activation units live OK'
+`, cfg.InstalledUser)
 		// DMS-only (niri DE): niriWayle has NO DMS — Wayle is the shell.
 		if cfg.DesktopEnvironment == desktopNiri {
 			checks["dms_installed"] = "apk info -e dms-shell quickshell && test -x /usr/bin/dms"
