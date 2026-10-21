@@ -191,6 +191,12 @@ environment.
 | gnome-online-accounts | session | `org.gnome.OnlineAccounts`, `org.gnome.Identity` | DONE (`44c598a`; two distinct binaries — no alias dedupe) |
 | evolution-data-server | session | `org.gnome.evolution.dataserver.{Sources5,AddressBook10,Calendar8,UserPrompter0}` | DONE (`44c598a`) |
 | gnome apps | session | `org.gnome.{Calendar,DiskUtility,Firmware,Maps}` | DONE (`44c598a`; GUI units in `--gapplication-service` mode) |
+| gnome-keyring (niri) | session | `org.freedesktop.secrets.user` (+ aliases `org.gnome.keyring`, `org.freedesktop.impl.portal.Secret`) | DONE (`0c68215`; niri DE; gnome-keyring daemon, 3 overrides → 1 unit) |
+| gcr prompter (niri) | session | `org.gnome.keyring.PrivatePrompter.user` (+ alias `org.gnome.keyring.SystemPrompter`) | DONE (`0c68215`; transient GUI prompt) |
+| seahorse (niri) | session | `org.gnome.seahorse.Application.user` | DONE (`0c68215`; GUI app unit) |
+| fprintd | system | `net.reactivated.Fprint` | DONE (`d78d3e3`; KDE app-set pull-in; idle-exit, no respawn) |
+| bolt | system | `org.freedesktop.bolt` | DONE (`d78d3e3`) |
+| Plasma KAuth helpers | system | `org.kde.{discover.alpineapkbackend, fontinst, kameleonhelper, kcontrol.kcmclock, kcontrol.kcmsddm, kded.smart, kinfocenter.dmidecode, ksysguard.processlisthelper, ktexteditor6.katetextbuffer, localegenhelper, powerdevil.backlighthelper, powerdevil.chargethresholdhelper, powerdevil.discretegpuhelper, powerdevil.wakeupsourcehelper, ufw}` | DONE (`0c68215`; 15 units, per-request KAuth helpers) |
 
 All system rows: override source `/usr/share/feralos/dbus-system-services/`,
 materialized at boot to `/usr/local/share/dbus-1/system-services/` by
@@ -210,6 +216,16 @@ fails only when **dbus-broker is installed AND all targets are unit-covered**
 (exact-name package unit, or an override aliasing the name onto an existing
 package unit). While not both it passes with "keep the FeralOS activation
 mechanism", so the migration cannot be forgotten.
+
+**System-bus coverage is global** (harness `dbus_system_activation`, dinit-only,
+on EVERY DE): kde brings the 15 KAuth helpers + upower/PPD/accountsservice/
+fprintd/bolt; cosmic upower/geoclue; niri upower + the gnome-keyring stack.
+**Session-bus coverage stays niri-family** for now: those DEs own the session bus
+(turnstile user dinit + `dbus-session` materialization); KDE/cosmic start their
+own bus, so their session targets need the turnstile/user-dinit integration
+first — tracked gap, not silently exempted. **Idle-exit units** (geoclue,
+fprintd, EDS factories) use `smooth-recovery = false`: the unit stops on a
+legitimate idle exit and the next activation restarts it.
 
 ## Implementation phases (tracking)
 

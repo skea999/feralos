@@ -1459,6 +1459,36 @@ echo 'fish history clean (no clap error)'`,
 		userDinitRuntimeSvcs = "niri dbus.user pipewire.user pipewire-pulse.user wireplumber.user org.freedesktop.portal.Desktop.user org.freedesktop.portal.Documents.user org.freedesktop.impl.portal.PermissionStore.user org.freedesktop.secrets.user org.freedesktop.impl.portal.desktop.oo7.user polkit-agent.user wayle.user veila.user stasis.user wayvnc.user"
 		userSvcBootLinks = "dbus.user pipewire.user pipewire-pulse.user wireplumber.user wait-wayland.user org.freedesktop.portal.Desktop.user org.freedesktop.portal.Documents.user org.freedesktop.impl.portal.PermissionStore.user org.freedesktop.secrets.user org.freedesktop.impl.portal.desktop.oo7.user"
 	}
+	// dbus_system_activation: system-bus ADR-010 coverage for EVERY desktop.
+	// Every upstream system activation file must resolve to a FeralOS override
+	// source (shim Exec), a package-shipped dinit unit and the boot-materialized
+	// copy in /usr/local/share/dbus-1/system-services. Runs on dinit only —
+	// system-bus activation is helper-driven and needs the system dinit (OpenRC
+	// keeps the raw fallback). The niri-family `dbus_activation_uniform` check
+	// still covers the session stack + the /etc-clean invariant.
+	if cfg.EnableDinit {
+		checks["dbus_system_activation"] = `
+fail=0
+for f in /usr/share/dbus-1/system-services/*.service; do
+    [ -e "$f" ] || continue
+    name=$(sed -n 's/^Name=//p' "$f" | head -1)
+    [ -n "$name" ] || { echo "no Name= in $f"; fail=1; continue; }
+    src=/usr/share/feralos/dbus-system-services/$name.service
+    [ -f "$src" ] || { echo "missing system override source: $name"; fail=1; continue; }
+    grep -q '^Exec=/usr/libexec/feralos/dbus-activate ' "$src" || { echo "system override not shim: $name"; fail=1; continue; }
+    unit=$(sed -n 's/^Exec=.*dbus-activate \([^ ]*\) .*/\1/p' "$src" | head -1)
+    [ -f "/lib/dinit.d/$unit" ] || { echo "system unit missing: $unit ($name)"; fail=1; continue; }
+    eff=/usr/local/share/dbus-1/system-services/$name.service
+    [ -f "$eff" ] || { echo "system override not materialized into /usr/local/share: $name"; fail=1; continue; }
+    grep -q '^Exec=/usr/libexec/feralos/dbus-activate ' "$eff" || { echo "materialized system override not shim: $name"; fail=1; continue; }
+done
+for f in /etc/dbus-1/system-services/*.service; do
+    [ -e "$f" ] || continue
+    echo "override in helper-ineligible dir (enumerated but not activatable): $f"; fail=1
+done
+[ "$fail" = 0 ] && echo 'system-bus activation coverage OK (every activation file routes through the dinit shim)' || exit 1
+`
+	}
 	if isNiriFamily {
 		checks["niri_config_valid"] = fmt.Sprintf("niri validate --config /var/lib/greetd/.config/niri/config.kdl && niri validate --config /home/%s/.config/niri/config.kdl && grep -q '^prefer-no-csd' /home/%s/.config/niri/config.kdl && grep -q 'QT_WAYLAND_DISABLE_WINDOWDECORATION \"1\"' /home/%s/.config/niri/config.kdl && echo 'niri config valid (prefer-no-csd + Qt no-decoration; hotkey overlay intentionally NOT skipped)'", cfg.InstalledUser, cfg.InstalledUser, cfg.InstalledUser)
 		checks["greetd_config"] = "ls /etc/greetd/config.toml /etc/greetd/greeter.sh /etc/greetd/regreet.toml /var/lib/greetd/.config/niri/config.kdl && test -x /etc/greetd/greeter.sh && [ \"$(id -u greeter)\" -lt 1000 ] && echo \"greeter is a system user (hidden from ReGreet's UID-filtered list)\""
@@ -2150,8 +2180,14 @@ echo 'dbus activation units live OK'
 		// dropdown-reboot-command — both `sudo -n /usr/bin/reboot` via
 		// /etc/sudoers.d/zz-power (must sort AFTER /etc/sudoers.d/wheel
 		// (`%wheel ALL=(ALL) ALL`; sudo-rs last-match-wins would override
-		// the NOPASSWD tag otherwise — live-caught 2026-10-11).
-		shutdownCmd := "test -x /usr/bin/poweroff -a -x /usr/bin/reboot -a -x /usr/bin/halt -a -x /usr/bin/shutdown -a -x /usr/bin/soft-reboot && test -x /etc/elogind/system-shutdown/50-feralos-dinit.sh && grep -q dinit-poweroff /etc/elogind/system-shutdown/50-feralos-dinit.sh && test -f /etc/sudoers.d/zz-power && grep -q '/usr/bin/reboot' /etc/sudoers.d/zz-power"
+		// the NOPASSWD tag otherwise — live-caught 2026-10-11). The zz-power
+		// rule is written by the niri/niriWayle owners only (DMS/Wayle session
+		// commands); KDE/cosmic use their own session tools + the elogind hook,
+		// so the rule must NOT be demanded there.
+		shutdownCmd := "test -x /usr/bin/poweroff -a -x /usr/bin/reboot -a -x /usr/bin/halt -a -x /usr/bin/shutdown -a -x /usr/bin/soft-reboot && test -x /etc/elogind/system-shutdown/50-feralos-dinit.sh && grep -q dinit-poweroff /etc/elogind/system-shutdown/50-feralos-dinit.sh"
+		if isNiriFamily {
+			shutdownCmd += " && test -f /etc/sudoers.d/zz-power && grep -q '/usr/bin/reboot' /etc/sudoers.d/zz-power"
+		}
 		if cfg.DesktopEnvironment == desktopNiri {
 			shutdownCmd += fmt.Sprintf(" && grep -q customPowerActionReboot /home/%s/.config/DankMaterialShell/settings.json", cfg.InstalledUser)
 		}

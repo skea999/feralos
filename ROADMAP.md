@@ -44,7 +44,7 @@ and custom repositories.
 | v2.1 | — | Done | KDE Plasma |
 | v2.2 | — | Done | COSMIC (seatd-based) |
 | v2.3 | — | Done | English-only + anonymization policy; content audit procedure |
-| v2.4 | — | Done | niriWayle flagship desktop (Wayle shell + Veila + Raffi + oo7 secrets — login auto-unlock, session actions wired, stasis system idle plan; harness 108/108) |
+| v2.4 | — | Done | niriWayle flagship desktop (Wayle shell + Veila + Raffi + oo7 secrets — login auto-unlock, session actions wired, stasis system idle plan; harness 109/109) |
 
 ## Phase 3 Milestones
 
@@ -72,7 +72,7 @@ See `docs/dinit/` (installer-side) and [feralos-aports](https://github.com/skea9
 | Nix integration | P1 | Done | nix.go, subvolumes, daemon config |
 | Podman + Webmin | P1 | Done | btrfs driver, web admin UI (firstboot binary) |
 | Incus | P1 | Done | incus-feature chain (containers + VMs) |
-| Test suite | P2 | Done | harness (QEMU) up to 106 checks/fixture + debug_run |
+| Test suite | P2 | Done | harness (QEMU) up to 113 checks/fixture + debug_run |
 | Real-hardware refining | P2 | In progress | rough edges blocking bare-metal installs |
 
 ## Phase 2 Pipeline
@@ -82,7 +82,7 @@ See `docs/dinit/` (installer-side) and [feralos-aports](https://github.com/skea9
 | niri Wayland compositor | P0 | Done | greetd + regreet + DMS (native apk) |
 | KDE Plasma | P0 | Done | sddm |
 | COSMIC | P0 | Done | seatd (not elogind) + cosmic-greeter |
-| niriWayle flagship desktop | P0 | Done | Wayle shell + Veila lock + Raffi + oo7 secrets (login auto-unlock, session actions wired, stasis system idle plan — lock/dpms/suspend on both inits; power profiles switchable; D-Bus activation routes through dinit units — ADR-010, incl. the app set's 15 targets; harness 108/108 dinit · 92/92 OpenRC) |
+| niriWayle flagship desktop | P0 | Done | Wayle shell + Veila lock + Raffi + oo7 secrets (login auto-unlock, session actions wired, stasis system idle plan — lock/dpms/suspend on both inits; power profiles switchable; D-Bus activation routes through dinit units — ADR-010 incl. the app set + system-bus coverage on every DE; harness 109/109 dinit · 92/92 OpenRC) |
 | wayvnc remote desktop | P1 | Done | wayvnc-user-dinit, loopback 127.0.0.1:5900 (RustDesk removed) |
 | Unicode rc.conf for all DEs | P1 | Done | desktops.go (musl default off) |
 

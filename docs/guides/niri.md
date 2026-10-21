@@ -106,7 +106,7 @@ rc-update add firewalld default
 ## Secrets (gnome-keyring)
 
 - Package: `gnome-keyring` (via `internal_rules.yaml` niri packages) — closes installer-gaps 4.5 (no `org.freedesktop.secrets` provider — gvfs/Thunderbird could not store passwords)
-- **PAM unlock**: `auth optional pam_gnome_keyring.so` appended to `/etc/pam.d/greetd` (idempotent grep-guard); the `session ... auto_start` line is **not** added anymore — it already ships in Alpine's `base-session`. The login keyring is unlocked with the login password at greetd login, and the keyring daemon autostarts when the PAM session opens
+- **PAM unlock**: `auth optional pam_gnome_keyring.so` appended to `/etc/pam.d/greetd` (idempotent grep-guard); the `session ... auto_start` line is **not** added anymore — it already ships in Alpine's `base-session`. The login keyring is unlocked with the login password at greetd login, and the keyring daemon autostarts when the PAM session opens; ADR-010: the secret service, gcr prompters and seahorse are supervised units (`gnome-keyring-user-dinit`, niri only — niriWayle uses oo7).
 - **Secrets service**: D-Bus activated on demand — `org.freedesktop.secrets` service file ships with the package; the session bus is `dbus.user`, supervised by the user dinit instance
 
 ## Network (NetworkManager)

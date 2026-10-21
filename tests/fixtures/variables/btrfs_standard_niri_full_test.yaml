@@ -24,12 +24,12 @@ variables:
   enableTPM: true
   enableHardening: true
   enableZswap: true
-  enableNix: false
+  enableNix: true
   enableSwap: true
   swapSize: auto
   enableDebug: true
   enablePodman: true
-  enableWebmin: false
+  enableWebmin: true
   webminListenAll: false
   enableDinit: true
   extraPackages:

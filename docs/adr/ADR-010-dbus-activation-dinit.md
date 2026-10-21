@@ -77,6 +77,26 @@ keeps its 60 s idle exit (activation-only semantics), kcron's KAuth helper is
 short-lived (no smooth-recovery), and the GNOME app files are GUI units in
 `--gapplication-service` mode.
 
+**System-bus coverage is global; session-bus coverage follows the session
+stack.** Every desktop (and server installs) must cover every installed system
+activation file — enforced by the dinit-only `dbus_system_activation` check. KDE
+adds 15 system KAuth helpers (`plasma-kauth-dinit`) plus upower,
+power-profiles-daemon, accountsservice, fprintd and bolt; cosmic adds upower and
+geoclue; niri adds upower and the gnome-keyring/gcr/seahorse stack
+(`gnome-keyring-user-dinit`). Session-bus coverage is currently scoped to the
+niri family because those sessions own their bus (turnstile user dinit +
+`dbus-session` materialization); KDE and cosmic start their own session bus, so
+covering their session targets requires wiring the turnstile + user-dinit stack
+into those DEs first — tracked as the remaining gap, not silently exempted.
+
+**Idle-exit daemons use `smooth-recovery = false`.** dinit's smooth-recovery
+restarts a process that exits for any reason other than a stop order — including
+a legitimate idle exit (geoclue 60 s, fprintd 30 s, the EDS addressbook/calendar
+factories after the last client). For those activation-only units the correct
+policy is `smooth-recovery = false`: the unit stops when the daemon idles out and
+the next activation starts it again. Long-running daemons keep smooth-recovery
+for crash resilience.
+
 **Enablement** is orthogonal to activation: units that must run before login stay
 enabled through the rules (`dinitServices`), activation works regardless.
 
