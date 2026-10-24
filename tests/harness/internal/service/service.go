@@ -35,6 +35,8 @@ const (
 	sshUserSkea               = "skea"
 	desktopNiri               = "niri"
 	desktopNiriWayle          = "niriWayle"
+	desktopKDE                = "kde"
+	desktopCosmic             = "cosmic"
 	// targetShutdownTimeout bounds the wait for the target VM to power off
 	// after a shutdown request — fail the run instead of hanging forever.
 	targetShutdownTimeout = 5 * time.Minute
@@ -1177,26 +1179,35 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg *RunConfig,
 		return RunResult{}, diagErr
 	}
 
-	// TEST-ONLY (niri family): inject greetd autologin so the verification
-	// boot starts the real user session (niri-session / wayle-session) —
-	// required by the niri runtime checks (niri_session_user,
-	// niri_wayland_socket, niri_ipc, ...). The VM disk is discarded after
-	// the run; the installer never writes this.
-	if cfg.DesktopEnvironment == desktopNiri || cfg.DesktopEnvironment == desktopNiriWayle {
+	// TEST-ONLY: inject autologin so the verification boot starts the real
+	// user session — required by the DE runtime checks (niri_session_user,
+	// kde_session, cosmic_session, ...). The VM disk is discarded after the
+	// run; the installer never writes this.
+	//   niri/niriWayle: greetd [initial_session] (niri-session/wayle-session)
+	//   kde:            sddm [Autologin] drop-in (Session=plasma, wayland)
+	//   cosmic:         greetd [initial_session] in the FeralOS COSMIC
+	//                   greeter config (start-cosmic)
+	var autoLoginErr error
+	switch cfg.DesktopEnvironment {
+	case desktopNiri, desktopNiriWayle:
 		sessionCmd := "niri-session"
 		if cfg.DesktopEnvironment == desktopNiriWayle {
 			sessionCmd = "wayle-session"
 		}
-		err = enableNiriTestAutologin(ctx, targetGuest, cfg.InstalledUser, sessionCmd)
-		if err != nil {
-			_ = targetInstance.Kill()
-			active.Status = statusFailed
-			active.Error = err.Error()
-			_ = stateStore.Save(active)
-			return RunResult{}, err
-		}
-		logHarness("harness: test-only greetd autologin enabled for niri-family runtime verification (session: %s, VM discarded after run)\n", sessionCmd)
+		autoLoginErr = enableNiriTestAutologin(ctx, targetGuest, cfg.InstalledUser, sessionCmd)
+	case desktopKDE:
+		autoLoginErr = enableSddmTestAutologin(ctx, targetGuest, cfg.InstalledUser)
+	case desktopCosmic:
+		autoLoginErr = enableCosmicTestAutologin(ctx, targetGuest, cfg.InstalledUser)
 	}
+	if autoLoginErr != nil {
+		_ = targetInstance.Kill()
+		active.Status = statusFailed
+		active.Error = autoLoginErr.Error()
+		_ = stateStore.Save(active)
+		return RunResult{}, autoLoginErr
+	}
+	logHarness("harness: test-only autologin enabled for %s runtime verification (VM discarded after run)\n", cfg.DesktopEnvironment)
 
 	// Power off and restart swtpm for verification boot
 	phase(7, "reboot (target)")
@@ -2104,6 +2115,51 @@ echo 'dbus activation units live OK'
 		// dinit + `stasis info` as the session user (IPC round trip against
 		// the live daemon — only possible with a loaded config).
 		checks["stasis_idle"] = fmt.Sprintf("apk info -e stasis >/dev/null && test -f /etc/dinit.d/user/stasis.user || { echo 'stasis package or stasis.user service missing'; exit 1; }; test -f /etc/stasis/stasis.rune || { echo '/etc/stasis/stasis.rune missing'; exit 1; }; grep -q 'command \"veila lock\"' /etc/stasis/stasis.rune || { echo 'veila lock missing from stasis config'; exit 1; }; grep -q 'loginctl suspend' /etc/stasis/stasis.rune || { echo 'loginctl suspend missing from stasis config'; exit 1; }; grep -q -- '-c /etc/stasis/stasis.rune' /etc/dinit.d/user/scripts/stasis-session || { echo 'stasis-session does not use -c /etc/stasis/stasis.rune'; exit 1; }; test ! -f /home/%s/.config/stasis/stasis.rune || { echo 'user stasis config exists (bootstrap ran?)'; exit 1; }; uid=$(id -u %s); export XDG_RUNTIME_DIR=/run/user/$uid; i=0; ok=0; while [ $i -lt 90 ]; do out=$(dinitctl --user list 2>/dev/null) || { sleep 1; i=$((i+1)); continue; }; echo \"$out\" | grep -Eq '(\\{\\+|\\[\\+).*\\] stasis\\.user( |$)' && { ok=1; break; }; sleep 1; i=$((i+1)); done; [ \"$ok\" = 1 ] || { echo 'stasis.user not running'; exit 1; }; su - %s -s /bin/sh -c 'export XDG_RUNTIME_DIR=/run/user/$(id -u); for s in $XDG_RUNTIME_DIR/wayland-*; do [ -S \"$s\" ] && export WAYLAND_DISPLAY=\"${s##*/}\"; done; stasis info >/dev/null 2>&1' && echo 'stasis idle manager OK (system config + stasis.user started + info IPC)' || { echo 'stasis info failed'; exit 1; }", cfg.InstalledUser, cfg.InstalledUser, cfg.InstalledUser)
+	}
+
+	// DE session runtime checks (test-only autologin): the session must
+	// actually come up on the verification boot. Poll ≤90 s like the niri
+	// runtime checks; falsifiable (exit 1 on failure).
+	//   kde:    sddm autologin → plasma.desktop → startplasma-wayland
+	//           (classic boot, no systemd) → kwin_wayland + plasmashell
+	//   cosmic: greetd initial_session → start-cosmic → cosmic-session
+	//           → cosmic-comp (+ panel/applets); XDG_RUNTIME_DIR via
+	//           pam_rundir (base-session; cosmic uses seatd, not elogind)
+	if cfg.DesktopEnvironment == desktopKDE {
+		// pgrep -f anchored on the binary paths: busybox `pgrep -x` has a
+		// false-negative class on these processes (2026-10-24 run
+		// 2026-10-24T23-06-35Z: kwin_wayland/plasmashell proven RUNNING by the
+		// check's own process dump while `pgrep -x` polled 90 s without
+		// matching — same class as the turnstile_pkg fix). The ^ anchor also
+		// avoids self-matching this check's own cmdline.
+		checks["kde_session"] = fmt.Sprintf(`
+i=0; ok=0
+while [ $i -lt 90 ]; do
+    if pgrep -f '^/usr/bin/kwin_wayland' >/dev/null 2>&1 && pgrep -f '^/usr/bin/plasmashell' >/dev/null 2>&1; then ok=1; break; fi
+    sleep 1; i=$((i+1))
+done
+[ "$ok" = 1 ] || { echo 'KDE session not running (kwin_wayland/plasmashell)'; pgrep -a -f 'kwin|plasma|sddm' 2>/dev/null | head -10; exit 1; }
+uid=$(id -u %s)
+w=''
+for s in /run/user/$uid/wayland-*; do [ -S "$s" ] && w="$s"; done
+[ -n "$w" ] || { echo 'no wayland socket in XDG_RUNTIME_DIR'; exit 1; }
+echo "KDE session OK (kwin_wayland + plasmashell, wayland socket $w)"
+`, cfg.InstalledUser)
+	}
+	if cfg.DesktopEnvironment == desktopCosmic {
+		checks["cosmic_session"] = fmt.Sprintf(`
+i=0; ok=0
+while [ $i -lt 90 ]; do
+    if pgrep -f '^cosmic-comp' >/dev/null 2>&1 && pgrep -f '^/usr/bin/cosmic-session' >/dev/null 2>&1; then ok=1; break; fi
+    sleep 1; i=$((i+1))
+done
+[ "$ok" = 1 ] || { echo 'COSMIC session not running (cosmic-comp/cosmic-session)'; pgrep -a -f 'cosmic' 2>/dev/null | head -10; exit 1; }
+uid=$(id -u %s)
+w=''
+for s in /run/user/$uid/wayland-*; do [ -S "$s" ] && w="$s"; done
+[ -n "$w" ] || { echo 'no wayland socket in XDG_RUNTIME_DIR'; exit 1; }
+echo "COSMIC session OK (cosmic-comp + cosmic-session, wayland socket $w)"
+`, cfg.InstalledUser)
 	}
 
 	// Flatpak checks — generic, only when a fixture explicitly requests
@@ -4088,6 +4144,73 @@ echo 'test-only greetd autologin enabled'
 		return fmt.Errorf("niri test autologin: %w", err)
 	}
 	logHarness("harness: niri test autologin: %s\n", strings.TrimSpace(diag))
+	return nil
+}
+
+// enableSddmTestAutologin writes a drop-in sddm autologin config so the
+// verification boot logs straight into the Plasma Wayland session — the
+// kde_session runtime check needs a real session and nobody is present to
+// log in.
+//
+// SDDM 0.21 facts (Alpine 3.24, sddm.conf(5) + upstream ConfigReader):
+// config dirs are read /usr/lib/sddm/sddm.conf.d → /etc/sddm.conf.d →
+// /etc/sddm.conf (later wins); [Autologin] User/Session/Relogin; Session is
+// the wayland-sessions desktop basename ("plasma" → plasma.desktop, Exec =
+// plasma-dbus-run-session-if-needed startplasma-wayland). The autologin PAM
+// service (sddm-autologin) requires pam_shells → the test user's shell must
+// be listed in /etc/shells (fish ships it). startplasma falls back to
+// "classic boot" without systemd (plasma-workspace ships no units here), and
+// sddm hard-depends on elogind → XDG_RUNTIME_DIR exists for the session.
+//
+// TEST-ONLY: the target disk is discarded after the harness run.
+func enableSddmTestAutologin(ctx context.Context, targetGuest guest.Options, installedUser string) error {
+	conf := fmt.Sprintf("[Autologin]\nUser=%s\nSession=plasma\nRelogin=false\n", installedUser)
+	script := fmt.Sprintf(`set -eu
+install -d /etc/sddm.conf.d
+printf '%%b' %s > /etc/sddm.conf.d/zz-feralos-test-autologin.conf
+grep -q 'Autologin' /etc/sddm.conf.d/zz-feralos-test-autologin.conf || { echo 'autologin conf missing'; exit 1; }
+shell=$(awk -F: -v u=%s '$1 == u {print $7}' /etc/passwd)
+grep -qxF "$shell" /etc/shells || echo "$shell" >> /etc/shells
+echo 'test-only sddm autologin enabled'
+`, shellQuote(conf), installedUser)
+	diag, err := runScriptOnTarget(ctx, targetGuest, script)
+	if err != nil {
+		return fmt.Errorf("kde test autologin: %w", err)
+	}
+	logHarness("harness: kde test autologin: %s\n", strings.TrimSpace(diag))
+	return nil
+}
+
+// enableCosmicTestAutologin appends a greetd [initial_session] stanza to the
+// FeralOS COSMIC greeter config so the verification boot logs straight into
+// the COSMIC session (start-cosmic → cosmic-session → cosmic-comp) — the
+// cosmic_session runtime check needs a real session and nobody is present to
+// log in.
+//
+// The cosmic-greeter dinit unit runs greetd with
+// /etc/greetd/feralos-cosmic-greeter.toml (VT 7, PAM service cosmic-greeter —
+// base-only FeralOS stack; Alpine's own file requires pam_gnome_keyring).
+// greetd never runs pam_authenticate for the initial session (same as the
+// niri greeter) and XDG_RUNTIME_DIR comes from pam_rundir (base-session;
+// COSMIC uses seatd, not elogind).
+//
+// TEST-ONLY: the target disk is discarded after the harness run.
+func enableCosmicTestAutologin(ctx context.Context, targetGuest guest.Options, installedUser string) error {
+	stanza := fmt.Sprintf("\n[initial_session]\ncommand = %q\nuser = %q\n", "/usr/bin/start-cosmic", installedUser)
+	script := fmt.Sprintf(`set -eu
+f=/etc/greetd/feralos-cosmic-greeter.toml
+[ -f "$f" ] || { echo 'feralos cosmic greeter config missing'; exit 1; }
+if ! grep -q 'initial_session' "$f"; then
+	printf '%%b' %s >> "$f"
+fi
+grep -q 'initial_session' "$f" || { echo 'initial_session marker missing after append'; exit 1; }
+echo 'test-only greetd autologin enabled (COSMIC)'
+`, shellQuote(stanza))
+	diag, err := runScriptOnTarget(ctx, targetGuest, script)
+	if err != nil {
+		return fmt.Errorf("cosmic test autologin: %w", err)
+	}
+	logHarness("harness: cosmic test autologin: %s\n", strings.TrimSpace(diag))
 	return nil
 }
 

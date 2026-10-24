@@ -299,7 +299,10 @@ desktopEnvironments:
   cosmic:
     packages: ["cosmic-session", "cosmic-term", "cosmic-greeter", "cosmic-edit", "cosmic-player", "cosmic-store", "cosmic-settings", "cosmic-screenshot", "cosmic-icons", "cosmic-initial-setup", "adwaita-icon-theme", "desktop-file-utils", "hicolor-icon-theme", "seatd", "dbus", "polkit", "pipewire", "xdg-desktop-portal-cosmic", "upower-dinit", "geoclue-dinit"]
     services: {"cosmic-greeter": "default", "seatd": "default", "dbus": "default"}
-    groups: ["video", "input"]
+    # seat group: seatd socket is root:seat 0770 — without it libseat cannot
+    # acquire the seat and cosmic-comp exits instantly ("Failed to acquire
+    # session"); debug_run-proven 2026-10-21.
+    groups: ["video", "input", "seat"]
 
 # 3. Video Drivers Definitions
 videoDrivers:

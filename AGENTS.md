@@ -8,6 +8,14 @@
 
 ## Recent Rounds (latest first)
 
+### 2026-10-24 - KDE/COSMIC session autologin + runtime checks — harness kde 74/74, cosmic 74/74
+**Agent:** codebase
+**Summary:** user request — real session verification for kde/cosmic like niri. Harness autologin generalized to all four DEs: kde via sddm `[Autologin]` drop-in (`/etc/sddm.conf.d/zz-feralos-test-autologin.conf`, `Session=plasma`, wayland; sddm-autologin PAM requires pam_shells → shell appended to `/etc/shells`), cosmic via greetd `[initial_session]` (`start-cosmic`) in the FeralOS COSMIC greeter config. NEW runtime checks `kde_session` (kwin_wayland + plasmashell + wayland socket) and `cosmic_session` (cosmic-comp + cosmic-session + wayland socket), `pgrep -f` anchored (busybox `pgrep -x` false-negative class — run 2026-10-24T23-06-35Z proved the processes RUNNING while `pgrep -x` polled 90 s).
+- **Product fixes (aports `bd4db35`):** `cosmic-greeter-dinit` ran the greeter frontend directly — cosmic-greeter 1.0 is a **greetd frontend** (needs GREETD_SOCK); now runs `greetd --config /etc/greetd/feralos-cosmic-greeter.toml` (VT 7 — Alpine's VT 1 collides with getty@tty1; base-only FeralOS PAM override — Alpine's file requires pam_gnome_keyring; wrapper ensures the greeter user + runtime dirs; `cosmic-greeter-daemon` unit added; `pam-rundir` dep for XDG_RUNTIME_DIR — cosmic uses seatd, not elogind, and nothing else creates /run/user).
+- **cosmic-comp seat fix (debug_run-proven):** libseat could not acquire the seat — seatd socket is `root:seat 0770` and the user was not in `seat` → instant exit ("Failed to acquire session"); cosmic `groups` += `seat` and the comp starts (same binary/env, proof by intervention).
+- **Validated:** kde `2026-10-24T23-35-39Z` **74/74** (kwin_wayland + plasmashell live); cosmic `2026-10-24T23-50-51Z` **74/74** (cosmic-comp + cosmic-session live, wayland-1); aports CI `40140550886` green; zero FAILED, log_errors clean.
+- **Note:** KDE/cosmic session-bus ADR-010 coverage stays a separate item (own session bus, no user-dinit stack).
+
 ### 2026-10-21 - Full-feature DE matrix (niri/kde/cosmic) + ADR-010 system-bus coverage everywhere — niri 113/113, kde 73/73, cosmic 73/73, niriWayle 109/109 + 92/92
 **Agent:** codebase
 **Summary:** user request — run niri/kde/cosmic with dinit and ALL features (secureboot/tpm/hardening/zswap/nix/podman/webmin/debug/edge) to discover missing services, then implement. Findings + fixes:
