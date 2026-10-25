@@ -11,6 +11,8 @@
     "Live-session KDE theming proof: DMS dynamic theme -> matugen palette -> store-installed dms-theme-sync plugin -> okular/ksystemlog dark (debug_run round)"
   ],
   "completed": [
+    "KDE session-bus ADR-010 coverage (2026-10-25): 3 new unit-only aports packages (obexd/ibus/system-config-printer user-dinit, commit 1289145, CI 40158178885) + KDE list += 9 session packages (signon-ui/signond/portal-gtk/glib-networking/goa/e-d-s + the 3 new); harness kde full-feature dinit 2026-10-25T03-41-55Z 77/77 (uniform/migration/env/system activation/kde_session/log_errors green); installer.log WARNING sweep with 3-line allowlist (2 apt + ssh); org.kde.kcookiejar5 documented exemption (kded5 absent on Alpine 3.24); dbus_activation_env session half skips honestly on DE-owned session buses; services.go boot.d symlink resolves /lib/dinit.d or /etc/dinit.d (turnstiled enablement warning gone).",
+    "Cosmic session-bus coverage DEFERRED (2026-10-25, user decision): turnstiled unit depends-on org.freedesktop.login1 but cosmic uses seatd (no elogind) -> user dinit never starts; leave aside until a seatd-compatible turnstile ordering is decided.",
     "Unified command execution: ExecuteCmd replaces RunCommand/RunChrootCommand/WriteFileInChroot",
     "Deleted shell.go and files.go (no backward compatibility)",
     "Migrated ~152 calls across 22+ files to ExecuteCmd",

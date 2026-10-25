@@ -83,11 +83,18 @@ func SetupServices(conf *config.Config) error {
 			// (/etc/dinit.d/boot.d, the admin dir) targeting the description
 			// in /lib/dinit.d. Template instances carry the argument in the
 			// name (getty@tty1 -> $1 = tty1), target = template body.
+			// TARGET RESOLUTION: most -dinit packages install to
+			// /lib/dinit.d/<unit>, but some units live in /etc/dinit.d/
+			// (e.g. turnstiled ships in the main turnstile package at
+			// /etc/dinit.d/turnstiled) — without the /etc fallback the
+			// boot.d link dangles and the installer logs
+			// "[WARNING] dinit: could not enable <svc>" for a service that
+			// dinit would actually resolve by name.
 			base := svc
 			if idx := strings.Index(svc, "@"); idx > 0 {
 				base = svc[:idx]
 			}
-			_, _ = shell.ExecuteCmd(chroot, fmt.Sprintf("ln -sf /lib/dinit.d/%s /etc/dinit.d/boot.d/%s", base, svc))
+			_, _ = shell.ExecuteCmd(chroot, fmt.Sprintf("t=/lib/dinit.d/%s; [ -e \"$t\" ] || t=/etc/dinit.d/%s; ln -sf \"$t\" /etc/dinit.d/boot.d/%s", base, base, svc))
 			if linkExists(svc) {
 				enabled++
 			} else {

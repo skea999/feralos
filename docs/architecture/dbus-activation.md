@@ -197,6 +197,10 @@ environment.
 | fprintd | system | `net.reactivated.Fprint` | DONE (`d78d3e3`; KDE app-set pull-in; idle-exit, no respawn) |
 | bolt | system | `org.freedesktop.bolt` | DONE (`d78d3e3`) |
 | Plasma KAuth helpers | system | `org.kde.{discover.alpineapkbackend, fontinst, kameleonhelper, kcontrol.kcmclock, kcontrol.kcmsddm, kded.smart, kinfocenter.dmidecode, ksysguard.processlisthelper, ktexteditor6.katetextbuffer, localegenhelper, powerdevil.backlighthelper, powerdevil.chargethresholdhelper, powerdevil.discretegpuhelper, powerdevil.wakeupsourcehelper, ufw}` | DONE (`0c68215`; 15 units, per-request KAuth helpers) |
+| ibus | session | `org.freedesktop.IBus.user`, `org.freedesktop.portal.IBus.user` | DONE (`1289145`; two binaries — `ibus-daemon --replace --panel disable --xim` + `/usr/lib/ibus/ibus-portal`) |
+| obexd | session | `org.bluez.obex.user` | DONE (`1289145`; `obexd-enhanced` binary `obexd -n --capability=!/usr/bin/obex-capabilities`) |
+| system-config-printer | session | `org.fedoraproject.Config.Printing.user` | DONE (`1289145`; `/usr/bin/scp-dbus-service` wrapper) |
+| kcookiejar5 | session | — | EXEMPT (upstream broken on Alpine 3.24: activation file `Exec=/usr/bin/kded5`, binary absent — no unit possible; harness skips it with an explicit message) |
 
 All system rows: override source `/usr/share/feralos/dbus-system-services/`,
 materialized at boot to `/usr/local/share/dbus-1/system-services/` by
@@ -220,10 +224,17 @@ mechanism", so the migration cannot be forgotten.
 **System-bus coverage is global** (harness `dbus_system_activation`, dinit-only,
 on EVERY DE): kde brings the 15 KAuth helpers + upower/PPD/accountsservice/
 fprintd/bolt; cosmic upower/geoclue; niri upower + the gnome-keyring stack.
-**Session-bus coverage stays niri-family** for now: those DEs own the session bus
-(turnstile user dinit + `dbus-session` materialization); KDE/cosmic start their
-own bus, so their session targets need the turnstile/user-dinit integration
-first — tracked gap, not silently exempted. **Idle-exit units** (geoclue,
+**Session-bus coverage is now niri-family + KDE** (2026-10-25): KDE runs the
+same turnstile user dinit (`pam_turnstile` arrives via Alpine's `base-session`
+include in sddm's PAM) and `dbus-session-materializer-user-dinit` materializes
+the overrides into `$XDG_RUNTIME_DIR/dbus-1/services`, which Plasma's own
+`dbus-run-session` bus reads — the KDE list carries the session unit packages
+(plasma-workspace, kded/kwallet/kio, portals, signon/signond, goa/e-d-s,
+glib-networking, ibus/obexd/system-config-printer). `dbus_activation_env`
+session half skips honestly there (the DE owns the bus address). **Cosmic is
+the remaining deferred item**: its turnstiled unit depends on
+`org.freedesktop.login1` and cosmic uses seatd (no elogind) — the user dinit
+does not start; leave aside per user decision. **Idle-exit units** (geoclue,
 fprintd, EDS factories) use `smooth-recovery = false`: the unit stops on a
 legitimate idle exit and the next activation restarts it.
 
@@ -237,5 +248,7 @@ legitimate idle exit and the next activation restarts it.
 6. [x] docs: AGENTS policy section, ADR index, aports guide checklist, niriwayle/artifacts rows
 7. [x] validation round 1: builds, aports CI, harness runs on dinit + OpenRC, iterative fixes (runs `18-33-05Z` … `21-40-20Z`)
 8. [x] validation round 2 (system-bus helper eligibility): live + source proof that the launch helper resolves names ONLY against the standard dirs (trivial parser — `/etc` + `/run` never searched) → overrides moved to `/usr/share/feralos/dbus-system-services` + `dbus-services-setup` boot materializer into `/usr/local/share/dbus-1/system-services` (aports `2e0caa8`; comment follow-up `5f729ea`); uniform check reworked (sources + materialization + `/etc` clean; coverage loop dinit-only), env check reworked (no `DBUS_STARTER_*` + direct-shim `setenv` proof). Validated: dinit `2026-10-18T22-56-20Z` **106/106**; OpenRC `2026-10-18T23-03-31Z` **90/90**.
+9. [x] KDE session-bus coverage (2026-10-25): 3 new unit-only packages (`obexd-user-dinit`, `ibus-user-dinit`, `system-config-printer-user-dinit`, aports `1289145`) + KDE list gains 9 session packages; `kcookiejar5` documented exemption; `log_errors` WARNING sweep with the 3-line allowlist; `services.go` boot.d symlink `/lib`-or-`/etc` resolution. Validated: kde full-feature dinit `2026-10-25T03-41-55Z` **77/77**.
+10. [ ] cosmic session-bus coverage — BLOCKED: turnstiled unit `depends-on = org.freedesktop.login1`, cosmic uses seatd (no elogind); user decision 2026-10-25: leave aside.
 
 Update this checklist and the handoff after each phase.

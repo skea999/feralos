@@ -1554,6 +1554,12 @@ done
 		}
 		powerProfilesCmd += fmt.Sprintf(" su - %s -s /bin/sh -c 'p=$(powerprofilesctl get) || exit 1; powerprofilesctl set power-saver || exit 1; n=$(powerprofilesctl get); powerprofilesctl set \"$p\" || exit 1; if [ \"$n\" = power-saver ]; then echo \"power profiles OK (real switch: $p -> power-saver -> $p)\"; else echo \"power profile switch did not take effect ($n)\"; exit 1; fi'", cfg.InstalledUser)
 		checks["power_profiles"] = powerProfilesCmd
+	}
+	// ADR-010 activation coverage (uniform + migration): enforced on EVERY
+	// desktop — kde/cosmic sessions now materialize the session overrides at
+	// login via dbus-session-materializer.user (plasma/cosmic dbus-run-session
+	// read the same XDG_RUNTIME_DIR servicedir the wrapper writes to).
+	if isNiriFamily || cfg.DesktopEnvironment == desktopKDE || cfg.DesktopEnvironment == desktopCosmic {
 		// dbus_activation_uniform: ADR-010 enforcement — every INSTALLED
 		// system-bus override must route through the uniform shim, its target
 		// unit must exist, and it must be materialized into the launch
@@ -1593,6 +1599,9 @@ for f in /usr/share/dbus-1/services/*.service; do
     [ -e "$f" ] || continue
     name=$(sed -n 's/^Name=//p' "$f" | head -1)
     [ -n "$name" ] || { echo "no Name= in $f"; fail=1; continue; }
+    case "$name" in
+        org.kde.kcookiejar5) echo "skip (broken upstream: kded5 binary absent on Alpine 3.24 — no unit possible)"; continue ;;
+    esac
     src=/usr/share/feralos/dbus-services/$name.service
     [ -f "$src" ] || { echo "missing session override source: $name"; fail=1; continue; }
     grep -q '^Exec=/usr/libexec/feralos/dbus-activate ' "$src" || { echo "session override not shim: $name"; fail=1; continue; }
@@ -1634,6 +1643,11 @@ done
 su - %s -s /bin/sh -c '
 export XDG_RUNTIME_DIR=/run/user/$(id -u)
 export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
+# This check verifies the NIRI session stack (dbus.user owns the session bus
+# and the materialized overrides). On DEs that own their session bus (kde/
+# cosmic: dbus-run-session, address NOT /run/user/<uid>/bus) the check is
+# skipped honestly — session coverage there is a documented ADR-010 item.
+[ -S "$XDG_RUNTIME_DIR/bus" ] || { echo "session env check SKIPPED (DE-owned session bus)"; exit 0; }
 diag() {
     echo "--- diagnostics ---"
     echo "stop: $stop_out"
@@ -1758,6 +1772,9 @@ for f in /usr/share/dbus-1/system-services/*.service /usr/share/dbus-1/services/
     [ -e "$f" ] || continue
     name=$(sed -n 's/^Name=//p' "$f" | head -1)
     [ -n "$name" ] || continue
+    case "$name" in
+        org.kde.kcookiejar5) echo "skip (broken upstream: kded5 binary absent on Alpine 3.24 — no unit possible)"; continue ;;
+    esac
     total=$((total+1))
     check_covered "$name" || { missing=$((missing+1)); echo "no package-shipped dinit unit yet: $name"; }
 done
@@ -1766,6 +1783,8 @@ if [ "$broker" = 1 ] && [ "$missing" = 0 ]; then
 fi
 echo "keep the FeralOS activation mechanism (dbus-broker=$broker, $missing/$total activation targets lack package-shipped units)"
 `
+	}
+	if isNiriFamily {
 		// dbus_activation_units_live: real activation proof for the third-party
 		// targets covered by the new units (ADR-010): one system daemon
 		// (org.freedesktop.UDisks2 → udisksd) and one session daemon
@@ -2786,6 +2805,15 @@ echo "COSMIC session OK (cosmic-comp + cosmic-session, wayland socket $w)"
 		//   - `+ set -euo pipefail`: bash xtrace echo of setup.sh itself
 		//   - modprobe: runner-host kernel dir probe (Debian cloud kernel)
 		allowSkip := regexp.MustCompile(`(?i)(booster: finit\(|set -euo pipefail|modprobe: can't change directory)`)
+		// WARNING sweep (installer.log only, user request): a warning in the
+		// install flow is an actionable finding — it must be fixed or
+		// explicitly allowlisted, never scrolled past (e.g. a silent service-
+		// enablement miss logged as "[WARNING] dinit: could not enable ...").
+		// Allowlist = the 3 recurring host-environment notices: 2x apt
+		// "does not have a stable CLI interface" (Debian runner-side apt
+		// wrappers) and the ssh known-hosts notice.
+		warnRe := regexp.MustCompile(`(?i)warning`)
+		warnAllowRe := regexp.MustCompile(`(?i)(apt does not have a stable CLI|Warning: Permanently added)`)
 		// Innocuous lines: counters/negations ("0 errors", "no failed", ...),
 		// package name libgpg-error and Debian git dependency liberror-perl
 		// (apt install git output), efibootmgr "error trace:" on QEMU (no real
@@ -2817,6 +2845,10 @@ echo "COSMIC session OK (cosmic-comp + cosmic-session, wayland socket $w)"
 			}
 			for i, line := range strings.Split(string(data), "\n") {
 				if logErrRe.MatchString(line) && !allowRe.MatchString(line) && !allowSkip.MatchString(line) {
+					problems = append(problems, fmt.Sprintf("%s:%d: %s", logName, i+1, strings.TrimSpace(line)))
+					continue
+				}
+				if logName == "installer.log" && warnRe.MatchString(line) && !warnAllowRe.MatchString(line) {
 					problems = append(problems, fmt.Sprintf("%s:%d: %s", logName, i+1, strings.TrimSpace(line)))
 				}
 			}
