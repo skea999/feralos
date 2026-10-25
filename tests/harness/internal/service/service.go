@@ -1543,16 +1543,19 @@ done
 		// power_profiles: power-profiles-daemon reachable AND switchable
 		// (Wayle battery dropdown / DMS power UI). ADR-010: both activation
 		// files route through the dinit shim to the
-		// org.freedesktop.UPower.PowerProfiles unit; the unit is boot-enabled
-		// on dinit (dinitServices). Override sources: /usr/share/feralos/
-		// dbus-system-services (materialized at boot into /usr/local/share —
-		// see dbus_activation_uniform). Runtime: a REAL switch as the session
-		// user (exercises the wheel polkit rule), asserted and restored.
+		// org.freedesktop.UPower.PowerProfiles unit. The unit is ACTIVATION-
+		// ONLY (ADR-010 R1 amendment 2026-10-25: dbus-by-design daemon — dbus
+		// decides when it runs; never boot-enabled). Override sources:
+		// /usr/share/feralos/dbus-system-services (materialized at boot into
+		// /usr/local/share — see dbus_activation_uniform). Runtime: a REAL
+		// switch as the session user (exercises the wheel polkit rule AND the
+		// on-demand activation), then the dinit started-marker proves the
+		// unit came up through dbus activation → shim → dinit.
 		powerProfilesCmd := "test -f /usr/share/feralos/dbus-system-services/org.freedesktop.UPower.PowerProfiles.service && grep -q 'Exec=/usr/libexec/feralos/dbus-activate org.freedesktop.UPower.PowerProfiles' /usr/share/feralos/dbus-system-services/org.freedesktop.UPower.PowerProfiles.service && test -f /usr/share/feralos/dbus-system-services/net.hadess.PowerProfiles.service && grep -q 'Exec=/usr/libexec/feralos/dbus-activate org.freedesktop.UPower.PowerProfiles' /usr/share/feralos/dbus-system-services/net.hadess.PowerProfiles.service && test -f /lib/dinit.d/org.freedesktop.UPower.PowerProfiles || { echo 'PPD dinit activation wiring missing'; exit 1; }; test -f /usr/share/polkit-1/actions/power-profiles-daemon.policy && grep -q 'org.freedesktop.UPower.PowerProfiles.switch-profile' /usr/share/polkit-1/actions/power-profiles-daemon.policy || { echo 'PPD polkit policy missing'; exit 1; };"
-		if cfg.EnableDinit {
-			powerProfilesCmd += " dinitctl list 2>/dev/null | grep -Eq '(\\{\\+|\\[\\+).*\\] org\\.freedesktop\\.UPower\\.PowerProfiles( |$)' || { echo 'PPD dinit unit not started (boot enablement missing)'; exit 1; };"
-		}
 		powerProfilesCmd += fmt.Sprintf(" su - %s -s /bin/sh -c 'p=$(powerprofilesctl get) || exit 1; powerprofilesctl set power-saver || exit 1; n=$(powerprofilesctl get); powerprofilesctl set \"$p\" || exit 1; if [ \"$n\" = power-saver ]; then echo \"power profiles OK (real switch: $p -> power-saver -> $p)\"; else echo \"power profile switch did not take effect ($n)\"; exit 1; fi'", cfg.InstalledUser)
+		if cfg.EnableDinit {
+			powerProfilesCmd += "; dinitctl list 2>/dev/null | grep -Eq '(\\{\\+|\\[\\+).*\\] org\\.freedesktop\\.UPower\\.PowerProfiles( |$)' && echo 'PPD started on demand (dbus activation -> shim -> dinit)' || { echo 'PPD unit not started after the real switch (activation routing broken)'; exit 1; };"
+		}
 		checks["power_profiles"] = powerProfilesCmd
 	}
 	// ADR-010 activation coverage (uniform + migration): enforced on EVERY
@@ -1696,9 +1699,10 @@ sysdiag() {
     dinitctl --system catlog org.freedesktop.UPower 2>&1 | tail -10 || true
 }
 if [ "$(cat /proc/1/comm)" = "dinit" ] && apk info -e upower >/dev/null 2>&1; then
-    pkill -f "^/usr/libexec/upowerd$" 2>/dev/null || true
     dinitctl --system stop org.freedesktop.UPower >/dev/null 2>&1 || true
-    sleep 2
+    sleep 1
+    pkill -f "^/usr/libexec/upowerd$" 2>/dev/null || true
+    sleep 1
     ssend_out=$(dbus-send --system --print-reply --dest=org.freedesktop.UPower /org/freedesktop/DBus org.freedesktop.DBus.Peer.Ping 2>&1 || true)
     i=0; ok=0
     while [ $i -lt 30 ]; do
@@ -1711,14 +1715,30 @@ if [ "$(cat /proc/1/comm)" = "dinit" ] && apk info -e upower >/dev/null 2>&1; th
         sysdiag; echo "system: upowerd spawned raw (DBUS_STARTER_* present) - activation did not route through dinit"; exit 1
     fi
     echo "system: real activation OK (upowerd started via the shim + dinit, no DBUS_STARTER_*)"
-    dinitctl --system stop org.freedesktop.UPower >/dev/null 2>&1 || true
-    pkill -f "^/usr/libexec/upowerd$" 2>/dev/null || true
-    sleep 1
-    FERALOS_DBUS_ACT_TEST=system DBUS_STARTER_BUS_TYPE=system DBUS_STARTER_ADDRESS=unix:path=/run/dbus/system_bus_socket /usr/libexec/feralos/dbus-activate org.freedesktop.UPower -- /usr/libexec/upowerd
-    sleep 2
-    pid=$(pgrep -f "^/usr/libexec/upowerd$" | head -1)
-    if [ -z "$pid" ]; then sysdiag; echo "system: direct shim run did not start upowerd"; exit 1; fi
-    if ! tr "\0" "\n" < /proc/$pid/environ | grep -q "^FERALOS_DBUS_ACT_TEST=system$"; then sysdiag; echo "system: activation env not forwarded to the system dinit service"; exit 1; fi
+    # Direct-shim env-forwarding proof. Deterministic against two races:
+    #   - smooth-recovery: pkill only AFTER the graceful stop completed
+    #     (a killed while-stopping process would be resurrected without the
+    #     marker and the shim would short-circuit on is-started);
+    #   - session re-activation: a desktop client (e.g. KDE powerdevil) can
+    #     re-activate upowerd in the window before our shim runs — its
+    #     is-started short-circuit would leave a marker-less process. Retry
+    #     with a FRESH per-try marker; only OUR shim start carries it.
+    try=1
+    while [ $try -le 3 ]; do
+        dinitctl --system stop org.freedesktop.UPower >/dev/null 2>&1 || true
+        i=0
+        while dinitctl --system --quiet is-started org.freedesktop.UPower >/dev/null 2>&1 && [ $i -lt 10 ]; do sleep 1; i=$((i+1)); done
+        pkill -f "^/usr/libexec/upowerd$" 2>/dev/null || true
+        sleep 1
+        FERALOS_DBUS_ACT_TEST=system-$try DBUS_STARTER_BUS_TYPE=system DBUS_STARTER_ADDRESS=unix:path=/run/dbus/system_bus_socket /usr/libexec/feralos/dbus-activate org.freedesktop.UPower -- /usr/libexec/upowerd
+        sleep 2
+        pid=$(pgrep -f "^/usr/libexec/upowerd$" | head -1)
+        if [ -n "$pid" ] && tr "\0" "\n" < /proc/$pid/environ 2>/dev/null | grep -q "^FERALOS_DBUS_ACT_TEST=system-$try$"; then
+            break
+        fi
+        try=$((try+1))
+    done
+    if [ $try -gt 3 ]; then sysdiag; echo "system: activation env not forwarded to the system dinit service"; exit 1; fi
     echo "system activation env OK (upower started via dinit with forwarded env)"
 else
     echo "system activation env SKIPPED (no system dinit or upower absent)"
@@ -1862,7 +1882,7 @@ echo 'dbus activation units live OK'
 		// to). No BT adapter exists in QEMU — org.bluez registers anyway,
 		// adapter presence is real-hardware territory.
 		if cfg.EnableDinit {
-			checks["bluetooth_service"] = "dinitctl list | grep -E '\\[[^]]*\\] *org\\.bluez( |$)' && pgrep bluetoothd >/dev/null && dbus-send --system --print-reply --dest=org.freedesktop.DBus / org.freedesktop.DBus.ListNames 2>/dev/null | grep -q org.bluez && echo 'bluetooth stack OK (started, bluetoothd, org.bluez on bus)' || { echo 'bluetooth stack BROKEN'; exit 1; }"
+			checks["bluetooth_service"] = "dinitctl list | grep -E '\\[[^]]*\\] *bluetooth( |$)' && pgrep bluetoothd >/dev/null && dbus-send --system --print-reply --dest=org.freedesktop.DBus / org.freedesktop.DBus.ListNames 2>/dev/null | grep -q org.bluez && echo 'bluetooth stack OK (started, bluetoothd, org.bluez on bus)' || { echo 'bluetooth stack BROKEN'; exit 1; }"
 		} else {
 			checks["bluetooth_service"] = "rc-status --all 2>/dev/null | grep -E 'bluetooth[^[]*\\[ *started' && pgrep bluetoothd >/dev/null && dbus-send --system --print-reply --dest=org.freedesktop.DBus / org.freedesktop.DBus.ListNames 2>/dev/null | grep -q org.bluez && echo 'bluetooth stack OK (started, bluetoothd, org.bluez on bus)' || { echo 'bluetooth stack BROKEN'; exit 1; }"
 		}
@@ -2878,13 +2898,15 @@ echo "COSMIC session OK (cosmic-comp + cosmic-session, wayland socket $w)"
 				"login.target", "network.target", "pre-network.target",
 				// console
 				"getty@tty1", "getty@ttyS0",
-				// daemons (rules-driven boot.d enablement; ADR-010 renames:
-				// fwupd/polkit/PPD units are named after their D-Bus names)
+				// daemons (rules-driven boot.d enablement; ADR-010 R1
+				// amendment: explicitly-activated system units carry the
+				// OpenRC initd name; fwupd/PPD are dbus-activated on demand
+				// — never boot-enabled, so not expected here)
 				"networking", "incusd", "vector", "cronie", "chronyd", "dbus",
-				"sshd", "acpid", "irqbalance", "org.freedesktop.fwupd", "earlyoom",
+				"sshd", "acpid", "irqbalance", "earlyoom",
 			}
 			if cfg.DesktopEnvironment == desktopNiri || cfg.DesktopEnvironment == desktopNiriWayle {
-				expected = append(expected, "org.freedesktop.PolicyKit1", "org.freedesktop.UPower.PowerProfiles", "org.bluez", "org.freedesktop.login1")
+				expected = append(expected, "polkit", "elogind", "bluetooth")
 			}
 			started := map[string]bool{}
 			for _, line := range strings.Split(svcCheck.Detail, "\n") {
@@ -2928,7 +2950,9 @@ echo "COSMIC session OK (cosmic-comp + cosmic-session, wayland socket $w)"
 				"udev", "udev-trigger", "vector", "vector-setup",
 				// default
 				"cgroups", "networking", "cronie", "chronyd", "dbus", "sshd",
-				"acpid", "irqbalance", "fwupd", "earlyoom", "incusd", "udev-postmount",
+				"acpid", "irqbalance", "earlyoom", "incusd", "udev-postmount",
+				// fwupd NOT expected: dbus-activated on demand (ADR-010 R1
+				// amendment) — never in a runlevel on either init
 			}
 			states := parseRCStatus(svcCheck.Detail)
 			// greetd + elogind are only expected when a niri-family desktop

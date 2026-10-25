@@ -10,16 +10,33 @@ Decision record: `docs/adr/ADR-010-dbus-activation-dinit.md`.
 
 ## The two universal rules
 
-**R1 — Naming (activation targets)**
-- unit name = the canonical D-Bus well-known name, verbatim
-- user-instance units: same name + `.user` suffix
-- aliases (e.g. `net.hadess.PowerProfiles` and
-  `org.freedesktop.UPower.PowerProfiles`) are separate activation files that map
-  to the same canonical unit
-- system units: `/lib/dinit.d/<Name>`; user units: `/etc/dinit.d/user/<Name>.user`
-- enablement: `internal_rules.yaml` `services` keeps the OpenRC fallback names;
-  `dinitServices` carries the dinit unit names (they differ where the bus name
-  and the OpenRC script name differ)
+**R1 — Naming (activation targets) — amended 2026-10-25**
+
+The unit name follows **who activates the service in FeralOS** (full rationale in
+`docs/adr/ADR-010-dbus-activation-dinit.md`):
+
+- **user (session) services** — dbus/turnstile-activated on demand, never
+  boot-enabled by us: unit = canonical bus name + `.user`
+  (`/etc/dinit.d/user/<Name>.user`).
+- **system services we activate at boot**, and an OpenRC initd exists: unit =
+  **exactly the OpenRC initd name** (`/lib/dinit.d/<initd-name>`) — the
+  `services` map alone drives both inits (rc-update + boot.d symlink), no
+  corrective mapping.
+- **system services dbus-activated on demand** (we never boot-enable them —
+  dbus decides when they run): unit = canonical bus name
+  (`/lib/dinit.d/<Name>`).
+
+Invariants:
+- The bus name always stays on the D-Bus side: override files are named after
+  and carry `Name=<bus name>`; the override `Exec=` aliases the bus name onto
+  the unit whatever it is called.
+- Bus names inside commands (e.g. `dbus-wait-for -n <bus name>`) and polkit
+  action ids are NOT unit names — they never change in a rename.
+- `dinitServices` stays **empty** under this rule (mechanism kept for
+  exceptional cases only).
+- Aliases (e.g. `net.hadess.PowerProfiles` →
+  `org.freedesktop.UPower.PowerProfiles`) are separate activation files that
+  map to the same canonical unit.
 
 **R2 — Activation (one shim, no exceptions)**
 
@@ -95,9 +112,11 @@ environment.
 
 1. Identify the canonical well-known bus name and any aliases (each alias gets
    its own `<Alias>.service` file pointing at the same unit).
-2. aports: ship the dinit unit `/lib/dinit.d/<Name>` (canonical bus-name
-   naming; ADR-008 wrapper+config for daemons with configuration;
-   `depends-on = dbus` like the other bus daemons).
+2. aports: ship the dinit unit, named per R1 — the OpenRC initd name for
+   system services we boot-enable, the canonical bus name for dbus-activated
+   on-demand services (system) and for all user services (`+.user`; ADR-008
+   wrapper+config for daemons with configuration; `depends-on = dbus` like the
+   other bus daemons).
 3. aports: ship the override `.service` file in
    `/usr/share/feralos/dbus-system-services/` (system bus) or
    `/usr/share/feralos/dbus-services/` (session bus) — **never** in
@@ -152,10 +171,10 @@ environment.
 
 | Target | Bus | Unit | Status |
 |---|---|---|---|
-| power-profiles-daemon | system | `org.freedesktop.UPower.PowerProfiles` (alias `net.hadess.PowerProfiles`) | DONE (`c123254`; boot-enabled via `dinitServices`) |
+| power-profiles-daemon | system | `org.freedesktop.UPower.PowerProfiles` (alias `net.hadess.PowerProfiles`) | DONE (`c123254`; R1 amendment 2026-10-25: **activation-only** — dbus decides, never boot-enabled) |
 | accountsservice | system | `org.freedesktop.Accounts` | DONE (`c123254`) |
-| polkit | system | `org.freedesktop.PolicyKit1` (renamed from `polkit`) | DONE (`c123254`) |
-| fwupd | system | `org.freedesktop.fwupd` (renamed from `fwupd`) | DONE (`c123254`) |
+| polkit | system | unit `polkit` (OpenRC initd name — R1 amendment `e7f1cc8`); override `org.freedesktop.PolicyKit1.service` aliases onto it | DONE (`c123254`, superseded by `e7f1cc8`) |
+| fwupd | system | `org.freedesktop.fwupd` — **activation-only** (R1 amendment 2026-10-25: dbus decides, never boot-enabled on either init) | DONE (`c123254`; amended 2026-10-25) | |
 | upower | system | `org.freedesktop.UPower` (renamed from `upower`) | DONE (`c123254`; activation-only, not boot-enabled) |
 | NetworkManager helpers | system | `org.freedesktop.nm_dispatcher`, `org.freedesktop.nm_priv_helper` | DONE (`c123254`; daemon `networkmanager` has no activation file — unchanged) |
 | flatpak system helper | system | `org.freedesktop.Flatpak.SystemHelper` | DONE (`c123254`) |
@@ -180,8 +199,8 @@ environment.
 | Tracker portal | session | `org.freedesktop.portal.Tracker.user` (`tinysparql` package) | DONE (`85646f4`) |
 | glib PACRunner | session | `org.gtk.GLib.PACRunner.user` | DONE (`85646f4`) |
 | signon-ui | session | `com.canonical.indicators.webcredentials.user`, `com.nokia.singlesignonui.user` | DONE (`85646f4`) |
-| bluez | system | `org.bluez` (renamed from `bluetooth`), `org.bluez.mesh` | DONE (`85646f4`; Alpine files had `Exec=/bin/false` — systemd-only; our override is the activation route) |
-| elogind | system | `org.freedesktop.login1` (renamed from `elogind`; greetd/sddm/turnstile unit deps updated) | DONE (`85646f4`) |
+| bluez | system | daemon unit `bluetooth` (OpenRC initd name — R1 amendment `e7f1cc8`); override `org.bluez.service` aliases onto it; `org.bluez.mesh` unchanged | DONE (`85646f4`, superseded by `e7f1cc8`; Alpine files had `Exec=/bin/false` — systemd-only; our override is the activation route) |
+| elogind | system | unit `elogind` (OpenRC initd name — R1 amendment `e7f1cc8`); override `org.freedesktop.login1.service` aliases the bus name onto it; turnstile/greetd/sddm/cosmic-greeter unit deps updated | DONE (`85646f4` rename, superseded; `e7f1cc8` amendment) |
 | wpa_supplicant | system | `fi.w1.wpa_supplicant1` | DONE (`85646f4`) |
 | avahi | system | `org.freedesktop.Avahi` | DONE (`44c598a`; upstream file is `Exec=/bin/false` — systemd-only; unit runs `avahi-daemon` foreground, no `-D`) |
 | udisks2 | system | `org.freedesktop.UDisks2` | DONE (`44c598a`; Alpine path `/usr/libexec/udisks2/udisksd`) |
@@ -208,6 +227,17 @@ materialized at boot to `/usr/local/share/dbus-1/system-services/` by
 `dbus-services-setup` (2026-10-18 validation round — `/etc` proved
 helper-ineligible). All session rows: source `/usr/share/feralos/dbus-services/`,
 materialized at login to `$XDG_RUNTIME_DIR/dbus-1/services/`.
+
+**R1 amendment (2026-10-25, user decision):** system units WE boot-enable carry
+the **OpenRC initd name** (`elogind`, `polkit`, `bluetooth`) — the `services`
+map alone drives both inits and `dinitServices` stays empty; dbus-activated
+system services (fwupd, PPD, upower, udisks2, avahi, wpa_supplicant,
+nm_dispatcher, accountsservice, bolt, cups-pk-helper, flatpak SystemHelper,
+fprintd, geoclue, kcron, the KAuth helpers) keep the **bus name** and are
+**never boot-enabled** — dbus decides when they run (fwupd/PPD were
+boot-enabled before the amendment; corrected). Bus names remain on the D-Bus
+side: override filenames, `Name=`, `dbus-wait-for -n` arguments, polkit action
+ids. Validated on the full matrix (see phases item 11).
 
 **Third-party targets (the rows from `44c598a`)** live in feralos-aports as
 transitional packages (`avahi-dinit`, `udisks2-dinit`, `geoclue-dinit`,
@@ -254,5 +284,6 @@ next activation restarts it.
 8. [x] validation round 2 (system-bus helper eligibility): live + source proof that the launch helper resolves names ONLY against the standard dirs (trivial parser — `/etc` + `/run` never searched) → overrides moved to `/usr/share/feralos/dbus-system-services` + `dbus-services-setup` boot materializer into `/usr/local/share/dbus-1/system-services` (aports `2e0caa8`; comment follow-up `5f729ea`); uniform check reworked (sources + materialization + `/etc` clean; coverage loop dinit-only), env check reworked (no `DBUS_STARTER_*` + direct-shim `setenv` proof). Validated: dinit `2026-10-18T22-56-20Z` **106/106**; OpenRC `2026-10-18T23-03-31Z` **90/90**.
 9. [x] KDE session-bus coverage (2026-10-25): 3 new unit-only packages (`obexd-user-dinit`, `ibus-user-dinit`, `system-config-printer-user-dinit`, aports `1289145`) + KDE list gains 9 session packages; `kcookiejar5` documented exemption; `log_errors` WARNING sweep with the 3-line allowlist; `services.go` boot.d symlink `/lib`-or-`/etc` resolution. Validated: kde full-feature dinit `2026-10-25T03-41-55Z` **77/77**.
 10. [x] cosmic session-bus coverage (2026-10-25): cosmic unified on elogind (user decision) — seatd daemon dropped (Alpine 3.24: nothing depends on it; cosmic-comp uses libseat's logind backend), `cosmic-greeter-dinit` r6 units `depends-on = org.freedesktop.login1`, NEW `playerctld-user-dinit`, rules `dinitServices` login1 mapping. Validated: cosmic full-feature dinit `2026-10-25T14-19-46Z` **77/77** (migration 0/14 uncovered).
+11. [x] R1 amendment (2026-10-25, user correction): system units we boot-enable carry the OpenRC initd name (cosmic-greeter r7 deps → `elogind` in `e7f1cc8`); dbus-activated system services stay bus-named and never boot-enabled (fwupd/PPD corrected to on-demand). aports `e7f1cc8` (elogind/polkit/bluetooth renames + dependents), `dinitServices` removed from the rules, skip-list cleanup, harness expected lists + `power_profiles` on-demand proof + `dbus_activation_env` race-proofing. Validated: kde `17-19-00Z` **77/77**, cosmic `17-02-52Z` **77/77**, niri `17-50-09Z` **113/113**, niriWayle dinit `17-57-48Z` **109/109**, niriWayle OpenRC `18-16-31Z` **92/92**.
 
 Update this checklist and the handoff after each phase.

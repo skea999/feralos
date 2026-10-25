@@ -37,10 +37,12 @@ defaultRunlevelsDinit:
 #     via defaultRunlevelsDinit — skipping here prevents a duplicate boot.d
 #     link from the OpenRC boot list (same service name, both lists)
 #   - vector-setup: replaced under dinit by vector-dinit's tmpfiles file
-#   - polkit/fwupd: units renamed to their D-Bus names (ADR-010:
-#     org.freedesktop.PolicyKit1 / org.freedesktop.fwupd) and enabled via
-#     `dinitServices`; skipping the OpenRC names here prevents a duplicate
-#     boot.d attempt (and a warning) from the `services` maps
+#   (ADR-010 R1 amendment 2026-10-25: explicitly-activated system units carry
+#   the OpenRC initd name — elogind/polkit/bluetooth — so `services` enables
+#   them directly on both inits and NO skip entries are needed anymore; the
+#   former polkit/fwupd/bluetooth/elogind skips existed only because those
+#   units were bus-named. fwupd is dbus-activated on demand now — never
+#   enabled, nothing to skip.)
 dinitSkipServices:
   - hwclock
   - hostname
@@ -60,10 +62,6 @@ dinitSkipServices:
   - btrfs-scan
   - dmcrypt
   - vector-setup
-  - polkit
-  - fwupd
-  - bluetooth
-  - elogind
 
 # -openrc subpackages whose service is already provided by the dinit-chimera
 # suite — never converted to -dinit (their -dinit equivalent does not exist
@@ -244,9 +242,10 @@ desktopEnvironments:
     # wayvnc = VNC server (round 37) — RustDesk flatpak REMOVED (round 43
     # cleanup philosophy: not part of the validated stack)
     services: {"greetd": "default", "elogind": "default", "firewalld": "default", "polkit": "default", "cupsd": "default", "networkmanager": "default", "bluetooth": "default"}
-    # ADR-010: dinit unit names for activation targets (named after the
-    # well-known D-Bus name; `services` above keeps the OpenRC fallback names).
-    dinitServices: {"org.freedesktop.PolicyKit1": "default", "org.freedesktop.UPower.PowerProfiles": "default", "org.bluez": "default", "org.freedesktop.login1": "default"}
+    # ADR-010 R1 amendment: explicitly-activated system units carry the OpenRC
+    # initd name, so `services` alone drives both inits (dinitServices stays
+    # empty). PPD (org.freedesktop.UPower.PowerProfiles) is dbus-activated on
+    # demand — never boot-enabled; dbus decides when it runs.
     # render group does not exist on Alpine (video covers DRM access);
     # audio group: /dev/snd/* for pipewire (real-hardware audio);
     # plugdev: NM polkit rule allows GUI connection management (round 30);
@@ -289,9 +288,8 @@ desktopEnvironments:
     # (niri-only) and seahorse/gnome-keyring (oo7 + Key Rack own secrets;
     # seahorse conflicts on org.freedesktop.secrets.service).
     services: {"greetd": "default", "elogind": "default", "firewalld": "default", "polkit": "default", "cupsd": "default", "networkmanager": "default", "bluetooth": "default"}
-    # ADR-010: dinit unit names for activation targets (named after the
-    # well-known D-Bus name; `services` above keeps the OpenRC fallback names).
-    dinitServices: {"org.freedesktop.PolicyKit1": "default", "org.freedesktop.UPower.PowerProfiles": "default", "org.bluez": "default", "org.freedesktop.login1": "default"}
+    # ADR-010 R1 amendment: services alone drives both inits (see niri). PPD =
+    # dbus-activated on demand.
     # upower has no dinit service: upowerd is dbus system-activated when Wayle
     # queries org.freedesktop.UPower (upower ships the dbus system-service file).
     # OpenRC side: upower-openrc is install_if-pulled like every -openrc pkg.
@@ -300,17 +298,13 @@ desktopEnvironments:
     packages: ["cosmic-session", "cosmic-term", "cosmic-greeter", "cosmic-edit", "cosmic-player", "cosmic-store", "cosmic-settings", "cosmic-screenshot", "cosmic-icons", "cosmic-initial-setup", "adwaita-icon-theme", "desktop-file-utils", "hicolor-icon-theme", "elogind", "dbus", "polkit", "pipewire", "xdg-desktop-portal-cosmic", "upower-dinit", "geoclue-dinit", "turnstile", "dbus-session-materializer-user-dinit", "dconf-user-dinit", "at-spi2-core-user-dinit", "xdg-desktop-portal-user-dinit", "cosmic-applets-user-dinit", "xdg-desktop-portal-cosmic-user-dinit", "glib-networking-user-dinit", "playerctld-user-dinit"]
     services: {"cosmic-greeter": "default", "elogind": "default", "dbus": "default", "turnstiled": "default"}
     # Seat manager = elogind (same as niri/niriWayle/kde): turnstiled depends
-    # on org.freedesktop.login1 (ADR-010 override -> elogind unit), so the
-    # user dinit + dbus-session-materializer stack works. cosmic-comp reaches
-    # the seat through libseat's logind backend (libseat pkg, transitive;
-    # Alpine 3.24 verified: NOTHING depends on the seatd daemon, it is gone).
-    # NO "seat" group: the group came from the seatd package (absent here);
-    # elogind manages device ACLs itself (harness run 2026-10-25T14-00-14Z:
-    # adduser <user> seat failed — group no longer exists).
+    # on the elogind unit (OpenRC initd name per the ADR-010 R1 amendment), so
+    # the user dinit + dbus-session-materializer stack works. cosmic-comp
+    # reaches the seat through libseat's logind backend (libseat pkg,
+    # transitive; Alpine 3.24 verified: NOTHING depends on the seatd daemon,
+    # it is gone). NO "seat" group: the group came from the seatd package
+    # (absent here); elogind manages device ACLs itself.
     # elogind-dinit NOT listed: -openrc/-dinit variants auto-pull/convert.
-    # dinitServices: the elogind dinit unit is NAMED org.freedesktop.login1
-    # (ADR-010 R1: unit = canonical bus name; the OpenRC initd stays `elogind`).
-    dinitServices: {"org.freedesktop.login1": "default"}
     groups: ["video", "input"]
 
 # 3. Video Drivers Definitions
@@ -397,8 +391,10 @@ packageLogic:
   irqbalance:
     services: {"irqbalance": "default"}
   fwupd:
-    services: {"fwupd": "default"}
-    dinitServices: {"org.freedesktop.fwupd": "default"}
+    # ADR-010 R1 amendment: fwupd is dbus-activated ON DEMAND (heavy daemon,
+    # dbus decides when it runs) — never boot-enabled, no initd enablement on
+    # either init. Activation routes through the shim to the bus-named unit
+    # (supervised under dinit; OpenRC fallback = raw exec, documented).
   earlyoom:
     services: {"earlyoom": "default"}
   vlan:
