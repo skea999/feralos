@@ -194,24 +194,95 @@ func ValidateConfig(conf *Config) error {
 	return validateConfig(conf)
 }
 
+// layoutUnencrypted is the only disk layout without a LUKS layer (the
+// password policy is skipped for it in validateConfig).
+const layoutUnencrypted = "btrfsUnencrypted"
+
+// validEnumValues returns the accepted values for a rules-driven enum field:
+// the internal_rules map keys (the wizard's option list) plus "none" and the
+// empty zero value — both mean "feature off" (logic.ApplyRules skips absent
+// map keys; desktops.Setup returns early for ""/none).
+func validEnumValues(m map[string]DynamicPackageRules) []string {
+	values := make([]string, 0, len(m)+2)
+	values = append(values, "", "none")
+	for key := range m {
+		values = append(values, key)
+	}
+	return values
+}
+
 // validateConfig rejects invalid values in user-provided fields.
 // Delegates to per-field validators in validators.go (shared with the wizard).
+// A hand-edited YAML gets the same scrutiny as the wizard (polishCode P1-1):
+// enum fields, password policy, swap size and the required identity fields
+// are all enforced at load time instead of dying mid-install.
 func validateConfig(conf *Config) error {
 	u := &conf.User
+
+	// Enum fields. diskLayout must name a layout the installer switch
+	// implements; desktopEnvironment/videoDriver must be internal_rules keys
+	// or the synthetic off values. The rules-driven checks are guarded on a
+	// non-empty map: every real path (LoadConfig, main.go, the generator)
+	// loads internal_rules first — the guard only keeps validateConfig
+	// usable on a bare Config{} in tests.
+	if err := ValidateDiskLayout(u.DiskLayout); err != nil {
+		return err
+	}
+	if len(conf.Internal.DesktopEnvironments) > 0 {
+		if err := ValidateEnum("desktopEnvironment", u.DesktopEnvironment, validEnumValues(conf.Internal.DesktopEnvironments)); err != nil {
+			return err
+		}
+	}
+	if len(conf.Internal.VideoDrivers) > 0 {
+		if err := ValidateEnum("videoDriver", u.VideoDriver, validEnumValues(conf.Internal.VideoDrivers)); err != nil {
+			return err
+		}
+	}
+
+	// Required non-empty (both validators reject the empty string).
+	if err := ValidateUserName(u.UserName); err != nil {
+		return err
+	}
+	if err := ValidateHostname(u.Hostname); err != nil {
+		return err
+	}
+
+	// Password policy on encrypted layouts: the login password doubles as
+	// the LUKS passphrase fallback, so it must meet the strength rules and
+	// the effective LUKS passphrase (explicit or fallback) must be meta-free.
+	// btrfsUnencrypted has no LUKS layer — skipped there.
+	if u.DiskLayout != layoutUnencrypted {
+		if err := ValidatePassword(u.Password); err != nil {
+			return err
+		}
+		effectiveLuks := u.LuksPassword
+		if effectiveLuks == "" {
+			effectiveLuks = u.Password
+		}
+		if err := ValidateLuksPassword(effectiveLuks); err != nil {
+			return err
+		}
+	}
+
+	// Swap size syntax when swap is actually enabled (""/auto stay legal).
+	if u.EnableSwap {
+		if err := ValidateSwapSize(u.SwapSize); err != nil {
+			return err
+		}
+	}
 
 	if err := ValidateDisks(u.Disks); err != nil {
 		return err
 	}
-	if u.UserName != "" {
-		if err := ValidateUserName(u.UserName); err != nil {
-			return err
-		}
+	// locale/keymap via the shared validators (same meta rule — single
+	// source instead of the inline loop entries).
+	if err := ValidateLocale(u.Locale); err != nil {
+		return err
 	}
-	if u.Hostname != "" {
-		if err := ValidateHostname(u.Hostname); err != nil {
-			return err
-		}
+	if err := ValidateKeymap(u.Keymap); err != nil {
+		return err
 	}
+
 	if u.Timezone != "" {
 		if err := ValidateTimezone(u.Timezone); err != nil {
 			return err
@@ -222,10 +293,9 @@ func validateConfig(conf *Config) error {
 		{"userName", u.UserName},
 		{"hostname", u.Hostname},
 		{"timezone", u.Timezone},
-		{"locale", u.Locale},
-		{"keymap", u.Keymap},
 		{"password", u.Password},
 		{"luksPassword", u.LuksPassword},
+		{"sshAuthorizedKey", u.SshAuthorizedKey},
 	} {
 		if err := hasShellMeta(v.name, v.value); err != nil {
 			return err
