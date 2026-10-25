@@ -622,7 +622,7 @@ cd tests/harness && go vet ./...
 cd tests/harness && golangci-lint run ./...
 ```
 
-**Dupl exclusions** (intentional duplication): `src/hostPhase/disks/` (layout packages), `src/utils/firstboot/` (standalone binaries). Config: `.golangci.yml` → `dupl.threshold: 100` + `exclude-rules`.
+**Dupl exclusions** (intentional duplication): `src/hostPhase/disks/` (layout packages), `src/chrootPhase/desktops/` (derived desktop flows — niri.go/niri_wayle.go are intentionally duplicated, same policy as disk layouts: do NOT merge or extract shared blocks), `src/utils/firstboot/` (standalone binaries). Config: `.golangci.yml` → `dupl.threshold: 100` + `exclude-rules`. Full polish registry: `references/polishCode.md`.
 
 → Details: `docs/guides/development.md` (lint/format)
 
@@ -673,7 +673,7 @@ Cleanup (before/after) and firstboot (install config, secureboot/tpm compile) ar
 
 ## Logging Rule
 
-**Always use `shell.ExecuteCmd` in `hostPhase`/`chrootPhase` — never `os.*`.** File ops (`MkdirAll`, `Create`, `WriteFile`, `ReadFile`) and `exec.Command` bypass logging. `ExecuteCmd` logs CMD, stdout/stderr, exit, retry, and `SKEA_NONINTERACTIVE` handling. `import "os"` forbidden in those packages (exceptions: `firstBoot/` standalone, `utils/shell` impl). Host: `shell.ExecuteCmd("", "mkdir -p /mnt/etc")`. Chroot: `shell.ExecuteCmd(chroot, "mkdir -p /etc")`.
+**Always use `shell.ExecuteCmd` in `hostPhase`/`chrootPhase` — never `os.*`.** File ops (`MkdirAll`, `Create`, `WriteFile`, `ReadFile`) and `exec.Command` bypass logging. `ExecuteCmd` logs CMD, stdout/stderr, exit, retry, and `SKEA_NONINTERACTIVE` handling. `import "os"` forbidden in those packages (exceptions: `firstBoot/` standalone, `utils/shell` impl). Host: `shell.ExecuteCmd("", "mkdir -p /mnt/etc")`. Chroot: `shell.ExecuteCmd(chroot, "mkdir -p /etc")`. Documented exceptions (secrets must never be logged): passwd via stdin pipe (chrootPhase/internal/users.go) and cryptsetup stdin (hostPhase/disks/common/luks.go).
 
 → Details: `docs/architecture/logging.md`, `docs/adr/ADR-004-executecmd-logging.md`, `src/utils/shell/execute.go`
 
@@ -738,11 +738,11 @@ Each `Enable*` flag (and `DesktopEnvironment`) is owned by exactly ONE file unde
 
 **Rule: every D-Bus-activatable daemon is a dinit service; activation only triggers dinit.** No exceptions, no per-application special cases (user directive 2026-10-18; decision `docs/adr/ADR-010-dbus-activation-dinit.md`, mechanism + checklist `docs/architecture/dbus-activation.md`).
 
-- Unit name = canonical well-known bus name (+`.user` for user units; aliases map to the same unit); system units `/lib/dinit.d/`, user units `/etc/dinit.d/user/`.
+- **Unit name follows WHO activates the service in FeralOS (R1, amended 2026-10-25):** user (session) services = canonical bus name + `.user` (`/etc/dinit.d/user/`) — dbus/turnstile-activated on demand, never boot-enabled by us; system services WE boot-enable (an OpenRC initd exists) = exactly the OpenRC initd name (`/lib/dinit.d/<initd-name>`) — the `services` map alone drives both inits (rc-update + boot.d symlink), no corrective mapping, and `dinitServices` stays EMPTY (mechanism kept for exceptional cases only); system services dbus-activated on demand (never boot-enabled — dbus decides when they run) = canonical bus name (`/lib/dinit.d/<Name>`) — fwupd, PPD, upower, udisks2, avahi, wpa_supplicant, nm_dispatcher, accountsservice, bolt, cups-pk-helper, flatpak SystemHelper, fprintd, geoclue, kcron, the Plasma KAuth helpers. fwupd/PPD were boot-enabled before the amendment — corrected to activation-only on both inits. Aliases (e.g. `net.hadess.PowerProfiles` → `org.freedesktop.UPower.PowerProfiles`) are separate activation files mapping onto the same canonical unit.
+- Bus names stay on the D-Bus side in a rename: override filenames + `Name=`, `dbus-wait-for -n` arguments, polkit action ids never change — the override `Exec=` aliases the bus name onto the unit whatever it is called.
 - The effective `.service` file carries `Exec=/usr/libexec/feralos/dbus-activate <unit> -- <upstream exec>`; overrides ship in `/usr/share/feralos/dbus-system-services` (system) + `/usr/share/feralos/dbus-services` (session) and are materialized into the effective servicedirs: `/usr/local/share/dbus-1/system-services` at boot via `dbus-services-setup` (the system bus activates through the setuid launch helper, which resolves names ONLY against the standard dirs — `/etc/dbus-1/system-services` is daemon-enumerated but NOT helper-activatable on dbus 1.16.2) and `$XDG_RUNTIME_DIR/dbus-1/services` at login via the `dbus-session` wrapper; upstream files untouched.
 - Shim: forwards the activation environment to dinit (single `dinitctl setenv`) then `dinitctl start` (waits) and exits; OpenRC system-bus fallback = upstream exec when no system dinit; session bus always user dinit (both inits).
-- Enablement is orthogonal: `dinitServices` in the rules enables dinit units whose names differ from the OpenRC fallback names in `services`.
-- Enforcement: harness `dbus_activation_uniform` (override sources + boot materialization + unit exists; fails if anything is left in the helper-ineligible `/etc/dbus-1/system-services`) + `dbus_activation_env` (real activation proof: unit started with no `DBUS_STARTER_*` in the daemon environ, plus `setenv` forwarding via a direct shim marker run).
+- Enforcement: harness `dbus_activation_uniform` (override sources + boot materialization + unit exists; fails if anything is left in the helper-ineligible `/etc/dbus-1/system-services`) + `dbus_activation_env` (real activation proof: unit started with no `DBUS_STARTER_*` in the daemon environ, plus `setenv` forwarding via a direct shim marker run) + `dbus_activation_migration` (forward-looking retirement gate: enumerates every activation file live, fails only when dbus-broker is installed AND every target is unit-covered) + `dbus_system_activation` (system-bus coverage on EVERY DE, dinit-only).
 - Adding a new activatable service: follow the checklist in `docs/architecture/dbus-activation.md` (aports mirror: `DBUS-ACTIVATION.md` in `feralos-aports`); the same doc carries the verification/troubleshooting commands (`ListActivatableNames` ≠ activatable; the `DBUS_STARTER_*` check; raw-spawn diagnosis).
 - `dbus-services-setup` is the reference boot-time oneshot (both inits, ordered before a consumer) — reusable pattern + gotchas: `docs/architecture/boot-oneshots.md`.
 
@@ -769,14 +769,14 @@ Activatable features (Secure Boot, TPM, Webmin) use standalone binaries in `src/
 **3-boot harness flow**:
 
 1. **Runner (Debian)**: installer runs, compiles binaries, writes config. swtpm always present.
-2. **Target (Alpine) — first boot**: harness runs `feralos_secureboot` + `feralos_tpm` via SSH. Binaries install packages, configure features, bind LUKS to TPM2. swtpm always present.
-3. **Target (Alpine) — verification**: harness checks sbctl status, clevis bindings, LUKS auto-unlock. swtpm always present.
+2. **Target (Alpine) — first boot**: harness SSH runs `feralos_secureboot` + `feralos_tpm` + `feralos_webmin` (if enabled). Binaries install packages, configure features, bind LUKS to TPM2, start the Webmin container. swtpm always present.
+3. **Target (Alpine) — verification**: harness checks sbctl status, clevis bindings, LUKS auto-unlock, `podman ps` + `wget https://localhost:10000/` (Webmin). swtpm always present.
 
 **Key rules**:
 
 - swtpm is always passed to runner + target VMs (even if EnableTPM=false) — simplifies harness
 - firstBoot binaries read `/opt/feralos/config.yaml` for disk layout + LUKS UUIDs (fallback: kernel cmdline)
-- On real hardware: user runs `/opt/feralos_secureboot` and `/opt/feralos_tpm` manually after first boot
+- On real hardware: user runs `/opt/feralos_secureboot`, `/opt/feralos_tpm` and `/opt/feralos_webmin` manually after first boot (webmin is idempotent — seeds config once, restarts container; podman must be installed)
 
 **Known limitation**: Secure Boot enrollment cannot be confirmed in QEMU (no real efivarfs). TPM auto-unlock CAN be confirmed and works reliably.
 

@@ -19,6 +19,7 @@ func SetupUsers(conf *config.Config) error {
 
 	// 1. Root password — uses exec.Command with stdin (no shell, no logging)
 	fmt.Println("[INFO] Setting root password...")
+	// Direct exec, NOT shell.ExecuteCmd: the password must never appear in logs (documented logging-rule exception — polishCode P3-8).
 	passwdCmd := exec.Command("chroot", chroot, "passwd", "root")
 	passwdCmd.Stdin = strings.NewReader(u.Password + "\n" + u.Password + "\n")
 	if output, err := passwdCmd.CombinedOutput(); err != nil {
@@ -64,6 +65,7 @@ func SetupUsers(conf *config.Config) error {
 			fmt.Printf("[WARNING] Failed to list login-shell in /etc/shells: %v\n", err)
 		}
 	}
+	// Direct exec, NOT shell.ExecuteCmd: the password must never appear in logs (documented logging-rule exception — polishCode P3-8).
 	passwdCmd = exec.Command("chroot", chroot, "passwd", u.UserName)
 	passwdCmd.Stdin = strings.NewReader(u.Password + "\n" + u.Password + "\n")
 	if output, err := passwdCmd.CombinedOutput(); err != nil {
@@ -126,17 +128,27 @@ func SetupUsers(conf *config.Config) error {
 		}
 	}
 
-	// 9. System limits — uses shell redirection, UserName validated in config
+	// 9. System limits — single owner of /etc/security/limits.conf
+	// (polishCode P2-2: the former identical write in misc.go SetupMisc was
+	// removed). Values as consts — they were duplicated twice before.
+	const (
+		nofileLimitDefault = 100000
+		nofileLimitUser    = 524288
+	)
 	fmt.Println("[INFO] Configuring system limits...")
 	if _, err := shell.ExecuteCmdArgs(chroot, "mkdir", "-p", "/etc/security"); err != nil {
 		fmt.Printf("[WARNING] Failed to create /etc/security: %v\n", err)
 	}
-	limitsContent := fmt.Sprintf(`* hard nofile 100000
-* soft nofile 100000
-root hard nofile 100000
-root soft nofile 100000
-%s hard nofile 524288
-%s soft nofile 524288`, u.UserName, u.UserName)
+	limitsContent := fmt.Sprintf(`* hard nofile %d
+* soft nofile %d
+root hard nofile %d
+root soft nofile %d
+%s hard nofile %d
+%s soft nofile %d`,
+		nofileLimitDefault, nofileLimitDefault,
+		nofileLimitDefault, nofileLimitDefault,
+		u.UserName, nofileLimitUser,
+		u.UserName, nofileLimitUser)
 	escapedLimitsContent := strings.ReplaceAll(limitsContent, "'", "'\\''")
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/security/limits.conf", escapedLimitsContent)); err != nil {
 		return fmt.Errorf("failed to write limits.conf: %w", err)

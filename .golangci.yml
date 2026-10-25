@@ -54,6 +54,9 @@ issues:
     - path: src/hostPhase/disks/
       linters:
         - dupl
+    - path: src/chrootPhase/desktops/
+      linters:
+        - dupl
     - path: src/utils/firstboot/
       linters:
         - dupl

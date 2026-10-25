@@ -70,17 +70,17 @@ func Run(conf *config.Config) error {
 		return fmt.Errorf("nix setup failed: %w", err)
 	}
 
-	// 7b. Setup flatpak (optional) — installs flatpak apps from flathub
+	// 8. Setup flatpak (optional) — installs flatpak apps from flathub
 	if err := features.SetupFlatpak(conf); err != nil {
 		return fmt.Errorf("flatpak setup failed: %w", err)
 	}
 
-	// 6a. Setup desktop environment (configurations — kde/gnome need none)
+	// 9. Setup desktop environment (configurations — kde/gnome need none)
 	if err := desktops.Setup(conf); err != nil {
 		return fmt.Errorf("desktop setup failed: %w", err)
 	}
 
-	// 8. Setup zswap (server always enabled; other layouts toggleable)
+	// 10. Setup zswap (server always enabled; other layouts toggleable)
 	if err := features.SetupZswapServer(conf); err != nil {
 		return fmt.Errorf("zswap server setup failed: %w", err)
 	}
@@ -88,27 +88,27 @@ func Run(conf *config.Config) error {
 		return fmt.Errorf("zswap setup failed: %w", err)
 	}
 
-	// 9. Setup storage
+	// 11. Setup storage
 	if err := internal.SetupStorage(conf); err != nil {
 		return fmt.Errorf("storage setup failed: %w", err)
 	}
 
-	// 10. Setup hardening
+	// 12. Setup hardening
 	if err := features.SetupHardening(conf); err != nil {
 		return fmt.Errorf("hardening failed: %w", err)
 	}
 
-	// 10a. Setup podman (rootless containers)
+	// 13. Setup podman (rootless containers)
 	if err := features.SetupPodman(conf); err != nil {
 		return fmt.Errorf("podman setup failed: %w", err)
 	}
 
-	// 11. Setup boot (booster config, cmdline, hooks)
+	// 14. Setup boot (booster config, cmdline, hooks)
 	if err := internal.SetupBoot(conf); err != nil {
 		return fmt.Errorf("boot setup failed: %w", err)
 	}
 
-	// 12. Build unsigned UKI
+	// 15. Build unsigned UKI
 	fmt.Println("[INFO] Building unsigned UKI...")
 	if err := internal.BuildUKI(conf); err != nil {
 		return fmt.Errorf("UKI build failed: %w", err)

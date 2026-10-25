@@ -51,6 +51,15 @@ All hostPhase file writes use this pattern (`cat > ... <<'EOF'`, `echo`, `mkdir 
 - `src/firstBoot/*` — standalone binaries, run outside installer (own logging).
 - `src/utils/shell` — implementation itself (uses `os`/`exec` internally).
 
+### Documented exec carve-outs (secrets)
+
+Two deliberate direct-exec sites bypass `ExecuteCmd` because the secret must never appear in logs (`ExecuteCmd` logs CMD + output verbatim):
+
+- **passwd via stdin pipe** — `src/chrootPhase/internal/users.go` (root + user password): `exec.Command` with `Stdin` reader.
+- **cryptsetup stdin** — `src/hostPhase/disks/common/luks.go` (`LuksFormat`/`LuksOpen`/`LuksAddKey`): LUKS password/keyfile via `Stdin` reader.
+
+Both are comment-annotated in source (`polishCode P3-8`). Adding a new carve-out requires a comment at the site + an entry here and in `AGENTS.md#Logging Rule`.
+
 ## References
 
 - `AGENTS.md#Logging Rule`

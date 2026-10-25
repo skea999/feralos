@@ -2,6 +2,224 @@
 
 All notable changes to FeralOS will be documented in this file.
 
+## 2026-10-25 — ADR-010 R1 amendment: system units carry the OpenRC initd name; fwupd/PPD activation-only
+- Naming rule follows WHO activates the service: user (session) services = canonical bus name + `.user`; system services WE boot-enable = exactly the OpenRC initd name (the `services` map alone drives both inits; `dinitServices` removed/empty — mechanism kept for exceptional cases); dbus-activated on-demand system services (fwupd, PPD, upower, udisks2, avahi, wpa_supplicant, nm_dispatcher, accountsservice, bolt, cups-pk-helper, flatpak SystemHelper, fprintd, geoclue, kcron, the Plasma KAuth helpers) keep the bus name and are NEVER boot-enabled. Bus names stay on the D-Bus side (override filenames/`Name=`, `dbus-wait-for -n` args, polkit action ids).
+- aports `e7f1cc8`: `elogind`/`polkit`/`bluetooth` unit renames + dependents retargeted (turnstile, greetd, sddm, cosmic-greeter); rules cleanup — polkit/fwupd/bluetooth/elogind removed from `dinitSkipServices` (else the renamed units would never be enabled); fwupd on-demand on BOTH inits (was: always-running).
+- Harness: expected service lists updated; `power_profiles` reworked (PPD activation-only — the real switch proves on-demand activation); `dbus_activation_env` system half race-proofed.
+- Verified: kde 77/77 · cosmic 77/77 · niri 113/113 · niriWayle dinit 109/109 · niriWayle OpenRC 92/92.
+
+## 2026-10-25 — Cosmic unified on elogind: seatd daemon dropped — harness cosmic 77/77
+- Nothing on Alpine 3.24 depends on the seatd daemon (cosmic-comp reaches the seat via libseat's logind backend) — dropped from the DE; packages/services `seatd`→`elogind`, groups += `seat`.
+- aports: `cosmic-greeter-dinit` r6 greeter units `depends-on = org.freedesktop.login1` (r5 wrong unit name live-caught: "service description not found"); NEW `playerctld-user-dinit`; rules `dinitServices {org.freedesktop.login1: default}` + `glib-networking-user-dinit`.
+- Verified: cosmic full-feature dinit `2026-10-25T14-19-46Z` 77/77 — the turnstile user dinit + materializer stack now runs on ALL four DEs.
+
+## 2026-10-25 — KDE session-bus ADR-010 coverage + installer.log WARNING sweep — harness kde 77/77
+- KDE session D-Bus targets now run as supervised per-user dinit units (turnstile + `dbus-session-materializer` already in the stack; `pam_turnstile` arrives via Alpine's `base-session` include in sddm's PAM).
+- aports `1289145` (3 unit-only packages): `obexd-user-dinit`, `ibus-user-dinit`, `system-config-printer-user-dinit`; KDE list += 9 session packages. `org.kde.kcookiejar5` documented exemption (kded5 binary absent on Alpine 3.24 — no unit possible).
+- Harness: `log_errors` now fails any non-allowlisted WARNING in installer.log (allowlist: the 2 apt notices + ssh known-hosts); installer boot.d symlink resolves units in `/lib/dinit.d` OR `/etc/dinit.d` (fixed the turnstiled enable warning).
+- Verified: kde full-feature dinit `2026-10-25T03-41-55Z` 77/77.
+
+## 2026-10-25 — Code-polish plan registered (references/polishCode.md)
+- Read-only analysis → approved refinement plan (P0 pre-release docs/CI, P1 robustness, P2 maintainability, P3 cleanups/tests); intentional-duplication policy recorded (niri.go/niri_wayle.go treated like disk layouts — do NOT merge).
+
+## 2026-10-24 — KDE/COSMIC session autologin + runtime checks — harness 74/74 each
+- Autologin generalized to all four DEs (kde via sddm `[Autologin]` drop-in; cosmic via greetd `[initial_session]`); NEW `kde_session`/`cosmic_session` checks (compositor + session shell + wayland socket); `pgrep -f` anchored (busybox `pgrep -x` false-negative class — processes proven RUNNING while `pgrep -x` polled 90s).
+- Product fixes (aports `bd4db35`): cosmic-greeter 1.0 is a greetd frontend — now runs `greetd` with the FeralOS config (VT 7, base-only PAM override, `pam-rundir` dep); cosmic `groups` += `seat` (libseat seatd socket `root:seat 0770` — debug_run-proven).
+- Verified: kde `2026-10-24T23-35-39Z` 74/74 (kwin_wayland + plasmashell live); cosmic `23-50-51Z` 74/74 (cosmic-comp + cosmic-session, wayland-1).
+
+## 2026-10-21 — Full-feature DE matrix (niri/kde/cosmic) + ADR-010 system-bus coverage everywhere
+- dinit niri 113/113 · kde 73/73 · cosmic 73/73 · niriWayle 109/109 + OpenRC 92/92. Missing services found+implemented: niri += `gnome-keyring-user-dinit` (secrets/prompter/seahorse units), upower, portal-gnome; kde += `plasma-kauth-dinit` (15 KAuth units), `fprintd-dinit`, `bolt-dinit`, PPD/accountsservice/upower; cosmic += geoclue/upower.
+- NEW unconditional `dbus_system_activation` check (system-bus coverage on EVERY DE); `dinit_shutdown_commands` zz-power gated to the niri family.
+- Idle-exit fix (aports `ee2b824`): `smooth-recovery = false` for geoclue/fprintd/EDS factories — a legitimate idle exit stops the unit, the next activation restarts it (long-running daemons keep smooth-recovery).
+- Remaining gap documented → KDE/cosmic SESSION-bus coverage (closed in the 10-25 rounds).
+
+## 2026-10-20 — ADR-010 third-party activation units (app set) + migration gate — 108/108 dinit + 92/92 OpenRC
+- 15 D-Bus activation targets with no supervised unit covered: 7 new aports packages (avahi, udisks2, geoclue, cups-pk-helper, kcron system; goa ×2 binaries, EDS ×4, GNOME apps session); avahi's upstream `Exec=/bin/false` systemd-only trap replaced by a real foreground `avahi-daemon` unit; exact Alpine Exec paths/lifecycles verified.
+- Harness: `dbus_activation_units_live` (real activation of UDisks2 + GOA through the shim → dinit, no `DBUS_STARTER_*`) + `dbus_activation_migration` (forward-looking retirement gate: enumerates every activation file live; fails only when dbus-broker is installed AND every target is unit-covered).
+
+## 2026-10-19 — niriWayle follow-up: kglobalaccel stays KDE-only (wiring reverted) — 106/106 dinit + 90/90 OpenRC
+- `kglobalaccel`/`kglobalacceld` is a Plasma global-shortcuts service for KDE apps, NOT a niri/Wayle dependency — the earlier wiring reverted; the aports unit + override remain optional coverage (the KF6 `kglobalaccel` LIBRARY stays as a kio/kded/kwallet transitive dep — only the daemon package matters).
+- Decisions closed: kglobalaccel KDE/Plasma-only (never in niri/niriWayle); dms-shell split DROPPED; booster initramfs module policy final (parked behavior).
+
+## 2026-10-18 — D-Bus activation → dinit (ADR-010) CLOSED: system-bus helper-eligibility fix — 106/106 dinit + 90/90 OpenRC
+- Root cause (live debug_run + dbus 1.16.2 source): the setuid `dbus-daemon-launch-helper` resolves names ONLY against the standard dirs (`/usr/local/share` > `/usr/share` > `/lib`); `/etc/dbus-1/system-services` is daemon-enumerated but NEVER helper-activatable (`Spawn.ServiceNotFound`).
+- Fix (aports `2e0caa8` + `5f729ea`): 13 system overrides → `/usr/share/feralos/dbus-system-services` + NEW `dbus-services-setup` (boot materializer into `/usr/local/share/dbus-1/system-services`, both inits, ordered before dbus); `dbus_activation_uniform`/`dbus_activation_env` reworked init-aware.
+- Docs: ADR-010 + `docs/architecture/dbus-activation.md` (checklist + diagnostics) + `docs/architecture/boot-oneshots.md` + aports `DBUS-ACTIVATION.md`.
+
+## 2026-10-18 — power-profiles-daemon (niriWayle): verified + polkit switch fix — 104/104 dinit + 88/88 OpenRC
+- Audit answer: PPD 0.30 IS in both DE lists and Wayle ships a `power_profile` dropdown — but under dinit `switch-profile` was silently denied (polkit `NoSessionForPID`: no session cgroups → no allow_active). Alpine ships PPD D-Bus-activated by design (no initd; both bus names activatable via the shared template).
+- Fix: `writePowerPolkitRule` extended with both PowerProfiles switch/hold actions (both inits); harness NEW `power_profiles` — REAL switch round trip as the session user (`balanced → power-saver → balanced` green verbatim on both inits).
+
+## 2026-10-18 — stasis system config shipped in aports + veilad env wrapper + suspend polkit — 103/103 dinit + 87/87 OpenRC
+- Real gap: stasis had NO FeralOS config — its first-run bootstrap would generate a generic systemd template (`swaylock` + `systemctl suspend`, absent) and PREFER it. Fixed the NixOS-module way: `/etc/stasis/stasis.rune` (veila lock 5min → niri power-off-monitors → `loginctl suspend`; laptop ac/battery plans; inhibitors), `stasis-session` execs `stasis -c` (bootstrap skipped).
+- `veilad-session` env wrapper (WAYLAND_DISPLAY/NIRI_SOCKET absent in user-dinit env); installer polkit `login1.suspend` added for BOTH inits; harness `stasis_idle` + `power_polkit_rule` new, `veila_daemon` extended.
+
+## 2026-10-18 — Wayle session actions wired + stasis declared shipped — harness 102/102
+- Wayle v0.7.0 dashboard dropdown buttons exec `sh -c <command>` (source-verified) — installer seeds `~/.config/wayle/config.toml`: lock=`veila lock`, logout=`niri msg action quit`, reboot=`sudo -n /usr/bin/reboot` (dinit zz-power NOPASSWD) / `loginctl reboot` (OpenRC), poweroff=`loginctl poweroff`; power module → dashboard dropdown. Upstream defaults are systemd-only — the seeds ARE the product.
+- stasis no longer "v2" (shipped de facto since wayle-session r3); harness `wayle_session_actions` (7 asserts) + `stasis_idle`; oo7 unlock-count parse fix (ssh known_hosts warning broke Atoi).
+
+## 2026-10-18 — FERALOS_NAME: wolf→bear, based-on-Alpine framing; template default niriWayle
+- `docs/FERALOS_NAME.md`: the Bear as spirit (brown bear = the Alpine rewilding symbol, *Life Ursus*); wording settled — FeralOS is **based on Alpine** (it consumes Alpine's repositories; "Alpine fork" stays on the vocabulary Avoid-list). `variables.yaml` template default DE → niriWayle.
+
+## 2026-10-18 — Review nits + whole-project doc refresh; niriWayle declared flagship
+- 7 harness-side nits fixed (PAM labels/constants, count-delta secrets proof, recovery-wrapper assert); docs refreshed project-wide; README/ROADMAP/AGENTS declare niriWayle the flagship / true FeralOS experience (other DEs = user convenience, never "ready-to-use").
+
+## 2026-10-18 — oo7_pam_unlock GREEN: authenticated PAM proof — niriWayle harness 100/100
+- Zero product changes — every failure was harness-side. Final transport: direct PAM chain (python3+ctypes libpam over plain exec SSH: `pam_start("greetd")` → authenticate → acct_mgmt → open_session) — autologin session + live daemon untouched, no race.
+- Root cause that hid everything: ctypes RTLD_LOCAL — pam_oo7 has NO `DT_NEEDED libpam.so.0` → musl dlopen failed → PAM silently skipped the `optional` module; fix = one line `RTLD_GLOBAL`. Optional upstream note: Alpine could link libpam into pam_oo7 like every other Alpine PAM module.
+- Ladder: 99/100 → 99/100 → 100/100 (run `2026-10-18T03-03-11Z`, 0 fail/skip).
+
+## 2026-10-17 — oo7 full-desktop unlock parity (niriWayle): PAM login-unlock + password re-sync
+- Source-verified oo7 0.6.0: pam_oo7 = 3 stacks (auth stash / session auto_start fork / password re-sync on chauthtok); the daemon's PAM listener socket (`oo7-pam.sock`) unlocks ALL locked collections at login. An Alpine packaging accident keeps supervision intact: upstream's hardcoded `/usr/bin/oo7-daemon` fallback is a no-op on Alpine → the retry loop hits OUR supervised daemon.
+- First-use bootstrap: the auto-created empty "Login" keyring accepts any password — the PAM unlock binds it to the login password; no prompt, ever. Installer: `pam_oo7` auth + session (LAST) lines in `/etc/pam.d/greetd` + `/etc/pam.d/passwd` override.
+- Known limitation (universal, same as GNOME): root-forced `chpasswd` resets carry no old authtok → keyrings prompt once on next login.
+
+## 2026-10-17 — aports: stasis 1.6.3 idle manager + wayle-session r3 published (CI green)
+- stasis 1.6.3 (Rust, context-aware Wayland idle manager) + supervised `stasis.user` + `stasis-session`; AGPL §13 posture kept (canonical AGPL text vendored, hash-pinned — upstream tarball ships only LICENSE).
+- CI catch recorded: an APKBUILD sum bump must always bring its source files in the SAME commit.
+
+## 2026-10-17 — user-services completion + Key Rack flatpak + Secret portal pin + supervision rule — niriWayle 99/99, niri 99/99, niri OpenRC 83/83
+- Seahorse/oo7-server file conflict (both ship `org.freedesktop.secrets.service` — permanent apk breakage): seahorse removed from niriWayle; Key Rack secrets GUI via Flathub (`app.drey.KeyRack`, new `flatpakPackages` key + `keyrack_flatpak` check); kept on niri (gnome-keyring owns secrets there, proven green).
+- niriWayle portals pin `org.freedesktop.impl.portal.Secret=oo7-portal`; nix XDG_DATA_DIRS gap fixed in BOTH DEs (`/etc/environment` + niri config); SUPERVISION RULE written into AGENTS: every user-session daemon = supervised per-user dinit service — nothing unsupervised (D-Bus activation, autostart, self-spawn), BOTH inits.
+- aports `xdg-desktop-portal-user-dinit` r1: portal-order name gates (permission-store → document-portal → frontend) kill the activation twin race (exit 20); aports CI skip-if-unchanged (38-54 min → ~3 min).
+
+## 2026-10-16 — niriWayle: second desktop environment (niri + Wayle shell + Veila + Raffi + oo7) — harness 97/97
+- New `desktopEnvironment: niriWayle`: niri + Wayle shell (bar/notifications/OSD/wallpaper built-in), Veila lock screen, Raffi launcher, oo7 secrets (gnome-keyring replacement); shares turnstile/per-user dinit, pipewire stack, portals, polkit agent, wayvnc, greetd/regreet, elogind, matugen.
+- aports: wayle 0.7.0, veila 0.4.4, raffi 0.24.0, wl-clipboard-rs 0.9.4, upower-dinit, wayle-session (session script + user units + .desktop).
+- Session gotchas live-caught: `wayle shell` (foreground) not `panel start` (daemonizes+exits → dinit restart loop, started marker never held); `wayle-shell-session` wrapper resolves WAYLAND_DISPLAY/NIRI_SOCKET (user-dinit env has neither).
+
+## 2026-10-14 — openrc-always: OpenRC enablement never conditional — dinit 98/98, OpenRC 82/82
+- User review correction: a dinit install must remain bootable under OpenRC (fallback) — every rc-update enablement now runs regardless of the active init (the links are inert under dinit); the dinit-side enablement stays conditional. `klogd-openrc` installed on BOTH inits; NEW `openrc_fallback_ready` harness check.
+
+## 2026-10-14 — turnstile: OpenRC user-session stack (dual-init) + rules cleanup — dinit 97/97, OpenRC 82/82
+- OpenRC gets the identical per-user dinit stack via turnstile (service-manager-agnostic; only its backend is dinit). aports: restored `turnstiled.initd`/`.confd` + boot-order fix `need elogind; before greetd` — greetd's autologin opened before turnstiled's socket, `pam_turnstile` optional/silent → no user dinit (8 failed checks, live-diagnosed via debug_run).
+- Harness: `turnstile_pkg` init-conditional, busybox `pgrep -x` → `pgrep -f`, 5 session-stack checks un-gated to both inits; `wireless-regdb` restored (accidental removal caught by `nm_wifi_support`).
+
+## 2026-10-13 — matugen packaged in feralos-aports + wired into the niri stack
+- matugen 4.2.0 — the wallpaper→palette backend DMS runs for dynamic theming — absent from Alpine entirely: FIRST Rust/cargo package in the repo (Alpine `bottom` pattern: `fetch --target --locked` + `build/test --frozen`), docker-rehearsed (sha512-pinned source, signed apk, signature-verified install), CI green + published; niri list += matugen; harness `matugen_installed`.
+
+## 2026-10-13 — theme: ALL manual theme seeds removed (dms-theme-sync plugin adoption, Phase A)
+- User decision: third-party DMS plugin `arqueon/dms-theme-sync` (GPL-3.0) becomes the theming authority (propagates DMS appearance to GTK/Qt/KDE/Flatpak) — kdeglobals seed, gtk-3/4 settings.ini seeds, flatpak override, dconf theme default all removed to avoid conflicts; KEPT: dconf profile infrastructure (gsettings needs it), session.json dark seed, Qt portal theme env.
+- First-run catch: Alpine's dconf ships NO `/etc/dconf` at all — installer `mkdir -p /etc/dconf/db/local.d` before `dconf update` (caught by harness `log_errors`).
+
+## 2026-10-12 — flatpak theming binds + hotkey overlay + chown sweep (corrections applied same day)
+- Flatpak user-global override = binds ONLY (`kdeglobals`/`gtk-3.0`/`gtk-4.0` ro) — NO forced `GTK_THEME` (apps must FOLLOW the theme chosen in DMS); hotkey-overlay `skip-at-startup` REVERTED (the "Important Hotkeys" cheatsheet at login is wanted); final `chown -R user:user ~/.config ~/.local` sweep fixed root-owned seeded dirs (per-seed chowns covered files, mkdir-created dirs stayed root).
+
+## 2026-10-12 — KDE apps dark via kdeglobals (okular/ksystemlog were light)
+- KF6 source-verified: KDE apps read colors via `kdeglobals [Colors:*]`, NOT the portal/QPalette path; manager-instantiation apps (okular) bypass kdeglobals and resolve embedded scheme files by id → `[UiSettings] ColorScheme=BreezeDark` pin added. Seed = self-contained BreezeDark `[Colors:*]` + breeze-dark icons (avoids Alpine `breeze` + qt5/kf5 ~100MB).
+- Greeter user hidden from ReGreet 0.2.0's UID-filtered list (now a system user via `adduser -S -G greeter`; busybox `adduser -S` without `-G` → primary group nogroup, chown failure caught live); fish single-quote escaping gotcha in the harness fixed (double-quoted echo).
+
+## 2026-10-12 — DMS reboot via custom power command (no elogind rebuild)
+- Live diagnosis: `loginctl reboot` → elogind execs the ABSOLUTE `/sbin/reboot` (busybox SIGTERM) AFTER its hooks → dinit's handler OVERWRITES the REBOOT type with HALT ("System halted", machine frozen). Fix: DMS `customPowerActionReboot = sudo -n /usr/bin/reboot` + `/etc/sudoers.d/zz-power` NOPASSWD (`zz` sorts after `wheel` — sudo-rs applies the LAST matching rule; live-verified: reboot ~20s, fresh uptime, TPM auto-unlock).
+
+## 2026-10-12 — theme: system-wide dark preference (portal color-scheme fixed)
+- Portals reported "no preference" — dconf was ABSENT and `color-scheme` never set; `QT_QPA_PLATFORMTHEME=gtk3` was DEAD (Alpine ships no QGtk3 plugin, only xdgdesktopportal). Fix: `dconf` + system db `prefer-dark` + `/etc/dconf/profile/user` (Alpine ships none — GLib ignored the system db entirely) + gtk-4.0 settings.ini seed + Qt portal theme env. Live re-verified: `gsettings get` = `'prefer-dark'`.
+
+## 2026-10-12 — niri: prefer-no-csd in the user config (frameless, Windows-like)
+- Global `prefer-no-csd` (no per-window toggle exists; DMS's embedded config ships it active, ours now matches). Documented reality: GTK3/4 windows without a custom titlebar go frameless; libadwaita/GNOME apps and Firefox KEEP their header (client-requested CSD honored by design; `GTK_CSD=0` is dead code on Wayland); Qt drops decorations via xdg-decoration + `QT_WAYLAND_DISABLE_WINDOWDECORATION=1` (numeric 1 — "true" parses to 0 in Qt).
+
+## 2026-10-12 — dms: window-buttons plugin wired system-wide (bar back on top)
+- New repo `dms-window-buttons` (ISC) → aports package into DMS's system plugin dir; settings seed uses DMS's own v1→v2 migration (bottom bar + right widgets + runningApps — no default duplication that would drift with upstream). Plugin v1.0.1: buttons reworked to `niri msg action` with self-resolved socket — v1.0.0 used `NiriService.send` behind a NIRI_SOCKET guard DMS doesn't have (only native close worked).
+
+## 2026-10-11 — feralos-update script wired to the DMS System Update button
+- DMS has no native apk backend (pacman/dnf/apt/zypper/xbps/pkg/portage/flatpak only) → `updaterUseCustomCommand` + `/usr/local/bin/feralos-update`: apk update/upgrade → flatpak (if installed) → nix (channels, profile upgrade, GC); best-effort error counter, exit code = errors. Script written via ExecSilent (the echoed body tripped `log_errors`). Caveats: DMS upgrade timeout 30 min; no harness check by user decision (edge-package upgrade limitation in-VM).
+
+## 2026-10-11 — DMS power off/reboot dead under dinit (elogind → busybox) + polkit allow_active gap
+- Root cause: elogind BYPASSES PATH and execs the absolute `/sbin/poweroff` (busybox SIGUSR2, ignored by dinit) AFTER running its hooks — the `/usr/bin` dinit wrappers are never consulted. Fix: `/etc/elogind/system-shutdown/50-feralos-dinit.sh` hook execs the dinit wrappers per verb (before the harmless busybox exec).
+- Bundled finding: under dinit elogind cannot map PIDs to sessions (`NoSessionForPID`) → polkit never sees allow_active → every login1 power action = auth challenge. Fix: `/etc/polkit-1/rules.d/49-feralos-power.rules` (wheel → power-off/reboot/halt YES — standard desktop posture).
+
+## 2026-10-11 — nix: flake registry pinned to stable 26.05 system-wide (unstable leak fixed)
+- The stable CHANNEL existed but the FLAKE registry pin lived inside `if len(NixPackages) > 0` — enableNix without nixPackages (the niri default) left the builtin nixpkgs→unstable active for every `nixpkgs#...` reference; root never pinned. Fix: system-wide `/etc/nix/registry.json` (every user incl. root) + user pin unconditional; harness `nix_registry_stable`.
+
+## 2026-10-11 — pkexec refused the FeralOS login-shell (DMS user creation dead)
+- pkexec validates the session user's SHELL against `/etc/shells`; the login-shell path was deliberately unlisted (the old upstream re-exec trap) → EVERY pkexec in a niri session failed (all DMS privileged ops, RC=127). The trap is gone from our niri-session — fix: idempotently list `/usr/libexec/feralos/login-shell` in `/etc/shells`; harness `login_shell_trick` extended (falsifiable).
+
+## 2026-10-11 — niri: DMS theme seeded green + dark seed + bottom bar + running apps + default apps + icons
+- DMS 1.6.2 source-verified seeds: green theme (`currentThemeCategory: generic` + `currentThemeName: green`), `session.json` `isLightMode: false` (portal-independent dark), bar-at-bottom + runningApps via DMS's own v1→v2 migration (zero default duplication), `xdg-terminals.list` + `mimeapps.list` defaults (desktop IDs verified against Alpine contents — eog is `org.gnome.eog.desktop`), gnome-maps/calendar scheme handlers.
+- Icons: `adwaita-icon-theme` + `hicolor-icon-theme` as dms-shell deps (aports r3) + GTK settings seed (DMS resolves icons via the GTK theme chain; user-reported missing icons on real hardware). GOTCHA: per-file chowns AFTER the general `chown -R` (later seeds would land root-owned).
+
+## 2026-10-11 — session apps bound to the niri session (add-wants model) — greeter-DMS bug class eliminated
+- Research (niri/DMS/turnstile docs): session apps must be compositor-session scope, not login scope. aports `niri-user-dinit` r3: `niri-session` starts polkit-agent/dms/wayvnc existence-filtered right after `dinitctl --user start niri`; installer boot.d = infrastructure only (5 links); harness asserts the 3 session apps ABSENT from boot.d. Lifetime = upstream semantics (start at real login, teardown at last logout).
+
+## 2026-10-11 — aports: DMS no longer starts on the greeter session (dms-shell guard)
+- `dms.user` was linked system-wide → the greeter user's own user-dinit started the full desktop stack (the `wait-wayland` gate opens on the greeter's niri too). Fix: `dms-session` clean `exit 0` for greeter (username + `XDG_SESSION_CLASS` guards); `dms.user` restart dropped (restart=true would loop on the clean exit; smooth-recovery kept for real crashes).
+
+## 2026-10-11 — config: edge-repos auto-enable + wizard pre-filled on invalid config
+- `extraPackagesEdge` without `enableEdgeRepos` hard-errored BEFORE the wizard — the user could not fix the value interactively. Fix 1: `applyImpliedFlags` at load (edge list ⇒ flag, single source; hard error removed). Fix 2: `LoadConfig` returns conf on validation errors → wizard pre-filled; still fatal before any disk work when still invalid (unattended). Tests added.
+
+## 2026-10-10 — branches: developDinit → develop → main merged; work continues on develop
+- developDinit → develop fast-forward; develop → main merge commit `8568df0` with 9 conflicts resolved (develop side everywhere — main's 2 dinit reverts cancelled intentionally). All 3 branches pushed, SHA parity verified.
+
+## 2026-10-10 — validation: tests + harness dinit/niri 94/94 + debug_run live; QEMU flag fix
+- Post-rename regression green: harness 94/94 (runner qcow2 rebase, disk 3G→8G, cloud-localds reinstall); debug_run live boot 8/8 (dinit PID1, boot chain, user dinit stack, greetd socket, TPM auto-unlock).
+- Bug: debug_run passed `virtio-vga-gl,venus=on,blob=true,hostmem=1G` — apt QEMU 8.2.2 rejects `venus` → QEMU exit 1. Fixed to plain `virtio-vga-gl` (`dccb79a`), validated with a native boot.
+
+## 2026-10-10 — src: Go module alpineInstaller → feralos/src (completes the rename)
+- `src/go.mod` → `module feralos/src`; ~50 files' imports updated (121 insertions / 121 deletions); docs synced; branch name `alpineInstallerGolang` kept (historical).
+
+## 2026-10-10 — repo: Go modules + paths renamed skeaAlpineInstaller → feralos
+- harness + debug_run modules → `feralos/...`; runner-VM repo root → `/home/<user>/feralos` (repo copied at runtime — safe for existing runner images); historical occurrences kept deliberately.
+
+## 2026-10-10 — repo: hosting migrated Gitea → GitHub (skea999/feralos)
+- Parity verified BEFORE switching (`git ls-remote` both sides: identical SHAs, zero tags; fast-forward push only). Old `origin` → `gitea` remote during confidence period; `gh auth setup-git`; no CI to port.
+
+## 2026-10-10 — host: Nix QEMU stack removed, apt QEMU 8.2.2 validated 94/94
+- All 5 wrapper locations + the nix `qemu` profile removed (swtpm/OVMF/virt-manager/mesa KEPT); AppArmor nix overrides cleaned (backups kept). Insight: the GL path niri uses = guest mesa virgl ↔ host libvirglrenderer — the QEMU version is NOT the discriminator; full run 94/94 with zero GL regressions.
+
+## 2026-10-10 — DMS wifi/BT harness checks: 2 real bugs found+fixed — 94/94
+- NEW `bluetooth_service` (started marker + bluetoothd + org.bluez registered on the system bus — what the DMS BT widget talks to) + `nm_wifi_support` (NM wifi plugin + wireless-regdb + live `nmcli radio`). Bug 1 (aports `fb64d77` r3): bluez-dinit ran the Debian bluetoothd path → never started. Bug 2 (harness): wrong wpa_supplicant path — the wifi stack itself was healthy.
+
+## 2026-10-10 — bluetooth service unified + niri-only enablement
+- feralos owns bluez-dinit → the name split was pointless AND the base-list scope was wrong (bluetooth would be enabled on every dinit install). aports `e9ac00c`: service renamed `bluez`→`bluetooth` (same name as the OpenRC initd); rules back to clean; enablement = single `bluetooth: default` in the NIRI services map only.
+
+## 2026-10-10 — DMS bluetooth + NM wifi completeness (data-only round)
+- Live-diagnosed via `dms doctor`: bluetooth was in NO package list (the DMS BT widget speaks org.bluez) → niri += bluez/bluez-openrc/bluez-dinit; `networkmanager-wifi` missing meant NM had NO wifi support at all → += networkmanager-wifi + wireless-regdb. Names verified against Alpine 3.24 via `apk add -s`.
+
+## 2026-10-10 — wizard password double-entry confirmation
+- Password + LUKS passphrase now asked twice (masked; mismatch = both re-asked from the first entry); empty LUKS (reuse user password) skips confirmation; min length unchanged (validators.go single source, shared with validateConfig).
+
+## 2026-10-09 — niri/DMS dinit runtime depth: 5 checks added/hardened, validated 91/91
+- NEW `niri_layers` (layer-shell surfaces MAPPED = the DMS bar actually renders), `greetd_socket` (socket is PID-suffixed `/run/greetd-<pid>.sock` — glob gotcha), `session_dbus_socket`, `session_pipewire_socket`; `niri_screenshot` hardened to PNG magic bytes (220926-byte capture). regreet runtime not checkable on verify boots (harness autologin bypasses the greeter).
+
+## 2026-10-09 — less shim: aports less-dummy package replaces broken symlink dummy
+- The `less`→bat symlink made bat re-exec ITSELF (its hardcoded pager ignores `$PAGER`; only `cat` short-circuits) → clap `unexpected argument '-R'` — fish history, git log, man all broke. Fix: `less-dummy` 999.0.0 (`provides`+`replaces`): POSIX-sh wrapper drops all less flags, dumps once via `bat --color=always --paging=never` (chain always terminates). Harness falsifiable: bat's EXACT flag set + content passthrough + NEW `less_fish_history`.
+- CI infra: workflow container → `public.ecr.aws/docker/library/alpine` (Docker Hub anonymous pull rate limit had blocked 3 runs).
+
+## 2026-10-09 — bug-3 DEAD: niri renders in QEMU (86/86 zero skips); edge repos = confined feature
+- Fix chain: host QEMU wrappers + `virtio-vga-gl` + `egl-headless,gl=on` + HWE kernel + guest mesa 26.2.4@edge (virgl gallium restored upstream) → niri has a REAL output (`Virtual-1` 1280x800), wayvnc listens :5900, screenshot writes a real PNG. First fully-real niri run in QEMU.
+- Installer: `enableEdgeRepos` + `extraPackagesEdge` confined feature (append @edge repos → install the list → comment the repos out; apk v3 tagged-repo masking kills mid-install edge mixing — verified live). Console keymap from user variables; harness QEMU DMI skip-gates removed — all checks real on every host.
+
+## 2026-10-08 — all 28 fixtures mirror variables.yaml template structure
+- Every fixture carries the COMPLETE 33-key template field set (missing fields = behavior-preserving Go zero values; niri fixtures carry the 5-pkg edge mesa stack in `extraPackagesEdge`); distinctive values preserved everywhere; verified by before/after JSON diff + 28/28 yaml parse.
+
+## 2026-10-08 — extraPackagesEdge (edge-tagged packages installed LAST)
+- New variable: packages from the @edge tagged repos, installed AFTER all other package installs + FinalUpgrade (base completes from stable first). Requires `enableEdgeRepos` (hard validation error otherwise); per-package `@tag` accepted; no wizard prompt (template-only).
+
+## 2026-10-07 — console keymap (loadkmap) restored under dinit
+- The OpenRC→dinit migration lost the busybox-initscripts loadkmap service. New aports `busybox-loadkmap-dinit`: scripted service + `/usr/lib/dinit/loadkmap` wrapper (sources `/etc/conf.d/loadkmap`, default `us`) — installer rewrites KEYMAP= from user variables (kbd-bkeymaps layout: keymap == layout dir). chimera early-console documented as no-op for bkeymaps (paths don't exist).
+
+## 2026-10-05 — check mechanics fixes validated on LIVE target (standalone verify 85/85)
+- 5 output-dependent niri checks re-guarded with DMI product_name+sys_vendor concat (q35 values verified verbatim on the live target); `dms_ipc` real syntax `dms ipc call outputs status` — GOTCHA: dms answers UNKNOWN targets rc 0 too, only real target/function pairs prove. Working read-only dms calls catalogued (audio/lock/outputs/notifications).
+
+## 2026-10-05 — greeter dinit log dir; 4 new niri/dms runtime checks; OpenRC minimal 49/49
+- Greeter user services log under `$HOME/.local/share/dinit` — dir was missing for `/var/lib/greetd` ("opening log file" failures). Dead eth0 write documented as non-niri-flow-only. NEW checks: `niri_msg_version`, `niri_windows`, `niri_outputs_count` (QEMU skip), `dms_ipc`; realhw script parity (`niri_outputs_count` HARD there).
+
+## 2026-10-03 — caef07b fixes VALIDATED; bug-3 root cause = zero wl_outputs in QEMU (77/80 ×2)
+- All 3 aports fixes work: race poll (the earlier failure was a harness regex false negative — niri IS supervised), niri.log captures stderr, launchers green. Root cause captured verbatim: bochs card0 (no driver) + virtio-gpu-gl card1 (`driver missing` — guest mesa lacks venus/virgl) → niri listens with ZERO devices → layer surfaces closed, wayvnc crash-loop, screenshot writes nothing. Fix directions → the 10-09 round.
+
+## 2026-10-03 — niri-session fix VALIDATED; 3 product bugs diagnosed (77/80 ×2)
+- Session fix works: verify boots hold `New session c1` @4.9s → removed only at teardown; 3 runtime checks green for the first time. Diagnosed: (1) single-shot pgrep race → nondeterministic fallback exec (compositor outside user dinit); (2) user-dinit env lacks WAYLAND_DISPLAY → wayvnc/polkit-agent crash-loop every boot; (3) screenshot exits 0 writing nothing (bug-3). Harness: screenshot fresh-PNG mechanics + Pictures/Screenshots ownership fix.
+
+## 2026-10-02 — earlyoom tiered victim selection
+- Tier 1 user apps killed FIRST (`--prefer` +300: 172 apps; flatpak comm names; 15-byte truncation-correct); Tier 3 system core NEVER chosen (`--ignore` hard skip — key insight: `--avoid` is soft and can be outbid; covers PID1/session mgr/bus/network/logging/ssh/login path); Tier 2 desktop session natural oom_score order. POSIX-sh wrapper; config per the ADR-008 pattern.
+
+## 2026-10-02 — dinit services aligned to Artix/Chimera (ADR-009) — 74/74 dinit + 49/49 OpenRC
+- 48 -dinit pkgs after a full audit: `restart=true` removed from ALL daemons (smooth-recovery only); getty keeps restart + `termsignal=HUP` + config-driven baud; `before=login.target` ×33; network ordering (firewalls before pre-network, NM → network.target, avahi/rsync depend networking); apparmor before local.target; dnsmasq privilege drop (Artix exact); dbus `smooth-recovery=no` + stop guard; NEW `dbus-wait-for-dinit` readiness helper; lxc restart-loop fixed; sshd keygen prereq. Dead pipewire/wireplumber system dinit pkgs removed. Audit facts recorded (Artix dbus-activates polkit/udisks2/fwupd by design; irqbalance/rasdaemon/incus/nix/vector/klogd/cosmic-greeter not packaged there).
+
+## 2026-10-01 — conf.d-equivalent config files for all -dinit services (ADR-008) — 74/74 dinit + 46/46 OpenRC
+- 22 -dinit packages converted to the wrapper+config-file pattern (Artix): service → `/usr/lib/dinit/<svc>` wrapper → sources `/etc/dinit.d/config/<svc>.conf` → exec daemon — user-editable, apk-protected; the OpenRC `/etc/conf.d` convention restored (defaults match Alpine conf.d; dnsmasq keeps its real config path; cpufrequtils gained stop opts).
+- Harness: permanent `dinit_config` check (config dir + ≥10 `.conf` + wiring spot-checks).
+
 ## 2026-10-01 — klogd-openrc package (989 series): no more runtime file writes
 
 - OpenRC klogd now ships as **klogd-openrc 989.0.1.0** in feralos-aports (commit `2d5e05f`, CI green): dependency-free `/etc/init.d/klogd` (dmesg snapshot + `klogd -n` → `/dev/log`), `replaces="busybox-openrc"` (apk refuses the file overwrite without it — found by rehearsal)

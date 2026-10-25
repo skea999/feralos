@@ -72,20 +72,9 @@ fi' > /etc/profile.d/console.sh`
 		return fmt.Errorf("failed to write subgid: %w", err)
 	}
 
-	// 10. System limits
-	fmt.Println("[INFO] Configuring system limits...")
-	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /etc/security"); err != nil {
-		fmt.Printf("[WARNING] Failed to create /etc/security: %v\n", err)
-	}
-	limits := fmt.Sprintf(`echo "* hard nofile 100000
-* soft nofile 100000
-root hard nofile 100000
-root soft nofile 100000
-%s hard nofile 524288
-%s soft nofile 524288" > /etc/security/limits.conf`, u.UserName, u.UserName)
-	if _, err := shell.ExecuteCmd(chroot, limits); err != nil {
-		return fmt.Errorf("failed to write limits.conf: %w", err)
-	}
+	// 10. System limits — NOT written here: SetupUsers (users.go) owns
+	// /etc/security/limits.conf (polishCode P2-2). This file used to write an
+	// identical copy that users.go immediately overwrote.
 
 	// 11. Sudoers
 	fmt.Println("[INFO] Configuring sudo-rs permissions...")
