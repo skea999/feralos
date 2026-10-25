@@ -8,6 +8,13 @@
 
 ## Recent Rounds (latest first)
 
+### 2026-10-25 - Cosmic on elogind: seatd daemon dropped, full session stack — harness cosmic 77/77
+**Agent:** codebase
+**Summary:** User decision: unify cosmic on elogind + turnstile (same stack as niri/niriWayle/kde). Alpine 3.24 container-verified: NOTHING depends on the seatd daemon (`cosmic-comp` → `libseat` only, and libseat uses the logind backend), so no dummy package needed — the daemon is simply gone from the DE.
+- **aports:** `cosmic-greeter-dinit` r6 (`4bfd658` + sum fix `1aa3ce8`; the r5 first attempt `c330c6d` used the wrong unit name `elogind` — since ADR-010 the unit is `org.freedesktop.login1`; live boot caught it: "service description not found"): both greeter units now `depends-on = org.freedesktop.login1`. NEW `playerctld-user-dinit` (`2c87f7a`; `org.mpris.MediaPlayer2.playerctld` → `/usr/bin/playerctld`; the Alpine package is `playerctl` — binary + activation file ship together). CI `40199433062` + `40200929104` green.
+- **rules (cosmic):** packages `seatd`→`elogind` (`elogind-dinit` NOT listed — -openrc/-dinit auto-pull/convert), += `glib-networking-user-dinit` + `playerctld-user-dinit`; services `seatd`→`elogind`; NEW `dinitServices {"org.freedesktop.login1": "default"}` (dinit enablement name differs from the OpenRC initd name — same pattern as niri/niriWayle); groups `-seat` (the group came from the seatd package — `adduser <user> seat` failed on run `14-00-14Z`).
+- **Validated:** cosmic full-feature dinit `2026-10-25T14-19-46Z` **77/77** (boot: `org.freedesktop.login1` + `turnstiled` `[ OK ]`, user session at 6.7 s; `cosmic_session` live — cosmic-comp + cosmic-session via libseat/logind; `dbus_activation_uniform` all routed; `migration` 0/14 uncovered; `log_errors` clean, only the 2 allowlisted apt warnings). Cosmic session coverage (old ADR-010 phase 10) UNBLOCKED and complete — the turnstile user dinit + materializer stack now runs on ALL four DEs.
+
 ### 2026-10-25 - KDE session-bus ADR-010 coverage + installer.log WARNING sweep — harness kde 77/77
 **Agent:** codebase
 **Summary:** KDE session D-Bus targets now run as supervised per-user dinit units (the turnstile user dinit + `dbus-session-materializer` were already in the KDE stack; `pam_turnstile` arrives via Alpine's `base-session` include in sddm's PAM — verified, no installer PAM edit needed).

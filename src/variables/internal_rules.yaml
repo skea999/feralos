@@ -297,12 +297,21 @@ desktopEnvironments:
     # OpenRC side: upower-openrc is install_if-pulled like every -openrc pkg.
     groups: ["video", "input", "audio", "plugdev", "netdev", "lpadmin"]
   cosmic:
-    packages: ["cosmic-session", "cosmic-term", "cosmic-greeter", "cosmic-edit", "cosmic-player", "cosmic-store", "cosmic-settings", "cosmic-screenshot", "cosmic-icons", "cosmic-initial-setup", "adwaita-icon-theme", "desktop-file-utils", "hicolor-icon-theme", "seatd", "dbus", "polkit", "pipewire", "xdg-desktop-portal-cosmic", "upower-dinit", "geoclue-dinit", "turnstile", "dbus-session-materializer-user-dinit", "dconf-user-dinit", "at-spi2-core-user-dinit", "xdg-desktop-portal-user-dinit", "cosmic-applets-user-dinit", "xdg-desktop-portal-cosmic-user-dinit"]
-    services: {"cosmic-greeter": "default", "seatd": "default", "dbus": "default", "turnstiled": "default"}
-    # seat group: seatd socket is root:seat 0770 — without it libseat cannot
-    # acquire the seat and cosmic-comp exits instantly ("Failed to acquire
-    # session"); debug_run-proven 2026-10-21.
-    groups: ["video", "input", "seat"]
+    packages: ["cosmic-session", "cosmic-term", "cosmic-greeter", "cosmic-edit", "cosmic-player", "cosmic-store", "cosmic-settings", "cosmic-screenshot", "cosmic-icons", "cosmic-initial-setup", "adwaita-icon-theme", "desktop-file-utils", "hicolor-icon-theme", "elogind", "dbus", "polkit", "pipewire", "xdg-desktop-portal-cosmic", "upower-dinit", "geoclue-dinit", "turnstile", "dbus-session-materializer-user-dinit", "dconf-user-dinit", "at-spi2-core-user-dinit", "xdg-desktop-portal-user-dinit", "cosmic-applets-user-dinit", "xdg-desktop-portal-cosmic-user-dinit", "glib-networking-user-dinit", "playerctld-user-dinit"]
+    services: {"cosmic-greeter": "default", "elogind": "default", "dbus": "default", "turnstiled": "default"}
+    # Seat manager = elogind (same as niri/niriWayle/kde): turnstiled depends
+    # on org.freedesktop.login1 (ADR-010 override -> elogind unit), so the
+    # user dinit + dbus-session-materializer stack works. cosmic-comp reaches
+    # the seat through libseat's logind backend (libseat pkg, transitive;
+    # Alpine 3.24 verified: NOTHING depends on the seatd daemon, it is gone).
+    # NO "seat" group: the group came from the seatd package (absent here);
+    # elogind manages device ACLs itself (harness run 2026-10-25T14-00-14Z:
+    # adduser <user> seat failed — group no longer exists).
+    # elogind-dinit NOT listed: -openrc/-dinit variants auto-pull/convert.
+    # dinitServices: the elogind dinit unit is NAMED org.freedesktop.login1
+    # (ADR-010 R1: unit = canonical bus name; the OpenRC initd stays `elogind`).
+    dinitServices: {"org.freedesktop.login1": "default"}
+    groups: ["video", "input"]
 
 # 3. Video Drivers Definitions
 videoDrivers:
