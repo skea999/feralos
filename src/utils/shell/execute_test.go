@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // Environment knobs driving the failure-handling branches (constants to keep
@@ -73,6 +74,32 @@ func retryCounter(t *testing.T) (cmd string, attempts func() int) {
 		}
 		return strings.Count(string(data), "x")
 	}
+}
+
+// timeoutCounter is retryCounter's hanging twin: appends one line per attempt
+// then blocks in `exec sleep 5` (the exec makes sleep the process itself, so
+// the timeout kill reaps it immediately instead of leaving a grandchild
+// holding the stdout pipe).
+func timeoutCounter(t *testing.T) (cmd string, attempts func() int) {
+	t.Helper()
+	file := filepath.Join(t.TempDir(), "attempts")
+	cmd = fmt.Sprintf("printf 'x\\n' >> %q; exec sleep 5", file)
+	return cmd, func() int {
+		data, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatalf("read attempts file: %v", err)
+		}
+		return strings.Count(string(data), "x")
+	}
+}
+
+// setShortTimeout overrides the package command timeout (P1-2 hook) for the
+// test duration.
+func setShortTimeout(t *testing.T) {
+	t.Helper()
+	old := commandTimeout
+	commandTimeout = 100 * time.Millisecond
+	t.Cleanup(func() { commandTimeout = old })
 }
 
 func TestExecuteCmdSuccess(t *testing.T) {
@@ -267,5 +294,150 @@ func TestSetCaller(t *testing.T) {
 	}
 	if got := snapshot(); !strings.Contains(got, "[testpkg]") {
 		t.Errorf("log output missing caller prefix, got: %s", got)
+	}
+}
+
+// TestExecuteCmdStopAbortsViaHook covers the P2-1 exit hook: answering 's'
+// in the ask loop reaches the single abort point and calls osExit(1) —
+// captured via the overridable hook instead of killing the test process.
+func TestExecuteCmdStopAbortsViaHook(t *testing.T) {
+	t.Setenv(envIgnoreErrors, "")
+	t.Setenv(envNonInteractive, "")
+	setTestStdin(t, "s\n")
+	snapshot := captureOutput(t)
+	cmd, _ := retryCounter(t)
+
+	oldExit := osExit
+	exitCode := -1
+	aborted := false
+	osExit = func(code int) {
+		exitCode = code
+		aborted = true
+		panic("osExit-under-test")
+	}
+	t.Cleanup(func() { osExit = oldExit })
+
+	func() {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Error("osExit hook did not abort the flow (no panic propagated)")
+			}
+		}()
+		_, _ = ExecuteCmd("", cmd)
+	}()
+
+	if !aborted {
+		t.Fatal("osExit hook never called — 'stop' did not reach the abort point")
+	}
+	if exitCode != 1 {
+		t.Errorf("osExit code = %d, want 1", exitCode)
+	}
+	if got := snapshot(); !strings.Contains(got, "[CRITICAL] Script aborted by user.") {
+		t.Errorf("log output missing abort notice, got: %s", got)
+	}
+}
+
+// TestExecuteCmdTimeoutRetryThenError covers P1-2: a hanging command is
+// killed at the command timeout, the wrapped error flows through the standard
+// retry path (3 attempts), and the final non-interactive abort error mentions
+// the timeout.
+func TestExecuteCmdTimeoutRetryThenError(t *testing.T) {
+	t.Setenv(envIgnoreErrors, "")
+	t.Setenv(envNonInteractive, "1")
+	t.Setenv(envNonInteractiveDecision, "")
+	setShortTimeout(t)
+	snapshot := captureOutput(t)
+	cmd, attempts := timeoutCounter(t)
+
+	_, err := ExecuteCmd("", cmd)
+	if err == nil {
+		t.Fatal("ExecuteCmd(hanging, non-interactive abort) = nil, want error")
+	}
+	if !strings.Contains(err.Error(), "command timed out after 100ms") {
+		t.Errorf("error %q missing timeout wrap", err)
+	}
+	if !strings.Contains(err.Error(), fmt.Sprintf("after %d attempts", MaxRetries)) {
+		t.Errorf("error %q missing attempt count", err)
+	}
+	if n := attempts(); n != MaxRetries {
+		t.Errorf("attempts = %d, want %d (timeout flows through the retry path)", n, MaxRetries)
+	}
+	if got := snapshot(); !strings.Contains(got, "[RETRY]") {
+		t.Errorf("log output missing retry notice, got: %s", got)
+	}
+}
+
+// TestExecuteCmdTimeoutAllowFail proves the allow-fail short-circuit fires on
+// a timeout-killed attempt (returns nil on the FIRST attempt).
+func TestExecuteCmdTimeoutAllowFail(t *testing.T) {
+	t.Setenv(envIgnoreErrors, "")
+	t.Setenv(envNonInteractive, "")
+	setShortTimeout(t)
+	captureOutput(t)
+	cmd, attempts := timeoutCounter(t)
+
+	out, err := ExecuteCmdWithAllowFail("", cmd, true, false)
+	if err != nil {
+		t.Fatalf("ExecuteCmdWithAllowFail(timeout) = %v, want nil (allowFail swallows the kill)", err)
+	}
+	if out != "" {
+		t.Errorf("stdout = %q, want empty", out)
+	}
+	if n := attempts(); n != 1 {
+		t.Errorf("attempts = %d, want 1 (allowFail returns on first failure)", n)
+	}
+}
+
+// TestExecuteCmdTimeoutIgnoreErrors proves ignoreErrors still wins after the
+// timeout-driven retries: nil error, 3 attempts, [IGNORED] marker.
+func TestExecuteCmdTimeoutIgnoreErrors(t *testing.T) {
+	t.Setenv(envIgnoreErrors, "1")
+	t.Setenv(envNonInteractive, "")
+	setShortTimeout(t)
+	snapshot := captureOutput(t)
+	cmd, attempts := timeoutCounter(t)
+
+	out, err := ExecuteCmd("", cmd)
+	if err != nil {
+		t.Fatalf("ExecuteCmd(timeout, ignoreErrors) = %v, want nil (ignore path)", err)
+	}
+	if out != "" {
+		t.Errorf("stdout = %q, want empty", out)
+	}
+	if n := attempts(); n != MaxRetries {
+		t.Errorf("attempts = %d, want %d", n, MaxRetries)
+	}
+	log := snapshot()
+	if !strings.Contains(log, "[IGNORED]") {
+		t.Errorf("log output missing ignore marker, got: %s", log)
+	}
+	if !strings.Contains(log, "command timed out after 100ms") {
+		t.Errorf("log output missing timeout detail in ignored error, got: %s", log)
+	}
+}
+
+// TestExecuteCmdArgsTimeout proves the no-shell (args) flavor uses the same
+// context-bounded execution path.
+func TestExecuteCmdArgsTimeout(t *testing.T) {
+	t.Setenv(envIgnoreErrors, "")
+	t.Setenv(envNonInteractive, "1")
+	t.Setenv(envNonInteractiveDecision, "")
+	setShortTimeout(t)
+	captureOutput(t)
+
+	attemptsFile := filepath.Join(t.TempDir(), "attempts")
+	_, err := ExecuteCmdArgs("", "/bin/sh", "-c", fmt.Sprintf("printf 'x\\n' >> %q; exec sleep 5", attemptsFile))
+	if err == nil {
+		t.Fatal("ExecuteCmdArgs(hanging) = nil, want error")
+	}
+	if !strings.Contains(err.Error(), "command timed out after 100ms") {
+		t.Errorf("error %q missing timeout wrap", err)
+	}
+	data, readErr := os.ReadFile(attemptsFile)
+	if readErr != nil {
+		t.Fatalf("read attempts file: %v", readErr)
+	}
+	if n := strings.Count(string(data), "x"); n != MaxRetries {
+		t.Errorf("attempts = %d, want %d", n, MaxRetries)
 	}
 }

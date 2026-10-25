@@ -3,6 +3,7 @@ package shell
 import (
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestExecSilentSuccess(t *testing.T) {
@@ -57,5 +58,24 @@ func TestExecSilentNoStderr(t *testing.T) {
 	}
 	if err.Error() != "exit status 7" {
 		t.Errorf("error = %q, want %q (no stderr, no snippet)", err, "exit status 7")
+	}
+}
+
+// TestExecSilentTimeout covers P1-2 for the silent path: ExecSilent is bounded
+// by the same command timeout and the error mentions the timeout.
+func TestExecSilentTimeout(t *testing.T) {
+	old := commandTimeout
+	commandTimeout = 100 * time.Millisecond
+	t.Cleanup(func() { commandTimeout = old })
+
+	out, err := ExecSilent("", "echo out; exec sleep 5")
+	if err == nil {
+		t.Fatal("ExecSilent(hanging) = nil error, want timeout error")
+	}
+	if !strings.Contains(err.Error(), "command timed out after 100ms") {
+		t.Errorf("error %q missing timeout wrap", err)
+	}
+	if out != "out" {
+		t.Errorf("stdout = %q, want %q (returned alongside the error)", out, "out")
 	}
 }

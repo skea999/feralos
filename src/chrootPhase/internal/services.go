@@ -1,10 +1,12 @@
 package internal
 
 import (
-	"feralos/src/utils/config"
-	"feralos/src/utils/shell"
+	"errors"
 	"fmt"
 	"strings"
+
+	"feralos/src/utils/config"
+	"feralos/src/utils/shell"
 )
 
 // SetupServices configures service enablement.
@@ -21,7 +23,9 @@ func SetupServices(conf *config.Config) error {
 	fmt.Println("[INFO] Configuring OpenRC services...")
 	for level, services := range conf.User.Runlevels {
 		for _, svc := range services {
-			_, _ = shell.ExecuteCmd(chroot, fmt.Sprintf("rc-update add %s %s", svc, level))
+			if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("rc-update add %s %s", svc, level)); err != nil {
+				return fmt.Errorf("failed to enable %s: %w", svc, err)
+			}
 		}
 	}
 
@@ -65,6 +69,13 @@ func SetupServices(conf *config.Config) error {
 		}
 
 		enabled, skipped := 0, 0
+		// P2-3: enablement errors are collected and returned as one joined
+		// error after the loops (a failed symlink must not be invisible to
+		// the exit code). Under SKEA_IGNORE_ERRORS=1 shell.ExecuteCmd returns
+		// nil on failure — best-effort behavior unchanged. The
+		// "could not enable" WARNING stays informational (pre-existing
+		// semantics: service file genuinely absent is a packaging fact).
+		var enableErrs []error
 		// dinitctl enable (from-service defaults to boot) creates the symlink
 		// in boot's waits-for.d = /etc/dinit.d/boot.d (the ADMIN dir) — kept
 		// separate from /lib/dinit.d/boot.d where packages drop their links;
@@ -94,7 +105,10 @@ func SetupServices(conf *config.Config) error {
 			if idx := strings.Index(svc, "@"); idx > 0 {
 				base = svc[:idx]
 			}
-			_, _ = shell.ExecuteCmd(chroot, fmt.Sprintf("t=/lib/dinit.d/%s; [ -e \"$t\" ] || t=/etc/dinit.d/%s; ln -sf \"$t\" /etc/dinit.d/boot.d/%s", base, base, svc))
+			if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("t=/lib/dinit.d/%s; [ -e \"$t\" ] || t=/etc/dinit.d/%s; ln -sf \"$t\" /etc/dinit.d/boot.d/%s", base, base, svc)); err != nil {
+				enableErrs = append(enableErrs, fmt.Errorf("failed to enable %s: %w", svc, err))
+				return
+			}
 			if linkExists(svc) {
 				enabled++
 			} else {
@@ -118,6 +132,9 @@ func SetupServices(conf *config.Config) error {
 				}
 				enableDinitSvc(svc)
 			}
+		}
+		if len(enableErrs) > 0 {
+			return fmt.Errorf("dinit service enablement failed: %w", errors.Join(enableErrs...))
 		}
 		fmt.Printf("[INFO] Dinit: %d services enabled, %d chimera-covered skipped\n", enabled, skipped)
 
