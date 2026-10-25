@@ -264,7 +264,7 @@ the overrides into `$XDG_RUNTIME_DIR/dbus-1/services`, which Plasma's own
 glib-networking, ibus/obexd/system-config-printer). Cosmic was unified on
 elogind the same day (user decision): the seatd daemon dropped (nothing on
 Alpine 3.24 depends on it — cosmic-comp reaches the seat via libseat's logind
-backend), turnstiled's `org.freedesktop.login1` dep resolves, and the turnstile
+backend), turnstiled's `elogind` unit dep resolves, and the turnstile
 user dinit + materializer run there too; cosmic session targets are fully
 covered (`playerctld-user-dinit` added for `org.mpris.MediaPlayer2.playerctld`).
 `dbus_activation_env` session half skips honestly on DE-owned buses (kde/

@@ -1649,7 +1649,8 @@ export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
 # This check verifies the NIRI session stack (dbus.user owns the session bus
 # and the materialized overrides). On DEs that own their session bus (kde/
 # cosmic: dbus-run-session, address NOT /run/user/<uid>/bus) the check is
-# skipped honestly — session coverage there is a documented ADR-010 item.
+# skipped honestly — their session targets are covered by the same
+# uniform/migration checks; the dbus-session-materializer serves their bus.
 [ -S "$XDG_RUNTIME_DIR/bus" ] || { echo "session env check SKIPPED (DE-owned session bus)"; exit 0; }
 diag() {
     echo "--- diagnostics ---"
