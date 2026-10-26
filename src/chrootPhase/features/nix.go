@@ -48,10 +48,9 @@ trusted-users = root @wheel`
 	// installs; --impure; extra cache URLs) and are ~root-equivalent by
 	// definition — wheel already is, so this adds zero escalation.
 	// Daily UX: nix profile add / flakes work for wheel users without sudo.
-	escapedNixConf := strings.ReplaceAll(nixConf, "'", "'\\''")
 	// Append (not overwrite): preserve Alpine's allowed-users=@nix,
 	// build-users-group=nixbld and max-jobs from /etc/nix/nix.conf.
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' >> /etc/nix/nix.conf", escapedNixConf)); err != nil {
+	if err := shell.WriteFileAppend(chroot, "/etc/nix/nix.conf", []byte(nixConf+"\n"), 0644); err != nil {
 		return fmt.Errorf("failed to write nix.conf: %w", err)
 	}
 
@@ -103,8 +102,7 @@ trusted-users = root @wheel`
     }
   ]
 }`
-	escapedRegistry := strings.ReplaceAll(registryJSON, "'", "'\\''")
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/nix/registry.json", escapedRegistry)); err != nil {
+	if err := shell.WriteFile(chroot, "/etc/nix/registry.json", []byte(registryJSON+"\n"), 0644); err != nil {
 		return fmt.Errorf("failed to write system flake registry: %w", err)
 	}
 	if _, err := shell.ExecuteCmdArgs(chroot, "su", "-", u.UserName, "-c", "NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt nix registry add nixpkgs github:NixOS/nixpkgs/nixos-26.05"); err != nil {
@@ -116,25 +114,19 @@ trusted-users = root @wheel`
 	// Build sandbox: upstream default — /tmp is exec since round 48, the old
 	// scoping workaround (born from the noexec era) is gone.
 	nixEnv := `export XKB_CONFIG_ROOT=/usr/share/X11/xkb`
-	escapedNixEnv := strings.ReplaceAll(nixEnv, "'", "'\\''")
 	// Append (not overwrite): preserve the PATH/daemon setup the Alpine nix
 	// package ships in /etc/profile.d/nix-daemon.sh.
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' >> /etc/profile.d/nix-daemon.sh", escapedNixEnv)); err != nil {
+	if err := shell.WriteFileAppend(chroot, "/etc/profile.d/nix-daemon.sh", []byte(nixEnv+"\n"), 0644); err != nil {
 		return fmt.Errorf("failed to write nix env: %w", err)
 	}
 
 	nixFishEnv := `set -gx XKB_CONFIG_ROOT /usr/share/X11/xkb`
-	escapedNixFishEnv := strings.ReplaceAll(nixFishEnv, "'", "'\\''")
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' >> /etc/fish/conf.d/nix.fish", escapedNixFishEnv)); err != nil {
+	if err := shell.WriteFileAppend(chroot, "/etc/fish/conf.d/nix.fish", []byte(nixFishEnv+"\n"), 0644); err != nil {
 		return fmt.Errorf("failed to write nix fish env: %w", err)
 	}
 
 	nixBashEnv := `export XKB_CONFIG_ROOT=/usr/share/X11/xkb`
-	escapedNixBashEnv := strings.ReplaceAll(nixBashEnv, "'", "'\\''")
-	if _, err := shell.ExecuteCmdArgs(chroot, "mkdir", "-p", "/etc/bash"); err != nil {
-		fmt.Printf("[WARNING] Failed to create /etc/bash: %v\n", err)
-	}
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/bash/nix.sh", escapedNixBashEnv)); err != nil {
+	if err := shell.WriteFile(chroot, "/etc/bash/nix.sh", []byte(nixBashEnv+"\n"), 0644); err != nil {
 		return fmt.Errorf("failed to write nix bash env: %w", err)
 	}
 

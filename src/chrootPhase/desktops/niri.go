@@ -4,7 +4,6 @@ import (
 	"feralos/src/utils/config"
 	"feralos/src/utils/shell"
 	"fmt"
-	"strings"
 )
 
 // SetupNiri configures the niri desktop environment:
@@ -306,16 +305,24 @@ include "dms/colors.kdl"
 	// DISABLED by default (PluginService: getPluginSetting(id, "enabled",
 	// false)); the file is a bare map { "<pluginId>": { ... } } (verified
 	// against 1.6.2 SettingsData.parsePluginSettings).
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("printf '{\\n  \"dmsWindowButtons\": {\\n    \"enabled\": true\\n  }\\n}\\n' > '%s/plugin_settings.json' && chown %s:%s '%s/plugin_settings.json'", dmsSettingsDir, u.UserName, u.UserName, dmsSettingsDir)); err != nil {
+	pluginSettings := "{\n  \"dmsWindowButtons\": {\n    \"enabled\": true\n  }\n}\n"
+	if err := shell.WriteFile(chroot, dmsSettingsDir+"/plugin_settings.json", []byte(pluginSettings), 0644); err != nil {
 		return fmt.Errorf("seed DMS plugin_settings.json (window buttons): %w", err)
+	}
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("chown %s:%s '%s/plugin_settings.json'", u.UserName, u.UserName, dmsSettingsDir)); err != nil {
+		return fmt.Errorf("chown DMS plugin_settings.json: %w", err)
 	}
 	// DMS dark mode seed (belt+braces): fresh installs already default dark
 	// (SharedSessionSpec.js isLightMode def=false; PortalService applies mode
 	// changes only after the first read), but the explicit seed guarantees
 	// dark portal-independently. Session store = XDG state dir, NOT config.
 	dmsStateDir := fmt.Sprintf("/home/%s/.local/state/DankMaterialShell", u.UserName)
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p '%s' && printf '{\\n  \"isLightMode\": false\\n}\\n' > '%s/session.json' && chown %s:%s '%s/session.json'", dmsStateDir, dmsStateDir, u.UserName, u.UserName, dmsStateDir)); err != nil {
+	sessionJSON := "{\n  \"isLightMode\": false\n}\n"
+	if err := shell.WriteFile(chroot, dmsStateDir+"/session.json", []byte(sessionJSON), 0644); err != nil {
 		return fmt.Errorf("seed DMS session.json (dark mode): %w", err)
+	}
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("chown %s:%s '%s/session.json'", u.UserName, u.UserName, dmsStateDir)); err != nil {
+		return fmt.Errorf("chown DMS session.json: %w", err)
 	}
 	// DMS default apps: the Settings → Default Apps tab is a frontend for the
 	// freedesktop defaults — terminal via ~/.config/xdg-terminals.list
@@ -533,9 +540,11 @@ exec /usr/bin/xdg-su "$@"
 	return nil
 }
 
-// writeFile writes a file inside the chroot via shell (echo pattern).
+// writeFile writes a file inside the chroot (logged direct write — logging
+// rule amendment P2-5: the escaped `echo '<content>' > path` pattern is gone;
+// the log carries path + size, never the content). The trailing newline
+// reproduces the old `echo` byte-for-byte. Files needing another mode are
+// chmod'ed by the caller right after (unchanged behavior).
 func writeFile(chroot, path, content string) error {
-	escaped := strings.ReplaceAll(content, "'", "'\\''")
-	_, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p \"$(dirname '%s')\" && echo '%s' > '%s'", path, escaped, path))
-	return err
+	return shell.WriteFile(chroot, path, []byte(content+"\n"), 0644)
 }

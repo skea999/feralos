@@ -17,12 +17,40 @@ func SetupLogging(conf *config.Config, pkgList string) error {
 		return nil
 	}
 
+	if err := writeVectorConfig(chroot, conf, pkgList); err != nil {
+		return err
+	}
+	if err := writeVectorSetupService(chroot); err != nil {
+		return err
+	}
+
+	// OpenRC klogd is shipped as the klogd-openrc package (989 series,
+	// feralos-aports): the vendor busybox-openrc script can never start here
+	// (`depend() need logger` — busybox syslogd was replaced by vector). The
+	// package installs /etc/init.d/klogd (dmesg snapshot + klogd -n after
+	// vector); enablement via the boot runlevel (internal_rules). No runtime
+	// file writes.
+
+	// vector-setup: the script written above is enabled on BOTH inits
+	// (OpenRC enablement is never conditional — fallback readiness); under
+	// dinit it is inert and vector-dinit's tmpfiles file (/run/vector,
+	// /dev/log, /var/log, /btrbk — processed by the dinit-chimera early
+	// chain) remains the active mechanism. The dinit-boot-log package
+	// (feralos-aports) ships the tmpfiles (/var/log/dinit), the mirror
+	// service and /usr/libexec/dinit-boot-log.
+
+	return writeLogrotateConfig(chroot, conf)
+}
+
+// writeVectorConfig renders and writes /etc/vector/vector.yaml (sources,
+// transforms, sinks) and creates the vector data directory. The dinit and
+// incus fragments are configured ONLY when the owning feature is present.
+func writeVectorConfig(chroot string, conf *config.Config, pkgList string) error {
 	// Dinit-only vector plumbing (service logs + PID1 boot trail): present
 	// only when enableDinit, so the config stays valid on OpenRC installs.
 	dinitSource := ""
 	dinitMsgInput := ""
 	dinitJSONInput := ""
-	dinitLogrotate := ""
 	if conf.User.EnableDinit {
 		// NOTE: live files only — no "*.log.1". logrotate uses copytruncate,
 		// so the rotated copy is a NEW file for vector's file source and would
@@ -36,17 +64,6 @@ func SetupLogging(conf *config.Config, pkgList string) error {
 `
 		dinitMsgInput = "\n      - dinit_services"
 		dinitJSONInput = "\n      - dinit_services"
-		dinitLogrotate = `
-/var/log/dinit/*.log {
-    daily
-    rotate 7
-    compress
-    delaycompress
-    missingok
-    notifempty
-    copytruncate
-}
-`
 	}
 
 	// Extra file sources: configured ONLY when the owning package/feature is
@@ -219,8 +236,7 @@ sinks:
     encoding:
       codec: json
 `
-	escapedVectorConfig := strings.ReplaceAll(vectorConfig, "'", "'\\''")
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/vector/vector.yaml", escapedVectorConfig)); err != nil {
+	if err := shell.WriteFile(chroot, "/etc/vector/vector.yaml", []byte(vectorConfig+"\n"), 0644); err != nil {
 		return fmt.Errorf("failed to write vector config: %w", err)
 	}
 
@@ -228,6 +244,13 @@ sinks:
 		fmt.Printf("[WARNING] Failed to create vector data directory: %v\n", err)
 	}
 
+	return nil
+}
+
+// writeVectorSetupService writes the vector-setup boot service (OpenRC init
+// script; under dinit it is inert and the dinit tmpfiles cover the same
+// paths) and makes it executable.
+func writeVectorSetupService(chroot string) error {
 	fmt.Println("[INFO] Creating vector-setup boot service...")
 	vectorSetupInit := `#!/sbin/openrc-run
 
@@ -248,35 +271,38 @@ start() {
     eend $?
 }
 `
-	escapedVectorSetupInit := strings.ReplaceAll(vectorSetupInit, "'", "'\\''")
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/init.d/vector-setup", escapedVectorSetupInit)); err != nil {
+	if err := shell.WriteFile(chroot, "/etc/init.d/vector-setup", []byte(vectorSetupInit+"\n"), 0644); err != nil {
 		fmt.Printf("[WARNING] Failed to write vector-setup init script: %v\n", err)
 	}
 	if _, err := shell.ExecuteCmd(chroot, "chmod +x /etc/init.d/vector-setup"); err != nil {
 		fmt.Printf("[WARNING] Failed to make vector-setup executable: %v\n", err)
 	}
 
-	// OpenRC klogd is shipped as the klogd-openrc package (989 series,
-	// feralos-aports): the vendor busybox-openrc script can never start here
-	// (`depend() need logger` — busybox syslogd was replaced by vector). The
-	// package installs /etc/init.d/klogd (dmesg snapshot + klogd -n after
-	// vector); enablement via the boot runlevel (internal_rules). No runtime
-	// file writes.
+	return nil
+}
 
-	// vector-setup: the script written above is enabled on BOTH inits
-	// (OpenRC enablement is never conditional — fallback readiness); under
-	// dinit it is inert and vector-dinit's tmpfiles file (/run/vector,
-	// /dev/log, /var/log, /btrbk — processed by the dinit-chimera early
-	// chain) remains the active mechanism. The dinit-boot-log package
-	// (feralos-aports) ships the tmpfiles (/var/log/dinit), the mirror
-	// service and /usr/libexec/dinit-boot-log.
-
+// writeLogrotateConfig writes the FeralOS logrotate configuration covering
+// the vector sinks AND the dinit service logs (works for OpenRC and dinit).
+func writeLogrotateConfig(chroot string, conf *config.Config) error {
 	// Logrotate: vector does NOT rotate files — it only tails rotated ones
-	// (copytruncate + delaycompress recommended by vector docs). Covers the
-	// vector sinks AND the dinit service logs; works for OpenRC and dinit.
-	// Retention split (2026-09-30): auth/sudo 30d (security), general logs
-	// 14d, tool logs 7d.
+	// (copytruncate + delaycompress recommended by vector docs). Retention
+	// split (2026-09-30): auth/sudo 30d (security), general logs 14d, tool
+	// logs 7d.
 	fmt.Println("[INFO] Writing logrotate configuration...")
+	dinitLogrotate := ""
+	if conf.User.EnableDinit {
+		dinitLogrotate = `
+/var/log/dinit/*.log {
+    daily
+    rotate 7
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+}
+`
+	}
 	logrotateConf := `/var/log/messages /var/log/daemon.log /var/log/kern.log {
     daily
     rotate 14
@@ -307,8 +333,7 @@ start() {
     copytruncate
 }
 ` + dinitLogrotate
-	escapedLogrotate := strings.ReplaceAll(logrotateConf, "'", "'\\''")
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p /etc/logrotate.d && echo '%s' > /etc/logrotate.d/feralos", escapedLogrotate)); err != nil {
+	if err := shell.WriteFile(chroot, "/etc/logrotate.d/feralos", []byte(logrotateConf+"\n"), 0644); err != nil {
 		fmt.Printf("[WARNING] Failed to write logrotate config: %v\n", err)
 	}
 

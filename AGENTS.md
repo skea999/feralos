@@ -673,9 +673,14 @@ Cleanup (before/after) and firstboot (install config, secureboot/tpm compile) ar
 
 ## Logging Rule
 
-**Always use `shell.ExecuteCmd` in `hostPhase`/`chrootPhase` — never `os.*`.** File ops (`MkdirAll`, `Create`, `WriteFile`, `ReadFile`) and `exec.Command` bypass logging. `ExecuteCmd` logs CMD, stdout/stderr, exit, retry, and `SKEA_NONINTERACTIVE` handling. `import "os"` forbidden in those packages (exceptions: `firstBoot/` standalone, `utils/shell` impl). Host: `shell.ExecuteCmd("", "mkdir -p /mnt/etc")`. Chroot: `shell.ExecuteCmd(chroot, "mkdir -p /etc")`. Documented exceptions (secrets must never be logged): passwd via stdin pipe (chrootPhase/internal/users.go) and cryptsetup stdin (hostPhase/disks/common/luks.go).
+**Commands: `shell.ExecuteCmd`; file writes: `shell.WriteFile`/`shell.WriteFileAppend` — in `hostPhase`/`chrootPhase`, never raw `os.*`.**
 
-→ Details: `docs/architecture/logging.md`, `docs/adr/ADR-004-executecmd-logging.md`, `src/utils/shell/execute.go`
+- **Commands** (installs, chmod, sed, chown, anything executed): `shell.ExecuteCmd` — logs CMD, stdout/stderr, exit, retry, `SKEA_NONINTERACTIVE` handling. Host: `shell.ExecuteCmd("", "mkdir -p /mnt/etc")`. Chroot: `shell.ExecuteCmd(chroot, "mkdir -p /etc")`.
+- **File writes** (`shell.WriteFile(chroot, path, content, perm)` / `WriteFileAppend`, `src/utils/shell/write.go`): logged direct writes on the chroot mount — `[WRITE]`/`[APPEND]` line (path + size, content NEVER logged) + `[RESULT]`; MkdirAll of the parent (0755); perm forced via chmod on create (umask-independent); honors `SKEA_IGNORE_ERRORS=1` like ExecuteCmd. **The `echo '<escaped>' > path` shell pattern is forbidden for new code**: single-quote escaping of arbitrary content is fragile (one missed `'` corrupts the seed) and very large payloads can hit ARG_MAX — the escaped-echo call sites were converted to `WriteFile` (polishCode P2-5). KEEP `ExecuteCmd` for: conditional appends (`grep -q … || echo … >> file` — the guard is part of the operation), writes computed at shell-runtime (e.g. awk over `/proc/meminfo`), and in-place edits (sed/awk). `WriteFileAppend` covers unconditional appends.
+- `import "os"` forbidden in `hostPhase`/`chrootPhase` (exceptions: `firstBoot/` standalone, `utils/shell` impl).
+- Documented exceptions (secrets must never be logged): passwd via stdin pipe (chrootPhase/internal/users.go) and cryptsetup stdin (hostPhase/disks/common/luks.go).
+
+→ Details: `docs/architecture/logging.md`, `docs/adr/ADR-004-executecmd-logging.md`, `src/utils/shell/execute.go`, `src/utils/shell/write.go`
 
 ## Error Handling (`unattended` vs `ignoreErrors`)
 

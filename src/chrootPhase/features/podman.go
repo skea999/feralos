@@ -43,10 +43,10 @@ func SetupPodman(conf *config.Config) error {
 	// Configure subuid/subgid for rootless containers
 	subuidContent := fmt.Sprintf("%s:100000:65536\n", u.UserName)
 	subgidContent := fmt.Sprintf("%s:100000:65536\n", u.UserName)
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/subuid", subuidContent)); err != nil {
+	if err := shell.WriteFile(chroot, "/etc/subuid", []byte(subuidContent+"\n"), 0644); err != nil {
 		return fmt.Errorf("failed to write /etc/subuid: %w", err)
 	}
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/subgid", subgidContent)); err != nil {
+	if err := shell.WriteFile(chroot, "/etc/subgid", []byte(subgidContent+"\n"), 0644); err != nil {
 		return fmt.Errorf("failed to write /etc/subgid: %w", err)
 	}
 

@@ -17,21 +17,58 @@ func SetupUsers(conf *config.Config) error {
 	// niri-user-dinit, so the login-shell prerequisites arrive either way.
 	isNiri := u.DesktopEnvironment == "niri" || u.DesktopEnvironment == "niriWayle"
 
-	// 1. Root password — uses exec.Command with stdin (no shell, no logging)
+	if err := setupRootPassword(chroot, u.Password); err != nil {
+		return err
+	}
+	if err := createUserAccount(chroot, &u, isNiri); err != nil {
+		return err
+	}
+
+	// 3. Create incus-admin group if incus or incus-feature is installed
+	if err := ensureIncusAdminGroup(chroot); err != nil {
+		fmt.Printf("[WARNING] Failed to ensure incus-admin group: %v\n", err)
+	}
+
+	setupUserGroups(chroot, &u)
+	setupStandardGroups(chroot, &u)
+
+	// 6. SSH authorized key
+	if u.SshAuthorizedKey != "" {
+		fmt.Println("[INFO] Configuring SSH authorized key...")
+		if err := setupSSHKey(chroot, u.UserName, u.SshAuthorizedKey); err != nil {
+			return err
+		}
+	}
+
+	if err := appendSubuidSubgid(chroot); err != nil {
+		return err
+	}
+	setupUserShell(chroot, &u, isNiri)
+
+	return setupLimits(chroot, &u)
+}
+
+// setupRootPassword sets the root password. Uses exec.Command with stdin
+// (no shell, no logging).
+func setupRootPassword(chroot, password string) error {
+	// 1. Root password
 	fmt.Println("[INFO] Setting root password...")
 	// Direct exec, NOT shell.ExecuteCmd: the password must never appear in logs (documented logging-rule exception — polishCode P3-8).
 	passwdCmd := exec.Command("chroot", chroot, "passwd", "root")
-	passwdCmd.Stdin = strings.NewReader(u.Password + "\n" + u.Password + "\n")
+	passwdCmd.Stdin = strings.NewReader(password + "\n" + password + "\n")
 	if output, err := passwdCmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("failed to set root password: %w\n%s", err, string(output))
 	}
+	return nil
+}
 
+// createUserAccount creates the primary user and sets its password. niri
+// family: passwd shell = /usr/libexec/feralos/login-shell (shipped by
+// niri-user-dinit; re-pointed to fish below) — the path is ALSO listed in
+// /etc/shells so pkexec accepts the session shell. niriWayle inherits this
+// via its wayle-session → niri-user-dinit dependency.
+func createUserAccount(chroot string, u *config.UserVariables, isNiri bool) error {
 	// 2. Create user — no shell, safe for variable username.
-	// niri family: passwd shell = /usr/libexec/feralos/login-shell (shipped by
-	// niri-user-dinit; installer re-points the symlink to fish, see below).
-	// The path is ALSO listed in /etc/shells (see below) so pkexec accepts
-	// the session shell. niriWayle inherits this via its wayle-session →
-	// niri-user-dinit dependency.
 	fmt.Printf("[INFO] Creating user %s...\n", u.UserName)
 	adduserArgs := []string{"-D"}
 	if isNiri {
@@ -66,17 +103,17 @@ func SetupUsers(conf *config.Config) error {
 		}
 	}
 	// Direct exec, NOT shell.ExecuteCmd: the password must never appear in logs (documented logging-rule exception — polishCode P3-8).
-	passwdCmd = exec.Command("chroot", chroot, "passwd", u.UserName)
+	passwdCmd := exec.Command("chroot", chroot, "passwd", u.UserName) //nolint:gosec // G204: installer-validated username; stdin-carried password never logged
 	passwdCmd.Stdin = strings.NewReader(u.Password + "\n" + u.Password + "\n")
 	if output, err := passwdCmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("failed to set password for %s: %w\n%s", u.UserName, err, string(output))
 	}
+	return nil
+}
 
-	// 3. Create incus-admin group if incus or incus-feature is installed
-	if err := ensureIncusAdminGroup(chroot); err != nil {
-		fmt.Printf("[WARNING] Failed to ensure incus-admin group: %v\n", err)
-	}
-
+// setupUserGroups creates the dynamic groups from the rules (UserGroups) as
+// needed and adds the user to each (best-effort per group).
+func setupUserGroups(chroot string, u *config.UserVariables) {
 	// 4. Add to dynamic groups
 	for _, group := range u.UserGroups {
 		_, err := shell.ExecuteCmdArgsWithAllowFail(chroot, "getent", []string{"group", group}, true, false)
@@ -90,7 +127,11 @@ func SetupUsers(conf *config.Config) error {
 			fmt.Printf("[WARNING] Failed to add %s to group %s: %v\n", u.UserName, group, err)
 		}
 	}
+}
 
+// setupStandardGroups adds the user to the fixed desktop group set
+// (best-effort per group).
+func setupStandardGroups(chroot string, u *config.UserVariables) {
 	// 5. Add to standard groups
 	extraGroups := []string{"lp", "input", "cdrom", "dialout", "video", "netdev", "plugdev", "users"}
 	for _, group := range extraGroups {
@@ -98,26 +139,27 @@ func SetupUsers(conf *config.Config) error {
 			fmt.Printf("[WARNING] Failed to add %s to group %s: %v\n", u.UserName, group, err)
 		}
 	}
+}
 
-	// 6. SSH authorized key
-	if u.SshAuthorizedKey != "" {
-		fmt.Println("[INFO] Configuring SSH authorized key...")
-		if err := setupSSHKey(chroot, u.UserName, u.SshAuthorizedKey); err != nil {
-			return err
-		}
-	}
-
+// appendSubuidSubgid appends the user subordinate id ranges (the root ranges
+// were written unconditionally by SetupMisc earlier in the chroot run).
+func appendSubuidSubgid(chroot string) error {
 	// 7. Subuid/subgid
 	fmt.Println("[INFO] Configuring subuid/subgid...")
-	if _, err := shell.ExecuteCmd(chroot, "echo 'root:100000:65536' >> /etc/subuid"); err != nil {
+	if err := shell.WriteFileAppend(chroot, "/etc/subuid", []byte("root:100000:65536\n"), 0644); err != nil {
 		return fmt.Errorf("failed to write subuid: %w", err)
 	}
-	if _, err := shell.ExecuteCmd(chroot, "echo 'root:100000:65536' >> /etc/subgid"); err != nil {
+	if err := shell.WriteFileAppend(chroot, "/etc/subgid", []byte("root:100000:65536\n"), 0644); err != nil {
 		return fmt.Errorf("failed to write subgid: %w", err)
 	}
+	return nil
+}
 
-	// 8. Shell (fish) — root only for niri: chsh would clobber the
-	// login-shell trick (step 2) and break niri-session's dinit branch.
+// setupUserShell sets fish as the default shell — root only for niri: chsh
+// would clobber the login-shell trick (createUserAccount) and break
+// niri-session's dinit branch. Best-effort.
+func setupUserShell(chroot string, u *config.UserVariables, isNiri bool) {
+	// 8. Shell (fish)
 	fmt.Println("[INFO] Setting default shell to fish...")
 	if _, err := shell.ExecuteCmdArgs(chroot, "chsh", "root", "-s", "/usr/bin/fish"); err != nil {
 		fmt.Printf("[WARNING] Failed to set root shell: %v\n", err)
@@ -127,10 +169,13 @@ func SetupUsers(conf *config.Config) error {
 			fmt.Printf("[WARNING] Failed to set user shell: %v\n", err)
 		}
 	}
+}
 
-	// 9. System limits — single owner of /etc/security/limits.conf
-	// (polishCode P2-2: the former identical write in misc.go SetupMisc was
-	// removed). Values as consts — they were duplicated twice before.
+// setupLimits writes /etc/security/limits.conf — single owner of the file
+// (polishCode P2-2: the former identical write in misc.go SetupMisc was
+// removed). Values as consts — they were duplicated twice before.
+func setupLimits(chroot string, u *config.UserVariables) error {
+	// 9. System limits
 	const (
 		nofileLimitDefault = 100000
 		nofileLimitUser    = 524288
@@ -149,11 +194,9 @@ root soft nofile %d
 		nofileLimitDefault, nofileLimitDefault,
 		u.UserName, nofileLimitUser,
 		u.UserName, nofileLimitUser)
-	escapedLimitsContent := strings.ReplaceAll(limitsContent, "'", "'\\''")
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/security/limits.conf", escapedLimitsContent)); err != nil {
+	if err := shell.WriteFile(chroot, "/etc/security/limits.conf", []byte(limitsContent+"\n"), 0644); err != nil {
 		return fmt.Errorf("failed to write limits.conf: %w", err)
 	}
-
 	return nil
 }
 
@@ -192,8 +235,10 @@ func setupSSHKey(chroot, userName, sshKey string) error {
 	if _, err := shell.ExecuteCmdArgs(chroot, "chmod", "700", "/root/.ssh"); err != nil {
 		return fmt.Errorf("failed to chmod root .ssh: %w", err)
 	}
-	escapedSshKey := strings.ReplaceAll(sshKey, "'", "'\\''")
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /root/.ssh/authorized_keys", escapedSshKey)); err != nil {
+	// Direct write (P2-5): the key is a variable — the old escaped-echo was
+	// the fragile path this helper replaces. Mode 0644 like `echo >`; the
+	// following chmod 600 lines are unchanged.
+	if err := shell.WriteFile(chroot, "/root/.ssh/authorized_keys", []byte(sshKey+"\n"), 0644); err != nil {
 		return fmt.Errorf("failed to write root authorized_keys: %w", err)
 	}
 	if _, err := shell.ExecuteCmdArgs(chroot, "chmod", "600", "/root/.ssh/authorized_keys"); err != nil {
@@ -206,7 +251,7 @@ func setupSSHKey(chroot, userName, sshKey string) error {
 	if _, err := shell.ExecuteCmdArgs(chroot, "chmod", "700", "/home/"+userName+"/.ssh"); err != nil {
 		return fmt.Errorf("failed to chmod user .ssh: %w", err)
 	}
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /home/%s/.ssh/authorized_keys", escapedSshKey, userName)); err != nil {
+	if err := shell.WriteFile(chroot, "/home/"+userName+"/.ssh/authorized_keys", []byte(sshKey+"\n"), 0644); err != nil {
 		return fmt.Errorf("failed to write user authorized_keys: %w", err)
 	}
 	if _, err := shell.ExecuteCmdArgs(chroot, "chmod", "600", "/home/"+userName+"/.ssh/authorized_keys"); err != nil {

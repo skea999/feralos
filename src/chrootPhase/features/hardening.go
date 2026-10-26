@@ -4,7 +4,6 @@ import (
 	"feralos/src/utils/config"
 	"feralos/src/utils/shell"
 	"fmt"
-	"strings"
 )
 
 // HardeningPackages returns the APK packages needed for security hardening.
@@ -35,31 +34,60 @@ func SetupHardening(conf *config.Config) error {
 
 	fmt.Println("[INFO] Applying kernel hardening...")
 
-	if conf.User.EnableDinit {
-		// dinit: enable the apparmor-dinit scripted service (loads profiles
-		// into the kernel at boot — openrc apparmor start() equivalent).
-		// Installed by the dinit conversion (apparmor-openrc -> apparmor-dinit).
+	loglevelArg, dmesgRestrictArg, dmesgRestrictVal, memfdVal, iouringVal := DebugOverrides(conf)
+
+	enableApparmor(chroot, conf.User.EnableDinit)
+	applyHardeningCmdline(u, loglevelArg, dmesgRestrictArg)
+	if err := writeHardeningSysctls(chroot, conf.User.EnableDebug, dmesgRestrictVal, memfdVal, iouringVal); err != nil {
+		return err
+	}
+	if err := writeModprobeBlacklist(chroot); err != nil {
+		return err
+	}
+	if err := writePermissionsService(chroot); err != nil {
+		return err
+	}
+	restrictFilePermissions(chroot)
+
+	fmt.Println("[INFO] Hardening complete.")
+	return nil
+}
+
+// enableApparmor wires the apparmor boot enablement: dinit gets the
+// apparmor-dinit scripted service symlink (loads profiles into the kernel at
+// boot — openrc apparmor start() equivalent; installed by the dinit
+// conversion of apparmor-openrc), OpenRC is ALWAYS enabled (never
+// conditional — fallback readiness: a dinit install must stay bootable
+// under OpenRC).
+func enableApparmor(chroot string, enableDinit bool) {
+	if enableDinit {
 		if _, err := shell.ExecuteCmd(chroot, "mkdir -p /etc/dinit.d/boot.d && test -f /lib/dinit.d/apparmor && ln -sf /lib/dinit.d/apparmor /etc/dinit.d/boot.d/apparmor || true"); err != nil {
 			fmt.Printf("[WARNING] Failed to enable apparmor dinit service: %v\n", err)
 		}
 	}
-	// OpenRC enablement — ALWAYS, never conditional (fallback readiness:
-	// a dinit install must stay bootable under OpenRC).
 	if _, err := shell.ExecuteCmd(chroot, "rc-update add apparmor boot"); err != nil {
 		fmt.Printf("[WARNING] Failed to add apparmor to boot: %v\n", err)
 	}
+}
 
-	loglevelArg, dmesgRestrictArg, dmesgRestrictVal, memfdVal, iouringVal := DebugOverrides(conf)
-	printkVal := "3 3 3 3"
-	if conf.User.EnableDebug {
-		printkVal = "7 4 1 7"
-	}
-
+// applyHardeningCmdline appends the hardening kernel cmdline fragment to the
+// runtime KernelCmdline list (rendered later into /etc/kernel/cmdline by
+// internal.SetupBoot).
+func applyHardeningCmdline(u *config.UserVariables, loglevelArg, dmesgRestrictArg string) {
 	hardeningCmdline := fmt.Sprintf(
 		"sysctl.kernel.kptr_restrict=2 %s sysctl.kernel.unprivileged_bpf_disabled=1 sysctl.net.core.bpf_jit_harden=2 sysctl.dev.tty.ldisc_autoload=0 sysctl.kernel.kexec_load_disabled=1 sysctl.kernel.perf_event_paranoid=3 sysctl.kernel.yama.ptrace_scope=2 sysctl.fs.protected_symlinks=1 sysctl.fs.protected_hardlinks=1 sysctl.fs.protected_fifos=2 sysctl.fs.protected_regular=2 slab_nomerge init_on_alloc=1 init_on_free=1 page_alloc.shuffle=1 pti=on randomize_kstack_offset=on vsyscall=none module.sig_enforce=1 lockdown=confidentiality %s apparmor=1 security=apparmor random.trust_cpu=off intel_iommu=on efi=disable_early_pci_dma sysctl.kernel.sysrq=4 random.trust_bootloader=off iommu.passthrough=0 iommu.strict=1 ipv6.disable=1",
 		dmesgRestrictArg, loglevelArg,
 	)
 	u.KernelCmdline = append(u.KernelCmdline, hardeningCmdline)
+}
+
+// writeHardeningSysctls writes every hardening sysctl drop-in
+// (/etc/sysctl.d/9*.conf), values keyed off the debug overrides.
+func writeHardeningSysctls(chroot string, enableDebug bool, dmesgRestrictVal, memfdVal, iouringVal string) error {
+	printkVal := "3 3 3 3"
+	if enableDebug {
+		printkVal = "7 4 1 7"
+	}
 
 	sysctlHardening := fmt.Sprintf(`kernel.kptr_restrict=2
 kernel.dmesg_restrict=%s
@@ -74,8 +102,7 @@ fs.protected_hardlinks=1
 fs.protected_fifos=2
 fs.protected_regular=2
 kernel.sysrq=4`, dmesgRestrictVal)
-	escapedSysctlHardening := strings.ReplaceAll(sysctlHardening, "'", "'\\''")
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/sysctl.d/99-cmdline-hardening.conf", escapedSysctlHardening)); err != nil {
+	if err := shell.WriteFile(chroot, "/etc/sysctl.d/99-cmdline-hardening.conf", []byte(sysctlHardening+"\n"), 0644); err != nil {
 		return fmt.Errorf("failed to write sysctl hardening: %w", err)
 	}
 
@@ -84,11 +111,56 @@ kernel.unprivileged_userns_apparmor_policy=1
 kernel.io_uring_disabled=%s
 vm.memfd_noexec=%s
 kernel.ftrace_enabled=0`, iouringVal, memfdVal)
-	escapedMemProtect := strings.ReplaceAll(memProtect, "'", "'\\''")
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/sysctl.d/98-hardening.conf", escapedMemProtect)); err != nil {
+	if err := shell.WriteFile(chroot, "/etc/sysctl.d/98-hardening.conf", []byte(memProtect+"\n"), 0644); err != nil {
 		return fmt.Errorf("failed to write mem protection sysctl: %w", err)
 	}
 
+	if err := shell.WriteFile(chroot, "/etc/sysctl.d/97-disableCoreDumps.conf", []byte("kernel.core_pattern=|/bin/false\n"), 0644); err != nil {
+		return fmt.Errorf("failed to write core dump config: %w", err)
+	}
+
+	if err := shell.WriteFile(chroot, "/etc/sysctl.d/96-disableSuidDumps.conf", []byte("fs.suid_dumpable=0\n"), 0644); err != nil {
+		return fmt.Errorf("failed to write suid dump config: %w", err)
+	}
+
+	if err := shell.WriteFile(chroot, "/etc/sysctl.d/95-randomizeAddresses.conf", []byte("kernel.randomize_va_space=2\n"), 0644); err != nil {
+		return fmt.Errorf("failed to write ASLR config: %w", err)
+	}
+
+	if err := shell.WriteFile(chroot, "/etc/sysctl.d/94-limitLogs.conf", []byte(fmt.Sprintf("kernel.printk=%s\n", printkVal)), 0644); err != nil {
+		return fmt.Errorf("failed to write log limit config: %w", err)
+	}
+
+	ipv4Conf := `net.ipv4.tcp_syncookies=1
+net.ipv4.tcp_rfc1337=1
+net.ipv4.conf.all.rp_filter=1
+net.ipv4.conf.default.rp_filter=1
+net.ipv4.conf.all.accept_redirects=0
+net.ipv4.conf.default.accept_redirects=0
+net.ipv4.conf.all.secure_redirects=0
+net.ipv4.conf.default.secure_redirects=0
+net.ipv4.conf.all.send_redirects=0
+net.ipv4.conf.default.send_redirects=0
+net.ipv4.conf.all.accept_source_route=0
+net.ipv4.conf.default.accept_source_route=0
+net.ipv4.tcp_sack=0
+net.ipv4.tcp_dsack=0
+net.ipv4.tcp_fack=0
+net.ipv4.tcp_timestamps=0
+net.ipv4.icmp_echo_ignore_broadcasts=1
+net.ipv4.icmp_ignore_bogus_error_responses=1
+net.ipv4.conf.all.log_martians=1
+net.ipv4.conf.default.log_martians=1`
+	if err := shell.WriteFile(chroot, "/etc/sysctl.d/93-ipv4Configs.conf", []byte(ipv4Conf+"\n"), 0644); err != nil {
+		return fmt.Errorf("failed to write ipv4 config: %w", err)
+	}
+
+	return nil
+}
+
+// writeModprobeBlacklist disables unnecessary network protocols, filesystems
+// and hardware drivers via /etc/modprobe.d/disabledModules.conf.
+func writeModprobeBlacklist(chroot string) error {
 	modprobeBlacklist := `# Disable unnecessary network protocols
 install dccp /bin/false
 install sctp /bin/false
@@ -192,11 +264,16 @@ install psmouse /bin/false
 install input_leds /bin/false
 install mousedev /bin/false
 install joydev /bin/false`
-	escapedModprobeBlacklist := strings.ReplaceAll(modprobeBlacklist, "'", "'\\''")
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/modprobe.d/disabledModules.conf", escapedModprobeBlacklist)); err != nil {
+	if err := shell.WriteFile(chroot, "/etc/modprobe.d/disabledModules.conf", []byte(modprobeBlacklist+"\n"), 0644); err != nil {
 		return fmt.Errorf("failed to write modprobe blacklist: %w", err)
 	}
 
+	return nil
+}
+
+// writePermissionsService installs the set-permissions OpenRC service
+// (secure sticky-bit and permission posture applied at boot).
+func writePermissionsService(chroot string) error {
 	permissionsService := `#!/sbin/openrc-run
 
 name="set-permissions"
@@ -221,55 +298,19 @@ start() {
   /bin/chmod a-st -R /opt/
   eend $?
 }`
-	escapedPermissionsService := strings.ReplaceAll(permissionsService, "'", "'\\''")
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/init.d/set-permissions", escapedPermissionsService)); err != nil {
+	if err := shell.WriteFile(chroot, "/etc/init.d/set-permissions", []byte(permissionsService+"\n"), 0644); err != nil {
 		return fmt.Errorf("failed to write set-permissions service: %w", err)
 	}
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("chmod 755 %s", "/etc/init.d/set-permissions")); err != nil {
 		return fmt.Errorf("failed to chmod set-permissions: %w", err)
 	}
 
-	if _, err := shell.ExecuteCmd(chroot, "echo 'kernel.core_pattern=|/bin/false' > /etc/sysctl.d/97-disableCoreDumps.conf"); err != nil {
-		return fmt.Errorf("failed to write core dump config: %w", err)
-	}
+	return nil
+}
 
-	if _, err := shell.ExecuteCmd(chroot, "echo 'fs.suid_dumpable=0' > /etc/sysctl.d/96-disableSuidDumps.conf"); err != nil {
-		return fmt.Errorf("failed to write suid dump config: %w", err)
-	}
-
-	if _, err := shell.ExecuteCmd(chroot, "echo 'kernel.randomize_va_space=2' > /etc/sysctl.d/95-randomizeAddresses.conf"); err != nil {
-		return fmt.Errorf("failed to write ASLR config: %w", err)
-	}
-
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo 'kernel.printk=%s' > /etc/sysctl.d/94-limitLogs.conf", printkVal)); err != nil {
-		return fmt.Errorf("failed to write log limit config: %w", err)
-	}
-
-	ipv4Conf := `net.ipv4.tcp_syncookies=1
-net.ipv4.tcp_rfc1337=1
-net.ipv4.conf.all.rp_filter=1
-net.ipv4.conf.default.rp_filter=1
-net.ipv4.conf.all.accept_redirects=0
-net.ipv4.conf.default.accept_redirects=0
-net.ipv4.conf.all.secure_redirects=0
-net.ipv4.conf.default.secure_redirects=0
-net.ipv4.conf.all.send_redirects=0
-net.ipv4.conf.default.send_redirects=0
-net.ipv4.conf.all.accept_source_route=0
-net.ipv4.conf.default.accept_source_route=0
-net.ipv4.tcp_sack=0
-net.ipv4.tcp_dsack=0
-net.ipv4.tcp_fack=0
-net.ipv4.tcp_timestamps=0
-net.ipv4.icmp_echo_ignore_broadcasts=1
-net.ipv4.icmp_ignore_bogus_error_responses=1
-net.ipv4.conf.all.log_martians=1
-net.ipv4.conf.default.log_martians=1`
-	escapedIpv4Conf := strings.ReplaceAll(ipv4Conf, "'", "'\\''")
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/sysctl.d/93-ipv4Configs.conf", escapedIpv4Conf)); err != nil {
-		return fmt.Errorf("failed to write ipv4 config: %w", err)
-	}
-
+// restrictFilePermissions applies the final permission posture: boot and
+// module dirs root-only, stricter profile umask. Best-effort (warnings only).
+func restrictFilePermissions(chroot string) {
 	if _, err := shell.ExecuteCmd(chroot, "chmod 700 /boot /lib/modules"); err != nil {
 		fmt.Printf("[WARNING] Failed to chmod /boot: %v\n", err)
 	}
@@ -277,7 +318,4 @@ net.ipv4.conf.default.log_martians=1`
 	if _, err := shell.ExecuteCmd(chroot, "sed -i 's/umask 022/umask 0077/g' /etc/profile"); err != nil {
 		fmt.Printf("[WARNING] Failed to set umask: %v\n", err)
 	}
-
-	fmt.Println("[INFO] Hardening complete.")
-	return nil
 }

@@ -17,7 +17,8 @@ func Run(conf *config.Config) error {
 	fmt.Println("[INFO] Starting ChrootPhase.Run...")
 
 	// 0. Write resolv.conf BEFORE first apk update (DNS needed for apk)
-	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /etc && echo 'nameserver 208.67.222.222\nnameserver 208.67.220.220' > /etc/resolv.conf"); err != nil {
+	resolvConf := "nameserver 208.67.222.222\nnameserver 208.67.220.220\n"
+	if err := shell.WriteFile(chroot, "/etc/resolv.conf", []byte(resolvConf), 0644); err != nil {
 		return fmt.Errorf("failed to write resolv.conf: %w", err)
 	}
 

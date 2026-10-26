@@ -28,8 +28,7 @@ timestamp_format long
 compare       path
 stream_buffer none
 logdir        /var/log/btrbk`
-	escapedBtrbkConfig := strings.ReplaceAll(btrbkConfig, "'", "'\\''")
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/btrbk/btrbk.conf", escapedBtrbkConfig)); err != nil {
+	if err := shell.WriteFile(chroot, "/etc/btrbk/btrbk.conf", []byte(btrbkConfig+"\n"), 0644); err != nil {
 		return fmt.Errorf("failed to write btrbk config: %w", err)
 	}
 
@@ -67,9 +66,10 @@ for d in /dev/mapper/luks-*; do
 done
 exit $rc
 `, cryptBin, btrfsBin, cryptBin)
-		escapedTrim := strings.ReplaceAll(trimScript, "'", "'\\''")
-		if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /usr/libexec/feralos-weekly-trim && chmod 755 /usr/libexec/feralos-weekly-trim", escapedTrim)); err != nil {
+		if err := shell.WriteFile(chroot, "/usr/libexec/feralos-weekly-trim", []byte(trimScript+"\n"), 0644); err != nil {
 			fmt.Printf("[WARNING] Failed to write trim script: %v\n", err)
+		} else if _, err := shell.ExecuteCmd(chroot, "chmod 755 /usr/libexec/feralos-weekly-trim"); err != nil {
+			fmt.Printf("[WARNING] Failed to chmod trim script: %v\n", err)
 		}
 	}
 
@@ -86,15 +86,14 @@ exit $rc
 		fmt.Println("[WARNING] btrbk not found — snapshot cron skipped")
 	}
 	if cronLines != "" {
-		escapedCron := strings.ReplaceAll(cronLines, "'", "'\\''")
-		if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' >> /etc/crontabs/root", escapedCron)); err != nil {
+		if err := shell.WriteFileAppend(chroot, "/etc/crontabs/root", []byte(cronLines+"\n"), 0644); err != nil {
 			fmt.Printf("[WARNING] Failed to write disk maintenance cron: %v\n", err)
 		}
 	}
 
 	fmt.Println("[INFO] Writing bridging sysctl...")
-	bridgingConf := "echo 'net.ipv4.conf.all.bc_forwarding=1\nnet.ipv4.conf.default.bc_forwarding=1' > /etc/sysctl.d/bridging.conf"
-	if _, err := shell.ExecuteCmd(chroot, bridgingConf); err != nil {
+	bridgingContent := "net.ipv4.conf.all.bc_forwarding=1\nnet.ipv4.conf.default.bc_forwarding=1\n"
+	if err := shell.WriteFile(chroot, "/etc/sysctl.d/bridging.conf", []byte(bridgingContent), 0644); err != nil {
 		return fmt.Errorf("failed to write bridging sysctl: %w", err)
 	}
 

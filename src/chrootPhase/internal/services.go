@@ -180,8 +180,7 @@ func setupDinitShutdownCommands(chroot string) error {
 			return fmt.Errorf("failed to remove stale /usr/bin/%s: %w", wrapper.name, err)
 		}
 		content := fmt.Sprintf("#!/bin/sh\nexec %s \"$@\"\n", wrapper.target)
-		escaped := strings.ReplaceAll(content, "'", "'\\''")
-		if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /usr/bin/%s", escaped, wrapper.name)); err != nil {
+		if err := shell.WriteFile(chroot, "/usr/bin/"+wrapper.name, []byte(content), 0644); err != nil {
 			return fmt.Errorf("failed to write /usr/bin/%s wrapper: %w", wrapper.name, err)
 		}
 		if _, err := shell.ExecuteCmd(chroot, "chmod 755 /usr/bin/"+wrapper.name); err != nil {
@@ -213,9 +212,11 @@ reboot)   exec /usr/sbin/dinit-reboot ;;
 halt)     exec /usr/sbin/dinit-halt ;;
 esac
 `
-	escapedHook := strings.ReplaceAll(hookContent, "'", "'\\''")
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p '%s' && echo '%s' > '%s/50-feralos-dinit.sh' && chmod 755 '%s/50-feralos-dinit.sh'", hookDir, escapedHook, hookDir, hookDir)); err != nil {
+	if err := shell.WriteFile(chroot, hookDir+"/50-feralos-dinit.sh", []byte(hookContent+"\n"), 0644); err != nil {
 		return fmt.Errorf("failed to install elogind shutdown hook: %w", err)
+	}
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("chmod 755 '%s/50-feralos-dinit.sh'", hookDir)); err != nil {
+		return fmt.Errorf("failed to chmod elogind shutdown hook: %w", err)
 	}
 
 	fmt.Println("[INFO] Dinit shutdown commands installed (poweroff/reboot/halt/shutdown/soft-reboot)")
@@ -260,9 +261,14 @@ polkit.addRule(function(action, subject) {
     }
 });
 `
-	escapedRule := strings.ReplaceAll(polkitRule, "'", "'\\''")
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p /etc/polkit-1/rules.d && echo '%s' > /etc/polkit-1/rules.d/49-feralos-power.rules && chmod 644 /etc/polkit-1/rules.d/49-feralos-power.rules", escapedRule)); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /etc/polkit-1/rules.d"); err != nil {
+		return fmt.Errorf("failed to create polkit rules dir: %w", err)
+	}
+	if err := shell.WriteFile(chroot, "/etc/polkit-1/rules.d/49-feralos-power.rules", []byte(polkitRule+"\n"), 0644); err != nil {
 		return fmt.Errorf("failed to install polkit power rule: %w", err)
+	}
+	if _, err := shell.ExecuteCmd(chroot, "chmod 644 /etc/polkit-1/rules.d/49-feralos-power.rules"); err != nil {
+		return fmt.Errorf("failed to chmod polkit power rule: %w", err)
 	}
 	return nil
 }

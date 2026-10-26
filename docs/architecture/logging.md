@@ -4,15 +4,15 @@ Source: `AGENTS.md#Logging Rule` (double docs — AGENTS.md is source of truth, 
 
 ## Rule
 
-**Always use `shell.ExecuteCmd` in `hostPhase`/`chrootPhase` — never `os.*`.**
+**Commands: `shell.ExecuteCmd`; file writes: `shell.WriteFile`/`shell.WriteFileAppend` — in `hostPhase`/`chrootPhase`, never raw `os.*`.**
 
-File ops (`MkdirAll`, `Create`, `WriteFile`, `ReadFile`) and `exec.Command` bypass logging. `ExecuteCmd` is the only path that guarantees observability.
+File ops (`MkdirAll`, `Create`, `WriteFile`, `ReadFile`) and `exec.Command` bypass logging. `ExecuteCmd` is the only path that guarantees observability for COMMANDS; `shell.WriteFile` is the sanctioned logged path for FILE WRITES (P2-5).
 
 `import "os"` is forbidden in those packages.
 
-## What ExecuteCmd Logs
+## Commands — What ExecuteCmd Logs
 
-`src/utils/shell/execute.go:47` — `ExecuteCmd(chroot, cmd)` / `ExecuteCmdWithAllowFail`:
+`src/utils/shell/execute.go` — `ExecuteCmd(chroot, cmd)` / `ExecuteCmdWithAllowFail`:
 
 - **CMD**: timestamp + tag (`CMD` host, `CHROOT` chroot) + full shell string
 - **stdout / stderr**: line-by-line, prefixed `[stdout]` / `[stderr]`
@@ -25,26 +25,41 @@ File ops (`MkdirAll`, `Create`, `WriteFile`, `ReadFile`) and `exec.Command` bypa
 
 See `docs/INSTALLER.md#Error Handling` for retry/user-feedback detail.
 
+## File Writes — shell.WriteFile / shell.WriteFileAppend (P2-5)
+
+`src/utils/shell/write.go` — `WriteFile(chroot, path, content []byte, perm)` / `WriteFileAppend`:
+
+- **Direct write** on the chroot mount (`filepath.Join(chroot, path)` — no chroot(2)); empty chroot = host path.
+- **Logged**: `[WRITE]` / `[APPEND]` line (target path + byte size; content NEVER logged) + `[RESULT] ok|FAIL` line, same timestamp/caller style as ExecuteCmd.
+- **Parent MkdirAll** (0755) first; **perm forced via chmod when the file is newly created** (umask-independent; an existing file keeps its mode — same as `echo > file` truncating in place).
+- **SKEA_IGNORE_ERRORS=1** honored: failure logs `[ERROR][IGNORED] write failed (ignoreErrors=true)` and returns nil (same best-effort semantics as ExecuteCmd — harness runs stay non-fatal).
+- **Why the rule changed**: the former `echo '<escaped>' > path` pattern (via ExecuteCmd) required single-quote escaping of arbitrary content — one missed `'` corrupts the seed — and very large payloads can hit ARG_MAX. The escaped-echo call sites were converted to `WriteFile` (polishCode P2-5); the pattern is forbidden for new code.
+
+### Keep ExecuteCmd for
+
+- **Conditional appends**: `grep -q … || echo … >> file` — the idempotency guard is part of the operation (e.g. PAM lines, `/etc/shells`).
+- **Shell-runtime-computed writes**: e.g. the zswap `awk /proc/meminfo` append.
+- **In-place edits**: sed/awk transforms of existing files.
+
 ## Host vs Chroot
 
-`chroot` param controls execution:
-
 ```go
-// host — empty chroot, runs via /bin/sh -c
+// host command — empty chroot, runs via /bin/sh -c
 shell.ExecuteCmd("", "mkdir -p /mnt/etc")
 
-// chroot — non-empty, runs via chroot <dir> /bin/sh -c
+// chroot command — non-empty, runs via chroot <dir> /bin/sh -c
 shell.ExecuteCmd(chroot, "mkdir -p /etc")
+
+// chroot file write — direct on the host mount
+shell.WriteFile(chroot, "/etc/hostname", []byte(hostname+"\n"), 0644)
+
+// unconditional append
+shell.WriteFileAppend(chroot, "/etc/crontabs/root", []byte(cronLine+"\n"), 0644)
 ```
-
-Host: `shell.ExecuteCmd("", "mkdir -p /mnt/etc")`.
-Chroot: `shell.ExecuteCmd(chroot, "mkdir -p /etc")`.
-
-All hostPhase file writes use this pattern (`cat > ... <<'EOF'`, `echo`, `mkdir -p`) instead of `os.WriteFile`.
 
 ## Bypass = Bug
 
-`os.MkdirAll`, `os.Create`, `os.WriteFile`, `os.ReadFile`, bare `exec.Command` bypass logging — never use in `hostPhase`/`chrootPhase`. Every command must be visible in installer logs and harness artifacts.
+`os.MkdirAll`, `os.Create`, `os.WriteFile`, `os.ReadFile`, bare `exec.Command` bypass logging — never use in `hostPhase`/`chrootPhase` (write files through `shell.WriteFile`; run commands through `shell.ExecuteCmd`). Every command and file write must be visible in installer logs and harness artifacts.
 
 ## Exceptions
 
@@ -63,5 +78,6 @@ Both are comment-annotated in source (`polishCode P3-8`). Adding a new carve-out
 ## References
 
 - `AGENTS.md#Logging Rule`
-- `src/utils/shell/execute.go:47`
+- `src/utils/shell/execute.go`
+- `src/utils/shell/write.go`
 - `docs/adr/README.md` → ADR-004 ExecuteCmd

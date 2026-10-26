@@ -69,8 +69,7 @@ vm.watermark_scale_factor=200`
 // here only logs a warning, the base sysctl file stays valid).
 // Shared by SetupZswap and SetupZswapServer.
 func writeZswapSysctl(chroot, sysctl string) error {
-	escapedSysctl := strings.ReplaceAll(sysctl, "'", "'\\''")
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/sysctl.d/zswap.conf", escapedSysctl)); err != nil {
+	if err := shell.WriteFile(chroot, "/etc/sysctl.d/zswap.conf", []byte(sysctl+"\n"), 0644); err != nil {
 		return fmt.Errorf("failed to write zswap sysctl: %w", err)
 	}
 
@@ -87,8 +86,7 @@ func writeZswapSysctl(chroot, sysctl string) error {
 func writeZswapAliases(chroot string) error {
 	zswapAliases := `alias zswapMonitor1="rg --no-ignore --hidden --text . /sys/kernel/debug/zswap/"
 alias zswapMonitor2="fd . /sys/kernel/debug/zswap/ -x rg . {}"`
-	escapedAliases := strings.ReplaceAll(zswapAliases, "'", "'\\''")
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/profile.d/zswap-aliases.sh", escapedAliases)); err != nil {
+	if err := shell.WriteFile(chroot, "/etc/profile.d/zswap-aliases.sh", []byte(zswapAliases+"\n"), 0644); err != nil {
 		return fmt.Errorf("failed to write zswap aliases: %w", err)
 	}
 
