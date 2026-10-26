@@ -2,9 +2,7 @@ package features
 
 import (
 	"feralos/src/utils/config"
-	"feralos/src/utils/shell"
 	"fmt"
-	"strings"
 )
 
 // SetupZswapServer configures the zswap compressed swap cache for the
@@ -35,20 +33,12 @@ vm.dirty_ratio = 10
 vm.watermark_scale_factor = 200
 vm.dirty_writeback_centisecs = 250
 vm.dirty_expire_centisecs = 1500`
-	escapedZswapSysctl := strings.ReplaceAll(zswapSysctl, "'", "'\\''")
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/sysctl.d/zswap.conf", escapedZswapSysctl)); err != nil {
-		return fmt.Errorf("failed to write zswap sysctl: %w", err)
+	if err := writeZswapSysctl(chroot, zswapSysctl); err != nil {
+		return err
 	}
 
-	if _, err := shell.ExecuteCmd(chroot, "awk '/MemTotal/ {printf \"vm.min_free_kbytes=%d\\n\", $2 * 0.01}' /proc/meminfo >> /etc/sysctl.d/zswap.conf"); err != nil {
-		fmt.Printf("[WARNING] Failed to calculate min_free_kbytes: %v\n", err)
-	}
-
-	zswapAliases := `alias zswapMonitor1="rg --no-ignore --hidden --text . /sys/kernel/debug/zswap/"
-alias zswapMonitor2="fd . /sys/kernel/debug/zswap/ -x rg . {}"`
-	escapedZswapAliases := strings.ReplaceAll(zswapAliases, "'", "'\\''")
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/profile.d/zswap-aliases.sh", escapedZswapAliases)); err != nil {
-		return fmt.Errorf("failed to write zswap aliases: %w", err)
+	if err := writeZswapAliases(chroot); err != nil {
+		return err
 	}
 
 	fmt.Println("[INFO] zswap configured.")

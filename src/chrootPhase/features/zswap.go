@@ -51,8 +51,26 @@ func SetupZswap(conf *config.Config) error {
 vm.page-cluster=0
 vm.vfs_cache_pressure=50
 vm.watermark_scale_factor=200`
-	escapedZswapSysctl := strings.ReplaceAll(zswapSysctl, "'", "'\\''")
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/sysctl.d/zswap.conf", escapedZswapSysctl)); err != nil {
+	if err := writeZswapSysctl(chroot, zswapSysctl); err != nil {
+		return err
+	}
+
+	if err := writeZswapAliases(chroot); err != nil {
+		return err
+	}
+
+	fmt.Println("[INFO] zswap configured.")
+	return nil
+}
+
+// writeZswapSysctl writes the zswap sysctl file (content differs between the
+// desktop conservative tuning and the server aggressive tuning — P3-12) and
+// appends vm.min_free_kbytes derived from MemTotal (best-effort: a failure
+// here only logs a warning, the base sysctl file stays valid).
+// Shared by SetupZswap and SetupZswapServer.
+func writeZswapSysctl(chroot, sysctl string) error {
+	escapedSysctl := strings.ReplaceAll(sysctl, "'", "'\\''")
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/sysctl.d/zswap.conf", escapedSysctl)); err != nil {
 		return fmt.Errorf("failed to write zswap sysctl: %w", err)
 	}
 
@@ -60,13 +78,19 @@ vm.watermark_scale_factor=200`
 		fmt.Printf("[WARNING] Failed to calculate min_free_kbytes: %v\n", err)
 	}
 
+	return nil
+}
+
+// writeZswapAliases installs the zswap debugfs monitor aliases
+// (/etc/profile.d/zswap-aliases.sh) — identical for desktop and server.
+// Shared by SetupZswap and SetupZswapServer.
+func writeZswapAliases(chroot string) error {
 	zswapAliases := `alias zswapMonitor1="rg --no-ignore --hidden --text . /sys/kernel/debug/zswap/"
 alias zswapMonitor2="fd . /sys/kernel/debug/zswap/ -x rg . {}"`
-	escapedZswapAliases := strings.ReplaceAll(zswapAliases, "'", "'\\''")
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/profile.d/zswap-aliases.sh", escapedZswapAliases)); err != nil {
+	escapedAliases := strings.ReplaceAll(zswapAliases, "'", "'\\''")
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/profile.d/zswap-aliases.sh", escapedAliases)); err != nil {
 		return fmt.Errorf("failed to write zswap aliases: %w", err)
 	}
 
-	fmt.Println("[INFO] zswap configured.")
 	return nil
 }

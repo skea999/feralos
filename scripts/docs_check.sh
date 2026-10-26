@@ -2,8 +2,8 @@
 # docs_check.sh — documentation gate (P0-3, covering the P3-6 doc checks
 # that do not need external tooling):
 #   1. relative markdown link check across the project docs
-#   2. docs/ orphan check vs the indexes (WARN only — orphan cleanup is
-#      tracked as P3-5; failing on it comes later)
+#   2. docs/ orphan check vs the indexes (FAIL — since P3-5 every docs/ file
+#      is either indexed or deleted; a new unindexed file breaks the gate)
 #   3. AGENTS.md <-> docs drift SPOT check (D-Bus Activation Rule amended R1
 #      + FirstBoot webmin) — fails on stale or missing markers
 set -euo pipefail
@@ -55,8 +55,8 @@ done
 [ "$BROKEN" -eq 0 ] || fail "broken relative markdown links found"
 echo "✓ relative links OK"
 
-# --- docs/ orphan check (WARN only) ----------------------------------------
-echo "=== Docs: orphan check (WARN only, cleanup tracked as P3-5) ==="
+# --- docs/ orphan check (FAIL) -----------------------------------------------
+echo "=== Docs: orphan check ==="
 # Indexes = the pointers AGENTS.md keeps + root README.md + every README
 # under docs/. A docs file counts as reachable when its repo-relative path
 # or its basename appears in any index text.
@@ -77,11 +77,14 @@ for f in "${MD_FILES[@]}"; do
     fi
   done
   if [ "$reachable" -eq 0 ]; then
-    echo "WARN: orphan (not indexed): $rel"
+    echo "ORPHAN (not indexed): $rel"
     ORPHANS=$((ORPHANS + 1))
   fi
 done
-echo "orphan check: $ORPHANS unindexed docs/ files (WARN only)"
+if [ "$ORPHANS" -ne 0 ]; then
+  fail "$ORPHANS unindexed docs/ file(s) — index them (AGENTS.md Docs Index or the fitting docs/*/README.md) or delete them"
+fi
+echo "✓ orphan check: 0 unindexed docs/ files"
 
 # --- AGENTS.md <-> docs drift spot check ------------------------------------
 echo "=== Docs: AGENTS.md drift spot check ==="

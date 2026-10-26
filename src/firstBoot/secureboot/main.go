@@ -11,6 +11,10 @@ import (
 	"feralos/src/utils/shell"
 )
 
+// Standalone binary: the duplicated path const is intentional (firstBoot
+// standalone policy — P3-7 const-ified within the file).
+const installConfigPath = "/opt/feralos/config.yaml"
+
 type InstallConfig struct {
 	DiskLayout string   `yaml:"disk_layout"`
 	Disks      []string `yaml:"disks"`
@@ -23,7 +27,7 @@ type InstallConfig struct {
 
 func loadConfig() *InstallConfig {
 	cfg := &InstallConfig{}
-	data, err := os.ReadFile("/opt/feralos/config.yaml")
+	data, err := os.ReadFile(installConfigPath)
 	if err != nil {
 		return cfg
 	}

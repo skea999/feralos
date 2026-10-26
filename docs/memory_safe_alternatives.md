@@ -1,6 +1,7 @@
 # FeralOS Package Inventory — Memory Safety Analysis
 
 **Last updated**: 2026-08-06 (from `apk info` output, 598 packages)
+**Summary table**: the condensed memory-safe alternatives table lives in `CONTEXT.md` ("Memory-Safe Alternatives") — this file is the detailed per-package inventory behind it.
 
 ## Summary
 
@@ -53,7 +54,7 @@ FeralOS replaces traditional C components with memory-safe alternatives where po
 | musl-locales-lang | C | Locale data |
 | musl-fts | C | File tree traversal |
 | musl-obstack | C | Object stack |
-| openrc | C | Init system (future: dinit) |
+| openrc | C | Init system (dinit now shipped and selectable via `enableDinit`; OpenRC remains the fallback) |
 | openrc-user | C | User services |
 | mdev-conf | C | mdev configuration |
 | scanelf | C | ELF scanner |
@@ -64,7 +65,7 @@ FeralOS replaces traditional C components with memory-safe alternatives where po
 |---------|----------|-------|
 | fish | Rust | Friendly interactive shell (rewritten in Rust) |
 | fish-tools | Rust | Fish utilities |
-| less | C | Pager (dependency of bat; replaced with dummy package v999 using APK v3 mkpkg) |
+| less | C | Pager (dependency of bat; replaced by the `less-dummy` wrapper package v999 since 2026-10-09 — POSIX-sh wrapper dumping via `bat --color=always --paging=never`; the older symlink→bat approach is obsolete) |
 | readline | C | Line editing |
 | ncurses-terminfo | C | Terminal info |
 | ncurses-terminfo-base | C | Base terminfo |
@@ -362,10 +363,11 @@ These C packages remain because no memory-safe alternative exists or the compone
 
 ## Known Issues
 
-### Package Masking (Resolved)
+### Package Masking (Resolved — superseded 2026-10-09)
 - **Issue**: Alpine apk masking via `/etc/apk/world` conflicts with explicit package dependencies
 - **Example**: `bat` depends on `less` — masking `less` prevents `bat` from installing
-- **Resolution**: Replaced real `less` with dummy package (v999) using APK v3 `apk mkpkg`. Symlink `/usr/bin/less` → `/usr/bin/bat`. Installed before main `apk add`.
+- **Original resolution**: dummy `less` package (v999) with symlink `/usr/bin/less` → `/usr/bin/bat` — BROKEN in practice: bat re-execs its hardcoded `less -R` pager, hitting itself (`unexpected argument '-R'`).
+- **Current resolution**: `less-dummy` package (v999) — regular-file POSIX-sh wrapper that DROPS less flags and dumps once via `bat --color=always --paging=never` (see the Shell & Terminal table). Symlink approach obsolete.
 
 ### Vector VRL Syntax Error (Fixed)
 - **Issue**: `parse_syslog(.message)` in syslog_parser transform is fallible
