@@ -92,9 +92,21 @@ if [ -n "$drm_driver" ]; then
 else
 	fail 'DRM driver link unresolved'
 fi
-pgrep -x greetd >/dev/null && pass 'greetd running' || fail 'greetd not running'
-pgrep -x elogind >/dev/null && pass 'elogind running' || fail 'elogind not running'
-pgrep -x turnstiled >/dev/null && pass 'turnstiled running' || fail 'turnstiled not running'
+if pgrep -x greetd >/dev/null; then
+	pass 'greetd running'
+else
+	fail 'greetd not running'
+fi
+if pgrep -x elogind >/dev/null; then
+	pass 'elogind running'
+else
+	fail 'elogind not running'
+fi
+if pgrep -x turnstiled >/dev/null; then
+	pass 'turnstiled running'
+else
+	fail 'turnstiled not running'
+fi
 
 echo "--- session ---"
 
@@ -108,8 +120,11 @@ if command -v loginctl >/dev/null 2>&1; then
 		fi
 	done
 fi
-[ "$session_type" = "wayland" ] && pass "logind session type: $session_type" ||
+if [ "$session_type" = "wayland" ]; then
+	pass "logind session type: $session_type"
+else
 	fail "logind session type not wayland (${session_type:-none})"
+fi
 
 if pgrep -u "$USER_NAME" -x niri >/dev/null; then
 	pass 'niri user session running'
@@ -123,6 +138,7 @@ else
 	fail 'no wayland socket'
 fi
 
+	# shellcheck disable=SC2012  # ls over a user-owned glob dir; find would not simplify this
 	niri_socket=$(ls "$XDGRUN"/niri*.sock 2>/dev/null | head -1)
 if [ -n "$niri_socket" ] &&
 	XDG_RUNTIME_DIR="$XDGRUN" WAYLAND_DISPLAY=wayland-1 NIRI_SOCKET="$niri_socket" \
@@ -135,8 +151,7 @@ fi
 # niri msg version — sharper IPC+binary proof (socket live AND binary speaks
 # the protocol); first 2 lines of output recorded.
 if [ -n "$niri_socket" ]; then
-	nv=$(XDG_RUNTIME_DIR="$XDGRUN" NIRI_SOCKET="$niri_socket" niri msg version 2>&1)
-	if [ $? -eq 0 ]; then
+	if nv=$(XDG_RUNTIME_DIR="$XDGRUN" NIRI_SOCKET="$niri_socket" niri msg version 2>&1); then
 		pass "niri msg version: $(echo "$nv" | head -2 | tr '\n' ' ')"
 	else
 		fail 'niri msg version failed'
@@ -148,8 +163,7 @@ fi
 # niri msg windows — compositor state query; pass on rc 0 (window list may
 # legitimately be tiny), show first 5 lines.
 if [ -n "$niri_socket" ]; then
-	nw=$(XDG_RUNTIME_DIR="$XDGRUN" NIRI_SOCKET="$niri_socket" niri msg windows 2>&1)
-	if [ $? -eq 0 ]; then
+	if nw=$(XDG_RUNTIME_DIR="$XDGRUN" NIRI_SOCKET="$niri_socket" niri msg windows 2>&1); then
 		pass 'niri windows query OK'
 		echo "$nw" | head -5 | while IFS= read -r l; do echo "       $l"; done
 	else
@@ -164,8 +178,7 @@ fi
 # limitation gives niri zero outputs in QEMU; see service.go niri_outputs_count.)
 n_out=0
 if [ -n "$niri_socket" ]; then
-	no=$(XDG_RUNTIME_DIR="$XDGRUN" NIRI_SOCKET="$niri_socket" niri msg outputs 2>&1)
-	if [ $? -eq 0 ]; then
+	if no=$(XDG_RUNTIME_DIR="$XDGRUN" NIRI_SOCKET="$niri_socket" niri msg outputs 2>&1); then
 		n_out=$(echo "$no" | grep -c '^Output')
 	fi
 fi
@@ -188,7 +201,11 @@ while [ $i -lt 30 ]; do
 	sleep 1
 	i=$((i + 1))
 done
-[ -n "$dms_ok" ] && pass 'dms shell running' || fail 'dms not running'
+if [ -n "$dms_ok" ]; then
+	pass 'dms shell running'
+else
+	fail 'dms not running'
+fi
 
 # dms IPC — real CLI liveness (same as harness dms_ipc). Syntax verified
 # against DankLinux docs: `dms ipc call <target> <function>`; `widget list`
@@ -204,7 +221,11 @@ while [ $i -lt 60 ]; do
 	sleep 1
 	i=$((i + 1))
 done
-[ -n "$dms_ipc_ok" ] && pass 'dms IPC OK' || fail 'dms IPC failed'
+if [ -n "$dms_ipc_ok" ]; then
+	pass 'dms IPC OK'
+else
+	fail 'dms IPC failed'
+fi
 
 # user dinit session stack: every boot.d user service started. dinitctl list
 # renders started services as `[{+}] name (pid: ...)` — '{+' only appears
@@ -235,7 +256,11 @@ while [ $i -lt 30 ]; do
 	sleep 1
 	i=$((i + 1))
 done
-[ -n "$wayvnc_ok" ] && pass 'wayvnc listening on 5900' || fail 'wayvnc not listening'
+if [ -n "$wayvnc_ok" ]; then
+	pass 'wayvnc listening on 5900'
+else
+	fail 'wayvnc not listening'
+fi
 
 # screenshot: real-rendering proof (same two CLI shapes as the harness —
 # adjust the action name if `niri msg action --help` rejects it).
@@ -247,6 +272,7 @@ if [ -n "$niri_socket" ]; then
 		XDG_RUNTIME_DIR="$XDGRUN" WAYLAND_DISPLAY=wayland-1 NIRI_SOCKET="$niri_socket" \
 			niri msg action screenshot-screen >/dev/null 2>&1
 	f=/tmp/niri-shot.png
+	# shellcheck disable=SC2012  # ls-glob newest-pick over the screenshots dir; simple and target-side
 	[ -s "$f" ] || f=$(ls "/home/$USER_NAME/Pictures/Screenshots/"*.png 2>/dev/null | tail -1)
 	if [ -s "$f" ]; then
 		pass "screenshot OK: $f ($(wc -c < "$f") bytes)"

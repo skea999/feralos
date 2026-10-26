@@ -91,6 +91,10 @@ fi
 # --- Build installer (runner-independent: regenerate sums for runner's Go version) ---
 echo "Building installer..."
 cd "$installDir/src"
+# go env -w mutates the GLOBAL Go env of this machine — acceptable here:
+# this script runs on the EPHEMERAL harness runner VM (or a disposable live
+# USB host), never on a developer workstation. GOSUMDB is flipped off only
+# for the tidy of the freshly cloned tree and restored right after.
 go env -w GOPROXY=https://proxy.golang.org,direct
 go env -w GOSUMDB=off
 go clean -modcache

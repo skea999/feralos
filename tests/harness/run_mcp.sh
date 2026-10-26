@@ -2,6 +2,10 @@
 
 set -eu
 
+# resolve_path is duplicated in generate_mcp_config.sh —
+# keep in sync when editing (dedup intentionally skipped: these are
+# convenience scripts against a foreign layout, minimal-risk choice).
+
 resolve_path() {
 	if command -v readlink >/dev/null 2>&1; then
 		readlink -f "$1"
@@ -15,8 +19,8 @@ resolve_path() {
 }
 
 script_path=$(resolve_path "$0")
-script_dir=$(CDPATH= cd -- "$(dirname -- "$script_path")" && pwd -P)
-repo_root=$(CDPATH= cd -- "$script_dir/../../.." && pwd -P)
+script_dir=$(CDPATH='' cd -- "$(dirname -- "$script_path")" && pwd -P)
+repo_root=$(CDPATH='' cd -- "$script_dir/../../.." && pwd -P)
 binary_path="$repo_root/artifacts/harness/bin/skea-harness"
 artifacts_root="$repo_root/artifacts/harness"
 harness_src_dir="$repo_root/installer/tools/harness"

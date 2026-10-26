@@ -72,7 +72,7 @@ case "${1:-help}" in
     git log --all -p | verify count
     echo "--- branches:"; git branch -a
     cd - >/dev/null
-    rm -rf "$D"
+    rm -rf "${D:?}"
     ;;
 
   *)
