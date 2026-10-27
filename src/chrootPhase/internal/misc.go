@@ -36,7 +36,7 @@ func SetupMisc(conf *config.Config) error {
 	}
 
 	// 10. System limits — NOT written here: SetupUsers (users.go) owns
-	// /etc/security/limits.conf (polishCode P2-2). This file used to write an
+	// /etc/security/limits.conf. This file used to write an
 	// identical copy that users.go immediately overwrote.
 
 	if err := setupSudoers(chroot); err != nil {

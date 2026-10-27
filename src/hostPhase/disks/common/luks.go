@@ -13,7 +13,7 @@ func LuksFormat(device, password string) error {
 	shell.SetCaller("luks")
 	fmt.Printf("[INFO] LUKS2 format: %s\n", device)
 
-	// Direct exec, NOT shell.ExecuteCmd: the secret must never appear in logs (documented logging-rule exception — polishCode P3-8).
+	// Direct exec, NOT shell.ExecuteCmd: the secret must never appear in logs (documented logging-rule exception).
 	cmd := exec.Command("cryptsetup", "luksFormat", device,
 		"--type", "luks2", "-v", "-c", "aes-xts-plain64", "-s", "512",
 		"--hash", "sha512", "--iter-time", "5000", "--use-urandom", "-q", "--key-file", "-")
@@ -29,7 +29,7 @@ func LuksFormat(device, password string) error {
 func LuksOpen(device, name, password string) error {
 	fmt.Printf("[INFO] LUKS open: %s -> %s\n", device, name)
 
-	// Direct exec, NOT shell.ExecuteCmd: the secret must never appear in logs (documented logging-rule exception — polishCode P3-8).
+	// Direct exec, NOT shell.ExecuteCmd: the secret must never appear in logs (documented logging-rule exception).
 	cmd := exec.Command("cryptsetup", "luksOpen", device, name, "--key-file", "-")
 	cmd.Stdin = strings.NewReader(password)
 	if output, err := cmd.CombinedOutput(); err != nil {
@@ -57,7 +57,7 @@ func LuksMapperPath(uuid string) string {
 func LuksAddKey(device, keyfile, password string) error {
 	fmt.Printf("[INFO] LUKS add key: %s -> %s\n", device, keyfile)
 
-	// Direct exec, NOT shell.ExecuteCmd: the keyfile/password must never appear in logs (documented logging-rule exception — polishCode P3-8).
+	// Direct exec, NOT shell.ExecuteCmd: the keyfile/password must never appear in logs (documented logging-rule exception).
 	cmd := exec.Command("cryptsetup", "luksAddKey", device, keyfile)
 	cmd.Stdin = strings.NewReader(password)
 	if output, err := cmd.CombinedOutput(); err != nil {

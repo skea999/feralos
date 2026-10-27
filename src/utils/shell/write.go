@@ -10,8 +10,8 @@ import (
 )
 
 // WriteFile writes content to path with logging — the sanctioned way for
-// hostPhase/chrootPhase to write files (logging-rule amendment, polishCode
-// P2-5). It replaces the fragile `echo '<escaped>' > path` shell pattern:
+// hostPhase/chrootPhase to write files (logging-rule amendment). It replaces
+// the fragile `echo '<escaped>' > path` shell pattern:
 // single-quote escaping is error-prone with arbitrary content and very large
 // payloads can hit ARG_MAX, while a direct write is exact and only logs the
 // path + size (never the content).

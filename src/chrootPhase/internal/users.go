@@ -53,7 +53,7 @@ func SetupUsers(conf *config.Config) error {
 func setupRootPassword(chroot, password string) error {
 	// 1. Root password
 	fmt.Println("[INFO] Setting root password...")
-	// Direct exec, NOT shell.ExecuteCmd: the password must never appear in logs (documented logging-rule exception — polishCode P3-8).
+	// Direct exec, NOT shell.ExecuteCmd: the password must never appear in logs (documented logging-rule exception).
 	passwdCmd := exec.Command("chroot", chroot, "passwd", "root")
 	passwdCmd.Stdin = strings.NewReader(password + "\n" + password + "\n")
 	if output, err := passwdCmd.CombinedOutput(); err != nil {
@@ -102,7 +102,7 @@ func createUserAccount(chroot string, u *config.UserVariables, isNiri bool) erro
 			fmt.Printf("[WARNING] Failed to list login-shell in /etc/shells: %v\n", err)
 		}
 	}
-	// Direct exec, NOT shell.ExecuteCmd: the password must never appear in logs (documented logging-rule exception — polishCode P3-8).
+	// Direct exec, NOT shell.ExecuteCmd: the password must never appear in logs (documented logging-rule exception).
 	passwdCmd := exec.Command("chroot", chroot, "passwd", u.UserName) //nolint:gosec // G204: installer-validated username; stdin-carried password never logged
 	passwdCmd.Stdin = strings.NewReader(u.Password + "\n" + u.Password + "\n")
 	if output, err := passwdCmd.CombinedOutput(); err != nil {
@@ -172,7 +172,7 @@ func setupUserShell(chroot string, u *config.UserVariables, isNiri bool) {
 }
 
 // setupLimits writes /etc/security/limits.conf — single owner of the file
-// (polishCode P2-2: the former identical write in misc.go SetupMisc was
+// (the former identical write in misc.go SetupMisc was
 // removed). Values as consts — they were duplicated twice before.
 func setupLimits(chroot string, u *config.UserVariables) error {
 	// 9. System limits

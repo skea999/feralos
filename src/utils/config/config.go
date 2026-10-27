@@ -213,7 +213,7 @@ func validEnumValues(m map[string]DynamicPackageRules) []string {
 
 // validateConfig rejects invalid values in user-provided fields.
 // Delegates to per-field validators in validators.go (shared with the wizard).
-// A hand-edited YAML gets the same scrutiny as the wizard (polishCode P1-1):
+// A hand-edited YAML gets the same scrutiny as the wizard:
 // enum fields, password policy, swap size and the required identity fields
 // are all enforced at load time instead of dying mid-install.
 func validateConfig(conf *Config) error {
