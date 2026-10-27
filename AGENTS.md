@@ -8,6 +8,13 @@
 
 ## Recent Rounds (latest first)
 
+### 2026-10-27 - ursined boot failure fixed: unit ordered after local.target (log dir in @var-log subvol) + installer belt-and-braces
+**Agent:** codebase
+**Summary:** boot error `dinit: ursined: execution failed - opening log file: No such file or directory` (run `2026-10-27T22-57-50Z`). Root cause was NOT the post-install (it was present, correct AND executed — `Executing ursine-0.19.0-r0.post-install` in installer.log): `/var/log` is the `@var-log` fstab subvol, and `ursined.dinit` was the ONLY unit with zero dependencies → dinit started it before `early-fs-fstab` mounted the subvol → dir invisible pre-mount → service stuck FAILED (serial log failure printed BEFORE `early-fs-fstab.target` OK).
+- **aports `c3ebc12`** (CI `40603536206`): `ursined.dinit` gains `depends-on = local.target` + `before = login.target` (mirrors the proven-green `vector` unit — same logfile-in-/var/log pattern; ADR-009 convention); post-install kept + chmod 0755; **pkgrel 0→1** (CI skip-if-unchanged would otherwise keep serving r0); ursined.dinit sha512sum refreshed.
+- **feralos:** `services.go SetupServices` creates `mkdir -p /var/log/ursine && chmod 0750` before service enablement (belt-and-braces beside the post-install).
+- **Lesson:** a dinit unit with `logfile=` under a dedicated subvol MUST carry `depends-on = local.target` — subvol mounts complete in the early chain (`early-fs-fstab` → `early-fs-local` → `pre-local` → `local.target`), any no-dep unit races them.
+
 ### 2026-10-25 - ADR-010 R1 amendment: system units carry the OpenRC initd name; fwupd/PPD on-demand — full matrix green (niri 113, kde 77, cosmic 77, niriWayle 109 + OpenRC 92)
 **Agent:** codebase
 **Summary:** user correction of the ADR-010 naming rule — the dbus-name convention applies ONLY to services dbus activates on demand; system services WE boot-enable must carry the OpenRC initd name (the `services` map alone then drives both inits); dbus-by-design daemons are never boot-enabled (dbus decides when they run).

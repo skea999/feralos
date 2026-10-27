@@ -16,6 +16,15 @@ func SetupServices(conf *config.Config) error {
 	shell.SetCaller("services")
 	chroot := conf.Internal.ChrootDir
 
+	// ursine log dir BEFORE service enablement (belt-and-braces beside the
+	// ursine post-install): ursined's dinit logfile is
+	// /var/log/ursine/ursined.log inside the @var-log subvol — the dir must
+	// exist or the unit fails at boot with "opening log file: No such file
+	// or directory". Harmless on installs without ursine.
+	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /var/log/ursine && chmod 0750 /var/log/ursine"); err != nil {
+		return fmt.Errorf("failed to create /var/log/ursine: %w", err)
+	}
+
 	// OpenRC runlevels — ALWAYS configured, NEVER conditional: a dinit
 	// install must remain bootable under OpenRC (fallback), so the rc-update
 	// links are created regardless of the active init. They are inert under
