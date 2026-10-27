@@ -33,7 +33,7 @@ See `docs/INSTALLER.md#Error Handling` for retry/user-feedback detail.
 - **Logged**: `[WRITE]` / `[APPEND]` line (target path + byte size; content NEVER logged) + `[RESULT] ok|FAIL` line, same timestamp/caller style as ExecuteCmd.
 - **Parent MkdirAll** (0755) first; **perm forced via chmod when the file is newly created** (umask-independent; an existing file keeps its mode — same as `echo > file` truncating in place).
 - **SKEA_IGNORE_ERRORS=1** honored: failure logs `[ERROR][IGNORED] write failed (ignoreErrors=true)` and returns nil (same best-effort semantics as ExecuteCmd — harness runs stay non-fatal).
-- **Why the rule changed**: the former `echo '<escaped>' > path` pattern (via ExecuteCmd) required single-quote escaping of arbitrary content — one missed `'` corrupts the seed — and very large payloads can hit ARG_MAX. The escaped-echo call sites were converted to `WriteFile` (polishCode P2-5); the pattern is forbidden for new code.
+- **Why the rule changed**: the former `echo '<escaped>' > path` pattern (via ExecuteCmd) required single-quote escaping of arbitrary content — one missed `'` corrupts the seed — and very large payloads can hit ARG_MAX. The escaped-echo call sites were converted to `WriteFile`; the pattern is forbidden for new code.
 
 ### Keep ExecuteCmd for
 
@@ -73,7 +73,7 @@ Two deliberate direct-exec sites bypass `ExecuteCmd` because the secret must nev
 - **passwd via stdin pipe** — `src/chrootPhase/internal/users.go` (root + user password): `exec.Command` with `Stdin` reader.
 - **cryptsetup stdin** — `src/hostPhase/disks/common/luks.go` (`LuksFormat`/`LuksOpen`/`LuksAddKey`): LUKS password/keyfile via `Stdin` reader.
 
-Both are comment-annotated in source (`polishCode P3-8`). Adding a new carve-out requires a comment at the site + an entry here and in `AGENTS.md#Logging Rule`.
+Both are comment-annotated in source. Adding a new carve-out requires a comment at the site + an entry here and in `AGENTS.md#Logging Rule`.
 
 ## References
 

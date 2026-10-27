@@ -622,7 +622,7 @@ cd tests/harness && go vet ./...
 cd tests/harness && golangci-lint run ./...
 ```
 
-**Dupl exclusions** (intentional duplication): `src/hostPhase/disks/` (layout packages), `src/chrootPhase/desktops/` (derived desktop flows — niri.go/niri_wayle.go are intentionally duplicated, same policy as disk layouts: do NOT merge or extract shared blocks), `src/utils/firstboot/` (standalone binaries). Config: `.golangci.yml` → `dupl.threshold: 100` + `exclude-rules`. Full polish registry: `references/polishCode.md`.
+**Dupl exclusions** (intentional duplication): `src/hostPhase/disks/` (layout packages), `src/chrootPhase/desktops/` (derived desktop flows — niri.go/niri_wayle.go are intentionally duplicated, same policy as disk layouts: do NOT merge or extract shared blocks), `src/utils/firstboot/` (standalone binaries). Config: `.golangci.yml` → `dupl.threshold: 100` + `exclude-rules`. Full polish task history is in the git log.
 
 → Details: `docs/guides/development.md` (lint/format)
 
@@ -676,7 +676,7 @@ Cleanup (before/after) and firstboot (install config, secureboot/tpm compile) ar
 **Commands: `shell.ExecuteCmd`; file writes: `shell.WriteFile`/`shell.WriteFileAppend` — in `hostPhase`/`chrootPhase`, never raw `os.*`.**
 
 - **Commands** (installs, chmod, sed, chown, anything executed): `shell.ExecuteCmd` — logs CMD, stdout/stderr, exit, retry, `SKEA_NONINTERACTIVE` handling. Host: `shell.ExecuteCmd("", "mkdir -p /mnt/etc")`. Chroot: `shell.ExecuteCmd(chroot, "mkdir -p /etc")`.
-- **File writes** (`shell.WriteFile(chroot, path, content, perm)` / `WriteFileAppend`, `src/utils/shell/write.go`): logged direct writes on the chroot mount — `[WRITE]`/`[APPEND]` line (path + size, content NEVER logged) + `[RESULT]`; MkdirAll of the parent (0755); perm forced via chmod on create (umask-independent); honors `SKEA_IGNORE_ERRORS=1` like ExecuteCmd. **The `echo '<escaped>' > path` shell pattern is forbidden for new code**: single-quote escaping of arbitrary content is fragile (one missed `'` corrupts the seed) and very large payloads can hit ARG_MAX — the escaped-echo call sites were converted to `WriteFile` (polishCode P2-5). KEEP `ExecuteCmd` for: conditional appends (`grep -q … || echo … >> file` — the guard is part of the operation), writes computed at shell-runtime (e.g. awk over `/proc/meminfo`), and in-place edits (sed/awk). `WriteFileAppend` covers unconditional appends.
+- **File writes** (`shell.WriteFile(chroot, path, content, perm)` / `WriteFileAppend`, `src/utils/shell/write.go`): logged direct writes on the chroot mount — `[WRITE]`/`[APPEND]` line (path + size, content NEVER logged) + `[RESULT]`; MkdirAll of the parent (0755); perm forced via chmod on create (umask-independent); honors `SKEA_IGNORE_ERRORS=1` like ExecuteCmd. **The `echo '<escaped>' > path` shell pattern is forbidden for new code**: single-quote escaping of arbitrary content is fragile (one missed `'` corrupts the seed) and very large payloads can hit ARG_MAX — the escaped-echo call sites were converted to `WriteFile`. KEEP `ExecuteCmd` for: conditional appends (`grep -q … || echo … >> file` — the guard is part of the operation), writes computed at shell-runtime (e.g. awk over `/proc/meminfo`), and in-place edits (sed/awk). `WriteFileAppend` covers unconditional appends.
 - `import "os"` forbidden in `hostPhase`/`chrootPhase` (exceptions: `firstBoot/` standalone, `utils/shell` impl).
 - Documented exceptions (secrets must never be logged): passwd via stdin pipe (chrootPhase/internal/users.go) and cryptsetup stdin (hostPhase/disks/common/luks.go).
 

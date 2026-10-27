@@ -19,7 +19,7 @@ All notable changes to FeralOS will be documented in this file.
 - Harness: `log_errors` now fails any non-allowlisted WARNING in installer.log (allowlist: the 2 apt notices + ssh known-hosts); installer boot.d symlink resolves units in `/lib/dinit.d` OR `/etc/dinit.d` (fixed the turnstiled enable warning).
 - Verified: kde full-feature dinit `2026-10-25T03-41-55Z` 77/77.
 
-## 2026-10-25 — Code-polish plan registered (references/polishCode.md)
+## 2026-10-25 — Code-polish plan registered
 - Read-only analysis → approved refinement plan (P0 pre-release docs/CI, P1 robustness, P2 maintainability, P3 cleanups/tests); intentional-duplication policy recorded (niri.go/niri_wayle.go treated like disk layouts — do NOT merge).
 
 ## 2026-10-24 — KDE/COSMIC session autologin + runtime checks — harness 74/74 each
