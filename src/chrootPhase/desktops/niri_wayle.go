@@ -284,38 +284,78 @@ spawn-at-startup "sh" "-c" "command -v xdg-user-dirs-update >/dev/null 2>&1 && x
 	//     terminate-session: under dinit polkit cannot attribute the
 	//     session (NoSessionForPID) so it would hit an auth prompt, while
 	//     niri's quit action needs no polkit.
-	// The power bar button is seeded too: the default bar layout has NO
-	// session entry point (media/clock/status modules only) and the power
-	// module ships with no click action; `left-click = "dropdown:dashboard"`
-	// opens the dropdown holding the four buttons. Only `right` is
-	// restated — omitted BarLayout fields fall back to struct defaults
-	// (media/clock) per serde `default`, so upstream drift on left/center
-	// still applies. Wayle merges the file over its built-in defaults and
-	// only auto-creates a stub when missing, so this seed survives first
-	// launch and live-reloads (single-run installer — users edit freely
-	// via wayle-settings afterwards). Ownership: step 14 sweep.
+	// Windows-style bottom bar (novice-friendly, user request 2026-10-27):
+	//   - location=bottom, exclusive=true (default — reserves space, no
+	//     floating), opacity 85%, rounding md.
+	//   - left: custom-launcher (Raffi via Mod+D or click) + window-title
+	//     (focused window). center: empty. right: systray, icon-only status
+	//     (battery/bluetooth/network/mic/volume), clock (HH:MM), dashboard
+	//     (far right — lock/logout/reboot/poweroff dropdown).
+	//   - theme: everforest-dark preset (wayle built-in palette, seeded as
+	//     [styling.palette] — the official activation path; no name key).
+	//   - dashboard dropdown = session actions (see step 7b rationale above).
 	wayleRebootCmd := "loginctl reboot"
 	if u.EnableDinit {
 		wayleRebootCmd = "sudo -n /usr/bin/reboot"
 	}
-	wayleConf := fmt.Sprintf(`# FeralOS: Wayle session actions. The dashboard dropdown's user-row
-# buttons (lock/logout/reboot/poweroff) run these commands; the power bar
-# button opens the dashboard (v0.7.0 has no dedicated power dropdown).
-# Rationale per choice: niri_wayle.go step 7b.
+	wayleConf := fmt.Sprintf(`[bar]
+location = "bottom"
+background-opacity = 85
+rounding = "md"
+
+[styling]
+theme-provider = "wayle"
+
+[styling.palette]
+bg = "#2d353b"
+surface = "#343f44"
+elevated = "#3d484d"
+fg = "#d3c6aa"
+fg_muted = "#859289"
+primary = "#7fbbb3"
+red = "#e67e80"
+yellow = "#dbbc7f"
+green = "#a7c080"
+blue = "#83c092"
+
+[[modules.custom]]
+id = "launcher"
+icon-name = "view-app-grid-symbolic"
+label-show = false
+left-click = "raffi"
+
+[modules.window-title]
+label-max-length = 50
+
+[modules.clock]
+format = "%%H:%%M"
+
+[modules.battery]
+label-show = false
+
+[modules.bluetooth]
+label-show = false
+
+[modules.network]
+label-show = false
+
+[modules.microphone]
+label-show = false
+
+[modules.volume]
+label-show = false
+
 [modules.dashboard]
 dropdown-lock-command = "veila lock"
 dropdown-logout-command = "niri msg action quit --skip-confirmation"
 dropdown-reboot-command = "%s"
 dropdown-poweroff-command = "loginctl poweroff"
 
-[modules.power]
-left-click = "dropdown:dashboard"
-
-# Upstream default layout + power button at the right end (the default bar
-# has no session entry point). left/center keep their upstream defaults.
 [[bar.layout]]
 monitor = "*"
-right = ["battery", "bluetooth", "network", "microphone", "volume", "power"]
+left = ["custom-launcher", "window-title"]
+center = []
+right = ["systray", "battery", "bluetooth", "network", "microphone", "volume", "clock", "dashboard"]
 `, wayleRebootCmd)
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p /home/%s/.config/wayle", u.UserName)); err != nil {
 		return fmt.Errorf("mkdir wayle config dir: %w", err)

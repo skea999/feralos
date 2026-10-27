@@ -574,16 +574,17 @@ echo 'dbus activation units live OK'
 		// upstream defaults are systemd-only and dead on FeralOS
 		// (`systemctl reboot|poweroff`; `loginctl lock-session` a no-op on
 		// niri), and the default bar layout has no session entry point.
-		// Static assert of the seed: 4 dropdown commands + power bar
-		// button + layout wiring. The reboot command runs the dinit
-		// wrapper via zz-power (asserted by dinit_shutdown_commands —
-		// same rule/rationale as niri/DMS). Init-aware: OpenRC fixtures
-		// expect `loginctl reboot`.
+		// Static assert of the seed: 4 dropdown commands + the Windows-
+		// style bottom bar (launcher+window-title left, dashboard far
+		// right, icon-only status, everforest palette). The reboot
+		// command runs the dinit wrapper via zz-power (asserted by
+		// dinit_shutdown_commands — same rule/rationale as niri/DMS).
+		// Init-aware: OpenRC fixtures expect `loginctl reboot`.
 		wayleRebootCmd := "loginctl reboot"
 		if cfg.EnableDinit {
 			wayleRebootCmd = "sudo -n /usr/bin/reboot"
 		}
-		checks["wayle_session_actions"] = fmt.Sprintf("f=/home/%s/.config/wayle/config.toml; test -f \"$f\" || { echo 'wayle config.toml missing'; exit 1; }; grep -q 'dropdown-lock-command = \"veila lock\"' \"$f\" || { echo 'lock command missing'; exit 1; }; grep -q 'dropdown-logout-command = \"niri msg action quit --skip-confirmation\"' \"$f\" || { echo 'logout command missing'; exit 1; }; grep -q 'dropdown-reboot-command = %q' \"$f\" || { echo 'reboot command missing'; exit 1; }; grep -q 'dropdown-poweroff-command = \"loginctl poweroff\"' \"$f\" || { echo 'poweroff command missing'; exit 1; }; grep -q 'left-click = \"dropdown:dashboard\"' \"$f\" || { echo 'power button click action missing'; exit 1; }; grep -qF 'right = [\"battery\", \"bluetooth\", \"network\", \"microphone\", \"volume\", \"power\"]' \"$f\" || { echo 'power module missing from bar layout'; exit 1; }; echo 'wayle session actions OK (dashboard dropdown commands + power bar button)'", cfg.InstalledUser, wayleRebootCmd)
+		checks["wayle_session_actions"] = fmt.Sprintf("f=/home/%s/.config/wayle/config.toml; test -f \"$f\" || { echo 'wayle config.toml missing'; exit 1; }; grep -q 'dropdown-lock-command = \"veila lock\"' \"$f\" || { echo 'lock command missing'; exit 1; }; grep -q 'dropdown-logout-command = \"niri msg action quit --skip-confirmation\"' \"$f\" || { echo 'logout command missing'; exit 1; }; grep -q 'dropdown-reboot-command = %q' \"$f\" || { echo 'reboot command missing'; exit 1; }; grep -q 'dropdown-poweroff-command = \"loginctl poweroff\"' \"$f\" || { echo 'poweroff command missing'; exit 1; }; grep -q 'location = \"bottom\"' \"$f\" || { echo 'bar not at bottom'; exit 1; }; grep -qF 'left = [\"custom-launcher\", \"window-title\"]' \"$f\" || { echo 'launcher+window-title layout missing'; exit 1; }; grep -qF 'right = [\"systray\", \"battery\", \"bluetooth\", \"network\", \"microphone\", \"volume\", \"clock\", \"dashboard\"]' \"$f\" || { echo 'right layout mismatch'; exit 1; }; grep -q 'label-show = false' \"$f\" || { echo 'icon-only status modules missing'; exit 1; }; grep -q 'primary = \"#7fbbb3\"' \"$f\" || { echo 'everforest palette missing'; exit 1; }; echo 'wayle session actions OK (Windows-style bottom bar + dashboard dropdown)'", cfg.InstalledUser, wayleRebootCmd)
 		// stasis_idle: the stasis context-aware idle manager (feralos-aports
 		// 1.6.3, dependency of wayle-session) — package + supervised
 		// session service stasis.user (started by the wayle-session script
