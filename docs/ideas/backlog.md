@@ -1,6 +1,6 @@
 # Backlog — Ideas & Roadmap
 
-Source: `ROADMAP.md` Phases + Pipeline + `docs/TASKS.md` (double docs — `AGENTS.md#Roadmap` is source of truth, this copy is reference). Status reflects `ROADMAP.md` as of 2026-08-10 + `AGENTS.md#Roadmap` (Completed for btrfsRaid0/Standard/Server, Generator, Harness, Nix).
+Source: `ROADMAP.md` Phases + Pipeline (double docs — `AGENTS.md#Roadmap` is source of truth, this copy is reference). Status reflects `ROADMAP.md` as of 2026-08-10 + `AGENTS.md#Roadmap` (Completed for btrfsRaid0/Standard/Server, Generator, Harness, Nix).
 
 ## Phase 1 — Installer
 
@@ -76,18 +76,10 @@ Transform installer output into complete FeralOS distribution.
 - **P1**: Should — important but not blocking (Generator, hooks, GRUB/EFI, Nix, fstab).
 - **P2**: Nice — enhancements (test suite, extra DEs, server services).
 
-## Current Sprint
-
-Per `docs/TASKS.md` (template — update start/end of each session):
-
-- **Todo / In Progress / Done**: see `docs/TASKS.md` (currently empty template).
-- Use `TASKS.md` for sprint tracking; this backlog is roadmap view.
-
 ## References
 
 - `ROADMAP.md` (source — Phases, Milestones, Pipelines, Timeline)
 - `AGENTS.md#Roadmap` (compressed roadmap, status Completed vs Planned)
 - `CONTEXT.md#Memory-Safe Alternatives` (alternatives table)
 - `docs/PROJECT.md#Roadmap`
-- `docs/TASKS.md` (sprint store)
 - `CHANGELOG.md` (history)
