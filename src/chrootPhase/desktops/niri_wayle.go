@@ -97,6 +97,15 @@ timezone = "%s"
 		return fmt.Errorf("write regreet config: %w", err)
 	}
 
+	// 3b. Hide the upstream bare `niri` session from regreet (real-hardware
+	// fix): the greeter showed BOTH the upstream niri session and the FeralOS
+	// niriWayle session; NoDisplay hides it (ReGreet 0.2.0 respects the
+	// Desktop Entry Hidden/NoDisplay fields). apk-safe: the local modification
+	// survives niri upgrades as .apk-new.
+	if _, err := shell.ExecuteCmd(chroot, `grep -q '^NoDisplay=true' /usr/share/wayland-sessions/niri.desktop 2>/dev/null || printf 'NoDisplay=true\n' >> /usr/share/wayland-sessions/niri.desktop`); err != nil {
+		return fmt.Errorf("hide bare niri session from regreet: %w", err)
+	}
+
 	// 4. greeter user + dirs (shared with niri; full rationale in niri.go):
 	// -S system user hides the greeter from ReGreet's UID-filtered list;
 	// explicit -G avoids busybox adduser -S's nogroup primary-group trap.

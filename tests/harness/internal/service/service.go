@@ -2644,6 +2644,27 @@ func writeHarnessVariables(cfg *RunConfig, keyPair guest.KeyPair, outputPath, al
 		yn(cfg.EnableDinit),
 	)
 
+	// extraPackages from the fixture (e.g. pkg@edge) are APPENDED to the
+	// harness base list — the installer needs them in variables.yaml to
+	// actually install the user's packages (needs enableEdgeRepos: true).
+	// Duplicates against the base list are skipped.
+	// ORDER MATTERS: this loop must run while the base `extraPackages:` list
+	// above is still the open YAML key — BEFORE any block that opens a new
+	// list (flatpakPackages/nixPackages). Caught live: with flatpakPackages
+	// present, appending after those blocks merged `okular` into
+	// flatpakPackages and the installer ran `flatpak install okular`.
+	basePkgs := map[string]bool{
+		"incus-feature": true, "incus-feature-vm": true,
+		"incus-feature-client": true, "incus-feature-utils": true,
+		"qemu-system-x86_64": true, "qemu-img": true, "qemu-modules": true,
+	}
+	for _, pkg := range cfg.ExtraPackages {
+		if basePkgs[pkg] {
+			continue
+		}
+		content += fmt.Sprintf("    - %q\n", pkg)
+	}
+
 	// Flatpak packages: if explicitly set (e.g. via -f fixture), propagate
 	// to the installer variables.yaml so verification expectations match.
 	if len(cfg.FlatpakPackages) > 0 {
@@ -2657,21 +2678,6 @@ func writeHarnessVariables(cfg *RunConfig, keyPair guest.KeyPair, outputPath, al
 		for _, pkg := range cfg.NixPackages {
 			content += fmt.Sprintf("    - %q\n", pkg)
 		}
-	}
-	// extraPackages from the fixture (e.g. pkg@edge) are APPENDED to the
-	// harness base list — the installer needs them in variables.yaml to
-	// actually install the user's packages (needs enableEdgeRepos: true).
-	// Duplicates against the base list are skipped.
-	basePkgs := map[string]bool{
-		"incus-feature": true, "incus-feature-vm": true,
-		"incus-feature-client": true, "incus-feature-utils": true,
-		"qemu-system-x86_64": true, "qemu-img": true, "qemu-modules": true,
-	}
-	for _, pkg := range cfg.ExtraPackages {
-		if basePkgs[pkg] {
-			continue
-		}
-		content += fmt.Sprintf("    - %q\n", pkg)
 	}
 	// extraPackagesEdge: @edge tagged packages installed LAST by the
 	// installer (requires enableEdgeRepos: true) — propagated from the
