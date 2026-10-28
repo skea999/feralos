@@ -37,7 +37,7 @@ Overall:
     Global reserve:		   5.50MiB	(used: 0.00B)
     Multiple profiles:		        no
 
-             Data     Metadata  System                             
+             Data     Metadata  System
 Id Path      single   DUP       DUP      Unallocated Total    Slack
 -- --------- -------- --------- -------- ----------- -------- -----
  1 /dev/dm-0 11.01GiB 512.00MiB 16.00MiB     3.96GiB 15.48GiB     -

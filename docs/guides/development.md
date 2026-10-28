@@ -16,7 +16,7 @@ Ref: `AGENTS.md#Naming Conventions`.
 
 ## Module Map
 
-```
+```text
 src/
 ├── main.go                          # entry only — collect config, delegate
 ├── variables/ (variables.yaml, internal_rules.yaml)
@@ -122,6 +122,16 @@ No backward compat. Breaking changes allowed without fallback (e.g., `internal_r
 # vet + lint (native Linux, pre-commit does this)
 cd src && go vet ./...
 cd src && golangci-lint run ./...
+
+# static analysis suite (ursine pattern; same checks as scripts/ci.sh,
+# configs at repo root, tool versions pinned in the Dockerfile lint-tools)
+yamllint -c .yamllint.yml src/variables/internal_rules.yaml \
+  src/variables/variables.yaml tests/fixtures/variables/*.yaml   # BLOCKING
+gitleaks detect --source . --config .gitleaks.toml --no-banner --redact  # BLOCKING (history; no .git -> `gitleaks dir .`)
+typos --config typos.toml --format brief .                       # warn-only
+markdownlint-cli2 "docs/**/*.md" "*.md"                          # warn-only
+ec --config .ecrc .                                              # warn-only
+taplo lint --config taplo.toml .gitleaks.toml typos.toml         # warn-only, taplo optional
 
 # build
 cd src && go build -o ../feralos_installer .

@@ -54,8 +54,8 @@ variables:
     - satty
   # Packages from the @edge tagged repos (auto-enables enableEdgeRepos),
   # installed LAST after all other packages (e.g. mesa-dri-gallium@edge)
-  extraPackagesEdge: 
-    - mesa@edge 
+  extraPackagesEdge:
+    - mesa@edge
     - mesa-gl@edge
     - mesa-egl@edge
     - mesa-gles@edge

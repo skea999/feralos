@@ -36,7 +36,7 @@ git ls-files '*.md' '*.go' '*.yaml' | xargs grep -lnE \
 Save the audit output under (already gitignored by the `tests/artifacts/**/*`
 rule — structure kept, content never committed):
 
-```
+```text
 tests/artifacts/audits/<YYYY-MM-DD>/report.md
 ```
 

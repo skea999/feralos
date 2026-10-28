@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # ci.sh — the CI gate (P0-3). Mirrors .githooks/pre-commit (go vet +
 # golangci-lint + govulncheck + secret scan) and adds gofmt, go test, all
-# binary builds, shellcheck (P3-3) and the docs checks. Runs inside the
-# feralos-ci image (see Dockerfile) but works on any host with Go 1.22,
-# golangci-lint, govulncheck, shellcheck and bash.
+# binary builds, shellcheck (P3-3), the docs checks and the static-analysis
+# suite (yamllint + gitleaks = blocking; typos, markdownlint-cli2,
+# editorconfig-checker, taplo = warn-only). Runs inside the feralos-ci image
+# (see Dockerfile) but works on any host with Go 1.22, golangci-lint,
+# govulncheck, shellcheck and bash.
 #
 # Builds go to a temp dir so the repo tree stays clean.
 set -euo pipefail
@@ -19,7 +21,7 @@ mkdir -p "$BIN"
 fail() { echo "✗ $1" >&2; exit 1; }
 ok() { echo "✓ $1"; }
 
-echo "=== CI gate: gofmt + vet + lint + test + builds + govulncheck + secret scan + shellcheck + docs ==="
+echo "=== CI gate: gofmt + vet + lint + test + builds + govulncheck + secret scan + shellcheck + docs + static analysis ==="
 
 echo "=== gofmt ==="
 FMT_DIRTY="$(gofmt -l src tests/harness tests/debug_run)"
@@ -78,45 +80,62 @@ else
   echo "⚠ govulncheck not found — skipping"
 fi
 
-echo "=== Secret scan ==="
-# Secret patterns: keep patterns in sync with .githooks/pre-commit
+echo "=== Secret scan (gitleaks, blocking) ==="
+# gitleaks is the primary scanner (.gitleaks.toml: default rules + fixture/
+# lockfile allowlist; known historical findings fingerprinted in
+# .gitleaksignore). The pattern grep below stays as the fallback for hosts
+# without gitleaks — its patterns stay in sync with .githooks/pre-commit
 # (same entries, same fixture/docs allowlist for the generic-secret pattern).
 # NOTE: .githooks/pre-commit carries the same list — edit BOTH or neither.
-PATTERNS=(
-  'AKIA[0-9A-Z]{16}'                          # AWS Access Key
-  '-----BEGIN[[:space:]]*(RSA|EC|OPENSSH|DSA)[[:space:]]*PRIVATE KEY-----'  # Private key
-  'ghp_[0-9a-zA-Z]{36}'                       # GitHub PAT
-  'gho_[0-9a-zA-Z]{36}'                       # GitHub OAuth
-  'ghu_[0-9a-zA-Z]{36}'                       # GitHub user token
-  'sk-[0-9a-zA-Z]{32,}'                       # OpenAI API key
-  'xox[baprs]-[0-9a-zA-Z]{10,}'               # Slack token
-  'PGP[[:space:]]+PRIVATE[[:space:]]+KEY'     # PGP key
-  $'(password|secret|api_key|apikey)[[:space:]]*[:=][[:space:]]*["\'][^"\']{8,}["\']'  # Generic secret
-)
+if command -v gitleaks >/dev/null 2>&1; then
+  if [ -d .git ]; then
+    # git checkout: full commit-history scan (docker context ships no .git)
+    gitleaks detect --source . --config .gitleaks.toml --no-banner --redact ||
+      fail "gitleaks: secrets found in history (see output above)"
+  else
+    # no .git (docker image): scan the working tree instead
+    gitleaks dir . --config .gitleaks.toml --no-banner --redact ||
+      fail "gitleaks: secrets found (see output above)"
+  fi
+  ok "gitleaks clean"
+else
+  echo "⚠ gitleaks not found — falling back to the pattern grep scan (host: install gitleaks)"
+  PATTERNS=(
+    'AKIA[0-9A-Z]{16}'                          # AWS Access Key
+    '-----BEGIN[[:space:]]*(RSA|EC|OPENSSH|DSA)[[:space:]]*PRIVATE KEY-----'  # Private key
+    'ghp_[0-9a-zA-Z]{36}'                       # GitHub PAT
+    'gho_[0-9a-zA-Z]{36}'                       # GitHub OAuth
+    'ghu_[0-9a-zA-Z]{36}'                       # GitHub user token
+    'sk-[0-9a-zA-Z]{32,}'                       # OpenAI API key
+    'xox[baprs]-[0-9a-zA-Z]{10,}'               # Slack token
+    'PGP[[:space:]]+PRIVATE[[:space:]]+KEY'     # PGP key
+    $'(password|secret|api_key|apikey)[[:space:]]*[:=][[:space:]]*["\'][^"\']{8,}["\']'  # Generic secret
+  )
 
-# All repo files except VCS state and gitignored artifacts (the docker
-# context carries no .git; on the CI checkout these exclusions are a no-op).
-BLOCKED=0
-while IFS= read -r FILE; do
-  [ -f "$FILE" ] || continue
-  for PATTERN in "${PATTERNS[@]}"; do
-    # Allow dummy passwords in test fixtures/harness (QEMU fixtures, not real secrets)
-    if echo "$PATTERN" | grep -q "password|secret"; then
-      case "$FILE" in
-        tests/fixtures/*|tests/harness/variables_*.yaml|tests/harness/*.go|docs/*|src/variables/variables.yaml) continue ;;
-      esac
-    fi
-    if grep -qiE -- "$PATTERN" "$FILE"; then
-      echo "⚠️  BLOCKED: $FILE matches secret pattern"
-      BLOCKED=1
-    fi
-  done
-done < <(find . -type f ! -path './.git/*' ! -path './tests/artifacts/*' -printf '%P\n')
+  # All repo files except VCS state and gitignored artifacts (the docker
+  # context carries no .git; on the CI checkout these exclusions are a no-op).
+  BLOCKED=0
+  while IFS= read -r FILE; do
+    [ -f "$FILE" ] || continue
+    for PATTERN in "${PATTERNS[@]}"; do
+      # Allow dummy passwords in test fixtures/harness (QEMU fixtures, not real secrets)
+      if echo "$PATTERN" | grep -q "password|secret"; then
+        case "$FILE" in
+          tests/fixtures/*|tests/harness/variables_*.yaml|tests/harness/*.go|docs/*|src/variables/variables.yaml|.opencode/*) continue ;;
+        esac
+      fi
+      if grep -qiE -- "$PATTERN" "$FILE"; then
+        echo "⚠️  BLOCKED: $FILE matches secret pattern"
+        BLOCKED=1
+      fi
+    done
+  done < <(find . -type f ! -path './.git/*' ! -path './tests/artifacts/*' -printf '%P\n')
 
-if [ "$BLOCKED" -eq 1 ]; then
-  fail "secret scan: remove the secrets above"
+  if [ "$BLOCKED" -eq 1 ]; then
+    fail "secret scan: remove the secrets above"
+  fi
+  ok "secret scan passed (grep fallback)"
 fi
-ok "secret scan passed"
 
 echo "=== ShellCheck + sh -n (project scripts, P3-3) ==="
 SCRIPTS=(
@@ -144,6 +163,50 @@ ok "shellcheck + sh -n clean on ${#SCRIPTS[@]} scripts"
 
 echo "=== Docs check ==="
 bash scripts/docs_check.sh
+
+echo "=== yamllint (blocking — broken YAML breaks the installer) ==="
+command -v yamllint >/dev/null 2>&1 ||
+  fail "yamllint not found (CI image must pin it; host: pip install yamllint==1.38.0)"
+# every YAML in the tree except gitignored/vendor dirs (docker context has
+# no .git, so a plain find with the usual exclusions works in both worlds)
+mapfile -t YAML_FILES < <(find . -type f \( -name '*.yaml' -o -name '*.yml' \) \
+  ! -path './.git/*' ! -path './tests/artifacts/*' ! -path './references/*' \
+  ! -path './.agents/*' ! -path './.opencode/*' ! -path './handoff/*' \
+  ! -path './state/*' ! -path './.agent-memory/*' ! -path './node_modules/*' \
+  | sort)
+if [ "${#YAML_FILES[@]}" -eq 0 ]; then
+  fail "yamllint: no YAML files found"
+fi
+yamllint -c .yamllint.yml "${YAML_FILES[@]}" || fail "yamllint found errors"
+ok "yamllint clean (${#YAML_FILES[@]} files)"
+
+echo "=== taplo (TOML lint, warning only — tool optional) ==="
+taplo lint --config taplo.toml .gitleaks.toml typos.toml 2>/dev/null ||
+  echo "⚠ taplo lint findings or taplo not installed (warning only, not blocking)"
+
+echo "=== typos (warning only) ==="
+if command -v typos >/dev/null 2>&1; then
+  typos --config typos.toml --format brief . ||
+    echo "⚠ typos found spelling issues (warning only, not blocking)"
+else
+  echo "⚠ typos not found — skipping"
+fi
+
+echo "=== markdownlint-cli2 (warning only) ==="
+if command -v markdownlint-cli2 >/dev/null 2>&1; then
+  markdownlint-cli2 "docs/**/*.md" "*.md" ".github/**/*.md" ||
+    echo "⚠ markdownlint findings (warning only, not blocking)"
+else
+  echo "markdownlint not available, skipping"
+fi
+
+echo "=== editorconfig-checker (warning only) ==="
+if command -v ec >/dev/null 2>&1; then
+  ec --config .ecrc . ||
+    echo "⚠ editorconfig-checker findings (warning only, not blocking)"
+else
+  echo "ec not available, skipping"
+fi
 
 echo ""
 echo "=== CI gate: ALL GREEN ==="

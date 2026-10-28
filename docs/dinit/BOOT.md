@@ -5,7 +5,7 @@
 
 ## Boot Flow
 
-```
+```text
 UEFI → UKI (booster + kernel + cmdline)
          │  cmdline: root=… rootfstype=btrfs … init=/usr/libexec/dinit/init [FeralOS path]
          ▼
@@ -88,7 +88,7 @@ Everything above is **upstream code** — FeralOS only fills the 2 hook scripts 
 
 ## Target Chain
 
-```
+```text
 early-prepare.target      pseudo-fs mounted
 early-modules.target      /etc/modules loaded
 early-devices.target      /dev populated + settled
@@ -129,7 +129,7 @@ unmounts/tears down late state. No FeralOS code needed.
 
 ## FeralOS Cmdline (UKI / /etc/kernel/cmdline)
 
-```
+```text
 root=UUID=… rootfstype=btrfs rootflags=subvol=@ … init=/usr/libexec/dinit/init dinit_log_file=/run/dinit-boot.log
 ```
 

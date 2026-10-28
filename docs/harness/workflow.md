@@ -4,7 +4,7 @@
 
 ## Diagram
 
-```
+```text
 prepare-runner                    run                                          verify
 ─────────────                    ───                                          ──────
 cloud.debian.org ─▶ base qcow2 ─▶ boot runner (Debian) ─▶ copy repo tar.gz ─▶ boot target (Alpine, OVMF+swtpm)

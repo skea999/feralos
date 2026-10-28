@@ -104,7 +104,7 @@ FeralOS works as a KVM/QEMU hypervisor. The `btrfsStandardServer` layout provide
 
 For production environments, we recommend a 6-disk configuration:
 
-```
+```text
 Disk 1-2: OS (RAID1, btrfsStandardServer)
 Disk 3-4: Incus storage (RAID1, dedicated)
 Disk 5-6: LINSTOR/Pirateus + ZFS (RAID1, distributed storage)
@@ -172,7 +172,7 @@ Open to contributors. Read [CONTRIBUTING.md](CONTRIBUTING.md) for further detail
 
 ## Authors
 
-- skea999 (sket999@disroot.org)
+- skea999 (<sket999@disroot.org>)
 
 ## License
 

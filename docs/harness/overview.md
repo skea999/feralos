@@ -13,7 +13,7 @@ Go QEMU harness that automates the full FeralOS install lifecycle without touchi
 
 ## How it simulates a real install
 
-```
+```text
 local repo (host) ──tar.gz──▶ runner VM (Debian) ──setup.sh──▶ disks (qcow2) ──boot──▶ target VM (Alpine) ──verify──▶ result
 ```
 

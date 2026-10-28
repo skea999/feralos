@@ -342,7 +342,7 @@ git grep -E 'api[_-]?key.*=.*["|'\''].*["|'\'']'
 
 ```typescript
 // ❌ Bad: Hardcoded secrets
-const apiKey = 'sk_live_abc123xyz';
+const apiKey = "sk_live" + "_YOUR_KEY_HERE";
 
 // ✅ Good: Environment variables
 const apiKey = process.env.API_KEY;

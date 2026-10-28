@@ -93,14 +93,14 @@ services:
 ```
 
 > **Note:** First run seeds `/etc/webmin` from the image (`webmin-seed` container) — needed because the config bind mount shadows the bundled `miniserv.conf`.
-
+>
 > **Image:** `docker.io/demosthenesk/webmin:noble` (pschatzmann dead — webmin 1.820 2016). Verified 2026-09-02.
 
 ---
 
 ## Directory Structure
 
-```
+```text
 /opt/webmin/
 ├── docker-compose.yml      # Container definition
 ├── config/                 # Persistent module configs

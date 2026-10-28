@@ -24,7 +24,7 @@ Includes (from `internal_rules.yaml:desktopEnvironments.niri`):
 - Groups: `video`, `input`, `audio`, `plugdev`, `netdev` (plugdev: NM polkit rule allows GUI connection management)
 
 > Notes: `cava` (DMS audio visualizer) not on Alpine 3.24 — re-add when packaged. `turnstile` ships via feralos-aports (Alpine stable does not have it). `matugen`/`rclone-ui` not on Alpine — DMS degrades gracefully. `render` group does not exist on Alpine (video covers DRM). No `nixPackages` — `enableNix` is an independent feature.
-
+>
 > RustDesk removed (round 43 cleanup philosophy — never in the validated stack). Remote desktop = **wayvnc** (user dinit service, loopback by default) — see below.
 
 ## Session Startup and Verification

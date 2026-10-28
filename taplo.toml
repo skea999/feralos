@@ -1,0 +1,9 @@
+include = [
+  "**/*.toml",
+  ".gitleaks.toml",
+  "typos.toml",
+]
+
+[formatting]
+align_entries = false
+reorder_keys = false

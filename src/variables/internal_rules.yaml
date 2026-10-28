@@ -390,11 +390,11 @@ packageLogic:
     services: {"acpid": "default"}
   irqbalance:
     services: {"irqbalance": "default"}
+  # ADR-010 R1 amendment: fwupd is dbus-activated ON DEMAND (heavy daemon,
+  # dbus decides when it runs) — never boot-enabled, no initd enablement on
+  # either init. Activation routes through the shim to the bus-named unit
+  # (supervised under dinit; OpenRC fallback = raw exec, documented).
   fwupd:
-    # ADR-010 R1 amendment: fwupd is dbus-activated ON DEMAND (heavy daemon,
-    # dbus decides when it runs) — never boot-enabled, no initd enablement on
-    # either init. Activation routes through the shim to the bus-named unit
-    # (supervised under dinit; OpenRC fallback = raw exec, documented).
   earlyoom:
     services: {"earlyoom": "default"}
   vlan:
@@ -429,4 +429,3 @@ baseModules:
   - virtio_net
   - virtio_blk
   - virtio_scsi
-

@@ -15,7 +15,7 @@ The FeralOS installer is a Go-based system installer that creates a hardened Alp
 
 Full tree — `AGENTS.md` keeps only pointer. Details here:
 
-```
+```text
 feralos_installer/
 ├── src/
 │   ├── main.go, go.mod, variables.yaml
@@ -70,7 +70,7 @@ feralos_installer/
 and generation, then **delegates** all installation work to the phase
 packages. It must NOT interact with disks, cleanup, or the chroot directly.
 
-```
+```text
 setup.sh (real hardware + harness runner)
   ├─ apt update + apt install golang-go + btrfs-progs/cryptsetup/... (host deps, before build)
   └─ go mod tidy + go build feralos_installer

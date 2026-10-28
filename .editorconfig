@@ -8,5 +8,13 @@ charset = utf-8
 trim_trailing_whitespace = true
 insert_final_newline = true
 
+# Go: gofmt is the sole indentation authority (tabs); editorconfig-checker
+# cannot tell code apart from space-indented raw-string content (embedded
+# shell/YAML), so the indent rules are unset for Go to avoid false positives.
+[*.go]
+indent_style = unset
+indent_size = unset
+
 [*.md]
 trim_trailing_whitespace = false
+indent_size = unset

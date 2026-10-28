@@ -605,7 +605,7 @@ cd src && go test ./...
 
 Output to `tests/artifacts/<tool-name>/<timestamp>/`:
 
-```
+```text
 tests/artifacts/
 ├── feralos_create_config/
 │   └── .gitkeep
@@ -630,6 +630,11 @@ cd tests/harness && golangci-lint run ./...
 ```
 
 **Dupl exclusions** (intentional duplication): `src/hostPhase/disks/` (layout packages), `src/chrootPhase/desktops/` (derived desktop flows — niri.go/niri_wayle.go are intentionally duplicated, same policy as disk layouts: do NOT merge or extract shared blocks), `src/utils/firstboot/` (standalone binaries). Config: `.golangci.yml` → `dupl.threshold: 100` + `exclude-rules`. Full polish task history is in the git log.
+
+**Static analysis suite (ursine pattern)** — configs at repo root: `.ecrc`, `.gitleaks.toml`, `.gitleaksignore`, `.markdownlint-cli2.jsonc`, `.shellcheckrc`, `typos.toml`, `.yamllint.yml`, `taplo.toml`; wired into `scripts/ci.sh` after the existing checks; tool versions pinned in `Dockerfile` lint-tools (gitleaks 8.30.1, typos 1.51.1, yamllint 1.38.0, markdownlint-cli2 0.24.0 + Node 22.23.4, editorconfig-checker 4.0.2; taplo optional/not in image):
+- **blocking**: `yamllint -c .yamllint.yml` over every `*.yaml`/`*.yml` in the tree except artifacts/vendor dirs (broken YAML breaks the installer); `gitleaks detect --source . --config .gitleaks.toml --no-banner --redact` (git checkout = full commit history; known historical findings fingerprinted in `.gitleaksignore`; the docker image ships no `.git` → ci.sh falls back to `gitleaks dir .` working-tree scan; the old pattern-grep scan stays as the fallback for hosts without gitleaks)
+- **warn-only**: `typos --config typos.toml --format brief .`, `markdownlint-cli2` (globs/ignores in `.markdownlint-cli2.jsonc`), `ec --config .ecrc .`, `taplo lint --config taplo.toml`
+- `.editorconfig` exceptions: `*.md` keeps trailing whitespace + `indent_size = unset`; `*.go` indent rules unset — gofmt is the sole Go indentation authority (editorconfig-checker cannot tell code from space-indented raw-string content)
 
 → Details: `docs/guides/development.md` (lint/format)
 

@@ -1,0 +1,14 @@
+title = "FeralOS gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Test fixtures, lockfiles, and known-safe paths"
+paths = [
+  '''tests/fixtures/''',
+  '''tests/artifacts/''',
+  '''Cargo.lock''',
+  '''references/''',
+  '''.agent-memory/''',
+]

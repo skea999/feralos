@@ -11,7 +11,7 @@
 
 This directory owns the **system + installer** side of the Dinit integration.
 Packaging (APKBUILDs, CI, publishing) lives in the separate repo
-`references/feralos-aports` → https://github.com/skea999/feralos-aports
+`references/feralos-aports` → <https://github.com/skea999/feralos-aports>
 
 | Document | Repo | Competence |
 |----------|------|------------|

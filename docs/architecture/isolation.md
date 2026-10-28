@@ -26,7 +26,7 @@ firstboot.SetupTpm(conf)                       // compile → copy → chmod 755
 cleanup.Cleanup(conf)                          // final unmount before reboot
 ```
 
-```
+```text
 setup.sh (before build)
   ├─ apt update + apt install golang-go + btrfs/crypt/... (host deps)
 

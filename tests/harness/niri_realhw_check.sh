@@ -19,57 +19,57 @@ TOTAL=0
 FAILED=0
 
 pass() {
-	echo "PASS: $1"
-	TOTAL=$((TOTAL + 1))
+  echo "PASS: $1"
+  TOTAL=$((TOTAL + 1))
 }
 
 fail() {
-	echo "FAIL: $1"
-	TOTAL=$((TOTAL + 1))
-	FAILED=$((FAILED + 1))
+  echo "FAIL: $1"
+  TOTAL=$((TOTAL + 1))
+  FAILED=$((FAILED + 1))
 }
 
 # detect_session_user prints the graphical session user: prefer a wayland
 # session (loginctl), then any session, then the first `who` line.
 detect_session_user() {
-	if command -v loginctl >/dev/null 2>&1; then
-		for sid in $(loginctl list-sessions --no-legend 2>/dev/null | awk '{print $1}'); do
-			stype=$(loginctl show-session "$sid" -p Type 2>/dev/null | cut -d= -f2)
-			if [ "$stype" = "wayland" ]; then
-				u=$(loginctl show-session "$sid" -p Name 2>/dev/null | cut -d= -f2)
-				if [ -n "$u" ]; then
-					echo "$u"
-					return 0
-				fi
-			fi
-		done
-		u=$(loginctl list-sessions --no-legend 2>/dev/null | awk 'NR==1{print $3}')
-		if [ -n "$u" ]; then
-			echo "$u"
-			return 0
-		fi
-	fi
-	u=$(who 2>/dev/null | awk 'NR==1{print $1}')
-	[ -n "$u" ] && { echo "$u"; return 0; }
-	return 1
+  if command -v loginctl >/dev/null 2>&1; then
+    for sid in $(loginctl list-sessions --no-legend 2>/dev/null | awk '{print $1}'); do
+      stype=$(loginctl show-session "$sid" -p Type 2>/dev/null | cut -d= -f2)
+      if [ "$stype" = "wayland" ]; then
+        u=$(loginctl show-session "$sid" -p Name 2>/dev/null | cut -d= -f2)
+        if [ -n "$u" ]; then
+          echo "$u"
+          return 0
+        fi
+      fi
+    done
+    u=$(loginctl list-sessions --no-legend 2>/dev/null | awk 'NR==1{print $3}')
+    if [ -n "$u" ]; then
+      echo "$u"
+      return 0
+    fi
+  fi
+  u=$(who 2>/dev/null | awk 'NR==1{print $1}')
+  [ -n "$u" ] && { echo "$u"; return 0; }
+  return 1
 }
 
 if [ "$(id -u)" != "0" ]; then
-	echo "FAIL: run as root"
-	exit 2
+  echo "FAIL: run as root"
+  exit 2
 fi
 
 USER_NAME="${1:-}"
 if [ -z "$USER_NAME" ]; then
-	USER_NAME=$(detect_session_user) || {
-		echo "FAIL: no username given and graphical session user not detectable"
-		exit 2
-	}
+  USER_NAME=$(detect_session_user) || {
+    echo "FAIL: no username given and graphical session user not detectable"
+    exit 2
+  }
 fi
 
 USER_UID=$(id -u "$USER_NAME" 2>/dev/null) || {
-	echo "FAIL: unknown user $USER_NAME"
-	exit 2
+  echo "FAIL: unknown user $USER_NAME"
+  exit 2
 }
 XDGRUN="/run/user/$USER_UID"
 
@@ -77,35 +77,35 @@ echo "=== niri realhw check: user=$USER_NAME uid=$USER_UID ==="
 
 echo "--- system (pre-session) ---"
 if [ -e /dev/dri/card0 ]; then
-	pass '/dev/dri/card0 present'
+  pass '/dev/dri/card0 present'
 else
-	fail '/dev/dri/card0 missing'
+  fail '/dev/dri/card0 missing'
 fi
 if [ -e /dev/dri/renderD128 ]; then
-	pass '/dev/dri/renderD128 present'
+  pass '/dev/dri/renderD128 present'
 else
-	fail '/dev/dri/renderD128 missing'
+  fail '/dev/dri/renderD128 missing'
 fi
 drm_driver=$(readlink /sys/class/drm/card0/device/driver 2>/dev/null)
 if [ -n "$drm_driver" ]; then
-	pass "DRM driver: $(basename "$drm_driver")"
+  pass "DRM driver: $(basename "$drm_driver")"
 else
-	fail 'DRM driver link unresolved'
+  fail 'DRM driver link unresolved'
 fi
 if pgrep -x greetd >/dev/null; then
-	pass 'greetd running'
+  pass 'greetd running'
 else
-	fail 'greetd not running'
+  fail 'greetd not running'
 fi
 if pgrep -x elogind >/dev/null; then
-	pass 'elogind running'
+  pass 'elogind running'
 else
-	fail 'elogind not running'
+  fail 'elogind not running'
 fi
 if pgrep -x turnstiled >/dev/null; then
-	pass 'turnstiled running'
+  pass 'turnstiled running'
 else
-	fail 'turnstiled not running'
+  fail 'turnstiled not running'
 fi
 
 echo "--- session ---"
@@ -113,64 +113,64 @@ echo "--- session ---"
 # logind session type must be wayland
 session_type=''
 if command -v loginctl >/dev/null 2>&1; then
-	for sid in $(loginctl list-sessions --no-legend 2>/dev/null | awk '{print $1}'); do
-		if [ "$(loginctl show-session "$sid" -p Name 2>/dev/null | cut -d= -f2)" = "$USER_NAME" ]; then
-			session_type=$(loginctl show-session "$sid" -p Type 2>/dev/null | cut -d= -f2)
-			break
-		fi
-	done
+  for sid in $(loginctl list-sessions --no-legend 2>/dev/null | awk '{print $1}'); do
+    if [ "$(loginctl show-session "$sid" -p Name 2>/dev/null | cut -d= -f2)" = "$USER_NAME" ]; then
+      session_type=$(loginctl show-session "$sid" -p Type 2>/dev/null | cut -d= -f2)
+      break
+    fi
+  done
 fi
 if [ "$session_type" = "wayland" ]; then
-	pass "logind session type: $session_type"
+  pass "logind session type: $session_type"
 else
-	fail "logind session type not wayland (${session_type:-none})"
+  fail "logind session type not wayland (${session_type:-none})"
 fi
 
 if pgrep -u "$USER_NAME" -x niri >/dev/null; then
-	pass 'niri user session running'
+  pass 'niri user session running'
 else
-	fail 'no niri session for user'
+  fail 'no niri session for user'
 fi
 
 if [ -e "$XDGRUN/wayland-1" ]; then
-	pass 'wayland-1 socket OK'
+  pass 'wayland-1 socket OK'
 else
-	fail 'no wayland socket'
+  fail 'no wayland socket'
 fi
 
-	# shellcheck disable=SC2012  # ls over a user-owned glob dir; find would not simplify this
-	niri_socket=$(ls "$XDGRUN"/niri*.sock 2>/dev/null | head -1)
+  # shellcheck disable=SC2012  # ls over a user-owned glob dir; find would not simplify this
+  niri_socket=$(ls "$XDGRUN"/niri*.sock 2>/dev/null | head -1)
 if [ -n "$niri_socket" ] &&
-	XDG_RUNTIME_DIR="$XDGRUN" WAYLAND_DISPLAY=wayland-1 NIRI_SOCKET="$niri_socket" \
-		niri msg outputs >/dev/null 2>&1; then
-	pass 'niri IPC OK'
+  XDG_RUNTIME_DIR="$XDGRUN" WAYLAND_DISPLAY=wayland-1 NIRI_SOCKET="$niri_socket" \
+    niri msg outputs >/dev/null 2>&1; then
+  pass 'niri IPC OK'
 else
-	fail "niri IPC failed (sock=$niri_socket)"
+  fail "niri IPC failed (sock=$niri_socket)"
 fi
 
 # niri msg version — sharper IPC+binary proof (socket live AND binary speaks
 # the protocol); first 2 lines of output recorded.
 if [ -n "$niri_socket" ]; then
-	if nv=$(XDG_RUNTIME_DIR="$XDGRUN" NIRI_SOCKET="$niri_socket" niri msg version 2>&1); then
-		pass "niri msg version: $(echo "$nv" | head -2 | tr '\n' ' ')"
-	else
-		fail 'niri msg version failed'
-	fi
+  if nv=$(XDG_RUNTIME_DIR="$XDGRUN" NIRI_SOCKET="$niri_socket" niri msg version 2>&1); then
+    pass "niri msg version: $(echo "$nv" | head -2 | tr '\n' ' ')"
+  else
+    fail 'niri msg version failed'
+  fi
 else
-	fail 'niri msg version failed (no socket)'
+  fail 'niri msg version failed (no socket)'
 fi
 
 # niri msg windows — compositor state query; pass on rc 0 (window list may
 # legitimately be tiny), show first 5 lines.
 if [ -n "$niri_socket" ]; then
-	if nw=$(XDG_RUNTIME_DIR="$XDGRUN" NIRI_SOCKET="$niri_socket" niri msg windows 2>&1); then
-		pass 'niri windows query OK'
-		echo "$nw" | head -5 | while IFS= read -r l; do echo "       $l"; done
-	else
-		fail 'niri windows query failed'
-	fi
+  if nw=$(XDG_RUNTIME_DIR="$XDGRUN" NIRI_SOCKET="$niri_socket" niri msg windows 2>&1); then
+    pass 'niri windows query OK'
+    echo "$nw" | head -5 | while IFS= read -r l; do echo "       $l"; done
+  else
+    fail 'niri windows query failed'
+  fi
 else
-	fail 'niri windows query failed (no socket)'
+  fail 'niri windows query failed (no socket)'
 fi
 
 # niri outputs — HARD check on real hardware: a real GPU MUST produce >= 1
@@ -178,14 +178,14 @@ fi
 # limitation gives niri zero outputs in QEMU; see service.go niri_outputs_count.)
 n_out=0
 if [ -n "$niri_socket" ]; then
-	if no=$(XDG_RUNTIME_DIR="$XDGRUN" NIRI_SOCKET="$niri_socket" niri msg outputs 2>&1); then
-		n_out=$(echo "$no" | grep -c '^Output')
-	fi
+  if no=$(XDG_RUNTIME_DIR="$XDGRUN" NIRI_SOCKET="$niri_socket" niri msg outputs 2>&1); then
+    n_out=$(echo "$no" | grep -c '^Output')
+  fi
 fi
 if [ "$n_out" -ge 1 ]; then
-	pass "niri outputs: $n_out"
+  pass "niri outputs: $n_out"
 else
-	fail "niri outputs: $n_out (real hardware MUST have >=1)"
+  fail "niri outputs: $n_out (real hardware MUST have >=1)"
 fi
 
 # dms shell: process-level check (deeper than the dms.user service entry in
@@ -194,17 +194,17 @@ fi
 i=0
 dms_ok=''
 while [ $i -lt 30 ]; do
-	if pgrep -u "$USER_NAME" -f 'dms run|quickshell' >/dev/null; then
-		dms_ok=1
-		break
-	fi
-	sleep 1
-	i=$((i + 1))
+  if pgrep -u "$USER_NAME" -f 'dms run|quickshell' >/dev/null; then
+    dms_ok=1
+    break
+  fi
+  sleep 1
+  i=$((i + 1))
 done
 if [ -n "$dms_ok" ]; then
-	pass 'dms shell running'
+  pass 'dms shell running'
 else
-	fail 'dms not running'
+  fail 'dms not running'
 fi
 
 # dms IPC — real CLI liveness (same as harness dms_ipc). Syntax verified
@@ -214,17 +214,17 @@ fi
 i=0
 dms_ipc_ok=''
 while [ $i -lt 60 ]; do
-	if XDG_RUNTIME_DIR="$XDGRUN" timeout 5 dms ipc call widget list >/dev/null 2>&1; then
-		dms_ipc_ok=1
-		break
-	fi
-	sleep 1
-	i=$((i + 1))
+  if XDG_RUNTIME_DIR="$XDGRUN" timeout 5 dms ipc call widget list >/dev/null 2>&1; then
+    dms_ipc_ok=1
+    break
+  fi
+  sleep 1
+  i=$((i + 1))
 done
 if [ -n "$dms_ipc_ok" ]; then
-	pass 'dms IPC OK'
+  pass 'dms IPC OK'
 else
-	fail 'dms IPC failed'
+  fail 'dms IPC failed'
 fi
 
 # user dinit session stack: every boot.d user service started. dinitctl list
@@ -232,57 +232,57 @@ fi
 # when running. ERE anchors the name so '] niri' cannot match
 # '] niri-shutdown'; adjust if the dinitctl output format differs.
 if [ -S /run/dinitctl ]; then
-	out=$(XDG_RUNTIME_DIR="$XDGRUN" dinitctl --user list 2>/dev/null) || out=''
-	missing=''
-	for s in niri dbus.user pipewire.user pipewire-pulse.user wireplumber.user polkit-agent.user dms.user wayvnc.user; do
-		echo "$out" | grep -Eq '\{\+.*\] '"$s"'( |$)' || missing="$missing $s"
-	done
-	if [ -z "$missing" ]; then
-		pass 'user dinit stack running'
-	else
-		fail "user services not running:$missing"
-	fi
+  out=$(XDG_RUNTIME_DIR="$XDGRUN" dinitctl --user list 2>/dev/null) || out=''
+  missing=''
+  for s in niri dbus.user pipewire.user pipewire-pulse.user wireplumber.user polkit-agent.user dms.user wayvnc.user; do
+    echo "$out" | grep -Eq '\{\+.*\] '"$s"'( |$)' || missing="$missing $s"
+  done
+  if [ -z "$missing" ]; then
+    pass 'user dinit stack running'
+  else
+    fail "user services not running:$missing"
+  fi
 else
-	fail 'no /run/dinitctl (not a dinit system)'
+  fail 'no /run/dinitctl (not a dinit system)'
 fi
 
 i=0
 wayvnc_ok=''
 while [ $i -lt 30 ]; do
-	if netstat -tln 2>/dev/null | grep -q ':5900'; then
-		wayvnc_ok=1
-		break
-	fi
-	sleep 1
-	i=$((i + 1))
+  if netstat -tln 2>/dev/null | grep -q ':5900'; then
+    wayvnc_ok=1
+    break
+  fi
+  sleep 1
+  i=$((i + 1))
 done
 if [ -n "$wayvnc_ok" ]; then
-	pass 'wayvnc listening on 5900'
+  pass 'wayvnc listening on 5900'
 else
-	fail 'wayvnc not listening'
+  fail 'wayvnc not listening'
 fi
 
 # screenshot: real-rendering proof (same two CLI shapes as the harness —
 # adjust the action name if `niri msg action --help` rejects it).
 shot_ok=''
 if [ -n "$niri_socket" ]; then
-	rm -f /tmp/niri-shot.png
-	XDG_RUNTIME_DIR="$XDGRUN" WAYLAND_DISPLAY=wayland-1 NIRI_SOCKET="$niri_socket" \
-		niri msg action screenshot-screen /tmp/niri-shot.png >/dev/null 2>&1 ||
-		XDG_RUNTIME_DIR="$XDGRUN" WAYLAND_DISPLAY=wayland-1 NIRI_SOCKET="$niri_socket" \
-			niri msg action screenshot-screen >/dev/null 2>&1
-	f=/tmp/niri-shot.png
-	# shellcheck disable=SC2012  # ls-glob newest-pick over the screenshots dir; simple and target-side
-	[ -s "$f" ] || f=$(ls "/home/$USER_NAME/Pictures/Screenshots/"*.png 2>/dev/null | tail -1)
-	if [ -s "$f" ]; then
-		pass "screenshot OK: $f ($(wc -c < "$f") bytes)"
-		shot_ok=1
-	fi
+  rm -f /tmp/niri-shot.png
+  XDG_RUNTIME_DIR="$XDGRUN" WAYLAND_DISPLAY=wayland-1 NIRI_SOCKET="$niri_socket" \
+    niri msg action screenshot-screen /tmp/niri-shot.png >/dev/null 2>&1 ||
+    XDG_RUNTIME_DIR="$XDGRUN" WAYLAND_DISPLAY=wayland-1 NIRI_SOCKET="$niri_socket" \
+      niri msg action screenshot-screen >/dev/null 2>&1
+  f=/tmp/niri-shot.png
+  # shellcheck disable=SC2012  # ls-glob newest-pick over the screenshots dir; simple and target-side
+  [ -s "$f" ] || f=$(ls "/home/$USER_NAME/Pictures/Screenshots/"*.png 2>/dev/null | tail -1)
+  if [ -s "$f" ]; then
+    pass "screenshot OK: $f ($(wc -c < "$f") bytes)"
+    shot_ok=1
+  fi
 fi
 [ -n "$shot_ok" ] || fail 'screenshot failed'
 
 echo "=== summary: $((TOTAL - FAILED))/$TOTAL checks passed ==="
 if [ "$FAILED" -eq 0 ]; then
-	exit 0
+  exit 0
 fi
 exit 1

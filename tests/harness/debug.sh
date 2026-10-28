@@ -31,19 +31,19 @@ if [ -d /sys/firmware/efi/efivars ]; then
     sbVar=$(ls /sys/firmware/efi/efivars/SecureBoot-* 2>/dev/null | head -1)
     # shellcheck disable=SC2012  # ls-glob presence probe on efivars; head picks first var
     smVar=$(ls /sys/firmware/efi/efivars/SetupMode-* 2>/dev/null | head -1)
-    
+
     if [ -n "$pkVar" ]; then
         echo "PK EXISTS (User Mode) — sbctl enrollment will fail"
         dd if="$pkVar" bs=1 skip=4 count=16 2>/dev/null | od -tx1 -An | head -1
     else
         echo "NO PK (Setup Mode) — sbctl enrollment should work"
     fi
-    
+
     if [ -n "$sbVar" ]; then
         sbRaw=$(dd if="$sbVar" bs=1 skip=4 count=1 2>/dev/null | od -An -t d1 | tr -d ' ')
         echo "SecureBoot=$sbRaw (1=enabled, 0=disabled)"
     fi
-    
+
     if [ -n "$smVar" ]; then
         smRaw=$(dd if="$smVar" bs=1 skip=4 count=1 2>/dev/null | od -An -t d1 | tr -d ' ')
         echo "SetupMode=$smRaw (1=Setup, 0=User)"

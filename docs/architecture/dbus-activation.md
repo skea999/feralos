@@ -42,7 +42,7 @@ Invariants:
 
 The *effective* D-Bus service file carries:
 
-```
+```text
 Exec=/usr/libexec/feralos/dbus-activate <unit> -- <upstream exec...>
 ```
 
@@ -174,7 +174,7 @@ environment.
 | power-profiles-daemon | system | `org.freedesktop.UPower.PowerProfiles` (alias `net.hadess.PowerProfiles`) | DONE (`c123254`; R1 amendment 2026-10-25: **activation-only** — dbus decides, never boot-enabled) |
 | accountsservice | system | `org.freedesktop.Accounts` | DONE (`c123254`) |
 | polkit | system | unit `polkit` (OpenRC initd name — R1 amendment `e7f1cc8`); override `org.freedesktop.PolicyKit1.service` aliases onto it | DONE (`c123254`, superseded by `e7f1cc8`) |
-| fwupd | system | `org.freedesktop.fwupd` — **activation-only** (R1 amendment 2026-10-25: dbus decides, never boot-enabled on either init) | DONE (`c123254`; amended 2026-10-25) | |
+| fwupd | system | `org.freedesktop.fwupd` — **activation-only** (R1 amendment 2026-10-25: dbus decides, never boot-enabled on either init) | DONE (`c123254`; amended 2026-10-25) |
 | upower | system | `org.freedesktop.UPower` (renamed from `upower`) | DONE (`c123254`; activation-only, not boot-enabled) |
 | NetworkManager helpers | system | `org.freedesktop.nm_dispatcher`, `org.freedesktop.nm_priv_helper` | DONE (`c123254`; daemon `networkmanager` has no activation file — unchanged) |
 | flatpak system helper | system | `org.freedesktop.Flatpak.SystemHelper` | DONE (`c123254`) |

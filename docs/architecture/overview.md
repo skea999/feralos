@@ -20,7 +20,7 @@ Ref: `AGENTS.md#Architecture Principle`.
 
 Brief tree — full tree in `docs/INSTALLER.md#Project Structure`:
 
-```
+```text
 feralos_installer/
 ├── src/
 │   ├── main.go, go.mod, variables.yaml
