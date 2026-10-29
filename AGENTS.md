@@ -832,6 +832,4 @@ See `ROADMAP.md` for pipeline priorities. Memory-safe alternatives table → `CO
 
 ## Known Issues
 
-**Pending:** ursine dinit unit was hand-written (not taken from upstream `packaging/dinit/ursined` with `@TOKEN@` substitution — unlike the OpenRC initd which IS upstream). This caused the missing `depends-on = local.target` boot bug (fixed in r1, but the unit should be sourced from upstream like the initd). TODO: refactor `aports/src/ursine/` to use the upstream dinit template + sed tokens (same approach as the initd).
-
 All prior swap/vector/dummy issues resolved. See `CHANGELOG.md` Fixed section. Current: `log_errors` shows QEMU-only noise (`smartd`/`fsck` whitelisted; netns `mount/umount /run/netns ... Invalid argument` QEMU early-chain noise allowlisted; udevd `/bin/false` module install errors — parport/psmouse/intel_gtt/input_leds/intel_pmc_bxt — from OpenRC udev path, harmless in QEMU, nix pivot fix landed). Resolved 2026-09-30: dinit shutdown ordering — `turnstiled` pam_elogind bus error at shutdown (dinit releases dependencies at dependent stop-start, not exit) fixed via feralos-aports `stop-command` guards on `dbus`/`elogind` (ADR-007, commit `75c566a`; harness 63/63 run 2026-09-30T00-08-04Z).
