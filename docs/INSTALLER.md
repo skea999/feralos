@@ -2,7 +2,7 @@
 
 ## Overview
 
-The FeralOS installer is a Go-based system installer that creates a hardened Alpine Linux system with LUKS encryption, Btrfs RAID1/single, booster initramfs, and signed Unified Kernel Image (UKI). It replaces GRUB entirely — the system boots directly from the UKI.
+The FeralOS installer is a Go-based system installer that creates a hardened Alpine Linux system with LUKS encryption, Btrfs RAID1/single, booster initramfs, and signed Unified Kernel Image (UKI). It replaces GRUB entirely — the system boots directly from the UKI. The init system is selectable: **dinit** (`enableDinit`, the configuration template default) with **OpenRC co-installed as fallback** — a dinit install must remain bootable under OpenRC.
 
 ## Core Architecture Principles
 
@@ -51,10 +51,10 @@ feralos_installer/
 │       │   ├── packages.go, firmware.go, network.go, boot.go, storage.go
 │       │   ├── logging.go, misc.go, services.go, users.go, uki.go
 │       │   └── ...
-│       ├── features/ (hardening.go, zswap.go, zswap_server.go, nix.go)
-│       └── desktops/ (niri.go, desktops.go)
+│       ├── features/ (hardening.go, zswap.go, zswap_server.go, nix.go, podman.go, edgerepos.go)
+│       └── desktops/ (niri.go, niri_wayle.go, desktops.go)
 ├── tests/
-│   ├── fixtures/variables/ (28 fixtures, full template mirror + README — all scenarios)
+│   ├── fixtures/variables/ (30 fixtures, full template mirror + README — all scenarios)
 │   ├── harness/ (cmd/skea_harness, internal/, variables-*.yaml deprecated shims)
 │   └── artifacts/ (gitignored: cache, prepare, runs, state)
 ├── docs/ (PROJECT.md, INSTALLER.md, guides/, architecture/, adr/, harness/)
@@ -156,9 +156,11 @@ Runs AFTER chrootPhase completes (needs kernel cmdline from chroot).
    - Install desktop environment packages (if selected)
    - Install video driver packages (if selected)
    - Install extra packages from user config
+   - Dinit path: install the dinit core (dinit, dinit-chimera, getty-dinit, networking-dinit, dinit-boot-log, klogd-dinit, dinit-shutdown, busybox-loadkmap-dinit) and convert each installed `-openrc` subpackage to its `-dinit` equivalent (skips per `dinitReplacedByChimera` + `dinitSkipServices` in internal_rules.yaml)
 
 2. **Setup Services** (`services.go`)
-   - Configure OpenRC runlevels
+   - OpenRC path: enable services via `rc-update add <svc> <runlevel>` from the rules `services` map — runs ALWAYS (never conditional), so a dinit install stays OpenRC-bootable (the links are inert under dinit)
+   - Dinit path (enableDinit): create `boot.d` symlinks in `/etc/dinit.d/boot.d/` (admin dir processed by `boot` via waits-for) → target resolved in `/lib/dinit.d/<svc>` first, then `/etc/dinit.d/<svc>` (the turnstile unit ships in `/etc/dinit.d`)
    - Create shell aliases (ll, sudo=sudo-rs, nano=micro)
    - Setup symlinks for tools
    - Configure timezone and locale
@@ -245,7 +247,107 @@ Runs AFTER chrootPhase completes (needs kernel cmdline from chroot).
 3. **Booster**: Fast initramfs that loads necessary modules
 4. **LUKS**: Prompts for password to unlock root partition
 5. **Btrfs**: Mounts root subvolume and other subvolumes
-6. **Init**: Starts OpenRC init system
+6. **Init**: dinit via `init=/usr/libexec/dinit/init` (enableDinit — removing `init=` boots OpenRC again, no point of no return) or OpenRC fallback
+
+## Init System — dinit (selectable) + OpenRC fallback
+
+`enableDinit` (variables.yaml, template default) switches the init system. OpenRC is
+ALWAYS co-installed and its enablement is never conditional: every `rc-update` link
+is created on both inits (inert under dinit), so a dinit install remains bootable
+under OpenRC. The switch is the kernel cmdline `init=` — no point of no return.
+
+### Boot suite
+
+- **dinit** from Alpine community (0.21.0, built with `--shutdown-prefix=dinit-`)
+- **dinit-chimera** upstream suite: 52 services + compiled helpers (early chain:
+  pseudo-fs → `early-fs-fstab` → `early-devd` → `early-root-rw` → `pre-local` →
+  `local.target`, then `boot` → `system` → `login.target`, `network.target`,
+  `pre-network.target`)
+- FeralOS glue packages (feralos-aports): `dinit-devd` (eudev hook, mandatory),
+  `dinit-cryptdisks` (optional), `getty@`, `networking-dinit`, `dinit-boot-log`
+  (mirrors the PID1 trail to `/var/log/dinit/boot.log`), `klogd-dinit` (kernel
+  ring → `/dev/log` for vector), `dinit-shutdown` (see below), `busybox-loadkmap-dinit`
+- User sessions: **turnstile** (chimera project) spawns a per-user dinit at login;
+  session apps (pipewire, dbus, DMS/wayle, portals…) are supervised per-user
+  services (`.user` units in `/etc/dinit.d/user/`, boot.d stack under
+  `/usr/lib/dinit.d/user/boot.d/`)
+
+### Packages convention
+
+- `-dinit` packages SHIP service files only (`/lib/dinit.d/<svc>`); enablement is
+  rules-driven — the `services` map in internal_rules.yaml drives BOTH inits
+  (OpenRC: `rc-update add`; dinit: `boot.d` symlink). There is no per-package
+  auto-enable.
+- During install, every installed `-openrc` subpackage is converted to its `-dinit`
+  equivalent (individually, so one missing `-dinit` doesn't block others). Bases
+  listed in `dinitReplacedByChimera` are skipped (service already provided by the
+  dinit-chimera suite); `dinitSkipServices` covers services that must never be
+  converted/enabled (session services, NM-managed, units shipping in main packages).
+
+### Service file layout (ADR-008)
+
+- Unit: `/lib/dinit.d/<svc>` (vendor dir; dinit-chimera overrides the scan dir to
+  `/lib/dinit.d` — stock Alpine dinit does NOT scan it)
+- Wrapper: `/usr/lib/dinit/<svc>` — POSIX-sh wrapper that sources
+  `/etc/dinit.d/config/<svc>.conf` (`[ -r ] && . …`) then execs the daemon with
+  `${VARS}` — user-editable config, apk-protected unit (Artix `/etc/conf.d`
+  convention restored; defaults match Alpine conf.d)
+- Enablement: `/etc/dinit.d/boot.d/<svc>` symlink (admin dir, `boot` waits-for) —
+  created by the installer services map (dinitctl `--offline enable` crashes on
+  Alpine dinit 0.21.0, so the identical symlinks are created directly)
+
+### Service conventions (ADR-009)
+
+- Daemons: NO `restart = true` (Artix/Chimera never restart) — `smooth-recovery`
+  only; scripted one-shots explicit `restart = false` (exceptions: getty keeps
+  restart + `termsignal=HUP`; idle-exit daemons like geoclue/fprintd set
+  `smooth-recovery = false` so a legitimate exit stops the unit until the next
+  activation)
+- 33+ services carry `before = login.target` (Artix+Chimera universal convention)
+- Network ordering: firewalld/nftables/iptables before `pre-network.target`;
+  NetworkManager depends pre-network + before `network.target`; avahi/rsync depend
+  networking; apparmor before `local.target` (profiles load BEFORE local services);
+  fuse after `early-root-rw.target`
+- A dinit unit with `logfile=` under a dedicated fstab subvol (e.g. `@var-log`)
+  MUST carry `depends-on = local.target` — subvol mounts complete in the early
+  chain, any no-dep unit races them
+- Bus-name readiness via `dbus-wait-for` (feralos-aports, Artix dinit-rc helper)
+
+### Shutdown ordering (ADR-007)
+
+- dinit handles only SIGINT=reboot / SIGTERM=halt / SIGQUIT=now — busybox
+  `poweroff` (SIGUSR2) is IGNORED; without `dinit-shutdown` PID 1 can never
+  finalize any shutdown
+- `dinit-shutdown` ships `dinit-poweroff`/`dinit-reboot`/`dinit-halt` + the
+  finalizer; the installer wires conventional commands (Artix/Chimera style):
+  `poweroff`/`halt`/`shutdown` symlinks + `reboot`/`soft-reboot` wrappers in
+  `/usr/bin`; daemon rolls back services then execs `/usr/sbin/dinit-shutdown --system -p/-r/-h`
+- elogind execs the ABSOLUTE `/sbin/poweroff` (busybox) after its hooks — the
+  installer writes `/etc/elogind/system-shutdown/50-feralos-dinit.sh` (execs the
+  dinit binaries per verb BEFORE the busybox no-op); `stop-command` guards on
+  `dbus`/`elogind` keep the release order clean at shutdown
+
+### D-Bus activation (ADR-010)
+
+Every D-Bus-activatable daemon is a dinit service; activation only triggers dinit —
+nothing dbus-activatable may run unsupervised:
+
+- Unit naming follows who activates the service: user (session) services = canonical
+  bus name + `.user`; system services WE boot-enable (initd exists) = the OpenRC
+  initd name; system services dbus-activated on demand = canonical bus name
+- The effective `.service` file carries
+  `Exec=/usr/libexec/feralos/dbus-activate <unit> -- <upstream exec>` — the shim
+  forwards the activation env to dinit (`dinitctl setenv`) then `dinitctl start`
+  (waits); OpenRC system-bus fallback = raw upstream exec; session bus always user
+  dinit (both inits)
+- System overrides ship in `/usr/share/feralos/dbus-system-services` and are
+  materialized into `/usr/local/share/dbus-1/system-services` at boot by
+  `dbus-services-setup` (the setuid launch helper resolves names ONLY against the
+  standard dirs; `/etc/dbus-1/system-services` is daemon-enumerated but NOT
+  helper-activatable); session overrides ship in `/usr/share/feralos/dbus-services`
+  and are materialized at login by the `dbus-session` wrapper
+- Full mechanism + new-service checklist: `docs/architecture/dbus-activation.md`
+
 
 ### Security Features
 
@@ -269,24 +371,26 @@ Runs AFTER chrootPhase completes (needs kernel cmdline from chroot).
 ### internal_rules.yaml (Dynamic Rules)
 - Standard packages (hardcoded)
 - Disk layout definitions (packages, modules)
-- Desktop environment definitions (packages, services, groups)
+- Desktop environment definitions (packages, services, groups, userServices, flatpakPackages)
 - Video driver definitions (packages, modules)
 - Package-specific rules (groups, services, modules)
+- Dinit rules: `defaultRunlevelsDinit.boot` (base boot.d list), `dinitSkipServices` (never convert/enable), `dinitReplacedByChimera` (provided by the chimera suite), `userServices` (per-user boot.d stack)
 
 ## Error Handling
 
 - **Non-interactive mode**: `SKEA_NONINTERACTIVE=1` + `SKEA_NONINTERACTIVE_DECISION=ignore|stop`
 - **ExecuteCmd**: Unified command execution with logging, retry (3 attempts), and user feedback
-- **File writes**: Done via shell commands (echo/cat) instead of direct file writes
+- **File writes**: `shell.WriteFile`/`shell.WriteFileAppend` — logged direct writes on the chroot mount (ADR-004); the `echo '<escaped>' > path` shell pattern is forbidden for new code
 - **Logging**: Timestamp + command, stdout/stderr, exit code, duration
-- **Retry**: After 3 failures, asks user: [s]top, [i]gnore, [r]etry (interactive) or auto-continues/aborts (non-interactive)
+- **Retry**: After 3 failures, asks user: [s]top, [i]gnore, [r]etry (interactive) or auto-continues/aborts (non-interactive); `ignoreErrors: true` (harness always sets it) = best-effort install, failures logged `[ERROR][IGNORED]` and install continues
 
 ## Testing
 
 - **Harness**: QEMU-based testing with virtual machines
 - **Artifacts**: Test outputs in tests/artifacts/ (gitignored)
 - **Modes**: Install, boot, shell access for manual testing
-- **Checks**: 22/22 verification checks incl. `fstab_vs_mount`, `vector_*`, `apk_packages` dumps
+- **Checks**: per-DE verification suites, init-aware (dinit vs OpenRC) — up to 113 checks on the flagship niri desktop; includes `fstab_vs_mount`, `vector_*`, `apk_packages` dumps, dinit runtime/user-session checks
+- **Log hygiene**: `log_errors` fails on any non-allowlisted ERROR/WARNING in installer.log + serial; QEMU-only noise is allowlisted (`smartd`/`fsck`, netns mount/umount early chain, udevd `/bin/false` module installs)
 - **debug-run**: `tests/debug_run/` boots an existing run without reinstalling (auto-detects latest run dir)
 
 ## Build & Run

@@ -50,7 +50,7 @@ sudo bash <(curl -fsSL https://raw.githubusercontent.com/skea999/feralos/main/se
 
    # or with pre-filled config
    sudo ./feralos_installer -config variables.yaml
-   # also: src/variables/variables.yaml, tests/fixtures/variables/*.yaml (28 fixtures, full template mirror)
+   # also: src/variables/variables.yaml, tests/fixtures/variables/*.yaml (30 fixtures, full template mirror)
    ```
 
    Wizard asks: target `disks` → `diskLayout` (`btrfsStandard`/`btrfsRaid0`/`btrfsStandardServer`/`btrfsUnencrypted`) → `hostname` → `userName`/`password` (also LUKS passphrase) → `desktopEnvironment` (`none`/`niri`/`niriWayle`/`kde`/`cosmic` — `niriWayle` is the flagship/recommended desktop, see `docs/guides/niriwayle.md`) → optional `Enable*` flags. Full list + `swapSize`/`extraPackages` → `docs/guides/variables.md`; rules → `internal_rules.yaml`.

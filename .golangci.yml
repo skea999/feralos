@@ -26,6 +26,14 @@ linters:
     - unparam
     - whitespace
     - dupl
+    # revive disabled: its var-naming rule flags ALL MixedCaps package names
+    # (hostPhase, chrootPhase, btrfsStandard, createConfig, ...) — these follow
+    # the documented project convention (AGENTS.md Naming Conventions:
+    # "Folders camelCase"), so the findings are false positives. The only other
+    # finding (SshAuthorizedKey field style) is cosmetic.
+    # - revive
+    - wastedassign
+    - nakedret
 
 linters-settings:
   govet:

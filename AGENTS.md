@@ -593,7 +593,7 @@ cd tests/harness
 ./skea_harness run -f tests/fixtures/variables/btrfs_raid0_minimal.yaml
 ./skea_harness run -f tests/fixtures/variables/btrfs_raid0_noswap.yaml
 ./skea_harness run -f tests/fixtures/variables/btrfs_standard_swap_explicit_8g.yaml
-ls tests/fixtures/variables/  # 28 fixtures, full variables.yaml template mirror (all scenarios)
+ls tests/fixtures/variables/  # 30 fixtures, full variables.yaml template mirror (all scenarios)
 
 # Run tests (when available)
 cd src && go test ./...
@@ -629,7 +629,7 @@ cd tests/harness && go vet ./...
 cd tests/harness && golangci-lint run ./...
 ```
 
-**Dupl exclusions** (intentional duplication): `src/hostPhase/disks/` (layout packages), `src/chrootPhase/desktops/` (derived desktop flows — niri.go/niri_wayle.go are intentionally duplicated, same policy as disk layouts: do NOT merge or extract shared blocks), `src/utils/firstboot/` (standalone binaries). Config: `.golangci.yml` → `dupl.threshold: 100` + `exclude-rules`. Full polish task history is in the git log.
+**Dupl exclusions** (intentional duplication): `src/hostPhase/disks/` (layout packages), `src/chrootPhase/desktops/` (derived desktop flows — niri.go/niri_wayle.go are intentionally duplicated, same policy as disk layouts: do NOT merge or extract shared blocks), `src/utils/firstboot/` (standalone binaries). Config: `.golangci.yml` → `dupl.threshold: 100` + `exclude-rules`. Linter set also carries `wastedassign` + `nakedret` (both clean); `revive` is DISABLED — its var-naming rule flags every MixedCaps package name (`hostPhase`, `chrootPhase`, `btrfsStandard`, `createConfig`…), which is the documented project convention ("Folders camelCase"), so its findings are false positives (rationale comment in `.golangci.yml`). Full polish task history is in the git log.
 
 **Static analysis suite (ursine pattern)** — configs at repo root: `.ecrc`, `.gitleaks.toml`, `.gitleaksignore`, `.markdownlint-cli2.jsonc`, `.shellcheckrc`, `typos.toml`, `.yamllint.yml`, `taplo.toml`; wired into `scripts/ci.sh` after the existing checks; tool versions pinned in `Dockerfile` lint-tools (gitleaks 8.30.1, typos 1.51.1, yamllint 1.38.0, markdownlint-cli2 0.24.0 + Node 22.23.4, editorconfig-checker 4.0.2; taplo optional/not in image):
 - **blocking**: `yamllint -c .yamllint.yml` over every `*.yaml`/`*.yml` in the tree except artifacts/vendor dirs (broken YAML breaks the installer); `gitleaks detect --source . --config .gitleaks.toml --no-banner --redact` (git checkout = full commit history; known historical findings fingerprinted in `.gitleaksignore`; the docker image ships no `.git` → ci.sh falls back to `gitleaks dir .` working-tree scan; the old pattern-grep scan stays as the fallback for hosts without gitleaks)

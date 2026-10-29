@@ -121,7 +121,7 @@ No backward compat. Breaking changes allowed without fallback (e.g., `internal_r
 ```bash
 # vet + lint (native Linux, pre-commit does this)
 cd src && go vet ./...
-cd src && golangci-lint run ./...
+cd src && golangci-lint run ./...   # incl. wastedassign + nakedret; revive disabled (var-naming false-positives on camelCase package names = project convention)
 
 # static analysis suite (ursine pattern; same checks as scripts/ci.sh,
 # configs at repo root, tool versions pinned in the Dockerfile lint-tools)
@@ -148,7 +148,7 @@ cd tests/harness && go test ./...
 cd tests/harness
 ./skea_harness prepare-runner
 ./skea_harness run -f ~/Progetti/feralos/src/variables/variables.yaml
-./skea_harness run -f tests/fixtures/variables/btrfs_raid0_minimal.yaml  # 28 fixtures, full template mirror
+./skea_harness run -f tests/fixtures/variables/btrfs_raid0_minimal.yaml  # 30 fixtures, full template mirror
 ./skea_harness status && ./skea_harness cleanup
 
 # artifacts (gitignored): tests/artifacts/{feralos_create_config,harness}/{cache,prepare,runs,state}

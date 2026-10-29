@@ -1,6 +1,6 @@
 # Variables Reference
 
-> **User guide** — compilation of `variables.yaml`. Template: `src/variables/variables.yaml`. Fixtures (28, full `variables.yaml` template mirror): `tests/fixtures/variables/` (see `tests/fixtures/variables/README.md`). Processed by `utils/logic.ApplyRules` + `internal_rules.yaml`.
+> **User guide** — compilation of `variables.yaml`. Template: `src/variables/variables.yaml`. Fixtures (30, full `variables.yaml` template mirror): `tests/fixtures/variables/` (see `tests/fixtures/variables/README.md`). Processed by `utils/logic.ApplyRules` + `internal_rules.yaml`.
 
 Full example (current template):
 
@@ -118,6 +118,6 @@ variables:
 1. **Generator** (`src/utils/createConfig/create_values.go`) starts from `src/variables/variables.yaml` template + `internal_rules.yaml` (enum options). Wizard asks **every** option — general, layout, disks, user, passwords, identity, repo, network/ssh, desktop, all `Enable*` toggles, `swapSize`, `extraPackages` — validates **each answer immediately** (invalid input re-asks the same field with the error), cross-checks disk count vs layout, then prints a summary: `yes` proceeds, `no` restarts the whole loop with the previous answers as defaults. Passwords: min 6 chars, masked input (plain read when stdin is not a tty), **asked twice with confirmation** (mismatch = both re-asked); LUKS passphrase empty = reuse user password (empty skips confirmation). Writes `variables.yaml` (`0600`). The INSTALLER runs the same wizard (`createConfig.PromptForConfig`): a config file with **invalid values does not abort** — the wizard starts pre-filled from the file so values can be corrected, then the installer re-validates and aborts only if still invalid (unattended runs skip the wizard, so they abort on invalid input).
    - Per-field validators live in `src/utils/config/validators.go` — single source shared with `LoadConfig` validation (`validateConfig`). Enum options come from `internal_rules.yaml` keys (`diskLayouts`, `desktopEnvironments`, `videoDrivers` + `none`).
 2. **Installer** (`src/main.go`) loads `variables.yaml` + `internal_rules.yaml`, `logic.ApplyRules(conf)` injects groups/services/modules per package, validates `len(disks)`.
-3. **Harness fixtures** (`tests/fixtures/variables/*.yaml`) are 28 curated fixtures — a full `variables.yaml` template mirror covering minimal/noswap/explicit/full/isolate per layout, per-layout full-stack variants, and the desktop fixtures (`niri`, `niriWayle`, `kde`, `cosmic`).
+3. **Harness fixtures** (`tests/fixtures/variables/*.yaml`) are 30 curated fixtures — a full `variables.yaml` template mirror covering minimal/noswap/explicit/full/isolate per layout, per-layout full-stack variants, and the desktop fixtures (`niri`, `niriWayle`, `kde`, `cosmic`).
 
 See `docs/architecture/feature_confinement.md` for where each `Enable*` is owned.
