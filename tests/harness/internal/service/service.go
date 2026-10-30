@@ -1631,10 +1631,11 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 	}
 
 	// less_dummy is self-falsifying (command exits non-zero on any broken
-	// condition: package missing, symlink regression, less -R failure) —
+	// condition: package missing, symlink regression, less-flag failure) —
 	// no Go-side semantic post-processing needed. The old symlink-to-bat
 	// enforcement was removed with the less-dummy wrapper package
-	// (feralos-aports f8dcee5): /usr/bin/less is now a regular-file wrapper.
+	// (feralos-aports f8dcee5): /usr/bin/less is a regular-file wrapper
+	// that drops less flags and execs moor.
 
 	// Validate NoCoW subvolume attributes (lsattr_nocow)
 	// NoCoW subvolumes: dir + first file must have C flag, must NOT have m flag

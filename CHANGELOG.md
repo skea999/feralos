@@ -595,7 +595,7 @@ All notable changes to FeralOS will be documented in this file.
 - LUKS injection: single per boot (`<1`), not 4x
 - enableEncryption removed (leftover)
 - Final cleanup disabled (BTRFS Transaction aborted -5) — sleep 20s before shutdown
-- **TODO**: investigate why final `cleanup.Cleanup(conf)` causes `BTRFS Transaction aborted -5, forced readonly` during runner shutdown
+- ~~**TODO**: investigate why final `cleanup.Cleanup(conf)` causes `BTRFS Transaction aborted -5, forced readonly` during runner shutdown~~ **RESOLVED**: QEMU runner-shutdown race, not a product bug — cleanup re-enabled (same-day entry above), allowlisted in `log_errors`
 
 ### 2026-08-30 — Dedup: dupl linter + harness DRY + firstboot DRY
 **Agent:** codebase

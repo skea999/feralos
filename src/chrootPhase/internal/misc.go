@@ -125,15 +125,15 @@ func setupKeymapConf(chroot string, u *config.UserVariables) error {
 	return nil
 }
 
-// setupPager points the pager at bat (profile sed, best-effort) and writes
+// setupPager points the pager at moor (profile sed, best-effort) and writes
 // the fish equivalent (/etc/fish/conf.d/pager.fish).
 func setupPager(chroot string) error {
 	// 7. Pager (fish only)
 	fmt.Println("[INFO] Configuring pager...")
-	if _, err := shell.ExecuteCmd(chroot, "sed -i 's/PAGER=less/PAGER=bat/g' /etc/profile"); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, "sed -i 's/PAGER=less/PAGER=moor/g' /etc/profile"); err != nil {
 		fmt.Printf("[WARNING] Failed to set pager: %v\n", err)
 	}
-	if err := shell.WriteFile(chroot, "/etc/fish/conf.d/pager.fish", []byte("set -gx PAGER bat\n"), 0644); err != nil {
+	if err := shell.WriteFile(chroot, "/etc/fish/conf.d/pager.fish", []byte("set -gx PAGER moor\n"), 0644); err != nil {
 		return fmt.Errorf("failed to write pager.fish: %w", err)
 	}
 	return nil

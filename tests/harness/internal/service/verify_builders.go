@@ -43,30 +43,35 @@ func buildBootChecks(cfg *VerifyConfig, checks map[string]string) {
 	checks["sudoers_includedir"] = "grep -q '^@includedir' /etc/sudoers && echo 'includedir enabled' || echo 'includedir disabled'"
 	checks["sudo_works"] = "sudo -n id 2>&1 || echo 'sudo requires password (expected for non-root)'"
 	// less shim (feralos-aports less-dummy): /usr/bin/less is a wrapper
-	// script (NOT a symlink — a symlink to bat crashed on the hardcoded
-	// less flags bat itself passes to its pager: `less -R -F -K
-	// --no-init` on TTY → clap "unexpected argument '-R'", broke fish
-	// `history`). Falsifiable, 4 assertions: package installed + regular
-	// file + bat's EXACT hardcoded flag set accepted + content actually
-	// passes through (stdin, file operand, `--` form). Clap parses args
-	// BEFORE any TTY check, so the flag-set test is a real discriminator
-	// even on the non-TTY verify SSH.
+	// script (NOT a symlink — moor rejects the hardcoded less flags tools
+	// pass to their pager: `-R -F -K --no-init` → "flag provided but not
+	// defined: -R", broke fish `history`). The wrapper drops every less
+	// flag and execs moor, which pages interactively on a TTY and passes
+	// content through on a pipe. Falsifiable, 5 assertions: package
+	// installed + regular file + moor dependency present + less flag set
+	// accepted (dropped by the wrapper) + content actually passes through
+	// (stdin, file operand, `--` form). moor parses args BEFORE any TTY
+	// check, so the flag test is a real discriminator even on the non-TTY
+	// verify SSH.
 	checks["less_dummy"] = `fail=0
 apk info -e less-dummy || { echo 'FAIL: less-dummy not installed'; exit 1; }
 test -f /usr/bin/less && ! test -L /usr/bin/less || { echo 'FAIL: /usr/bin/less is not a regular file'; exit 1; }
-out=$(printf 'shim-marker-123\n' | less -R -F -K --no-init 2>&1) || { echo "FAIL: bat hardcoded flag set rejected: $out"; exit 1; }
+apk info -e moor || { echo 'FAIL: moor not installed (less-dummy dependency)'; exit 1; }
+out=$(printf 'shim-marker-123\n' | /usr/bin/less -R -F -K --no-init 2>&1) || { echo "FAIL: less flag set rejected: $out"; exit 1; }
+[ -n "$out" ] || { echo 'FAIL: wrapper output empty'; exit 1; }
 echo "$out" | grep -q 'shim-marker-123' || { echo "FAIL: stdin content lost: $out"; exit 1; }
 printf 'file-marker-456\n' > /tmp/.less-test
-out=$(less /tmp/.less-test 2>&1) || { echo "FAIL: file operand rejected: $out"; exit 1; }
+out=$(/usr/bin/less /tmp/.less-test 2>&1) || { echo "FAIL: file operand rejected: $out"; exit 1; }
 echo "$out" | grep -q 'file-marker-456' || { echo "FAIL: file content lost: $out"; exit 1; }
 printf 'dash-marker-789\n' > /tmp/.less-test-dash
-out=$(less -- /tmp/.less-test-dash 2>&1) || { echo "FAIL: -- form rejected: $out"; exit 1; }
+out=$(/usr/bin/less -- /tmp/.less-test-dash 2>&1) || { echo "FAIL: -- form rejected: $out"; exit 1; }
 echo "$out" | grep -q 'dash-marker-789' || { echo "FAIL: -- content lost: $out"; exit 1; }
 rm -f /tmp/.less-test /tmp/.less-test-dash
-echo 'less shim OK: pkg installed, regular file, bat flag set accepted, stdin+file+-- passthrough'`
+echo 'less shim OK: pkg+moor installed, regular file, less flags dropped, moor passthrough stdin+file+--'`
 	// The ORIGINAL bug: fish `history` piped to $PAGER on a TTY and got
-	// clap's "unexpected argument '-R'" instead of history. Guard: run
-	// fish history and fail on ANY clap error text in the output.
+	// an arg-parse error ("unexpected argument '-R'") instead of history.
+	// Guard: run fish history and fail on ANY arg-parse error text in the
+	// output (moor never produces this — the wrapper eats the flags).
 	checks["less_fish_history"] = `fish -ic 'history' > /tmp/.fish-h.out 2>&1
 if grep -q 'unexpected argument' /tmp/.fish-h.out; then echo 'FAIL: clap error in fish history output:'; cat /tmp/.fish-h.out; rm -f /tmp/.fish-h.out; exit 1; fi
 rm -f /tmp/.fish-h.out

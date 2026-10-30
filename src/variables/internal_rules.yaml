@@ -172,14 +172,11 @@ standardPackages:
   - viddy
   - ripgrep
   - fd
-  - dust
-  - bat
   # less shim (feralos-aports): /usr/bin/less is a flag-translating wrapper
-  # that dumps via `bat --paging=never`. NOT a symlink less→bat — bat rejects
-  # the hardcoded less CLI flags it itself passes to its pager
-  # (`less -R -F -K --no-init` on TTY), so the symlink made bat re-exec
-  # itself and clap errored ("unexpected argument '-R'") — broke fish
-  # `history`, `git log`, `man` (anything piping to $PAGER on a TTY).
+  # that execs moor. NOT a symlink less→moor — moor rejects the hardcoded
+  # less CLI flags tools pass (fish `history`, `git log`, `man` all pipe
+  # to $PAGER with less flags), so the symlink made moor error
+  # ("unexpected argument '-R'") instead of showing content.
   - less-dummy
   # Firewall
   - firewalld
@@ -329,10 +326,10 @@ videoDrivers:
 # Symlink goes from /usr/bin/<replaced> → /usr/bin/<replacement>
 # Bin overrides replacement binary name (e.g. ripgrep → rg)
 # NOTE: grep NOT replaced — rg doesn't support GNU regex extensions (\+)
-# NOTE: less NOT replaced here — a symlink less→bat crashes: bat execs its
-# hardcoded pager `less -R -F -K --no-init` and cannot parse less flags
-# (clap error). less ships as the aports package `less-dummy` instead
-# (provides less=999, /usr/bin/less = wrapper script → bat --paging=never).
+# NOTE: less NOT replaced here — a symlink less→moor crashes: moor cannot
+# parse the hardcoded less flags tools pass (unexpected argument errors).
+# less ships as the aports package `less-dummy` instead
+# (provides less=999, /usr/bin/less = wrapper script → moor after flag drop).
 dummyPackages: {}
 
 # Dynamic logic: if a package is in the install list, apply these changes

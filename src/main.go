@@ -101,13 +101,14 @@ func main() {
 		fmt.Printf("[WARNING] Webmin setup: %v\n", err)
 	}
 
-	// 9. Wait for filesystems to sync before shutdown
+	// 9. Wait for filesystems to sync before final cleanup
 	fmt.Println("[INFO] Waiting 20s for filesystem sync...")
 	time.Sleep(20 * time.Second)
 
-	// 10. Final cleanup — DISABLED: causes BTRFS Transaction aborted -5, forced readonly
-	// during runner shutdown (see runner-serial.log BTRFS error). Disks stay mounted
-	// until poweroff; kernel will sync on shutdown. Was: cleanup.Cleanup(conf)
+	// 10. Final cleanup (always runs) — after the 20s sync wait, unmounts
+	// the chroot mounts, stops swaps/RAIDs and closes LUKS (see cleanup.Cleanup).
+	// BTRFS Transaction aborted -5 during runner shutdown is a QEMU race,
+	// allowlisted in log_errors; see CHANGELOG 2026-08-29.
 	fmt.Println("[INFO] Step 7: Final cleanup...")
 	if err := cleanup.Cleanup(conf); err != nil {
 		fmt.Printf("[WARNING] Final cleanup: %v\n", err)
