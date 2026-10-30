@@ -407,8 +407,8 @@ packageLogic:
 
 # Packages to always provide as dummy (regardless of replacement)
 # Used to satisfy dependencies without installing the real package
-providePackages:
-  - util-linux-misc
+providePackages: []
+
 
 # Base modules always loaded via modules_force_load in booster
 # These are kernel modules without specific packages (hardware drivers, kernel features)
