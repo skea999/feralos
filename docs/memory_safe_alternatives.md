@@ -63,7 +63,7 @@ FeralOS replaces traditional C components with memory-safe alternatives where po
 |---------|----------|-------|
 | fish | Rust | Friendly interactive shell (rewritten in Rust) |
 | fish-tools | Rust | Fish utilities |
-| less | C | Replaced by the `less-dummy` wrapper package v999 since 2026-10-09 — POSIX-sh wrapper that drops less flags and execs **moor** (Rust, interactive pager: scroll/search/quit; passes content through on a pipe; since 2026-10-30 — the older `bat --paging=never` dump is obsolete, bat/dust removed: cat/du exist in uutils) |
+| less | C | Replaced by the `less-dummy` wrapper package v999 since 2026-10-09 — POSIX-sh wrapper that drops less flags and execs **moor** (Go, interactive pager: scroll/search/quit; passes content through on a pipe; since 2026-10-30 — the older `bat --paging=never` dump is obsolete, bat/dust removed: cat/du exist in uutils) |
 | readline | C | Line editing |
 | ncurses-terminfo | C | Terminal info |
 | ncurses-terminfo-base | C | Base terminfo |
