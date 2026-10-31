@@ -43,7 +43,7 @@ The oo7 stack reaches full gnome-keyring parity: auto-unlock at login, no-prompt
 
 ## Session actions
 
-The Wayle bar carries a **power button** (right end — seeded into the layout: upstream's default bar has no session entry point) which opens the dashboard dropdown; the dropdown's user-row carries the lock/logout/reboot/poweroff buttons. v0.7.0 source-verified: each button runs `sh -c <command>`, installer-seeded in `~/.config/wayle/config.toml` because upstream defaults are systemd-only and dead on FeralOS:
+The Wayle bar carries the **dashboard button** (distro icon, far right — seeded into the layout: upstream's default bar has no session entry point) which opens the dashboard dropdown (opens upward above the bottom bar); the dropdown's user-row carries the lock/logout/reboot/poweroff buttons. v0.7.0 source-verified: each button runs `sh -c <command>`, installer-seeded in `~/.config/wayle/config.toml` because upstream defaults are systemd-only and dead on FeralOS. The seed also pins `left-click = "dropdown:dashboard"` explicitly — belt-and-braces, the upstream default equals it (wayle's config is layered default < config.toml < runtime per leaf path, so a partial table never loses the default; verified live: `wayle config get modules.dashboard.left-click` + a real VNC click opened the panel on run `2026-10-28T00-10-10Z`):
 
 | Button | Command | Why |
 |---|---|---|
@@ -60,11 +60,11 @@ The launcher TOGGLES (Windows-style): `raffi-toggle` (`/usr/bin/raffi-toggle`, f
 
 ## Config paths
 
-- Wayle: `~/.config/wayle/config.toml` (installer-seeded session commands + power bar button — see [Session actions](#session-actions); auto-created otherwise; live reload; GUI `wayle-settings`)
+- Wayle: `~/.config/wayle/config.toml` (installer-seeded session commands + dashboard button — see [Session actions](#session-actions); auto-created otherwise; live reload; GUI `wayle-settings`)
 - Veila: `~/.config/veila/config.toml` (auto-created; themes, widgets)
 - stasis: `/etc/stasis/stasis.rune` (apk-shipped FeralOS plan — see [Locking & idle](#locking--idle); a per-user `~/.config/stasis/stasis.rune` is only a fallback for a missing/broken system file)
 - niri: `~/.config/niri/config.kdl` (installer-written: env block, prefer-no-csd, binds — launcher/lock/screenshots/window management; no DMS includes)
 
 ## Harness
 
-Fixtures: `tests/fixtures/variables/btrfs_standard_niriwayle_test.yaml` (dinit + edge) and `tests/fixtures/variables/btrfs_standard_niriwayle.yaml` (OpenRC). Checks: wayle shell running, veilad running through the `veilad-session` wrapper (`veila_daemon`), user dinit stack (incl. wayle.user/veila.user/stasis.user), niri layers (Wayle bar), session sockets, wayvnc, screenshot, oo7 packages installed, Key Rack flatpak installed + Secret=oo7-portal pinned (`keyrack_flatpak`), oo7 PAM unlock chain (`oo7_pam_unlock` — static PAM wiring + authenticated PAM login on service greetd + count-delta "Received unlock request" runtime proof with `enableDebug: true`), Wayle session-action seed (`wayle_session_actions` — dashboard dropdown commands + power bar button), stasis idle manager (`stasis_idle` — package + `/etc/stasis/stasis.rune` content (veila lock + loginctl suspend) + `-c` in the stasis-session wrapper + no user-config bootstrap + started marker + `stasis info` IPC), power polkit rule (`power_polkit_rule` — wheel login1 rule incl. suspend).
+Fixtures: `tests/fixtures/variables/btrfs_standard_niriwayle_test.yaml` (dinit + edge) and `tests/fixtures/variables/btrfs_standard_niriwayle.yaml` (OpenRC). Checks: wayle shell running, veilad running through the `veilad-session` wrapper (`veila_daemon`), user dinit stack (incl. wayle.user/veila.user/stasis.user), niri layers (Wayle bar), session sockets, wayvnc, screenshot, oo7 packages installed, Key Rack flatpak installed + Secret=oo7-portal pinned (`keyrack_flatpak`), oo7 PAM unlock chain (`oo7_pam_unlock` — static PAM wiring + authenticated PAM login on service greetd + count-delta "Received unlock request" runtime proof with `enableDebug: true`), Wayle session-action seed (`wayle_session_actions` — dashboard dropdown commands + explicit dashboard left-click), stasis idle manager (`stasis_idle` — package + `/etc/stasis/stasis.rune` content (veila lock + loginctl suspend) + `-c` in the stasis-session wrapper + no user-config bootstrap + started marker + `stasis info` IPC), power polkit rule (`power_polkit_rule` — wheel login1 rule incl. suspend).

@@ -294,6 +294,13 @@ spawn-at-startup "sh" "-c" "command -v xdg-user-dirs-update >/dev/null 2>&1 && x
 	//   - theme: everforest-dark preset (wayle built-in palette, seeded as
 	//     [styling.palette] — the official activation path; no name key).
 	//   - dashboard dropdown = session actions (see step 7b rationale above).
+	//     left-click is seeded EXPLICITLY even though v0.7.0's default equals
+	//     it: wayle's config is a layered system (default < config.toml <
+	//     runtime) applied per-leaf-path, so a partial table does NOT lose
+	//     the default (proven live: `wayle config get
+	//     modules.dashboard.left-click` = "dropdown:dashboard" AND a real
+	//     VNC click opened the panel on run 2026-10-28T00-10-10Z) — the
+	//     explicit line only pins the intent against upstream default drift.
 	wayleRebootCmd := "loginctl reboot"
 	if u.EnableDinit {
 		wayleRebootCmd = "sudo -n /usr/bin/reboot"
@@ -346,6 +353,7 @@ label-show = false
 label-show = false
 
 [modules.dashboard]
+left-click = "dropdown:dashboard"
 dropdown-lock-command = "veila lock"
 dropdown-logout-command = "niri msg action quit --skip-confirmation"
 dropdown-reboot-command = "%s"
