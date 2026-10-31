@@ -70,14 +70,18 @@ exec niri -- regreet
 	}
 
 	// 3. regreet config — timezone from user variables
+	// Font: DejaVu Sans (font-dejavu installed) — Cantarell is NOT in the
+	// package list; a missing font forces full fontconfig fallback resolution
+	// on every greeter start (slow-boot contributor).
+	// Wallpaper: no default.png ships in the tree — the empty path avoids a
+	// regreet file-not-found warning (wallpaper = cosmetic, user sets it).
 	regreetConf := fmt.Sprintf(`[background]
-path = "/usr/share/wallpapers/default.png"
-fit = "Contain"
+path = ""
 
 [GTK]
 application_prefer_dark_theme = true
 cursor_theme_name = "Adwaita"
-font_name = "Cantarell 16"
+font_name = "DejaVu Sans 16"
 icon_theme_name = "Adwaita"
 theme_name = "Adwaita"
 
@@ -139,6 +143,15 @@ hotkey-overlay {
 	}
 	if _, err := shell.ExecuteCmd(chroot, "chown -R greeter:greeter /var/lib/greetd /var/lib/regreet && chmod 700 /var/lib/regreet"); err != nil {
 		return fmt.Errorf("fix greeter/regreet ownership: %w", err)
+	}
+
+	// 4b. Pre-build fontconfig cache for the greeter user — GTK4's first
+	// text render with a cold cache scans every system font (noto-cjk +
+	// noto-extra = thousands of files), causing a multi-second regreet
+	// cold-start that the rest of boot doesn't have. One fc-cache run at
+	// install time eliminates it.
+	if _, err := shell.ExecuteCmd(chroot, "su -s /bin/sh greeter -c 'fc-cache -f'"); err != nil {
+		fmt.Printf("[WARNING] fontconfig cache pre-build for greeter failed (non-fatal): %v\n", err)
 	}
 
 	// 5. Session startup — wayle-session (wayle-session package) replaces
