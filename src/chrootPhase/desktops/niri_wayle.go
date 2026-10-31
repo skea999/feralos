@@ -284,15 +284,22 @@ spawn-at-startup "sh" "-c" "command -v xdg-user-dirs-update >/dev/null 2>&1 && x
 	//     terminate-session: under dinit polkit cannot attribute the
 	//     session (NoSessionForPID) so it would hit an auth prompt, while
 	//     niri's quit action needs no polkit.
-	// Windows-style bottom bar (novice-friendly, user request 2026-10-27):
+	// Windows-style bottom bar (novice-friendly, user request 2026-10-27,
+	// refined 2026-10-31 with the user's wayle-settings customizations):
 	//   - location=bottom, exclusive=true (default — reserves space, no
-	//     floating), opacity 85%, rounding md.
-	//   - left: custom-launcher (Raffi via Mod+D or click) + window-title
-	//     (focused window). center: empty. right: systray, icon-only status
-	//     (battery/bluetooth/network/mic/volume), clock (HH:MM), dashboard
-	//     (far right — lock/logout/reboot/poweroff dropdown).
-	//   - theme: everforest-dark preset (wayle built-in palette, seeded as
-	//     [styling.palette] — the official activation path; no name key).
+	//     floating), background-opacity 0 (fully transparent bar — only
+	//     buttons visible), rounding md; buttons: variant basic, rounding
+	//     lg, gap 0.25; styling rounding lg (dropdowns/dialogs).
+	//   - left: custom-launcher (Raffi via Mod+D or click) + niri-workspaces
+	//     + window-title (focused window). center: empty. right: systray,
+	//     icon-only status (battery/bluetooth/network/mic/volume),
+	//     notifications, clock (HH:MM), dashboard (far right —
+	//     lock/logout/reboot/poweroff dropdown, borders shown).
+	//   - theme: theme-provider = "matugen" — the palette is generated from
+	//     the wallpaper by matugen (installed); no static palette seeded.
+	//     NOTE: matugen needs a wallpaper set (wayle wallpaper config) —
+	//     without one the palette falls back to wayle defaults.
+	//   - notifications popup: bottom-right.
 	//   - dashboard dropdown = session actions (see step 7b rationale above).
 	//     left-click is seeded EXPLICITLY even though v0.7.0's default equals
 	//     it: wayle's config is a layered system (default < config.toml <
@@ -307,23 +314,18 @@ spawn-at-startup "sh" "-c" "command -v xdg-user-dirs-update >/dev/null 2>&1 && x
 	}
 	wayleConf := fmt.Sprintf(`[bar]
 location = "bottom"
-background-opacity = 85
+background-opacity = 0
 rounding = "md"
+button-variant = "basic"
+button-rounding = "lg"
+button-gap = 0.25
 
 [styling]
-theme-provider = "wayle"
+theme-provider = "matugen"
+rounding = "lg"
 
-[styling.palette]
-bg = "#2d353b"
-surface = "#343f44"
-elevated = "#3d484d"
-fg = "#d3c6aa"
-fg_muted = "#859289"
-primary = "#7fbbb3"
-red = "#e67e80"
-yellow = "#dbbc7f"
-green = "#a7c080"
-blue = "#83c092"
+[modules.notifications]
+popup-position = "bottom-right"
 
 [[modules.custom]]
 id = "launcher"
@@ -354,6 +356,7 @@ label-show = false
 
 [modules.dashboard]
 left-click = "dropdown:dashboard"
+border-show = true
 dropdown-lock-command = "veila lock"
 dropdown-logout-command = "niri msg action quit --skip-confirmation"
 dropdown-reboot-command = "%s"
@@ -361,9 +364,9 @@ dropdown-poweroff-command = "loginctl poweroff"
 
 [[bar.layout]]
 monitor = "*"
-left = ["custom-launcher", "window-title"]
+left = ["custom-launcher", "niri-workspaces", "window-title"]
 center = []
-right = ["systray", "battery", "bluetooth", "network", "microphone", "volume", "clock", "dashboard"]
+right = ["systray", "battery", "bluetooth", "network", "microphone", "volume", "notifications", "clock", "dashboard"]
 `, wayleRebootCmd)
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p /home/%s/.config/wayle", u.UserName)); err != nil {
 		return fmt.Errorf("mkdir wayle config dir: %w", err)
