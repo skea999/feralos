@@ -306,8 +306,10 @@ spawn-at-startup "sh" "-c" "command -v xdg-user-dirs-update >/dev/null 2>&1 && x
 	//   - left: custom-launcher (Raffi via Mod+D or click) + niri-workspaces
 	//     + window-title (focused window). center: empty. right: systray,
 	//     icon-only status (battery/bluetooth/network/mic/volume),
-	//     notifications, clock (HH:MM), dashboard (far right —
-	//     lock/logout/reboot/poweroff dropdown, borders shown).
+	//     notifications, custom-windows (live window list — click opens the
+	//     Raffi window switcher, mirrored by Mod+W), clock (HH:MM),
+	//     dashboard (far right — lock/logout/reboot/poweroff dropdown,
+	//     borders shown).
 	//   - theme: theme-provider = "matugen" — the palette is generated from
 	//     the wallpaper by matugen (installed); no static palette seeded.
 	//     NOTE: matugen needs a wallpaper set (wayle wallpaper config) —
@@ -346,6 +348,29 @@ icon-name = "view-app-grid-symbolic"
 label-show = false
 left-click = "/usr/bin/raffi-toggle"
 
+# Window list (user request 2026-10-31): live count + app-id summary from
+# niri IPC, refreshed on every niri event (mode = "watch" — the command
+# loops on the event stream itself; restart-policy = "on-exit" so a dead
+# watcher comes back). Click = Raffi window switcher (same as Mod+W):
+# -i 'win ' pre-fills the query so the window source is what you get.
+[[modules.custom]]
+id = "windows"
+mode = "watch"
+restart-policy = "on-exit"
+command = '''
+niri msg event-stream | while read -r _; do
+  niri msg --json windows | jq -r '{
+    count: length,
+    text: ([.[] | .app_id] | unique | join(" · ")),
+    alt: (if any(.[]; .is_focused) then "active" else "idle" end)
+  }'
+done
+'''
+format = "{{ text }}"
+tooltip-format = "{{ count }} windows — click to switch"
+icon-name = "ld-app-window-symbolic"
+left-click = "raffi -i 'win '"
+
 [modules.window-title]
 label-max-length = 50
 
@@ -379,7 +404,7 @@ dropdown-poweroff-command = "loginctl poweroff"
 monitor = "*"
 left = ["custom-launcher", "niri-workspaces", "window-title"]
 center = []
-right = ["systray", "battery", "bluetooth", "network", "microphone", "volume", "notifications", "clock", "dashboard"]
+	right = ["systray", "battery", "bluetooth", "network", "microphone", "volume", "notifications", "custom-windows", "clock", "dashboard"]
 `, wayleRebootCmd)
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p /home/%s/.config/wayle", u.UserName)); err != nil {
 		return fmt.Errorf("mkdir wayle config dir: %w", err)
@@ -625,9 +650,12 @@ const niriWayleBinds = `binds {
 
     // Suggested binds for running programs: terminal, app launcher, screen locker.
     // FeralOS niriWayle: launcher = raffi-toggle (close-if-open/spawn-if-not
-    // via niri IPC — Mod+D and the Wayle bar button both toggle), locker = veila.
+    // via niri IPC — Mod+D and the Wayle bar button both toggle), locker = veila,
+    // window switcher = raffi with a pre-filled query (same as the bar's
+    // custom-windows module click).
     Mod+T hotkey-overlay-title="Open a Terminal: alacritty" { spawn "alacritty"; }
     Mod+D hotkey-overlay-title="Run an Application: raffi" { spawn "/usr/bin/raffi-toggle"; }
+    Mod+W hotkey-overlay-title="Window Switcher" { spawn "raffi" "-i" "win "; }
     Super+Alt+L hotkey-overlay-title="Lock the Screen: veila" { spawn "veila" "lock"; }
 
     // Use spawn-sh to run a shell command. Do this if you need pipes, multiple commands, etc.

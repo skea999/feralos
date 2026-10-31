@@ -583,17 +583,20 @@ echo 'dbus activation units live OK'
 		// (`systemctl reboot|poweroff`; `loginctl lock-session` a no-op on
 		// niri), and the default bar layout has no session entry point.
 		// Static assert of the seed: 4 dropdown commands + the explicit
-		// dashboard left-click + the Windows-
-		// style bottom bar (launcher+window-title left, dashboard far
-		// right, icon-only status, everforest palette). The reboot
-		// command runs the dinit wrapper via zz-power (asserted by
-		// dinit_shutdown_commands — same rule/rationale as niri/DMS).
+		// dashboard left-click + the Windows-style bottom bar
+		// (launcher+window-title left, window-list custom module +
+		// dashboard far right, icon-only status, matugen palette). The
+		// window-list module (id = "windows", niri IPC watcher) and its
+		// Raffi window-switcher click are asserted too (user request
+		// 2026-10-31). The reboot command runs the dinit wrapper via
+		// zz-power (asserted by dinit_shutdown_commands — same
+		// rule/rationale as niri/DMS).
 		// Init-aware: OpenRC fixtures expect `loginctl reboot`.
 		wayleRebootCmd := "loginctl reboot"
 		if cfg.EnableDinit {
 			wayleRebootCmd = "sudo -n /usr/bin/reboot"
 		}
-		checks["wayle_session_actions"] = fmt.Sprintf("f=/home/%s/.config/wayle/config.toml; test -f \"$f\" || { echo 'wayle config.toml missing'; exit 1; }; grep -q 'dropdown-lock-command = \"veila lock\"' \"$f\" || { echo 'lock command missing'; exit 1; }; grep -q 'dropdown-logout-command = \"niri msg action quit --skip-confirmation\"' \"$f\" || { echo 'logout command missing'; exit 1; }; grep -q 'dropdown-reboot-command = %q' \"$f\" || { echo 'reboot command missing'; exit 1; }; grep -q 'dropdown-poweroff-command = \"loginctl poweroff\"' \"$f\" || { echo 'poweroff command missing'; exit 1; }; grep -q 'left-click = \"dropdown:dashboard\"' \"$f\" || { echo 'dashboard left-click missing'; exit 1; }; grep -q 'location = \"bottom\"' \"$f\" || { echo 'bar not at bottom'; exit 1; }; grep -q 'theme-provider = \"matugen\"' \"$f\" || { echo 'matugen theme provider missing'; exit 1; }; grep -qF 'left = [\"custom-launcher\", \"niri-workspaces\", \"window-title\"]' \"$f\" || { echo 'launcher+workspaces+window-title layout missing'; exit 1; }; grep -qF 'right = [\"systray\", \"battery\", \"bluetooth\", \"network\", \"microphone\", \"volume\", \"notifications\", \"clock\", \"dashboard\"]' \"$f\" || { echo 'right layout mismatch'; exit 1; }; grep -q 'label-show = false' \"$f\" || { echo 'icon-only status modules missing'; exit 1; }; grep -q 'border-show = true' \"$f\" || { echo 'dashboard borders missing'; exit 1; }; grep -q 'left-click = \"/usr/bin/raffi-toggle\"' \"$f\" || { echo 'launcher toggle not wired'; exit 1; }; echo 'wayle session actions OK (Windows-style bottom bar + dashboard dropdown + raffi-toggle launcher)'", cfg.InstalledUser, wayleRebootCmd)
+		checks["wayle_session_actions"] = fmt.Sprintf("f=/home/%s/.config/wayle/config.toml; test -f \"$f\" || { echo 'wayle config.toml missing'; exit 1; }; grep -q 'dropdown-lock-command = \"veila lock\"' \"$f\" || { echo 'lock command missing'; exit 1; }; grep -q 'dropdown-logout-command = \"niri msg action quit --skip-confirmation\"' \"$f\" || { echo 'logout command missing'; exit 1; }; grep -q 'dropdown-reboot-command = %q' \"$f\" || { echo 'reboot command missing'; exit 1; }; grep -q 'dropdown-poweroff-command = \"loginctl poweroff\"' \"$f\" || { echo 'poweroff command missing'; exit 1; }; grep -q 'left-click = \"dropdown:dashboard\"' \"$f\" || { echo 'dashboard left-click missing'; exit 1; }; grep -q 'location = \"bottom\"' \"$f\" || { echo 'bar not at bottom'; exit 1; }; grep -q 'theme-provider = \"matugen\"' \"$f\" || { echo 'matugen theme provider missing'; exit 1; }; grep -qF 'left = [\"custom-launcher\", \"niri-workspaces\", \"window-title\"]' \"$f\" || { echo 'launcher+workspaces+window-title layout missing'; exit 1; }; grep -qF 'right = [\"systray\", \"battery\", \"bluetooth\", \"network\", \"microphone\", \"volume\", \"notifications\", \"custom-windows\", \"clock\", \"dashboard\"]' \"$f\" || { echo 'right layout mismatch'; exit 1; }; grep -qF 'id = \"windows\"' \"$f\" || { echo 'window-list custom module missing'; exit 1; }; grep -qF \"left-click = \\\"raffi -i 'win '\\\"\" \"$f\" || { echo 'window switcher (raffi -i win) not wired'; exit 1; }; grep -q 'label-show = false' \"$f\" || { echo 'icon-only status modules missing'; exit 1; }; grep -q 'border-show = true' \"$f\" || { echo 'dashboard borders missing'; exit 1; }; grep -q 'left-click = \"/usr/bin/raffi-toggle\"' \"$f\" || { echo 'launcher toggle not wired'; exit 1; }; echo 'wayle session actions OK (Windows-style bottom bar + dashboard dropdown + raffi-toggle launcher + window-list switcher)'", cfg.InstalledUser, wayleRebootCmd)
 		// stasis_idle: the stasis context-aware idle manager (feralos-aports
 		// 1.6.3, dependency of wayle-session) — package + supervised
 		// session service stasis.user (started by the wayle-session script
@@ -708,6 +711,12 @@ done
 	// login via dbus-session-materializer.user (plasma/cosmic dbus-run-session
 	// read the same XDG_RUNTIME_DIR servicedir the wrapper writes to).
 	if isNiriFamily || cfg.DesktopEnvironment == desktopKDE || cfg.DesktopEnvironment == desktopCosmic {
+		// ursine_cli: the ursine package ships THREE binaries since 0.24.0 —
+		// ursined (root daemon), ursine (GUI client) and ursinectl (root
+		// CLI, in-process ursine-core host, chroot-capable). Falsifiable:
+		// package + all three binaries executable + ursinectl answers
+		// --version (works non-root — the root gate fires only for Run).
+		checks["ursine_cli"] = "apk info -e ursine >/dev/null || { echo 'ursine package missing'; exit 1; }; test -x /usr/sbin/ursined || { echo 'ursined missing'; exit 1; }; test -x /usr/bin/ursine || { echo 'ursine GUI client missing'; exit 1; }; test -x /usr/bin/ursinectl || { echo 'ursinectl CLI missing'; exit 1; }; out=$(ursinectl --version 2>&1) || { echo \"ursinectl --version failed: $out\"; exit 1; }; echo \"$out\" | grep -q '^ursinectl ' || { echo \"unexpected ursinectl version output: $out\"; exit 1; }; echo 'ursine CLI OK (ursined + ursine + ursinectl all executable, --version answers)'"
 		// dbus_activation_uniform: ADR-010 enforcement — every INSTALLED
 		// system-bus override must route through the uniform shim, its target
 		// unit must exist, and it must be materialized into the launch
