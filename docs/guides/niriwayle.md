@@ -11,7 +11,7 @@ Second desktop environment: the **niri compositor** with the **Wayle shell** (ba
 - Portals: the user `niri-portals.conf` pins `org.freedesktop.impl.portal.Secret=oo7-portal` (oo7 README config — niriWayle has NO gnome-keyring, so the Secret interface must not fall through to the gtk backend)
 - Session env: `/etc/environment` + the niri config `environment` block carry `XDG_DATA_DIRS` with flatpak exports first and `$HOME/.nix-profile/share` appended last (nix-installed desktop entries visible to Raffi/gio)
 - Lock screen: `veila` (0.4.4 — ext-session-lock-v1, PAM password unlock via /etc/pam.d/veila; the daemon `veilad` runs through the `veilad-session` env wrapper — WAYLAND_DISPLAY/NIRI_SOCKET resolution, same pattern as wayvnc-session)
-- Launcher: `raffi` (0.24.0 — native iced GUI, YAML config at ~/.config/raffi/raffi.yaml)
+- Launcher: `raffi` (0.24.0 — native iced GUI, YAML config at ~/.config/raffi/raffi.yaml) + `raffi-toggle` (toggle wrapper — close-if-open via niri IPC, spawn-if-not; wired into the Wayle bar button + Mod+D)
 - Secrets: `oo7` + `oo7-pam` + `oo7-cli` + `oo7-portal` (Rust Secret Service — org.freedesktop.secrets daemon + PAM + portal + CLI); full-desktop unlock parity — see [Secrets unlocking (PAM)](#secrets-unlocking-pam); secrets GUI = **Key Rack** (`app.drey.KeyRack`, Flathub flatpak via `flatpakPackages` — NOT an apk: seahorse conflicts with oo7-server on `/usr/share/dbus-1/services/org.freedesktop.secrets.service`; nixpkgs only has 0.4.0, too old; Flathub ships current 0.6.x, Rust + native oo7 client)
 - Theming: `matugen`; icons adwaita + hicolor; fonts (terminus/inconsolata/dejavu/noto/noto-cjk/font-awesome)
 - Session glue: `wayle-session` (feralos-aports — /usr/bin/wayle-session session script, wayle.user + veila.user user dinit services, niriwayle.desktop session entry; depends niri-user-dinit + veila + raffi + stasis)
@@ -55,6 +55,8 @@ The Wayle bar carries a **power button** (right end — seeded into the layout: 
 ## Launcher
 
 Raffi: config `~/.config/raffi/raffi.yaml` (falls back to scanning desktop entries).
+
+The launcher TOGGLES (Windows-style): `raffi-toggle` (`/usr/bin/raffi-toggle`, feralos-aports) closes the running raffi window via niri IPC (app_id `com.chmouel.raffi`) or spawns a new detached instance (`setsid` — Wayle click actions wait up to 30 s for the command to exit, raffi blocks until dismissed). Both entry points wired: the Wayle bar custom module (`left-click = "/usr/bin/raffi-toggle"`) and the niri Mod+D bind. The `raffi` package depends on `raffi-toggle` (r1).
 
 ## Config paths
 

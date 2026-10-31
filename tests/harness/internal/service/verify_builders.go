@@ -534,8 +534,11 @@ echo 'dbus activation units live OK'
 		// NIRI_SOCKET resolution — the user-dinit env carries neither;
 		// upstream's veilad.service PassEnvironment's the same variables).
 		checks["veila_daemon"] = fmt.Sprintf("test -f /etc/dinit.d/user/scripts/veilad-session && grep -q 'command = /etc/dinit.d/user/scripts/veilad-session' /etc/dinit.d/user/veila.user && grep -q 'exec veilad' /etc/dinit.d/user/scripts/veilad-session && i=0; while [ $i -lt 90 ]; do pgrep -u %s -f 'veilad' >/dev/null && { echo 'veila daemon running (veilad-session wrapper)'; exit 0; }; sleep 1; i=$((i+1)); done; echo 'veilad not running'; exit 1", cfg.InstalledUser)
-		// raffi_installed: launcher package + binary on PATH.
-		checks["raffi_installed"] = "apk info -e raffi && test -x /usr/bin/raffi && echo 'raffi installed'"
+		// raffi_installed: launcher package + binary on PATH + the toggle
+		// script (feralos-aports raffi-toggle; raffi r1 depends on it —
+		// Mod+D and the Wayle bar button both toggle, they never spawn
+		// raffi directly).
+		checks["raffi_installed"] = "apk info -e raffi raffi-toggle && test -x /usr/bin/raffi && test -x /usr/bin/raffi-toggle && echo 'raffi + raffi-toggle installed'"
 		// oo7_secrets: gnome-keyring replacement — suite core + PAM module
 		// packages present (the unlock wiring has its own runtime check
 		// below).
@@ -589,7 +592,7 @@ echo 'dbus activation units live OK'
 		if cfg.EnableDinit {
 			wayleRebootCmd = "sudo -n /usr/bin/reboot"
 		}
-		checks["wayle_session_actions"] = fmt.Sprintf("f=/home/%s/.config/wayle/config.toml; test -f \"$f\" || { echo 'wayle config.toml missing'; exit 1; }; grep -q 'dropdown-lock-command = \"veila lock\"' \"$f\" || { echo 'lock command missing'; exit 1; }; grep -q 'dropdown-logout-command = \"niri msg action quit --skip-confirmation\"' \"$f\" || { echo 'logout command missing'; exit 1; }; grep -q 'dropdown-reboot-command = %q' \"$f\" || { echo 'reboot command missing'; exit 1; }; grep -q 'dropdown-poweroff-command = \"loginctl poweroff\"' \"$f\" || { echo 'poweroff command missing'; exit 1; }; grep -q 'location = \"bottom\"' \"$f\" || { echo 'bar not at bottom'; exit 1; }; grep -qF 'left = [\"custom-launcher\", \"window-title\"]' \"$f\" || { echo 'launcher+window-title layout missing'; exit 1; }; grep -qF 'right = [\"systray\", \"battery\", \"bluetooth\", \"network\", \"microphone\", \"volume\", \"clock\", \"dashboard\"]' \"$f\" || { echo 'right layout mismatch'; exit 1; }; grep -q 'label-show = false' \"$f\" || { echo 'icon-only status modules missing'; exit 1; }; grep -q 'primary = \"#7fbbb3\"' \"$f\" || { echo 'everforest palette missing'; exit 1; }; echo 'wayle session actions OK (Windows-style bottom bar + dashboard dropdown)'", cfg.InstalledUser, wayleRebootCmd)
+		checks["wayle_session_actions"] = fmt.Sprintf("f=/home/%s/.config/wayle/config.toml; test -f \"$f\" || { echo 'wayle config.toml missing'; exit 1; }; grep -q 'dropdown-lock-command = \"veila lock\"' \"$f\" || { echo 'lock command missing'; exit 1; }; grep -q 'dropdown-logout-command = \"niri msg action quit --skip-confirmation\"' \"$f\" || { echo 'logout command missing'; exit 1; }; grep -q 'dropdown-reboot-command = %q' \"$f\" || { echo 'reboot command missing'; exit 1; }; grep -q 'dropdown-poweroff-command = \"loginctl poweroff\"' \"$f\" || { echo 'poweroff command missing'; exit 1; }; grep -q 'location = \"bottom\"' \"$f\" || { echo 'bar not at bottom'; exit 1; }; grep -qF 'left = [\"custom-launcher\", \"window-title\"]' \"$f\" || { echo 'launcher+window-title layout missing'; exit 1; }; grep -qF 'right = [\"systray\", \"battery\", \"bluetooth\", \"network\", \"microphone\", \"volume\", \"clock\", \"dashboard\"]' \"$f\" || { echo 'right layout mismatch'; exit 1; }; grep -q 'label-show = false' \"$f\" || { echo 'icon-only status modules missing'; exit 1; }; grep -q 'primary = \"#7fbbb3\"' \"$f\" || { echo 'everforest palette missing'; exit 1; }; grep -q 'left-click = \"/usr/bin/raffi-toggle\"' \"$f\" || { echo 'launcher toggle not wired'; exit 1; }; echo 'wayle session actions OK (Windows-style bottom bar + dashboard dropdown + raffi-toggle launcher)'", cfg.InstalledUser, wayleRebootCmd)
 		// stasis_idle: the stasis context-aware idle manager (feralos-aports
 		// 1.6.3, dependency of wayle-session) — package + supervised
 		// session service stasis.user (started by the wayle-session script

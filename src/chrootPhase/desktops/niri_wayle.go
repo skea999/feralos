@@ -322,7 +322,7 @@ blue = "#83c092"
 id = "launcher"
 icon-name = "view-app-grid-symbolic"
 label-show = false
-left-click = "raffi"
+left-click = "/usr/bin/raffi-toggle"
 
 [modules.window-title]
 label-max-length = 50
@@ -600,9 +600,10 @@ const niriWayleBinds = `binds {
     Mod+Shift+Slash { show-hotkey-overlay; }
 
     // Suggested binds for running programs: terminal, app launcher, screen locker.
-    // FeralOS niriWayle: launcher = raffi, locker = veila (veila lock).
+    // FeralOS niriWayle: launcher = raffi-toggle (close-if-open/spawn-if-not
+    // via niri IPC — Mod+D and the Wayle bar button both toggle), locker = veila.
     Mod+T hotkey-overlay-title="Open a Terminal: alacritty" { spawn "alacritty"; }
-    Mod+D hotkey-overlay-title="Run an Application: raffi" { spawn "raffi"; }
+    Mod+D hotkey-overlay-title="Run an Application: raffi" { spawn "/usr/bin/raffi-toggle"; }
     Super+Alt+L hotkey-overlay-title="Lock the Screen: veila" { spawn "veila" "lock"; }
 
     // Use spawn-sh to run a shell command. Do this if you need pipes, multiple commands, etc.
