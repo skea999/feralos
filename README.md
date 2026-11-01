@@ -76,7 +76,7 @@ This isn't about rewriting everything. It's about replacing the components that 
 
 #### niriWayle Desktop Stack
 
-The flagship desktop is built entirely on memory-safe components:
+The flagship desktop is built mostly on memory-safe components:
 
 | Component | Role | Language |
 |-----------|------|----------|
@@ -90,6 +90,7 @@ The flagship desktop is built entirely on memory-safe components:
 | **ursine** | Control center (packages, services, theming, network) | Rust |
 | **cosmic-edit** | Text editor | Rust |
 | **cosmic-player** | Video player | Rust |
+| **cosmic-files** | File manager | Rust |
 | **wl-clipboard-rs** | Clipboard (wl-copy/wl-paste) | Rust |
 
 ### Runtime Efficiency Over Minimal Footprint
