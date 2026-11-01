@@ -83,13 +83,13 @@ The flagship desktop is built entirely on memory-safe components:
 | **niri** | Wayland compositor | Rust |
 | **wayle** | Shell (bar, notifications, OSD, wallpaper) | Rust |
 | **raffi** | Application launcher (Mod+D) | Rust |
-| **raffi-toggle** | Launcher toggle (close-if-open) | sh |
 | **veila** | Lock screen (ext-session-lock + PAM) | Rust |
 | **stasis** | Context-aware idle manager (lock/dpms/suspend) | Rust |
 | **oo7** | Keyring daemon (secrets, PAM unlock at login) | Rust |
 | **matugen** | Dynamic theming backend | Rust |
 | **ursine** | Control center (packages, services, theming, network) | Rust |
-| **wayvnc** | VNC server (user dinit, loopback) | Rust |
+| **cosmic-edit** | Text editor | Rust |
+| **cosmic-player** | Video player | Rust |
 | **wl-clipboard-rs** | Clipboard (wl-copy/wl-paste) | Rust |
 
 ### Runtime Efficiency Over Minimal Footprint
