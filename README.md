@@ -61,9 +61,36 @@ Traditional Linux distributions ship thousands of lines of C code in core utilit
 | rsyslog/logrotate | vector | Rust |
 | bash/zsh | fish | Rust |
 | mkinitfs | booster | Go |
+| less | moor | Go |
+| grep | ripgrep | Rust |
+| find | fd | Rust |
+| sed | sd | Rust |
+| ps | procs | Rust |
+| top/htop | bottom | Rust |
+| ping | gping | Rust |
+| watch | viddy | Rust |
+| webmin/cockpit | ursine | Rust |
 | grub | signed UKI (sbctl) | — |
 
 This isn't about rewriting everything. It's about replacing the components that matter most for security and reliability. As the ecosystem grows, more programs will be replaced.
+
+#### niriWayle Desktop Stack
+
+The flagship desktop is built entirely on memory-safe components:
+
+| Component | Role | Language |
+|-----------|------|----------|
+| **niri** | Wayland compositor | Rust |
+| **wayle** | Shell (bar, notifications, OSD, wallpaper) | Rust |
+| **raffi** | Application launcher (Mod+D) | Rust |
+| **raffi-toggle** | Launcher toggle (close-if-open) | sh |
+| **veila** | Lock screen (ext-session-lock + PAM) | Rust |
+| **stasis** | Context-aware idle manager (lock/dpms/suspend) | Rust |
+| **oo7** | Keyring daemon (secrets, PAM unlock at login) | Rust |
+| **matugen** | Dynamic theming backend | Rust |
+| **ursine** | Control center (packages, services, theming, network) | Rust |
+| **wayvnc** | VNC server (user dinit, loopback) | Rust |
+| **wl-clipboard-rs** | Clipboard (wl-copy/wl-paste) | Rust |
 
 ### Runtime Efficiency Over Minimal Footprint
 
