@@ -12,6 +12,7 @@ Niri is a scrollable-tiling Wayland compositor. FeralOS installs it via `desktop
 Includes (from `internal_rules.yaml:desktopEnvironments.niri`):
 - Compositor: `niri`, `niri-portalsconf`, `xwayland-satellite`, `xwayland`, `mesa-dri-gallium`, `wayland-libs-server`
 - Shell: `dms-shell` (1.6.2, feralos-aports), `quickshell` (0.3.1, feralos-aports)
+- Branding: the installer installs the FeralOS logo as a system hicolor icon (`/usr/share/icons/hicolor/scalable/apps/feralos-logo.svg`) and the default wallpapers (`/usr/share/wallpapers/feralos-default.png` 1080p — the regreet background — plus `feralos-default-3440x1440.png`). Assets live in the tracked repo-root `branding/` directory (also the README logo); missing assets are a non-fatal WARNING.
 - Greeter: `greetd` + `greetd-regreet` (vt 7, greeter session via `/etc/greetd/greeter.sh`), `accountsservice`
 - Session: `elogind`, `dbus`, `xdg-desktop-portal-wlr/gtk`, `polkit-elogind` + `polkit-gnome`, `power-profiles-daemon`, `cups-pk-helper`, `alacritty`
 - Secrets: `gnome-keyring` (login keyring unlocked at greetd PAM — see [Secrets (gnome-keyring)](#secrets-gnome-keyring) below)

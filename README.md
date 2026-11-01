@@ -1,4 +1,8 @@
+<div align="center">
+<img src="branding/feralos-logo.svg" alt="FeralOS" width="128">
+
 # FeralOS
+</div>
 
 **Experimental Linux distribution based on Alpine Linux.**
 

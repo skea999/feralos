@@ -73,10 +73,10 @@ exec niri -- regreet
 	// Font: DejaVu Sans (font-dejavu installed) — Cantarell is NOT in the
 	// package list; a missing font forces full fontconfig fallback resolution
 	// on every greeter start (slow-boot contributor).
-	// Wallpaper: no default.png ships in the tree — the empty path avoids a
-	// regreet file-not-found warning (wallpaper = cosmetic, user sets it).
+	// Wallpaper: the FeralOS default (installed by installBrandingAssets in
+	// step 3a below — the path must match its 1080p target).
 	regreetConf := fmt.Sprintf(`[background]
-path = ""
+path = "/usr/share/wallpapers/feralos-default.png"
 
 [GTK]
 application_prefer_dark_theme = true
@@ -99,6 +99,14 @@ timezone = "%s"
 `, u.Timezone)
 	if err := writeFile(chroot, "/etc/greetd/regreet.toml", regreetConf); err != nil {
 		return fmt.Errorf("write regreet config: %w", err)
+	}
+
+	// 3a. Branding — FeralOS logo (system hicolor icon: the Wayle launcher
+	// custom module uses icon-name = "feralos-logo") + default wallpapers
+	// (the regreet background above + ultrawide variant). Cosmetic: never
+	// fatal.
+	if err := installBrandingAssets(chroot); err != nil {
+		fmt.Printf("[WARNING] Branding assets not installed (non-fatal): %v\n", err)
 	}
 
 	// 3b. Hide the upstream bare `niri` session from regreet (real-hardware
@@ -344,7 +352,7 @@ popup-position = "bottom-right"
 
 [[modules.custom]]
 id = "launcher"
-icon-name = "view-app-grid-symbolic"
+icon-name = "feralos-logo"
 label-show = false
 left-click = "/usr/bin/raffi-toggle"
 

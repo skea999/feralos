@@ -61,8 +61,10 @@ exec niri -- regreet
 	}
 
 	// 3. regreet config — timezone from user variables
+	// Wallpaper: the FeralOS default (installed by installBrandingAssets in
+	// step 3a below — the path must match its 1080p target).
 	regreetConf := fmt.Sprintf(`[background]
-path = "/usr/share/wallpapers/default.png"
+path = "/usr/share/wallpapers/feralos-default.png"
 fit = "Contain"
 
 [GTK]
@@ -86,6 +88,13 @@ timezone = "%s"
 `, u.Timezone)
 	if err := writeFile(chroot, "/etc/greetd/regreet.toml", regreetConf); err != nil {
 		return fmt.Errorf("write regreet config: %w", err)
+	}
+
+	// 3a. Branding — FeralOS logo (system hicolor icon) + default wallpapers
+	// (the regreet background above + ultrawide variant). Cosmetic: never
+	// fatal.
+	if err := installBrandingAssets(chroot); err != nil {
+		fmt.Printf("[WARNING] Branding assets not installed (non-fatal): %v\n", err)
 	}
 
 	// 4. greeter user + dirs. greetd apk does not create the 'greeter' user.
