@@ -91,6 +91,7 @@ The flagship desktop is built mostly on memory-safe components:
 | **cosmic-edit** | Text editor | Rust |
 | **cosmic-player** | Video player | Rust |
 | **cosmic-files** | File manager | Rust |
+| **alacritty** | Terminal emulator | Rust |
 | **wl-clipboard-rs** | Clipboard (wl-copy/wl-paste) | Rust |
 
 ### Runtime Efficiency Over Minimal Footprint
