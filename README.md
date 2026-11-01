@@ -33,12 +33,18 @@ sudo bash setup.sh -config variables.yaml
 
 ### Using the Generator
 
-To create a custom `variables.yaml` configuration:
+To create a custom `variables.yaml` configuration, clone the repository and run the generator:
 
 ```bash
-sudo bash setup.sh
-# Then run the generator inside the installer directory
-./feralos_create_config
+git clone https://github.com/skea999/feralos.git
+cd feralos/src/utils/createConfig/createValues
+go run .
+```
+
+The generator walks you through the configuration interactively and writes a `variables.yaml`. Pass it to the installer:
+
+```bash
+sudo bash setup.sh -config variables.yaml
 ```
 
 ## What Makes FeralOS Different
