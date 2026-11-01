@@ -34,6 +34,9 @@ const (
 	layoutBtrfsRaid0          = "btrfsRaid0"
 	sshUserSkea               = "skea"
 	desktopNiri               = "niri"
+	desktopNiriWayle          = "niriWayle"
+	desktopKDE                = "kde"
+	desktopCosmic             = "cosmic"
 	// targetShutdownTimeout bounds the wait for the target VM to power off
 	// after a shutdown request — fail the run instead of hanging forever.
 	targetShutdownTimeout = 5 * time.Minute
@@ -287,12 +290,18 @@ type RunResult struct {
 }
 
 type VerifyConfig struct {
-	ArtifactsRoot      string
-	RunDir             string
-	SSHPort            int
-	SSHUser            string
-	PrivateKey         string
-	InstalledUser      string
+	ArtifactsRoot string
+	RunDir        string
+	SSHPort       int
+	SSHUser       string
+	PrivateKey    string
+	InstalledUser string
+	// InstalledPassword — the user's login password; the oo7_pam_unlock
+	// runtime proof drives a real authenticated PAM login (service
+	// "greetd", direct PAM chain over exec SSH) with it. The run flow
+	// populates it from RunConfig; standalone `verify` resolves it from
+	// the run dir's variables.yaml copy (see resolveInstalledPassword).
+	InstalledPassword  string
 	DesktopEnvironment string
 	VideoDriver        string
 	EnableSwap         bool
@@ -1170,21 +1179,35 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg *RunConfig,
 		return RunResult{}, diagErr
 	}
 
-	// TEST-ONLY (niri): inject greetd autologin so the verification boot
-	// starts the real user niri session — required by the niri runtime
-	// checks (niri_session_user, niri_wayland_socket, niri_ipc, ...). The
-	// VM disk is discarded after the run; the installer never writes this.
-	if cfg.DesktopEnvironment == desktopNiri {
-		err = enableNiriTestAutologin(ctx, targetGuest, cfg.InstalledUser)
-		if err != nil {
-			_ = targetInstance.Kill()
-			active.Status = statusFailed
-			active.Error = err.Error()
-			_ = stateStore.Save(active)
-			return RunResult{}, err
+	// TEST-ONLY: inject autologin so the verification boot starts the real
+	// user session — required by the DE runtime checks (niri_session_user,
+	// kde_session, cosmic_session, ...). The VM disk is discarded after the
+	// run; the installer never writes this.
+	//   niri/niriWayle: greetd [initial_session] (niri-session/wayle-session)
+	//   kde:            sddm [Autologin] drop-in (Session=plasma, wayland)
+	//   cosmic:         greetd [initial_session] in the FeralOS COSMIC
+	//                   greeter config (start-cosmic)
+	var autoLoginErr error
+	switch cfg.DesktopEnvironment {
+	case desktopNiri, desktopNiriWayle:
+		sessionCmd := "niri-session"
+		if cfg.DesktopEnvironment == desktopNiriWayle {
+			sessionCmd = "wayle-session"
 		}
-		logHarness("harness: test-only greetd autologin enabled for niri runtime verification (VM discarded after run)\n")
+		autoLoginErr = enableNiriTestAutologin(ctx, targetGuest, cfg.InstalledUser, sessionCmd)
+	case desktopKDE:
+		autoLoginErr = enableSddmTestAutologin(ctx, targetGuest, cfg.InstalledUser)
+	case desktopCosmic:
+		autoLoginErr = enableCosmicTestAutologin(ctx, targetGuest, cfg.InstalledUser)
 	}
+	if autoLoginErr != nil {
+		_ = targetInstance.Kill()
+		active.Status = statusFailed
+		active.Error = autoLoginErr.Error()
+		_ = stateStore.Save(active)
+		return RunResult{}, autoLoginErr
+	}
+	logHarness("harness: test-only autologin enabled for %s runtime verification (VM discarded after run)\n", cfg.DesktopEnvironment)
 
 	// Power off and restart swtpm for verification boot
 	phase(7, "reboot (target)")
@@ -1261,6 +1284,7 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg *RunConfig,
 		SSHUser:            "root",
 		PrivateKey:         keyPair.PrivateKeyPath,
 		InstalledUser:      cfg.InstalledUser,
+		InstalledPassword:  cfg.InstalledPassword,
 		DesktopEnvironment: cfg.DesktopEnvironment,
 		VideoDriver:        cfg.VideoDriver,
 		EnableSwap:         cfg.EnableSwap,
@@ -1336,10 +1360,10 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 	if cfg.Timeout <= 0 {
 		cfg.Timeout = 2 * time.Minute
 	}
-	// niri runtime checks (test-only greetd autologin session) poll up to
-	// 90s each for the session to come up; six of them in the worst case
-	// (session never starts) far exceed the 2min default verify budget.
-	if cfg.DesktopEnvironment == desktopNiri && cfg.Timeout < 10*time.Minute {
+	// niri-family runtime checks (test-only greetd autologin session) poll
+	// up to 90s each for the session to come up; six of them in the worst
+	// case (session never starts) far exceed the 2min default verify budget.
+	if (cfg.DesktopEnvironment == desktopNiri || cfg.DesktopEnvironment == desktopNiriWayle) && cfg.Timeout < 10*time.Minute {
 		cfg.Timeout = 10 * time.Minute
 	}
 
@@ -1348,332 +1372,34 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 
 	guestOpts := guest.Options{User: cfg.SSHUser, Port: cfg.SSHPort, PrivateKey: cfg.PrivateKey, Shell: "sh"}
 
-	checks := map[string]string{
-		"storage_layout":     "printf '===blkid===\n'; blkid; printf '\n===mapper===\n'; ls -1 /dev/mapper/luks-* 2>/dev/null; printf '\n===mounts===\n'; grep ' / ' /proc/mounts; printf '\n===btrfs_show===\n'; btrfs filesystem show /; printf '\n===btrfs_usage===\n'; btrfs filesystem usage -T /",
-		"fstab":              "cat /etc/fstab",
-		"fstab_vs_mount":     `echo "=== FSTAB vs MOUNT COMPARISON ===" && for mp in $(awk '/btrfs/ && !/^#/ {print $2}' /etc/fstab | sort -u); do fstab_opts=$(awk -v mp="$mp" '$2==mp && /btrfs/ && !/^#/ {print $4}' /etc/fstab | head -1); mount_opts=$(awk -v mp="$mp" '$2==mp {print $4}' /proc/mounts | head -1); if [ -n "$fstab_opts" ] && [ -n "$mount_opts" ]; then echo "=== $mp ==="; echo "  fstab:  $fstab_opts"; echo "  mount:  $mount_opts"; for opt in $(echo "$fstab_opts" | tr ',' '\n' | sort); do if ! echo "$mount_opts" | tr ',' '\n' | grep -q "^${opt}$"; then echo "  MISSING in mount: $opt"; fi; done; for opt in $(echo "$mount_opts" | tr ',' '\n' | sort); do if ! echo "$fstab_opts" | tr ',' '\n' | grep -q "^${opt}$"; then echo "  EXTRA in mount: $opt"; fi; done; fi; done; echo "=== DONE ==="`,
-		"kernel_cmdline":     "cat /etc/kernel/cmdline",
-		"booster_conf":       "cat /etc/booster.yaml",
-		"uki_artifacts":      "ls -lah /boot/efi/Alpine /boot/efi/EFI/BOOT || true",
-		"booster_image":      "ls -lah /boot/booster-lts.img || true",
-		"subvolumes":         "btrfs subvolume list / || true",
-		"incus_packages":     "apk info | grep '^incus-feature' || true",
-		"sshd_service":       "rc-update show | grep sshd || true",
-		"installed_user":     "id " + shellQuote(cfg.InstalledUser),
-		"hostname":           "cat /etc/hostname",
-		"network_interfaces": "ip addr || ifconfig || true",
-		"tpm_devices":        "ls -1 /dev/tpm* 2>/dev/null || true",
-		"clevis_packages":    "apk info | grep -E '^(bash|clevis|jose|luksmeta|tpm2-tools|tpm2-tss|tpm2-tss-tcti-device)$' || true",
-		"clevis_bindings":    "for dev in $(blkid -o device -t TYPE=crypto_LUKS 2>/dev/null); do printf '===%s===\\n' \"$dev\"; clevis luks list -d \"$dev\" 2>/dev/null || cryptsetup token list \"$dev\" || true; done",
-		"vector_service":     "if [ -S /run/dinitctl ]; then dinitctl list 2>/dev/null | grep vector || test -e /etc/dinit.d/boot.d/vector && echo \"vector (boot.d)\" || test -e /lib/dinit.d/vector && echo \"vector (service file)\"; else rc-status boot 2>/dev/null | grep vector || rc-update show 2>/dev/null | grep vector || true; fi",
-		"vector_logs":        "ls -la /var/log/vector*.log 2>/dev/null || echo 'no vector log files'",
-		"vector_running":     "pgrep -f '/usr/bin/vector' 2>/dev/null && echo 'running' || echo 'vector not running'",
-		"vector_diag":        "rc-status boot 2>/dev/null | grep vector; pgrep -la vector 2>/dev/null; ls -la /var/log/vector* 2>/dev/null; echo '===vector.log==='; cat /var/log/vector.log 2>/dev/null | tail -30; echo '===end==='; vector --version 2>&1 || true",
-		"klogd_service":      "if [ -S /run/dinitctl ]; then dinitctl list 2>/dev/null | grep klogd || test -e /etc/dinit.d/boot.d/klogd && echo 'klogd (boot.d)'; else rc-status boot 2>/dev/null | grep klogd || rc-update show 2>/dev/null | grep klogd || echo 'klogd not wired'; grep -q 'klogd (vector)' /etc/init.d/klogd && echo 'klogd vector override file' || echo 'klogd override file MISSING'; fi",
-		"klogd_running":      "pidof klogd >/dev/null 2>&1 && echo 'klogd running' || echo 'klogd not running'",
-		"dmesg_saved":        "test -s /var/log/dmesg && grep -q 'Linux version' /var/log/dmesg && echo 'dmesg saved' || echo 'dmesg dump missing'",
-		"kern_log":           "test -s /var/log/kern.log && echo \"kern.log $(wc -l < /var/log/kern.log) lines\" || echo 'kern.log empty'",
-		"json_log":           "grep -q '\"timestamp\"' /var/log/feralos.json.log 2>/dev/null && echo \"json log OK ($(wc -l < /var/log/feralos.json.log) lines)\" || echo 'json log missing'",
-		"vector_api":         "wget -qO- --timeout=3 http://127.0.0.1:8686/health 2>/dev/null || echo 'api unreachable'",
-		"vector_validate":    "vector validate --skip-healthchecks /etc/vector/vector.yaml >/dev/null 2>&1 && echo 'vector config valid' || echo 'vector config INVALID'",
-		"log_coverage":       "for f in messages auth.log daemon.log kern.log sudo.log firewalld.log feralos.json.log vector.log dmesg; do if [ -s /var/log/$f ]; then echo \"$f: $(wc -l < /var/log/$f) lines\"; else echo \"$f: MISSING\"; fi; done",
-		"disk_schedule":      "test -x /usr/libexec/feralos-weekly-trim && echo 'trim script OK' || echo 'trim script MISSING'; for pat in 'feralos-weekly-trim' 'scrub start' 'btrbk run'; do n=$(grep -c \"$pat\" /etc/crontabs/root 2>/dev/null); echo \"cron [$pat]: ${n:-0}\"; done",
-		"confd_dump":         "for f in /etc/conf.d/*; do echo \"===$f===\"; cat \"$f\" 2>/dev/null; done; echo '===END==='",
-		"zswap_status":       "cat /sys/kernel/debug/zswap/ 2>/dev/null || cat /sys/module/zswap/parameters/enabled 2>/dev/null || echo 'zswap not available'",
-		"swap_status":        "swapon -s 2>/dev/null || cat /proc/swaps 2>/dev/null || echo 'no swap active'",
-		"apk_packages":       "apk info | sort",
-		"sudo_installed":     "apk info | grep '^sudo-rs$' && echo 'sudo-rs installed' || echo 'sudo-rs not installed'",
-		"sudo_wheel":         "grep '^%wheel' /etc/sudoers.d/wheel 2>/dev/null || echo 'no wheel sudoers config'",
-		"sudoers_includedir": "grep -q '^@includedir' /etc/sudoers && echo 'includedir enabled' || echo 'includedir disabled'",
-		"sudo_works":         "sudo -n id 2>&1 || echo 'sudo requires password (expected for non-root)'",
-		// less shim (feralos-aports less-dummy): /usr/bin/less is a wrapper
-		// script (NOT a symlink — a symlink to bat crashed on the hardcoded
-		// less flags bat itself passes to its pager: `less -R -F -K
-		// --no-init` on TTY → clap "unexpected argument '-R'", broke fish
-		// `history`). Falsifiable, 4 assertions: package installed + regular
-		// file + bat's EXACT hardcoded flag set accepted + content actually
-		// passes through (stdin, file operand, `--` form). Clap parses args
-		// BEFORE any TTY check, so the flag-set test is a real discriminator
-		// even on the non-TTY verify SSH.
-		"less_dummy": `fail=0
-apk info -e less-dummy || { echo 'FAIL: less-dummy not installed'; exit 1; }
-test -f /usr/bin/less && ! test -L /usr/bin/less || { echo 'FAIL: /usr/bin/less is not a regular file'; exit 1; }
-out=$(printf 'shim-marker-123\n' | less -R -F -K --no-init 2>&1) || { echo "FAIL: bat hardcoded flag set rejected: $out"; exit 1; }
-echo "$out" | grep -q 'shim-marker-123' || { echo "FAIL: stdin content lost: $out"; exit 1; }
-printf 'file-marker-456\n' > /tmp/.less-test
-out=$(less /tmp/.less-test 2>&1) || { echo "FAIL: file operand rejected: $out"; exit 1; }
-echo "$out" | grep -q 'file-marker-456' || { echo "FAIL: file content lost: $out"; exit 1; }
-printf 'dash-marker-789\n' > /tmp/.less-test-dash
-out=$(less -- /tmp/.less-test-dash 2>&1) || { echo "FAIL: -- form rejected: $out"; exit 1; }
-echo "$out" | grep -q 'dash-marker-789' || { echo "FAIL: -- content lost: $out"; exit 1; }
-rm -f /tmp/.less-test /tmp/.less-test-dash
-echo 'less shim OK: pkg installed, regular file, bat flag set accepted, stdin+file+-- passthrough'`,
-		// The ORIGINAL bug: fish `history` piped to $PAGER on a TTY and got
-		// clap's "unexpected argument '-R'" instead of history. Guard: run
-		// fish history and fail on ANY clap error text in the output.
-		"less_fish_history": `fish -ic 'history' > /tmp/.fish-h.out 2>&1
-if grep -q 'unexpected argument' /tmp/.fish-h.out; then echo 'FAIL: clap error in fish history output:'; cat /tmp/.fish-h.out; rm -f /tmp/.fish-h.out; exit 1; fi
-rm -f /tmp/.fish-h.out
-echo 'fish history clean (no clap error)'`,
-		"lsattr_nocow":    "echo '=== NoCoW subvolume attributes ==='; for dir in /swap /srv /var/lib/ex /var/log /var/spool /var/tmp /nix/var/log; do echo \"=== $dir ===\"; lsattr -d \"$dir\" 2>&1; f=$(find \"$dir\" -type f 2>/dev/null | head -1); if [ -n \"$f\" ]; then lsattr \"$f\" 2>&1; else echo 'no files in dir'; fi; done; echo '=== Compressed subvolume attributes ==='; for dir in / /home /opt /root /tmp /var /var/lib/libvirt /var/lib/incus /var/lib/containerd /var/lib/docker /var/lib/containers /var/lib/vector /var/cache /var/opt /usr/local /boot /nix/store /nix/var/nix /nix/var/nix/build /btrbk; do echo \"=== $dir ===\"; lsattr -d \"$dir\" 2>&1; done",
-		"services_status": "if [ -S /run/dinitctl ]; then dinitctl list; else rc-status --all 2>/dev/null || rc-status 2>/dev/null; fi",
-		// Security checks — read installer.log from HOST (not target via SSH)
-		// Config file markers — verify installer wrote these files (not just Alpine defaults)
-		"cmdline_marker":       "grep -c 'Generated by FeralOS' /etc/kernel/cmdline 2>/dev/null || echo 0",
-		"booster_marker":       "grep -c 'Generated by FeralOS' /etc/booster.yaml 2>/dev/null || echo 0",
-		"fstab_marker":         "grep -c 'Generated by FeralOS' /etc/fstab 2>/dev/null || echo 0",
-		"network_marker":       "grep -c 'Generated by FeralOS' /etc/network/interfaces 2>/dev/null || echo 0",
-		"trusted_users_clean":  fmt.Sprintf("! grep -q %q /etc/nix/nix.conf", cfg.InstalledUser),
-		"nix_packages_missing": fmt.Sprintf("su - %s -c 'nix profile list 2>/dev/null' | grep -oE \"quickshell|dms-shell|rclone-ui|rclone|mission-center|cups-browsed\" | sort -u | wc -l", cfg.InstalledUser),
-	}
-
-	// niri desktop environment checks — greetd session, niri configs,
-	// DMS (native apk package dms-shell + quickshell, feralos-aports).
-	if cfg.DesktopEnvironment == desktopNiri {
-		checks["niri_config_valid"] = fmt.Sprintf("niri validate --config /var/lib/greetd/.config/niri/config.kdl && niri validate --config /home/%s/.config/niri/config.kdl", cfg.InstalledUser)
-		checks["greetd_config"] = "ls /etc/greetd/config.toml /etc/greetd/greeter.sh /etc/greetd/regreet.toml /var/lib/greetd/.config/niri/config.kdl && test -x /etc/greetd/greeter.sh"
-		// greetd_socket: greetd daemon alive (IPC socket). Runtime complement
-		// to the static greetd_config check. Works on BOTH init systems —
-		// regreet itself cannot be runtime-checked on verify boots (the
-		// harness test-only autologin starts the user session directly, so
-		// the greeter UI never runs there), but greetd always supervises.
-		// NOTE: greetd's default socket path is PID-suffixed
-		// (/run/greetd-<pid>.sock, verified on target: /run/greetd-1581.sock)
-		// — clients get the real path via the GREETD_SOCKET env, so glob it.
-		checks["greetd_socket"] = "i=0; while [ $i -lt 30 ]; do for s in /run/greetd-*.sock; do test -S \"$s\" && { echo \"greetd IPC socket OK ($s)\"; exit 0; }; done; sleep 1; i=$((i+1)); done; echo 'no greetd socket'; exit 1"
-		// greeter compositor: greetd/niri start late on some QEMU boots
-		// (turnstile/user-dinit + apparmor storm delay greetd's dinit start;
-		// observed PID ~1570 vs ~1340 on cold boots) — poll up to 60s, else
-		// the check races boot. Whole Verify budget is 2min; other checks
-		// take ~30s, so 60s worst case still fits.
-		checks["niri_greeter"] = "i=0; while [ $i -lt 60 ]; do pgrep -x niri >/dev/null && { echo 'niri running'; exit 0; }; sleep 1; i=$((i+1)); done; echo 'niri not running'; exit 1"
-		checks["dms_installed"] = "apk info -e dms-shell quickshell && test -x /usr/bin/dms"
-		// bluetooth_service: DMS BT widget speaks org.bluez dbus — the stack
-		// must be alive. Name UNIFIED at "bluetooth" on both inits (feralos
-		// bluez-dinit r2 ships /lib/dinit.d/bluetooth). Three assertions:
-		// started marker (init-specific) + bluetoothd process + org.bluez
-		// actually REGISTERED on the system bus (what the DMS widget talks
-		// to). No BT adapter exists in QEMU — org.bluez registers anyway,
-		// adapter presence is real-hardware territory.
-		if cfg.EnableDinit {
-			checks["bluetooth_service"] = "dinitctl list | grep -E '\\[[^]]*\\] *bluetooth' && pgrep bluetoothd >/dev/null && dbus-send --system --print-reply --dest=org.freedesktop.DBus / org.freedesktop.DBus.ListNames 2>/dev/null | grep -q org.bluez && echo 'bluetooth stack OK (started, bluetoothd, org.bluez on bus)' || { echo 'bluetooth stack BROKEN'; exit 1; }"
-		} else {
-			checks["bluetooth_service"] = "rc-status --all 2>/dev/null | grep -E 'bluetooth[^[]*\\[ *started' && pgrep bluetoothd >/dev/null && dbus-send --system --print-reply --dest=org.freedesktop.DBus / org.freedesktop.DBus.ListNames 2>/dev/null | grep -q org.bluez && echo 'bluetooth stack OK (started, bluetoothd, org.bluez on bus)' || { echo 'bluetooth stack BROKEN'; exit 1; }"
-		}
-		// nm_wifi_support: DMS network widget gets wifi from NetworkManager —
-		// Alpine splits the wifi PLUGIN subpackage (networkmanager-wifi), so
-		// its presence is the actual discriminator (NM without it has NO
-		// wifi support at all). Init-agnostic (NM is a daemon either way):
-		// plugin + regdb + wpa_supplicant + regulatory.db + `nmcli radio
-		// wifi` answers (proves the NM daemon + radio subsystem respond).
-		// Real wifi runtime (scan/connect) needs real hardware.
-		checks["nm_wifi_support"] = "apk info -e networkmanager-wifi wireless-regdb wpa_supplicant && test -s /lib/firmware/regulatory.db && test -x /sbin/wpa_supplicant && r=$(nmcli radio wifi 2>&1) && echo \"nm wifi OK (radio: $r)\" || { echo \"nm wifi BROKEN (radio: ${r:-n/a})\"; exit 1; }"
-		// console_keymap: init-conditional — the layout is loaded at boot in
-		// BOTH init systems, but the started-marker source differs.
-		// dinit (busybox-loadkmap-dinit): conf must point at a kbd-bkeymaps
-		// path AND the service must hold a started marker in dinitctl list
-		// (boot-time scripted service, no polling needed). dinitctl list
-		// marker: explicit start = [[+]], dependency start = [{+}] (3 chars)
-		// — [^]]* matches both bracket styles.
-		// OpenRC (busybox-initscripts loadkmap): same conf check + started
-		// marker in rc-status --all (format: `loadkmap [ started ]`) — the
-		// dinitctl call would fail with "No such file or directory" on the
-		// /run/dinitctl socket (btrfs_standard_niri fixture runs OpenRC).
-		if cfg.EnableDinit {
-			checks["console_keymap"] = "grep -q 'bkeymaps' /etc/conf.d/loadkmap && dinitctl list | grep -E '\\[[^]]*\\] *loadkmap' && echo 'console keymap loaded'"
-		} else {
-			checks["console_keymap"] = "grep -q 'bkeymaps' /etc/conf.d/loadkmap && rc-status --all 2>/dev/null | grep -E 'loadkmap[^[]*\\[ *started' && echo 'console keymap loaded (openrc)'"
-		}
-		// user dinit services: supervised session stack (dbus/audio/wayland
-		// gate/polkit-agent/dms) shipped by *-user-dinit packages + dms-shell
-		checks["dinit_user_services"] = "for s in dbus.user pipewire.user pipewire-pulse.user wireplumber.user wait-wayland.user polkit-agent.user dms.user; do test -f /etc/dinit.d/user/$s || { echo \"missing $s\"; exit 1; }; done; echo 'user services OK'"
-		// niri session wiring: Alpine niri-session unmodified (user service
-		// from niri-user-dinit), login-shell trick (passwd shell NOT in
-		// /etc/shells), turnstile PAM → user dinit, boot.d enables.
-		checks["niri_user_service"] = "test -f /etc/dinit.d/user/niri && grep -q 'niri --session' /etc/dinit.d/user/niri"
-		checks["login_shell_trick"] = fmt.Sprintf("getent passwd %s | cut -d: -f7 | grep -q feralos/login-shell && test -L /usr/libexec/feralos/login-shell", cfg.InstalledUser)
-		checks["turnstile_pkg"] = "test -f /etc/dinit.d/turnstiled && test -e /etc/dinit.d/boot.d/turnstiled && test -f /usr/lib/security/pam_turnstile.so"
-		checks["user_services_enabled"] = "for s in dbus.user pipewire.user pipewire-pulse.user wireplumber.user wait-wayland.user polkit-agent.user dms.user wayvnc.user; do test -e /usr/lib/dinit.d/user/boot.d/$s || { echo \"missing $s\"; exit 1; }; done; echo ok"
-		// gnome-keyring: package + D-Bus secrets service + PAM unlock lines in greetd
-		checks["gnome_keyring"] = "apk info -e gnome-keyring && test -f /usr/share/dbus-1/services/org.freedesktop.secrets.service && grep -q pam_gnome_keyring /etc/pam.d/greetd"
-		// Runtime checks — the verification boot runs the REAL user session:
-		// the harness injected a test-only greetd [initial_session]
-		// (enableNiriTestAutologin, VM discarded after run) because nobody
-		// logs in manually. The session comes up late (greetd + turnstile +
-		// user dinit), so every check polls like niri_greeter (90s).
-		checks["niri_session_user"] = fmt.Sprintf("i=0; while [ $i -lt 90 ]; do pgrep -u %s -x niri >/dev/null && { echo 'niri user session running'; exit 0; }; sleep 1; i=$((i+1)); done; echo 'no niri session for user'; exit 1", cfg.InstalledUser)
-		checks["niri_wayland_socket"] = fmt.Sprintf("uid=$(id -u %s); i=0; while [ $i -lt 90 ]; do ls /run/user/$uid/wayland-1 >/dev/null 2>&1 && { echo 'wayland-1 socket OK'; exit 0; }; sleep 1; i=$((i+1)); done; echo 'no wayland socket'; exit 1", cfg.InstalledUser)
-		// IPC proves the compositor actually responds — the socket must
-		// exist AND `niri msg outputs` must answer. NIRI_SOCKET alone may
-		// not be enough: XDG_RUNTIME_DIR + WAYLAND_DISPLAY passed too.
-		checks["niri_ipc"] = fmt.Sprintf("uid=$(id -u %s); i=0; while [ $i -lt 90 ]; do s=$(ls /run/user/$uid/niri*.sock 2>/dev/null | head -1); if [ -n \"$s\" ]; then if XDG_RUNTIME_DIR=/run/user/$uid WAYLAND_DISPLAY=wayland-1 NIRI_SOCKET=\"$s\" niri msg outputs >/dev/null 2>&1; then echo 'niri IPC OK'; exit 0; fi; fi; sleep 1; i=$((i+1)); done; echo 'niri IPC failed'; exit 1", cfg.InstalledUser)
-		// niri_msg_version: sharper IPC+binary proof — `niri msg version`
-		// answers only if the IPC socket is live AND the binary speaks the
-		// protocol; first 2 lines of output become the check detail.
-		checks["niri_msg_version"] = fmt.Sprintf("uid=$(id -u %s); i=0; while [ $i -lt 90 ]; do s=$(ls /run/user/$uid/niri*.sock 2>/dev/null | head -1); if [ -n \"$s\" ]; then out=$(NIRI_SOCKET=\"$s\" XDG_RUNTIME_DIR=/run/user/$uid niri msg version 2>&1); if [ $? -eq 0 ]; then echo \"$out\" | head -2; exit 0; fi; fi; sleep 1; i=$((i+1)); done; echo 'niri msg version failed'; exit 1", cfg.InstalledUser)
-		// niri_windows: compositor state query — rc 0 proves the IPC layer
-		// answers a state query; the window list may legitimately be tiny,
-		// so pass on rc 0 and show the first 5 lines only.
-		checks["niri_windows"] = fmt.Sprintf("uid=$(id -u %s); i=0; while [ $i -lt 90 ]; do s=$(ls /run/user/$uid/niri*.sock 2>/dev/null | head -1); if [ -n \"$s\" ]; then out=$(NIRI_SOCKET=\"$s\" XDG_RUNTIME_DIR=/run/user/$uid niri msg windows 2>&1); if [ $? -eq 0 ]; then echo \"$out\" | head -5; exit 0; fi; fi; sleep 1; i=$((i+1)); done; echo 'niri windows query failed'; exit 1", cfg.InstalledUser)
-		// niri_outputs_count — real check, >=1 output expected on EVERY host.
-		// The old QEMU skip is obsolete: the GPU chain renders (virtio-vga-gl
-		// + egl-headless,gl=on + guest mesa edge 26.2.4 with virgl restored +
-		// host virglrenderer 1.3.0 + kernel >=6.13) — niri holds Virtual-1
-		// 1280x800 in QEMU too.
-		checks["niri_outputs_count"] = fmt.Sprintf("uid=$(id -u %s); s=$(ls /run/user/$uid/niri*.sock 2>/dev/null | head -1); out=$(NIRI_SOCKET=\"$s\" XDG_RUNTIME_DIR=/run/user/$uid niri msg outputs 2>&1); if [ $? -ne 0 ]; then echo 'niri msg outputs failed'; exit 1; fi; n=$(echo \"$out\" | grep -c '^Output'); if [ \"$n\" -ge 1 ]; then echo \"outputs: $n\"; exit 0; fi; echo 'no outputs'; exit 1", cfg.InstalledUser)
-		// dms_ipc: DMS IPC liveness through the real CLI. Syntax VERIFIED
-		// empirically on the LIVE target of run 2026-10-05T00-42-34Z:
-		// `dms ipc call outputs status` answers `auto: off / active: none /
-		// outputs: []` rc 0 (the empty list is the QEMU zero-output
-		// reality — the call still proves IPC responsive). GOTCHA 1: the
-		// dms binary REFUSES to run as root (`FATAL go: This program should
-		// not be run as root. Exiting.`), so the probe su's to the
-		// installed user (-s /bin/sh: user login shell is fish). GOTCHA 2:
-		// `dms ipc call widget list` ALSO returned rc 0 on the same box
-		// despite `widget` not existing in the target list — DMS answers
-		// unknown targets rc 0, so only a REAL read-only target/function
-		// pair is valid proof; `outputs status` is one (help-verified
-		// target list: outputs → current/listProfiles/refresh/.../status).
-		// The client locates the running shell's socket via
-		// XDG_RUNTIME_DIR (DMS_SOCKET may override); NIRI_SOCKET exported
-		// for symmetry with the niri checks.
-		checks["dms_ipc"] = fmt.Sprintf("i=0; while [ $i -lt 60 ]; do su - %s -s /bin/sh -c 'export XDG_RUNTIME_DIR=/run/user/$(id -u); NIRI_SOCKET=$(ls /run/user/$(id -u)/niri*.sock 2>/dev/null | head -1); timeout 10 dms ipc call outputs status' >/dev/null 2>&1 && { echo 'dms IPC OK'; exit 0; }; sleep 1; i=$((i+1)); done; echo 'dms IPC failed'; exit 1", cfg.InstalledUser)
-		// User dinit session stack (dinit only): every boot.d user service
-		// must show the started marker. dinitctl list renders started
-		// services as `[{+}] name (pid: ...)` — '{+' appears only when
-		// running. ERE anchors the name so '] niri' cannot match
-		// '] niri-shutdown'; VERIFY the exact format on the first real
-		// harness run (dinitctl list output) and adjust if needed.
-		if cfg.EnableDinit {
-			// dinitctl list marks DEPENDENCY-started services `[{+}]` and
-			// EXPLICITLY-started ones `[[+]]`. Accept both bracket styles;
-			// both mean running. wayvnc.user stays REQUIRED on every host:
-			// the GPU chain renders (virtio-vga-gl + egl-headless,gl=on +
-			// guest mesa edge 26.2.4 virgl restored), wayvnc holds an
-			// output and stays up.
-			checks["niri_user_dinit_runtime"] = fmt.Sprintf("uid=$(id -u %s); export XDG_RUNTIME_DIR=/run/user/$uid; i=0; while [ $i -lt 90 ]; do out=$(dinitctl --user list 2>/dev/null) || { sleep 1; i=$((i+1)); continue; }; missing=''; svcs='niri dbus.user pipewire.user pipewire-pulse.user wireplumber.user polkit-agent.user dms.user wayvnc.user'; for s in $svcs; do echo \"$out\" | grep -Eq '(\\{\\+|\\[\\+).*\\] '\"$s\"'( |$)' || missing=\"$missing $s\"; done; if [ -z \"$missing\" ]; then echo 'user dinit stack running'; exit 0; fi; sleep 1; i=$((i+1)); done; echo \"user services not running:$missing\"; exit 1", cfg.InstalledUser)
-			// dms_runtime: process-level check (deeper than the dms.user
-			// service-list entry above). dms-session wrapper execs `dms run`;
-			// quickshell is the actual shell process — match both; adjust the
-			// pattern after run 1 if the cmdline differs.
-			checks["dms_runtime"] = fmt.Sprintf("i=0; while [ $i -lt 90 ]; do pgrep -u %s -f 'dms run|quickshell' >/dev/null && { echo 'dms shell running'; exit 0; }; sleep 1; i=$((i+1)); done; echo 'dms not running'; exit 1", cfg.InstalledUser)
-			// niri_layers: layer-shell surfaces MAPPED to an output — the
-			// "it actually displays" proof. DMS's bar is a layer-shell
-			// client (quickshell); a session with DMS running always maps
-			// >=1 layer surface, so `niri msg layers` must list an Output
-			// heading. Deeper than dms_runtime (process alive) and
-			// dms_ipc (IPC answers): proves the shell RENDERS.
-			// VERIFY the exact `niri msg layers` output shape on run 1.
-			checks["niri_layers"] = fmt.Sprintf("uid=$(id -u %s); i=0; while [ $i -lt 90 ]; do s=$(ls /run/user/$uid/niri*.sock 2>/dev/null | head -1); if [ -n \"$s\" ]; then out=$(NIRI_SOCKET=\"$s\" XDG_RUNTIME_DIR=/run/user/$uid niri msg layers 2>&1); if [ $? -eq 0 ]; then n=$(echo \"$out\" | grep -c '^Output'); if [ \"$n\" -ge 1 ]; then echo \"layer surfaces mapped on $n output(s)\"; echo \"$out\" | head -5; exit 0; fi; fi; fi; sleep 1; i=$((i+1)); done; echo 'no layer surfaces (DMS bar not rendered?)'; exit 1", cfg.InstalledUser)
-			// Session runtime sockets — the services being "started" in
-			// niri_user_dinit_runtime is necessary but not sufficient; the
-			// consumer endpoints must EXIST:
-			//   session_dbus_socket   — /run/user/$uid/bus (session bus)
-			//   session_pipewire_socket — /run/user/$uid/pipewire-0 (audio)
-			checks["session_dbus_socket"] = fmt.Sprintf("uid=$(id -u %s); i=0; while [ $i -lt 60 ]; do test -S /run/user/$uid/bus && { echo 'session dbus socket OK'; exit 0; }; sleep 1; i=$((i+1)); done; echo 'no session dbus socket'; exit 1", cfg.InstalledUser)
-			checks["session_pipewire_socket"] = fmt.Sprintf("uid=$(id -u %s); i=0; while [ $i -lt 60 ]; do test -S /run/user/$uid/pipewire-0 && { echo 'pipewire socket OK'; exit 0; }; sleep 1; i=$((i+1)); done; echo 'no pipewire socket'; exit 1", cfg.InstalledUser)
-		}
-		// GPU userspace drivers (videoDriver: virtio) — packages must be
-		// installed AND the gallium megadriver must exist under /usr/lib/dri
-		// (virtio_gpu_dri.so; verify the exact filename on run 1 and adjust
-		// the ls grep if needed — apk info stays strict).
-		if cfg.VideoDriver == "virtio" {
-			checks["video_driver"] = "apk info -e mesa-dri-gallium mesa-vulkan-virtio && ls /usr/lib/dri/ | grep -q virtio && echo 'virtio GPU userspace OK' || { echo 'virtio GPU userspace missing'; exit 1; }"
-		}
-		// wayvnc listens on :5900 — real check on every host: the GPU chain
-		// renders (virtio-vga-gl + egl-headless,gl=on + guest mesa edge
-		// 26.2.4 virgl restored), wayvnc holds an output and keeps the
-		// listener up (no more exit-1 smooth-recovery loop).
-		checks["niri_wayvnc_port"] = "i=0; while [ $i -lt 90 ]; do netstat -tln 2>/dev/null | grep -q ':5900' && { echo 'wayvnc listening on 5900'; exit 0; }; sleep 1; i=$((i+1)); done; echo 'wayvnc not listening'; exit 1"
-		// Real-rendering proof: ask the compositor for a screenshot and
-		// require a non-empty PNG. niri takes NO path argument on
-		// screenshot-screen (rejects it: "unexpected argument") and writes
-		// to its default ~/Pictures/Screenshots — the dir the autologin
-		// setup below pre-creates with correct ownership (silent no-write
-		// otherwise). Real check on every host: the GPU chain renders
-		// (virtio-vga-gl + egl-headless,gl=on + guest mesa edge 26.2.4
-		// virgl restored), so the capture writes a fresh non-empty PNG.
-		// Compare PNG COUNTS before/after the action (not ls -t newest):
-		// the action returns rc 0 BEFORE the file write lands, so the
-		// immediate ls -t keeps seeing the previous shot (n == f race,
-		// lost 90/90 on the live target 2026-10-09). 1s settle after the
-		// action lets the write land.
-		checks["niri_screenshot"] = fmt.Sprintf("uid=$(id -u %s); i=0; while [ $i -lt 60 ]; do s=$(ls /run/user/$uid/niri*.sock 2>/dev/null | head -1); if [ -n \"$s\" ]; then b=$(ls /home/%s/Pictures/Screenshots/*.png 2>/dev/null | wc -l); XDG_RUNTIME_DIR=/run/user/$uid WAYLAND_DISPLAY=wayland-1 NIRI_SOCKET=\"$s\" niri msg action screenshot-screen >/dev/null 2>&1; sleep 1; a=$(ls /home/%s/Pictures/Screenshots/*.png 2>/dev/null | wc -l); if [ \"$a\" -gt \"$b\" ]; then n=$(ls -t /home/%s/Pictures/Screenshots/*.png 2>/dev/null | head -1); if ! head -c 8 \"$n\" | od -An -tx1 | grep -q '89 50 4e 47 0d 0a 1a 0a'; then echo \"screenshot NOT a valid PNG: $n\"; exit 1; fi; echo \"screenshot OK (valid PNG): $n ($(wc -c < \"$n\") bytes)\"; exit 0; fi; fi; sleep 1; i=$((i+1)); done; echo 'screenshot failed'; exit 1", cfg.InstalledUser, cfg.InstalledUser, cfg.InstalledUser, cfg.InstalledUser)
-	}
-
-	// Flatpak checks — generic, only when a fixture explicitly requests
-	// flatpakPackages (none ship by default; niri uses wayvnc, not RustDesk).
-	if len(cfg.FlatpakPackages) > 0 {
-		checks["flatpak_installed"] = "flatpak list 2>/dev/null | wc -l"
-	}
-
-	// Podman checks — container runtime
-	if cfg.EnablePodman {
-		checks["podman_installed"] = "podman --version"
-		checks["podman_running"] = "podman ps"
-		checks["docker_symlink"] = "docker ps"
-	}
-
-	// Nix tmp exec — nix builds use the upstream default build dir (/tmp),
-	// so /tmp must be mounted WITHOUT noexec (old /nix/var/nix/build/tmp
-	// workaround is gone).
-	if cfg.EnableNix {
-		checks["nix_tmp_exec"] = "mount | grep ' /tmp ' | grep -q noexec && echo 'noexec!' || echo 'exec ok'"
-		// trusted-users = root @wheel (NixOS default): wheel is trusted,
-		// the session user is NEVER individually injected into nix.conf.
-		checks["nix_trusted_wheel"] = "grep -q 'trusted-users = root @wheel' /etc/nix/nix.conf"
-	}
-
-	// Webmin checks — functional assertions: container running, port mapped,
-	// HTTP answering. Binary runs on first boot (runWebminOnTarget);
-	// webmin-ensure oneshot restarts the container on this verification boot.
-	// No "|| echo" fallbacks — these must FAIL when webmin doesn't work.
-	if cfg.EnableWebmin {
-		checks["webmin_binary"] = "test -x /opt/feralos_webmin"
-		checks["webmin_container"] = "podman ps --format '{{.Names}}' | grep -q '^webmin$'"
-		checks["webmin_port"] = "podman port webmin 10000 | grep -q 10000"
-		checks["webmin_http"] = "for i in 1 2 3 4 5 6 7 8; do wget -q -T 5 -O /dev/null --no-check-certificate https://localhost:10000/ && exit 0; sleep 5; done; exit 1"
-	}
-
-	if cfg.EnableSecureboot {
-		checks["secureboot_conf"] = "cat /etc/kernel-hooks.d/secureboot.conf"
-	}
-
-	// Dinit checks — verify dinit is PID 1, base services are running,
-	// cmdline contains init=, and dinit-chimera suite is installed.
-	// These MUST be falsifiable: each command exits non-zero when the
-	// condition is false. A bare "&& echo ok || echo fail" fallback always
-	// exits 0 and would make the check unconditionally green.
-	if cfg.EnableDinit {
-		checks["dinit_cmdline"] = "grep -q 'init=/usr/libexec/dinit/init' /proc/cmdline && echo 'init= OK' || { echo 'init= MISSING'; exit 1; }"
-		// Busybox ps has no -p flag — read /proc/1/comm directly.
-		checks["dinit_pid1"] = "[ \"$(cat /proc/1/comm)\" = dinit ] && echo 'dinit PID1' || { echo 'NOT dinit'; exit 1; }"
-		// dinitctl status needs <service-name>; bare `status` is a usage
-		// error. `dinitctl list` proves the control socket is functional.
-		checks["dinitctl_status"] = "dinitctl list || { echo 'dinitctl failed'; exit 1; }"
-		checks["dinit_services"] = "dinitctl list | grep -E 'boot|getty' || { echo 'no dinit services'; exit 1; }"
-		checks["dinit_chimera_installed"] = "apk info -e dinit-chimera && echo 'installed' || { echo 'NOT installed'; exit 1; }"
-		checks["dinit_getty_installed"] = "apk info -e getty-dinit && echo 'installed' || { echo 'NOT installed'; exit 1; }"
-		// feralos-keyring installs the repo definition into
-		// /etc/apk/repositories.d/feralos.list (not /etc/apk/repositories).
-		checks["dinit_feralos_repo"] = "grep -q 'feralos-aports' /etc/apk/repositories.d/feralos.list && echo 'repo OK' || { echo 'repo MISSING'; exit 1; }"
-		checks["dinit_key"] = "test -f /etc/apk/keys/feralos.rsa.pub && echo 'key OK' || { echo 'key MISSING'; exit 1; }"
-		// Conventional shutdown commands wired to dinit helpers by the
-		// installer (busybox poweroff/reboot do not work under dinit).
-		checks["dinit_shutdown_commands"] = "test -x /usr/bin/poweroff -a -x /usr/bin/reboot -a -x /usr/bin/halt -a -x /usr/bin/shutdown -a -x /usr/bin/soft-reboot && echo 'shutdown commands OK' || { echo 'shutdown commands MISSING'; exit 1; }"
-		// conf.d-equivalent config files (Artix pattern): every -dinit
-		// package ships /etc/dinit.d/config/<svc>.conf sourced by its
-		// wrapper. Core set on any dinstall: dbus chronyd cronie acpid sshd
-		// vector klogd earlyoom + feature-gated (nftables, iptables, cups,
-		// greetd, ...) — 10 is the conservative floor. Spot-check that a
-		// service file actually points at its wrapper (the wiring this
-		// round exists to establish).
-		checks["dinit_config"] = "test -d /etc/dinit.d/config && c=$(ls /etc/dinit.d/config/*.conf 2>/dev/null | wc -l) && [ \"$c\" -ge 10 ] && grep -q 'usr/lib/dinit/dbus' /lib/dinit.d/dbus && grep -q 'KLOGD_OPTS' /etc/dinit.d/config/klogd.conf || { echo \"config files: $c (need >=10) or wiring broken\"; exit 1; }"
-	}
+	// Check building is data-driven, grouped by domain (P2-4): each builder
+	// below fills the map with the same payloads the pre-refactor inline
+	// code produced (byte-identity proven by golden_test.go). Per-DE
+	// session data lives in de_data.go.
+	checks := make(map[string]string, 96)
+	buildStorageChecks(checks)
+	buildBootChecks(cfg, checks)
+	buildLogChecks(checks)
+	buildFeatureChecks(cfg, checks)
+	buildDinitChecks(cfg, checks)
+	buildDesktopChecks(cfg, checks)
+	buildSessionChecks(cfg, checks)
+	buildDBusActivationChecks(cfg, checks)
 
 	result := VerifyResult{RunDir: cfg.RunDir, Success: true, Checks: map[string]CheckResult{}}
 	for name, command := range checks {
-		output, err := guest.Output(verifyCtx, guestOpts, command)
+		var output []byte
+		var err error
+		if name == "oo7_pam_unlock" {
+			// Special case: statics (registered command) + a direct
+			// PAM-chain login over exec SSH (python3+ctypes libpam,
+			// service greetd) as the runtime proof — the autologin boot
+			// can never exercise pam_oo7 (greetd does not authenticate
+			// initial_session). See oo7_pam_unlock.go.
+			output, err = verifyOO7PamUnlock(verifyCtx, guestOpts, cfg, command)
+		} else {
+			output, err = guest.Output(verifyCtx, guestOpts, command)
+		}
 		check := CheckResult{Pass: err == nil, Detail: strings.TrimSpace(string(output))}
 		if err != nil {
 			check.Detail = err.Error()
@@ -1905,10 +1631,11 @@ echo 'fish history clean (no clap error)'`,
 	}
 
 	// less_dummy is self-falsifying (command exits non-zero on any broken
-	// condition: package missing, symlink regression, less -R failure) —
+	// condition: package missing, symlink regression, less-flag failure) —
 	// no Go-side semantic post-processing needed. The old symlink-to-bat
 	// enforcement was removed with the less-dummy wrapper package
-	// (feralos-aports f8dcee5): /usr/bin/less is now a regular-file wrapper.
+	// (feralos-aports f8dcee5): /usr/bin/less is a regular-file wrapper
+	// that drops less flags and execs moor.
 
 	// Validate NoCoW subvolume attributes (lsattr_nocow)
 	// NoCoW subvolumes: dir + first file must have C flag, must NOT have m flag
@@ -2185,6 +1912,15 @@ echo 'fish history clean (no clap error)'`,
 		//   - `+ set -euo pipefail`: bash xtrace echo of setup.sh itself
 		//   - modprobe: runner-host kernel dir probe (Debian cloud kernel)
 		allowSkip := regexp.MustCompile(`(?i)(booster: finit\(|set -euo pipefail|modprobe: can't change directory)`)
+		// WARNING sweep (installer.log only, user request): a warning in the
+		// install flow is an actionable finding — it must be fixed or
+		// explicitly allowlisted, never scrolled past (e.g. a silent service-
+		// enablement miss logged as "[WARNING] dinit: could not enable ...").
+		// Allowlist = the 3 recurring host-environment notices: 2x apt
+		// "does not have a stable CLI interface" (Debian runner-side apt
+		// wrappers) and the ssh known-hosts notice.
+		warnRe := regexp.MustCompile(`(?i)warning`)
+		warnAllowRe := regexp.MustCompile(`(?i)(apt does not have a stable CLI|Warning: Permanently added)`)
 		// Innocuous lines: counters/negations ("0 errors", "no failed", ...),
 		// package name libgpg-error and Debian git dependency liberror-perl
 		// (apt install git output), efibootmgr "error trace:" on QEMU (no real
@@ -2217,6 +1953,10 @@ echo 'fish history clean (no clap error)'`,
 			for i, line := range strings.Split(string(data), "\n") {
 				if logErrRe.MatchString(line) && !allowRe.MatchString(line) && !allowSkip.MatchString(line) {
 					problems = append(problems, fmt.Sprintf("%s:%d: %s", logName, i+1, strings.TrimSpace(line)))
+					continue
+				}
+				if logName == "installer.log" && warnRe.MatchString(line) && !warnAllowRe.MatchString(line) {
+					problems = append(problems, fmt.Sprintf("%s:%d: %s", logName, i+1, strings.TrimSpace(line)))
 				}
 			}
 		}
@@ -2239,16 +1979,10 @@ echo 'fish history clean (no clap error)'`,
 		// Steady state = state group contains '+' and no 'X' (failed).
 		// smartd excluded: QEMU has no SMART devices (exit 17, known artifact).
 		if cfg.EnableDinit || strings.Contains(svcCheck.Detail, "dinitctl") || strings.Contains(svcCheck.Detail, "[{") {
-			expected := []string{
-				// entry points + targets
-				"boot", "system", "local.target", "pre-local.target",
-				"login.target", "network.target", "pre-network.target",
-				// console
-				"getty@tty1", "getty@ttyS0",
-				// daemons (rules-driven boot.d enablement)
-				"networking", "incusd", "vector", "cronie", "chronyd", "dbus",
-				"sshd", "acpid", "irqbalance", "fwupd", "earlyoom",
-			}
+			// expected services as data (P2-4): base slice + per-DE appends
+			// live in de_data.go — golden-tested against the pre-refactor
+			// slices (fwupd/PPD on-demand comments included there).
+			expected := dinitExpectedServices(cfg)
 			started := map[string]bool{}
 			for _, line := range strings.Split(svcCheck.Detail, "\n") {
 				line = strings.TrimSpace(line)
@@ -2282,20 +2016,12 @@ echo 'fish history clean (no clap error)'`,
 			}
 			result.Checks["services_status"] = svcCheck
 		} else {
-			expected := []string{
-				// sysinit
-				"devfs", "dmesg", "sysctl", "sysfs",
-				// boot
-				"hwclock", "hostname", "bootmisc", "binfmt", "root", "procfs",
-				"loadkmap", "localmount", "btrfs-scan", "dmcrypt",
-				"udev", "udev-trigger", "vector", "vector-setup",
-				// default
-				"cgroups", "networking", "cronie", "chronyd", "dbus", "sshd",
-				"acpid", "irqbalance", "fwupd", "earlyoom", "incusd", "udev-postmount",
-			}
+			expected := openrcExpectedServices(cfg)
 			states := parseRCStatus(svcCheck.Detail)
-			// greetd + elogind are only expected when the niri desktop is enabled.
-			if cfg.DesktopEnvironment == desktopNiri {
+			// greetd + elogind are only expected when a niri-family desktop
+			// is enabled (niri, niriWayle — both enable them in their rules
+			// services map).
+			if cfg.DesktopEnvironment == desktopNiri || cfg.DesktopEnvironment == desktopNiriWayle {
 				expected = append(expected, "greetd", "elogind")
 			}
 			// swap service is conditional: only when swap exists (enableSwap for
@@ -2919,6 +2645,27 @@ func writeHarnessVariables(cfg *RunConfig, keyPair guest.KeyPair, outputPath, al
 		yn(cfg.EnableDinit),
 	)
 
+	// extraPackages from the fixture (e.g. pkg@edge) are APPENDED to the
+	// harness base list — the installer needs them in variables.yaml to
+	// actually install the user's packages (needs enableEdgeRepos: true).
+	// Duplicates against the base list are skipped.
+	// ORDER MATTERS: this loop must run while the base `extraPackages:` list
+	// above is still the open YAML key — BEFORE any block that opens a new
+	// list (flatpakPackages/nixPackages). Caught live: with flatpakPackages
+	// present, appending after those blocks merged `okular` into
+	// flatpakPackages and the installer ran `flatpak install okular`.
+	basePkgs := map[string]bool{
+		"incus-feature": true, "incus-feature-vm": true,
+		"incus-feature-client": true, "incus-feature-utils": true,
+		"qemu-system-x86_64": true, "qemu-img": true, "qemu-modules": true,
+	}
+	for _, pkg := range cfg.ExtraPackages {
+		if basePkgs[pkg] {
+			continue
+		}
+		content += fmt.Sprintf("    - %q\n", pkg)
+	}
+
 	// Flatpak packages: if explicitly set (e.g. via -f fixture), propagate
 	// to the installer variables.yaml so verification expectations match.
 	if len(cfg.FlatpakPackages) > 0 {
@@ -2932,21 +2679,6 @@ func writeHarnessVariables(cfg *RunConfig, keyPair guest.KeyPair, outputPath, al
 		for _, pkg := range cfg.NixPackages {
 			content += fmt.Sprintf("    - %q\n", pkg)
 		}
-	}
-	// extraPackages from the fixture (e.g. pkg@edge) are APPENDED to the
-	// harness base list — the installer needs them in variables.yaml to
-	// actually install the user's packages (needs enableEdgeRepos: true).
-	// Duplicates against the base list are skipped.
-	basePkgs := map[string]bool{
-		"incus-feature": true, "incus-feature-vm": true,
-		"incus-feature-client": true, "incus-feature-utils": true,
-		"qemu-system-x86_64": true, "qemu-img": true, "qemu-modules": true,
-	}
-	for _, pkg := range cfg.ExtraPackages {
-		if basePkgs[pkg] {
-			continue
-		}
-		content += fmt.Sprintf("    - %q\n", pkg)
 	}
 	// extraPackagesEdge: @edge tagged packages installed LAST by the
 	// installer (requires enableEdgeRepos: true) — propagated from the
@@ -3488,22 +3220,35 @@ done
 }
 
 // enableNiriTestAutologin appends a greetd [initial_session] stanza so the
-// verification boot logs straight into the niri user session — the runtime
+// verification boot logs straight into the user session — the runtime
 // checks (niri_session_user, niri_wayland_socket, niri_ipc, ...) need a real
-// session and nobody is present to log in.
+// session and nobody is present to log in. sessionCommand is DE-aware:
+// "niri-session" for niri, "wayle-session" for niriWayle.
 //
-// POLICY: harness = test + autologin config only; if niri-session does not
-// hold the greetd initial_session (async user-dinit spawn, dinitctl start
+// GREETD FACT (0.10.3-r11, source + live-verified run 2026-10-17T17-29-10Z):
+// [initial_session] carries ONLY command/user/service — there is NO password
+// key and greetd NEVER runs pam_authenticate for the initial session
+// (start_unauthenticated_session). Consequence: the PAM conversation has no
+// authtok, so PAM-based unlock proofs (pam_oo7 stash) can NEVER fire on the
+// autologin boot — the oo7_pam_unlock check proves it with an authenticated
+// greetd-IPC login instead.
+//
+// POLICY: harness = test + autologin config only; if the session command does
+// not hold the greetd initial_session (async user-dinit spawn, dinitctl start
 // returns early), the fix belongs in the installer or aports, never here.
 //
 // TEST-ONLY: the target disk is discarded after the harness run; the
 // installer itself never writes this stanza (the stock greetd config from
 // hostPhase stays untouched).
-func enableNiriTestAutologin(ctx context.Context, targetGuest guest.Options, installedUser string) error {
+func enableNiriTestAutologin(ctx context.Context, targetGuest guest.Options, installedUser, sessionCommand string) error {
+	// The [initial_session] stanza is built Go-side (no shell-printf format
+	// verbs — the command is parameterized, so printf '%b' gets the whole
+	// stanza as ONE pre-rendered argument).
+	stanza := fmt.Sprintf("\n[initial_session]\ncommand = %q\nuser = %q\n", sessionCommand, installedUser)
 	script := fmt.Sprintf(`set -eu
 f=/etc/greetd/config.toml
 if ! grep -q 'initial_session' "$f"; then
-	printf '\n[initial_session]\ncommand = "niri-session"\nuser = "%%s"\n' %s >> "$f"
+	printf '%%b' %s >> "$f"
 fi
 grep -q 'initial_session' "$f" || { echo 'initial_session marker missing after append'; exit 1; }
 if ! grep -Fq %s "$f"; then
@@ -3518,12 +3263,79 @@ fi
 install -d -o %s -g %s -m 2700 /home/%s/Pictures
 install -d -o %s -g %s -m 2700 /home/%s/Pictures/Screenshots
 echo 'test-only greetd autologin enabled'
-`, shellQuote(installedUser), shellQuote(`user = "`+installedUser+`"`), installedUser, installedUser, installedUser, installedUser, installedUser, installedUser)
+`, shellQuote(stanza), shellQuote(`user = "`+installedUser+`"`), installedUser, installedUser, installedUser, installedUser, installedUser, installedUser)
 	diag, err := runScriptOnTarget(ctx, targetGuest, script)
 	if err != nil {
 		return fmt.Errorf("niri test autologin: %w", err)
 	}
 	logHarness("harness: niri test autologin: %s\n", strings.TrimSpace(diag))
+	return nil
+}
+
+// enableSddmTestAutologin writes a drop-in sddm autologin config so the
+// verification boot logs straight into the Plasma Wayland session — the
+// kde_session runtime check needs a real session and nobody is present to
+// log in.
+//
+// SDDM 0.21 facts (Alpine 3.24, sddm.conf(5) + upstream ConfigReader):
+// config dirs are read /usr/lib/sddm/sddm.conf.d → /etc/sddm.conf.d →
+// /etc/sddm.conf (later wins); [Autologin] User/Session/Relogin; Session is
+// the wayland-sessions desktop basename ("plasma" → plasma.desktop, Exec =
+// plasma-dbus-run-session-if-needed startplasma-wayland). The autologin PAM
+// service (sddm-autologin) requires pam_shells → the test user's shell must
+// be listed in /etc/shells (fish ships it). startplasma falls back to
+// "classic boot" without systemd (plasma-workspace ships no units here), and
+// sddm hard-depends on elogind → XDG_RUNTIME_DIR exists for the session.
+//
+// TEST-ONLY: the target disk is discarded after the harness run.
+func enableSddmTestAutologin(ctx context.Context, targetGuest guest.Options, installedUser string) error {
+	conf := fmt.Sprintf("[Autologin]\nUser=%s\nSession=plasma\nRelogin=false\n", installedUser)
+	script := fmt.Sprintf(`set -eu
+install -d /etc/sddm.conf.d
+printf '%%b' %s > /etc/sddm.conf.d/zz-feralos-test-autologin.conf
+grep -q 'Autologin' /etc/sddm.conf.d/zz-feralos-test-autologin.conf || { echo 'autologin conf missing'; exit 1; }
+shell=$(awk -F: -v u=%s '$1 == u {print $7}' /etc/passwd)
+grep -qxF "$shell" /etc/shells || echo "$shell" >> /etc/shells
+echo 'test-only sddm autologin enabled'
+`, shellQuote(conf), installedUser)
+	diag, err := runScriptOnTarget(ctx, targetGuest, script)
+	if err != nil {
+		return fmt.Errorf("kde test autologin: %w", err)
+	}
+	logHarness("harness: kde test autologin: %s\n", strings.TrimSpace(diag))
+	return nil
+}
+
+// enableCosmicTestAutologin appends a greetd [initial_session] stanza to the
+// FeralOS COSMIC greeter config so the verification boot logs straight into
+// the COSMIC session (start-cosmic → cosmic-session → cosmic-comp) — the
+// cosmic_session runtime check needs a real session and nobody is present to
+// log in.
+//
+// The cosmic-greeter dinit unit runs greetd with
+// /etc/greetd/feralos-cosmic-greeter.toml (VT 7, PAM service cosmic-greeter —
+// base-only FeralOS stack; Alpine's own file requires pam_gnome_keyring).
+// greetd never runs pam_authenticate for the initial session (same as the
+// niri greeter) and XDG_RUNTIME_DIR comes from pam_rundir (base-session;
+// COSMIC uses seatd, not elogind).
+//
+// TEST-ONLY: the target disk is discarded after the harness run.
+func enableCosmicTestAutologin(ctx context.Context, targetGuest guest.Options, installedUser string) error {
+	stanza := fmt.Sprintf("\n[initial_session]\ncommand = %q\nuser = %q\n", "/usr/bin/start-cosmic", installedUser)
+	script := fmt.Sprintf(`set -eu
+f=/etc/greetd/feralos-cosmic-greeter.toml
+[ -f "$f" ] || { echo 'feralos cosmic greeter config missing'; exit 1; }
+if ! grep -q 'initial_session' "$f"; then
+	printf '%%b' %s >> "$f"
+fi
+grep -q 'initial_session' "$f" || { echo 'initial_session marker missing after append'; exit 1; }
+echo 'test-only greetd autologin enabled (COSMIC)'
+`, shellQuote(stanza))
+	diag, err := runScriptOnTarget(ctx, targetGuest, script)
+	if err != nil {
+		return fmt.Errorf("cosmic test autologin: %w", err)
+	}
+	logHarness("harness: cosmic test autologin: %s\n", strings.TrimSpace(diag))
 	return nil
 }
 

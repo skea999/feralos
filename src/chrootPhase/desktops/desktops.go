@@ -9,7 +9,8 @@ import (
 // Setup dispatches to the appropriate desktop environment setup.
 // Registry map: desktop name → setup function. Unknown DEs are skipped.
 var setupRegistry = map[string]func(*config.Config) error{
-	"niri": SetupNiri,
+	"niri":      SetupNiri,
+	"niriWayle": SetupNiriWayle,
 }
 
 // Setup dispatches to the appropriate desktop environment setup.

@@ -4,13 +4,17 @@
 # The harness cache proxy can have stale APKINDEX (package listed but
 # file unavailable from upstream). Always switch to official Alpine repos.
 
+set -eu
+
 echo "=== Cache Debug ==="
 echo "Repositories:"
 cat /etc/apk/repositories
 
 echo ""
 echo "Switching to official Alpine repos to avoid stale cache index..."
-cat > /etc/apk/repositories <<'REPO'
+# Fail loud: a silent repositories rewrite failure would leave the stale
+# cache index active and the script would exit 0 (pre set -eu behavior).
+cat > /etc/apk/repositories <<'REPO' || { echo "ERROR: cannot rewrite /etc/apk/repositories"; exit 1; }
 https://dl-cdn.alpinelinux.org/alpine/v3.23/main
 https://dl-cdn.alpinelinux.org/alpine/v3.23/community
 REPO
@@ -21,22 +25,25 @@ echo "=== Cache Debug Complete ==="
 echo ""
 echo "=== UEFI Secure Boot State ==="
 if [ -d /sys/firmware/efi/efivars ]; then
+    # shellcheck disable=SC2012  # ls-glob presence probe on efivars; head picks first var
     pkVar=$(ls /sys/firmware/efi/efivars/PK-* 2>/dev/null | head -1)
+    # shellcheck disable=SC2012  # ls-glob presence probe on efivars; head picks first var
     sbVar=$(ls /sys/firmware/efi/efivars/SecureBoot-* 2>/dev/null | head -1)
+    # shellcheck disable=SC2012  # ls-glob presence probe on efivars; head picks first var
     smVar=$(ls /sys/firmware/efi/efivars/SetupMode-* 2>/dev/null | head -1)
-    
+
     if [ -n "$pkVar" ]; then
         echo "PK EXISTS (User Mode) — sbctl enrollment will fail"
         dd if="$pkVar" bs=1 skip=4 count=16 2>/dev/null | od -tx1 -An | head -1
     else
         echo "NO PK (Setup Mode) — sbctl enrollment should work"
     fi
-    
+
     if [ -n "$sbVar" ]; then
         sbRaw=$(dd if="$sbVar" bs=1 skip=4 count=1 2>/dev/null | od -An -t d1 | tr -d ' ')
         echo "SecureBoot=$sbRaw (1=enabled, 0=disabled)"
     fi
-    
+
     if [ -n "$smVar" ]; then
         smRaw=$(dd if="$smVar" bs=1 skip=4 count=1 2>/dev/null | od -An -t d1 | tr -d ' ')
         echo "SetupMode=$smRaw (1=Setup, 0=User)"

@@ -48,10 +48,9 @@ trusted-users = root @wheel`
 	// installs; --impure; extra cache URLs) and are ~root-equivalent by
 	// definition — wheel already is, so this adds zero escalation.
 	// Daily UX: nix profile add / flakes work for wheel users without sudo.
-	escapedNixConf := strings.ReplaceAll(nixConf, "'", "'\\''")
 	// Append (not overwrite): preserve Alpine's allowed-users=@nix,
 	// build-users-group=nixbld and max-jobs from /etc/nix/nix.conf.
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' >> /etc/nix/nix.conf", escapedNixConf)); err != nil {
+	if err := shell.WriteFileAppend(chroot, "/etc/nix/nix.conf", []byte(nixConf+"\n"), 0644); err != nil {
 		return fmt.Errorf("failed to write nix.conf: %w", err)
 	}
 
@@ -59,17 +58,17 @@ trusted-users = root @wheel`
 		fmt.Printf("[WARNING] Failed to add user to nix group: %v\n", err)
 	}
 
-	// nix-daemon enablement: OpenRC runlevels under OpenRC; under dinit the
-	// converted nix-daemon-dinit service is enabled via boot.d symlink
-	// (no rules map entry covers it — the nix feature owns its service).
+	// nix-daemon enablement: dinit gets the boot.d symlink (no rules map
+	// entry covers it — the nix feature owns its service); OpenRC is ALWAYS
+	// enabled, never conditional (a dinit install must stay bootable under
+	// OpenRC — the symlink is inert under dinit).
 	if conf.User.EnableDinit {
 		if _, err := shell.ExecuteCmd(chroot, "mkdir -p /etc/dinit.d/boot.d && test -f /lib/dinit.d/nix-daemon && ln -sf /lib/dinit.d/nix-daemon /etc/dinit.d/boot.d/nix-daemon || true"); err != nil {
 			fmt.Printf("[WARNING] Failed to enable nix-daemon dinit service: %v\n", err)
 		}
-	} else {
-		if _, err := shell.ExecuteCmdArgs(chroot, "rc-update", "add", "nix-daemon", "default"); err != nil {
-			fmt.Printf("[WARNING] Failed to add nix-daemon to default: %v\n", err)
-		}
+	}
+	if _, err := shell.ExecuteCmdArgs(chroot, "rc-update", "add", "nix-daemon", "default"); err != nil {
+		fmt.Printf("[WARNING] Failed to add nix-daemon to default: %v\n", err)
 	}
 
 	if _, err := shell.ExecuteCmdArgs(chroot, "nix-channel", "--add", "https://nixos.org/channels/nixos-26.05", "nixpkgs"); err != nil {
@@ -86,30 +85,48 @@ trusted-users = root @wheel`
 		fmt.Printf("[WARNING] nix-channel --update failed: %v\n", err)
 	}
 
+	// Flake registry: pin nixpkgs to the STABLE branch. The builtin default
+	// registry maps nixpkgs → nixpkgs-unstable, overriding the stable
+	// channel for every flake `nixpkgs#...` reference (profile installs,
+	// user commands). System-wide file first — /etc/nix/registry.json
+	// applies to every user INCLUDING root (root had no pin at all before);
+	// then the user registry (user wins over system — belt+braces).
+	// GOTCHA (fixed here): the user pin used to run only when nixPackages
+	// was non-empty — enableNix with no packages kept resolving unstable.
+	registryJSON := `{
+  "version": 2,
+  "flakes": [
+    {
+      "from": { "type": "indirect", "id": "nixpkgs" },
+      "to": { "type": "github", "owner": "NixOS", "repo": "nixpkgs", "ref": "nixos-26.05" }
+    }
+  ]
+}`
+	if err := shell.WriteFile(chroot, "/etc/nix/registry.json", []byte(registryJSON+"\n"), 0644); err != nil {
+		return fmt.Errorf("failed to write system flake registry: %w", err)
+	}
+	if _, err := shell.ExecuteCmdArgs(chroot, "su", "-", u.UserName, "-c", "NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt nix registry add nixpkgs github:NixOS/nixpkgs/nixos-26.05"); err != nil {
+		fmt.Printf("[WARNING] Failed to pin nixpkgs registry to stable: %v\n", err)
+	}
+
 	fmt.Println("[INFO] Setting Nix environment variables...")
 	// XKB_CONFIG_ROOT: nix-installed GUI apps need the host X11 xkb data.
 	// Build sandbox: upstream default — /tmp is exec since round 48, the old
 	// scoping workaround (born from the noexec era) is gone.
 	nixEnv := `export XKB_CONFIG_ROOT=/usr/share/X11/xkb`
-	escapedNixEnv := strings.ReplaceAll(nixEnv, "'", "'\\''")
 	// Append (not overwrite): preserve the PATH/daemon setup the Alpine nix
 	// package ships in /etc/profile.d/nix-daemon.sh.
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' >> /etc/profile.d/nix-daemon.sh", escapedNixEnv)); err != nil {
+	if err := shell.WriteFileAppend(chroot, "/etc/profile.d/nix-daemon.sh", []byte(nixEnv+"\n"), 0644); err != nil {
 		return fmt.Errorf("failed to write nix env: %w", err)
 	}
 
 	nixFishEnv := `set -gx XKB_CONFIG_ROOT /usr/share/X11/xkb`
-	escapedNixFishEnv := strings.ReplaceAll(nixFishEnv, "'", "'\\''")
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' >> /etc/fish/conf.d/nix.fish", escapedNixFishEnv)); err != nil {
+	if err := shell.WriteFileAppend(chroot, "/etc/fish/conf.d/nix.fish", []byte(nixFishEnv+"\n"), 0644); err != nil {
 		return fmt.Errorf("failed to write nix fish env: %w", err)
 	}
 
 	nixBashEnv := `export XKB_CONFIG_ROOT=/usr/share/X11/xkb`
-	escapedNixBashEnv := strings.ReplaceAll(nixBashEnv, "'", "'\\''")
-	if _, err := shell.ExecuteCmdArgs(chroot, "mkdir", "-p", "/etc/bash"); err != nil {
-		fmt.Printf("[WARNING] Failed to create /etc/bash: %v\n", err)
-	}
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/bash/nix.sh", escapedNixBashEnv)); err != nil {
+	if err := shell.WriteFile(chroot, "/etc/bash/nix.sh", []byte(nixBashEnv+"\n"), 0644); err != nil {
 		return fmt.Errorf("failed to write nix bash env: %w", err)
 	}
 
@@ -134,13 +151,6 @@ trusted-users = root @wheel`
 		}
 		if _, err := shell.ExecuteCmdArgs(chroot, "rc-service", "nix-daemon", "start"); err != nil {
 			fmt.Printf("[WARNING] Failed to start nix-daemon in chroot: %v\n", err)
-		}
-
-		// The default flake registry maps nixpkgs -> nixpkgs-unstable, which
-		// would override the stable channel for `nixpkgs#...` installs. Pin
-		// the user's registry to the stable branch (same as the channel).
-		if _, err := shell.ExecuteCmdArgs(chroot, "su", "-", u.UserName, "-c", "NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt nix registry add nixpkgs github:NixOS/nixpkgs/nixos-26.05"); err != nil {
-			fmt.Printf("[WARNING] Failed to pin nixpkgs registry to stable: %v\n", err)
 		}
 
 		// Install into the real user's profile so ~/.local/state/nix/profiles

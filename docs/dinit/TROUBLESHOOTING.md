@@ -7,7 +7,7 @@
 Append to kernel cmdline (edit via UKI `/etc/kernel/cmdline` + regenerate, or
 bootloader edit):
 
-```
+```text
 # slow-motion early boot, each early service echoes before acting
 dinit_early_debug=1 dinit_early_debug_slow=3
 

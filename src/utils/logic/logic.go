@@ -65,6 +65,16 @@ func applyRule(u *config.UserVariables, rule *config.DynamicPackageRules) {
 		}
 		u.Runlevels[level] = appendUnique(u.Runlevels[level], svc)
 	}
+
+	// ADR-010: dinit unit names for activation targets (they differ from the
+	// OpenRC fallback names whenever the unit is named after the well-known
+	// D-Bus name).
+	for svc, level := range rule.DinitServices {
+		if u.RunlevelsDinit[level] == nil {
+			u.RunlevelsDinit[level] = []string{}
+		}
+		u.RunlevelsDinit[level] = appendUnique(u.RunlevelsDinit[level], svc)
+	}
 }
 
 func appendUnique(slice []string, items ...string) []string {

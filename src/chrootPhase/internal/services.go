@@ -1,10 +1,12 @@
 package internal
 
 import (
-	"feralos/src/utils/config"
-	"feralos/src/utils/shell"
+	"errors"
 	"fmt"
 	"strings"
+
+	"feralos/src/utils/config"
+	"feralos/src/utils/shell"
 )
 
 // SetupServices configures service enablement.
@@ -14,24 +16,39 @@ func SetupServices(conf *config.Config) error {
 	shell.SetCaller("services")
 	chroot := conf.Internal.ChrootDir
 
-	// OpenRC runlevels — only when NOT running dinit (under dinit the
-	// enablement below is the real mechanism; rc-update symlinks would be
-	// dead weight for a PID1 that never reads /etc/runlevels).
-	if !conf.User.EnableDinit {
-		fmt.Println("[INFO] Configuring OpenRC services...")
-		for level, services := range conf.User.Runlevels {
-			for _, svc := range services {
-				_, _ = shell.ExecuteCmd(chroot, fmt.Sprintf("rc-update add %s %s", svc, level))
+	// ursine log dir BEFORE service enablement (belt-and-braces beside the
+	// ursine post-install): ursined's dinit logfile is
+	// /var/log/ursine/ursined.log inside the @var-log subvol — the dir must
+	// exist or the unit fails at boot with "opening log file: No such file
+	// or directory". Harmless on installs without ursine.
+	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /var/log/ursine && chmod 0750 /var/log/ursine"); err != nil {
+		return fmt.Errorf("failed to create /var/log/ursine: %w", err)
+	}
+
+	// OpenRC runlevels — ALWAYS configured, NEVER conditional: a dinit
+	// install must remain bootable under OpenRC (fallback), so the rc-update
+	// links are created regardless of the active init. They are inert under
+	// dinit (PID1 never reads /etc/runlevels) and required for the fallback.
+	fmt.Println("[INFO] Configuring OpenRC services...")
+	for level, services := range conf.User.Runlevels {
+		for _, svc := range services {
+			if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("rc-update add %s %s", svc, level)); err != nil {
+				return fmt.Errorf("failed to enable %s: %w", svc, err)
 			}
 		}
+	}
 
-		// swap service: 'before localmount' → 'need localmount'
-		// before = wrong stop order (localmount unmounts /swap while swapfile still active)
-		// need = hard dependency → swapoff runs BEFORE localmount unmounts /swap
-		// NOTE: apk upgrade of openrc overwrites /etc/init.d/swap (sed is lost)
-		if _, err := shell.ExecuteCmd(chroot, "sed -i 's/before localmount/need localmount/' /etc/init.d/swap"); err != nil {
-			return err
-		}
+	// swap service: 'before localmount' → 'need localmount'
+	// before = wrong stop order (localmount unmounts /swap while swapfile still active)
+	// need = hard dependency → swapoff runs BEFORE localmount unmounts /swap
+	// NOTE: apk upgrade of openrc overwrites /etc/init.d/swap (sed is lost)
+	if _, err := shell.ExecuteCmd(chroot, "sed -i 's/before localmount/need localmount/' /etc/init.d/swap"); err != nil {
+		return err
+	}
+
+	// polkit power rule — written for BOTH inits (see writePowerPolkitRule).
+	if err := writePowerPolkitRule(chroot); err != nil {
+		return err
 	}
 
 	// Dinit: enablement is data-driven (Alpine model: packages ship service
@@ -61,6 +78,13 @@ func SetupServices(conf *config.Config) error {
 		}
 
 		enabled, skipped := 0, 0
+		// P2-3: enablement errors are collected and returned as one joined
+		// error after the loops (a failed symlink must not be invisible to
+		// the exit code). Under SKEA_IGNORE_ERRORS=1 shell.ExecuteCmd returns
+		// nil on failure — best-effort behavior unchanged. The
+		// "could not enable" WARNING stays informational (pre-existing
+		// semantics: service file genuinely absent is a packaging fact).
+		var enableErrs []error
 		// dinitctl enable (from-service defaults to boot) creates the symlink
 		// in boot's waits-for.d = /etc/dinit.d/boot.d (the ADMIN dir) — kept
 		// separate from /lib/dinit.d/boot.d where packages drop their links;
@@ -79,11 +103,21 @@ func SetupServices(conf *config.Config) error {
 			// (/etc/dinit.d/boot.d, the admin dir) targeting the description
 			// in /lib/dinit.d. Template instances carry the argument in the
 			// name (getty@tty1 -> $1 = tty1), target = template body.
+			// TARGET RESOLUTION: most -dinit packages install to
+			// /lib/dinit.d/<unit>, but some units live in /etc/dinit.d/
+			// (e.g. turnstiled ships in the main turnstile package at
+			// /etc/dinit.d/turnstiled) — without the /etc fallback the
+			// boot.d link dangles and the installer logs
+			// "[WARNING] dinit: could not enable <svc>" for a service that
+			// dinit would actually resolve by name.
 			base := svc
 			if idx := strings.Index(svc, "@"); idx > 0 {
 				base = svc[:idx]
 			}
-			_, _ = shell.ExecuteCmd(chroot, fmt.Sprintf("ln -sf /lib/dinit.d/%s /etc/dinit.d/boot.d/%s", base, svc))
+			if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("t=/lib/dinit.d/%s; [ -e \"$t\" ] || t=/etc/dinit.d/%s; ln -sf \"$t\" /etc/dinit.d/boot.d/%s", base, base, svc)); err != nil {
+				enableErrs = append(enableErrs, fmt.Errorf("failed to enable %s: %w", svc, err))
+				return
+			}
 			if linkExists(svc) {
 				enabled++
 			} else {
@@ -107,6 +141,9 @@ func SetupServices(conf *config.Config) error {
 				}
 				enableDinitSvc(svc)
 			}
+		}
+		if len(enableErrs) > 0 {
+			return fmt.Errorf("dinit service enablement failed: %w", errors.Join(enableErrs...))
 		}
 		fmt.Printf("[INFO] Dinit: %d services enabled, %d chimera-covered skipped\n", enabled, skipped)
 
@@ -152,8 +189,7 @@ func setupDinitShutdownCommands(chroot string) error {
 			return fmt.Errorf("failed to remove stale /usr/bin/%s: %w", wrapper.name, err)
 		}
 		content := fmt.Sprintf("#!/bin/sh\nexec %s \"$@\"\n", wrapper.target)
-		escaped := strings.ReplaceAll(content, "'", "'\\''")
-		if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /usr/bin/%s", escaped, wrapper.name)); err != nil {
+		if err := shell.WriteFile(chroot, "/usr/bin/"+wrapper.name, []byte(content), 0644); err != nil {
 			return fmt.Errorf("failed to write /usr/bin/%s wrapper: %w", wrapper.name, err)
 		}
 		if _, err := shell.ExecuteCmd(chroot, "chmod 755 /usr/bin/"+wrapper.name); err != nil {
@@ -165,7 +201,83 @@ func setupDinitShutdownCommands(chroot string) error {
 	if !strings.Contains(out, "OK") {
 		return fmt.Errorf("dinit shutdown commands were not installed correctly")
 	}
-	fmt.Println("[INFO] Dinit shutdown commands installed (poweroff/reboot/halt/shutdown/soft-reboot)")
 
+	// elogind shutdown hook (DMS "Power off" / "Reboot" fix): DMS runs
+	// `loginctl poweroff|reboot` (elogind branch); elogind bypasses PATH and
+	// execs the ABSOLUTE /sbin/poweroff (busybox) — busybox sends SIGUSR2,
+	// which dinit IGNORES, so the machine never goes down. elogind has no
+	// config override for the binary path, but it runs
+	// /etc/elogind/system-shutdown hooks BEFORE the exec: trigger the real
+	// dinit shutdown from the hook (exec — elogind waits on this script and
+	// the machine tears down; if elogind were to proceed anyway, the
+	// subsequent busybox exec is a harmless no-op).
+	hookDir := "/etc/elogind/system-shutdown"
+	hookContent := `#!/bin/sh
+# FeralOS: elogind execs the absolute /sbin/poweroff (busybox, SIGUSR2 —
+# ignored by dinit) AFTER these hooks. Trigger the real dinit shutdown here.
+case "$1" in
+poweroff) exec /usr/sbin/dinit-poweroff ;;
+reboot)   exec /usr/sbin/dinit-reboot ;;
+halt)     exec /usr/sbin/dinit-halt ;;
+esac
+`
+	if err := shell.WriteFile(chroot, hookDir+"/50-feralos-dinit.sh", []byte(hookContent+"\n"), 0644); err != nil {
+		return fmt.Errorf("failed to install elogind shutdown hook: %w", err)
+	}
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("chmod 755 '%s/50-feralos-dinit.sh'", hookDir)); err != nil {
+		return fmt.Errorf("failed to chmod elogind shutdown hook: %w", err)
+	}
+
+	fmt.Println("[INFO] Dinit shutdown commands installed (poweroff/reboot/halt/shutdown/soft-reboot)")
+	fmt.Println("[INFO] elogind shutdown hook installed (loginctl poweroff/reboot → dinit)")
+
+	return nil
+}
+
+// writePowerPolkitRule installs the wheel rule for the login1 power actions
+// (power-off/reboot/halt/suspend) AND the power-profiles-daemon
+// switch/hold actions. Written for BOTH inits: under dinit, elogind cannot
+// map PIDs to sessions (NoSessionForPID — no session cgroups), so polkit
+// never sees "allow_active" and the upstream policies are unsatisfiable —
+// every loginctl power action would become an auth challenge (or a silent
+// timeout with no agent) and every power-profile switch (Wayle battery
+// dropdown / DMS power UI) would be denied (PPD's policy is
+// allow_active=yes upstream; action ids renamed in PPD 0.30 — the policy
+// file on Alpine is power-profiles-daemon.policy). Covers the DMS/Wayle
+// power buttons, stasis' automatic `loginctl suspend` idle step and
+// power-profile switching. wheel = admin already — none of these is a
+// privilege escalation, and this matches standard desktop behavior (no
+// password for the owner's own machine). Harmless under OpenRC.
+func writePowerPolkitRule(chroot string) error {
+	polkitRule := `// FeralOS: allow wheel to power off/reboot/suspend and to switch power
+// profiles without an auth prompt. elogind cannot attribute PIDs to
+// sessions under dinit (NoSessionForPID), so the default "allow_active"
+// policy never matches (login1 power actions AND PowerProfiles switch/hold
+// share that class). wheel is admin anyway.
+polkit.addRule(function(action, subject) {
+    if (subject.isInGroup("wheel") &&
+        (action.id == "org.freedesktop.login1.power-off" ||
+         action.id == "org.freedesktop.login1.power-off-multiple-sessions" ||
+         action.id == "org.freedesktop.login1.reboot" ||
+         action.id == "org.freedesktop.login1.reboot-multiple-sessions" ||
+         action.id == "org.freedesktop.login1.halt" ||
+         action.id == "org.freedesktop.login1.halt-multiple-sessions" ||
+         action.id == "org.freedesktop.login1.suspend" ||
+         action.id == "org.freedesktop.login1.suspend-multiple-sessions" ||
+         action.id == "org.freedesktop.UPower.PowerProfiles.switch-profile" ||
+         action.id == "org.freedesktop.UPower.PowerProfiles.hold-profile")) {
+        return polkit.Result.YES;
+    }
+});
+`
+	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /etc/polkit-1/rules.d"); err != nil {
+		return fmt.Errorf("failed to create polkit rules dir: %w", err)
+	}
+	if err := shell.WriteFile(chroot, "/etc/polkit-1/rules.d/49-feralos-power.rules", []byte(polkitRule+"\n"), 0644); err != nil {
+		return fmt.Errorf("failed to install polkit power rule: %w", err)
+	}
+	if _, err := shell.ExecuteCmd(chroot, "chmod 644 /etc/polkit-1/rules.d/49-feralos-power.rules"); err != nil {
+		return fmt.Errorf("failed to chmod polkit power rule: %w", err)
+	}
 	return nil
 }

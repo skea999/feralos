@@ -17,7 +17,8 @@ func Run(conf *config.Config) error {
 	fmt.Println("[INFO] Starting ChrootPhase.Run...")
 
 	// 0. Write resolv.conf BEFORE first apk update (DNS needed for apk)
-	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /etc && echo 'nameserver 208.67.222.222\nnameserver 208.67.220.220' > /etc/resolv.conf"); err != nil {
+	resolvConf := "nameserver 208.67.222.222\nnameserver 208.67.220.220\n"
+	if err := shell.WriteFile(chroot, "/etc/resolv.conf", []byte(resolvConf), 0644); err != nil {
 		return fmt.Errorf("failed to write resolv.conf: %w", err)
 	}
 
@@ -70,17 +71,17 @@ func Run(conf *config.Config) error {
 		return fmt.Errorf("nix setup failed: %w", err)
 	}
 
-	// 7b. Setup flatpak (optional) — installs flatpak apps from flathub
+	// 8. Setup flatpak (optional) — installs flatpak apps from flathub
 	if err := features.SetupFlatpak(conf); err != nil {
 		return fmt.Errorf("flatpak setup failed: %w", err)
 	}
 
-	// 6a. Setup desktop environment (configurations — kde/gnome need none)
+	// 9. Setup desktop environment (configurations — kde/gnome need none)
 	if err := desktops.Setup(conf); err != nil {
 		return fmt.Errorf("desktop setup failed: %w", err)
 	}
 
-	// 8. Setup zswap (server always enabled; other layouts toggleable)
+	// 10. Setup zswap (server always enabled; other layouts toggleable)
 	if err := features.SetupZswapServer(conf); err != nil {
 		return fmt.Errorf("zswap server setup failed: %w", err)
 	}
@@ -88,30 +89,38 @@ func Run(conf *config.Config) error {
 		return fmt.Errorf("zswap setup failed: %w", err)
 	}
 
-	// 9. Setup storage
+	// 11. Setup storage
 	if err := internal.SetupStorage(conf); err != nil {
 		return fmt.Errorf("storage setup failed: %w", err)
 	}
 
-	// 10. Setup hardening
+	// 12. Setup hardening
 	if err := features.SetupHardening(conf); err != nil {
 		return fmt.Errorf("hardening failed: %w", err)
 	}
 
-	// 10a. Setup podman (rootless containers)
+	// 13. Setup podman (rootless containers)
 	if err := features.SetupPodman(conf); err != nil {
 		return fmt.Errorf("podman setup failed: %w", err)
 	}
 
-	// 11. Setup boot (booster config, cmdline, hooks)
+	// 14. Setup boot (booster config, cmdline, hooks)
 	if err := internal.SetupBoot(conf); err != nil {
 		return fmt.Errorf("boot setup failed: %w", err)
 	}
 
-	// 12. Build unsigned UKI
+	// 15. Build unsigned UKI
 	fmt.Println("[INFO] Building unsigned UKI...")
 	if err := internal.BuildUKI(conf); err != nil {
 		return fmt.Errorf("UKI build failed: %w", err)
+	}
+
+	// 16. D-Bus supervision audit (ADR-010 enforcement, non-fatal) — runs
+	// AFTER all installations (nix/flatpak included) so every activation
+	// file is on disk and the *-user-dinit apk fallback can install missing
+	// units. Exit 1 (aports gap) is a WARNING, never an install failure.
+	if err := internal.SetupDbusAudit(conf); err != nil {
+		fmt.Printf("[WARNING] D-Bus audit: %v\n", err)
 	}
 
 	fmt.Println("[INFO] ChrootPhase.Run completed successfully.")

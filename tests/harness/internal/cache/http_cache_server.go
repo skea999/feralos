@@ -38,6 +38,16 @@ type cachedResponseMeta struct {
 	CachedAt    time.Time `json:"cachedAt"`
 }
 
+// indexRevalidateTTL bounds how long a cached APKINDEX is served without
+// revalidation. Package .apk files are immutable and cached forever, but the
+// INDEXES change: Alpine rebuilds packages and DELETES the old .apk, so a
+// stale index makes apk resolve to a version whose download 404s mid-install
+// (live-caught: moor-2.10.2-r5 HTTP 404, run 2026-10-31T02-00-35Z — the
+// cached edge index still listed -r5 after upstream replaced it). Indexes
+// older than the TTL are refetched; on upstream failure the stale copy is
+// still served so offline runs keep working.
+const indexRevalidateTTL = 6 * time.Hour
+
 func StartHTTPMirrorServer(ctx context.Context, cfg HTTPMirrorServerConfig) (*HTTPMirrorServer, error) {
 	if strings.TrimSpace(cfg.CacheDir) == "" {
 		return nil, fmt.Errorf("cache directory is required")
@@ -93,13 +103,59 @@ func (server *HTTPMirrorServer) ServeHTTP(writer http.ResponseWriter, request *h
 
 	bodyPath, metaPath := server.cachePaths(request.URL.RequestURI())
 	if meta, ok := server.loadMeta(metaPath); ok {
-		if _, err := os.Stat(bodyPath); err == nil {
+		_, statErr := os.Stat(bodyPath)
+		if statErr == nil && !server.indexNeedsRevalidate(meta, request) {
 			server.serveCached(writer, request, bodyPath, meta)
 			return
 		}
+		if statErr == nil && server.tryRevalidateIndex(writer, request, bodyPath, metaPath) {
+			return
+		}
+		// statErr != nil (body lost) or stale index with upstream down:
+		// fetchAndCache for a lost body; for a stale index the cached copy
+		// below is better than a 502.
+		if statErr != nil {
+			server.fetchAndCache(writer, request, bodyPath, metaPath)
+			return
+		}
+		server.serveCached(writer, request, bodyPath, meta)
+		return
 	}
 
 	server.fetchAndCache(writer, request, bodyPath, metaPath)
+}
+
+// indexNeedsRevalidate reports whether the request targets an APKINDEX whose
+// cached copy is older than indexRevalidateTTL.
+func (server *HTTPMirrorServer) indexNeedsRevalidate(meta cachedResponseMeta, request *http.Request) bool {
+	if !strings.Contains(request.URL.RequestURI(), "APKINDEX") {
+		return false
+	}
+	return time.Since(meta.CachedAt) >= indexRevalidateTTL
+}
+
+// tryRevalidateIndex refetches a stale APKINDEX from upstream and reports
+// whether the response was fully handled. On upstream failure it returns
+// false so the caller can fall back to the stale cached copy.
+func (server *HTTPMirrorServer) tryRevalidateIndex(writer http.ResponseWriter, request *http.Request, bodyPath, metaPath string) bool {
+	targetURL := server.upstreamURL + request.URL.RequestURI()
+	upstreamRequest, err := http.NewRequestWithContext(request.Context(), http.MethodGet, targetURL, nil)
+	if err != nil {
+		return false
+	}
+	response, err := defaultHTTPClient.Do(upstreamRequest)
+	if err != nil {
+		return false
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		// Upstream answered but has nothing better (or is broken) — serve
+		// the stale cached index; a 404 here means the repo URL itself is
+		// gone, and the stale copy is still the best we can offer.
+		return false
+	}
+	server.storeAndRespond(writer, request, response, bodyPath, metaPath)
+	return true
 }
 
 func (server *HTTPMirrorServer) serveCached(writer http.ResponseWriter, request *http.Request, bodyPath string, meta cachedResponseMeta) {
@@ -151,6 +207,10 @@ func (server *HTTPMirrorServer) fetchAndCache(writer http.ResponseWriter, reques
 		return
 	}
 
+	server.storeAndRespond(writer, request, response, bodyPath, metaPath)
+}
+
+func (server *HTTPMirrorServer) storeAndRespond(writer http.ResponseWriter, request *http.Request, response *http.Response, bodyPath, metaPath string) {
 	if mkdirErr := os.MkdirAll(filepath.Dir(bodyPath), 0o755); mkdirErr != nil {
 		http.Error(writer, mkdirErr.Error(), http.StatusInternalServerError)
 		return

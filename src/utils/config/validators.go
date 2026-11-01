@@ -175,6 +175,19 @@ func ValidateEnum(field, value string, allowed []string) error {
 	return fmt.Errorf("invalid %s %q: valid options are: %s", field, value, strings.Join(allowed, ", "))
 }
 
+// ValidateDiskLayout validates the layout against the installer switch
+// (hostPhase/host_phase.go: exactly these four layouts have a RunBtrfsSetup
+// implementation — mirrored by DiskCountForLayout).
+func ValidateDiskLayout(layout string) error {
+	if layout == "" {
+		return fmt.Errorf("diskLayout must not be empty")
+	}
+	if _, err := DiskCountForLayout(layout); err != nil {
+		return fmt.Errorf("invalid diskLayout %q: valid options are: btrfsStandard, btrfsStandardServer, btrfsRaid0, btrfsUnencrypted", layout)
+	}
+	return nil
+}
+
 // DiskCountForLayout returns the required number of target disks per layout.
 // Mirrors the layout packages' runtime validation (hostPhase/disks/*).
 func DiskCountForLayout(layout string) (int, error) {

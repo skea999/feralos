@@ -2,7 +2,7 @@
 
 > Packaging phases (1-2) live in `references/feralos-aports/PLAN.md` (aports repo).
 > This file owns what touches the **installer codebase and the installed system**.
-> Updated: 2026-09-10
+> Updated: 2026-10-18
 
 ## Phase 2 (shared) — Boot Test
 
@@ -44,7 +44,7 @@ step 6). Installer-side impact is small:
 
 ## Phase 5 — `enableDinit` end-to-end
 
-1. `variables.yaml`: `enableDinit: false` (default)
+1. `variables.yaml`: `enableDinit` toggle (template default: `true`; OpenRC co-installed either way)
 2. When true, chrootPhase:
    - copies `feralos.pub` → `/etc/apk/keys/feralos.rsa.pub`
    - adds `https://<pages-url>/v3.24/main` to `/etc/apk/repositories`
@@ -60,7 +60,7 @@ step 6). Installer-side impact is small:
 
 ## Definition of done (installer side)
 
-- [ ] `enableDinit: true` fixture installs and boots via Dinit in harness
-- [ ] All standard services verified running (`dinitctl status` / serial log)
-- [ ] Desktop matrix (niri/kde/cosmic) boots to graphical login under Dinit
-- [ ] Docs updated (this dir + AGENTS.md history + aports STATUS.md cross-ref)
+- [x] `enableDinit: true` fixture installs and boots via Dinit in harness
+- [x] All standard services verified running (`dinitctl status` / serial log)
+- [x] Desktop matrix (niri/niriWayle/kde/cosmic) boots to graphical login under Dinit
+- [x] Docs updated (this dir + AGENTS.md history + aports STATUS.md cross-ref)

@@ -93,6 +93,13 @@ func Run(ctx context.Context, opts Options, command string, stdout io.Writer, st
 	return nil
 }
 
+// Output runs the command and returns its COMBINED stdout+stderr.
+//
+// Legacy contract (kept): ~77 existing harness checks judge the returned
+// text with strings.Contains, and several rely on stderr fragments (e.g.
+// busybox pgrep quiet messages, ssh known-hosts warnings stripped from the
+// middle of results). Do NOT change this behavior; new checks should prefer
+// OutputOK, which keeps the two streams separate.
 func Output(ctx context.Context, opts Options, command string) ([]byte, error) {
 	args := sshArgs(opts)
 	args = append(args, fmt.Sprintf("%s@%s", opts.User, hostOrDefault(opts.Host)), remoteCommand(opts, command))
@@ -104,6 +111,33 @@ func Output(ctx context.Context, opts Options, command string) ([]byte, error) {
 	}
 
 	return output, nil
+}
+
+// OutputOK runs the same ssh command as Output but captures ONLY stdout.
+// Stderr is dropped on success and folded into the error on failure, so
+// the returned text is never polluted by diagnostics (ssh known-hosts
+// warnings, busybox chatter) and Contains-based assertions stay clean.
+//
+// Output = combined (legacy contract, kept). OutputOK = clean separation
+// for new checks.
+func OutputOK(ctx context.Context, opts Options, command string) (string, error) {
+	args := sshArgs(opts)
+	args = append(args, fmt.Sprintf("%s@%s", opts.User, hostOrDefault(opts.Host)), remoteCommand(opts, command))
+
+	cmd := exec.CommandContext(ctx, "ssh", args...)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		msg := strings.TrimSpace(stderr.String())
+		if msg == "" {
+			return "", fmt.Errorf("ssh command failed: %w", err)
+		}
+
+		return "", fmt.Errorf("ssh command failed: %w: %s", err, msg)
+	}
+
+	return stdout.String(), nil
 }
 
 func CopyToGuest(ctx context.Context, opts Options, srcPath, dstPath string, recursive bool) error {

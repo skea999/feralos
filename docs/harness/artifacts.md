@@ -6,7 +6,7 @@
 
 All harness outputs under repo-relative `tests/artifacts/harness/` (resolved via `detectRepoRoot` in `cmd/skea_harness/main.go`, `artifactsRoot = <repo>/tests/artifacts/harness`). Created on demand; structure preserved by `.gitkeep`.
 
-```
+```text
 tests/artifacts/harness/
 ├── cache/
 │   ├── base-images/        # Debian genericcloud qcow2 (downloaded once)
@@ -83,7 +83,7 @@ Each run produces per-check result files under `tests/`. 4 marker checks verify 
 
 All 4 layouts PASS 35/35 with markers enabled. Markers appended at END of each config file (single-point verification). See `tests/harness/internal/checks/` for implementation.
 
-## Additional harness checks (post-2026-09-02, updated 2026-09-09 — 51/51)
+## Additional harness checks (post-2026-09-02, updated 2026-10-18 — selective list; the full set lives in `tests/harness/internal/service/service.go`)
 
 | Check | What it verifies | Pass condition |
 |-------|------------------|----------------|
@@ -94,18 +94,24 @@ All 4 layouts PASS 35/35 with markers enabled. Markers appended at END of each c
 | `chmod_77_check` | No insecure chmod in installer.log | Count `chmod 777`/`chmod 1777` excluding `/nix/var/nix/build/tmp` (which SHOULD be 1777) must be 0; previous check flagged `775` false positive |
 | `works_in_real_life` | No ignored errors | `installer.log` must NOT contain `[WARNING] Non-interactive mode: ignoring error and continuing.` |
 | `webmin_binary` | Webmin firstboot binary present | `test -x /opt/feralos_webmin` |
-| `webmin_container` | Webmin container running | `podman ps --format '{{.Names}}' \| grep -q '^webmin$'` (no `|| echo` fallback — must FAIL when not running) |
+| `webmin_container` | Webmin container running | `podman ps --format '{{.Names}}' \| grep -q '^webmin$'` (no `\|\| echo` fallback — must FAIL when not running) |
 | `webmin_port` | Webmin port mapped | `podman port webmin 10000 \| grep -q 10000` |
 | `webmin_http` | Webmin HTTP answering | `wget -q -T 5 --no-check-certificate https://localhost:10000/` retry 8×5s |
 | `podman_*` | Podman functional | `podman info`, `podman ps` etc. when `enablePodman=true` |
-| `niri_*` | Niri desktop valid | `niri_config_valid` (validate both kdl), `greetd_config` (greeter files +x), `niri_greeter` (pgrep niri), `dms_installed` (nix profile + binary) |
+| `niri_*` | Niri desktop valid | `niri_config_valid` (validate both kdl), `greetd_config` (greeter files +x), `niri_greeter` (pgrep niri), `dms_installed` (apk check — `dms-shell`/`quickshell` native apks from feralos-aports) |
 | `niri_msg_version` | niri IPC version query (runtime) | `niri msg version` via discovered `niri*.sock` — rc 0 + first 2 lines as detail; sharper binary+IPC proof than `niri_ipc` (gated niri, 90s poll) |
 | `niri_windows` | niri compositor state query (runtime) | `niri msg windows` rc 0 (window list may be tiny — pass on rc, head -5 detail) (gated niri, 90s poll) |
 | `niri_outputs_count` | niri output count | `niri msg outputs` must show ≥1 `^Output` line — REAL on every host (QEMU skip-gate removed 2026-10-09: virtio-vga-gl + egl-headless,gl=on + guest mesa edge 26.2.4 with virgl restored renders — QEMU reports `Output "Red Hat, Inc. QEMU Monitor" (Virtual-1)` 1280x800; run 2026-10-09T18-21-04Z 86/86 zero skips) (gated niri) |
 | `dms_ipc` | DMS IPC liveness (runtime) | `dms ipc call outputs status` (EMPIRICALLY VERIFIED live: answers rc 0; post bug-3 fix outputs exist — `outputs: ["Virtual-1"]`; dms answers unknown targets like `widget list` rc 0 too, so only real target/function pairs are valid proof) via `su - <user> -s /bin/sh` (dms REFUSES root), `XDG_RUNTIME_DIR` + `NIRI_SOCKET` from discovered `niri*.sock`, 60s poll, `timeout 10` (gated niri) |
-| `firewall_rustdesk` | RustDesk firewall ports | Only when a fixture explicitly lists a rustdesk flatpak: `firewall-cmd --permanent --list-ports \| grep 21115` OR `grep -rq 21115 /etc/firewalld/` (niri default: check absent — RustDesk removed) |
-| `flatpak_installed` | RustDesk flatpak | Only when `FlatpakPackages` contains rustdesk: `flatpak list \| grep rustdesk` (niri no longer injects a default) |
-| `dinit_shutdown_commands` | dinit shutdown commands wired | `/usr/bin/{poweroff,halt,shutdown}` symlinks + `/usr/bin/{reboot,soft-reboot}` wrappers all executable when `enableDinit=true` |
+| `flatpak_installed` | Flatpak apps installed | Only when `flatpakPackages` is set (per-fixture or per-rule, e.g. niriWayle → `app.drey.KeyRack`): `flatpak list \| wc -l` |
+| `keyrack_flatpak` | Key Rack secrets GUI (niriWayle) | `flatpak info app.drey.KeyRack` rc 0 + user `niri-portals.conf` pins `org.freedesktop.impl.portal.Secret=oo7-portal` |
+| `oo7_pam_unlock` | oo7 login auto-unlock (niriWayle) | statics (pam_oo7.so + both greetd PAM lines + passwd override + recovery wrapper + live listener socket + `python3`) + authenticated PAM login on service `greetd` + NEW "Received unlock request" line in `secrets.log` (count-delta, `enableDebug`) — full chain in `docs/guides/niriwayle.md` |
+| `wayle_session_actions` | Wayle session-action seed (niriWayle) | `~/.config/wayle/config.toml` carries the 4 dashboard dropdown commands (lock/logout/reboot/poweroff) + `left-click = "dropdown:dashboard"` on the power module + the power button in the bar layout `right` list (reboot command init-aware: `sudo -n /usr/bin/reboot` dinit / `loginctl reboot` OpenRC) |
+| `stasis_idle` | stasis context-aware idle manager (niriWayle) | `apk info -e stasis` + `/etc/dinit.d/user/stasis.user` + FeralOS system config `/etc/stasis/stasis.rune` (contains `veila lock` + `loginctl suspend`) + `-c /etc/stasis/stasis.rune` in the stasis-session wrapper + NO `~/.config/stasis/stasis.rune` (proves the bootstrap was skipped) + `stasis.user` started marker (90s poll) + `stasis info` IPC as the session user |
+| `power_polkit_rule` | wheel login1 + power-profiles rule (niri family, both inits) | `/etc/polkit-1/rules.d/49-feralos-power.rules` exists + `isInGroup` guard + covers `login1.power-off`, `login1.suspend` AND `org.freedesktop.UPower.PowerProfiles.switch-profile` (NoSessionForPID under dinit would otherwise turn every loginctl power/suspend action into an auth prompt and deny power-profile switches; written for both inits) |
+| `power_profiles` | power-profiles-daemon round trip (niri family, both inits) | dbus-activation wiring (BOTH `net.hadess.PowerProfiles.service` alias + `org.freedesktop.UPower.PowerProfiles.service`, each `Exec=/usr/libexec/power-profiles-daemon` — Alpine's no-systemd patch) + `power-profiles-daemon.policy` with `org.freedesktop.UPower.PowerProfiles.switch-profile` + REAL switch as the session user (`powerprofilesctl get` → `set power-saver` → assert effect → restore; the placeholder driver still offers power-saver + balanced) |
+| `veila_daemon` | Veila lock daemon via env wrapper (niriWayle) | `veilad-session` wrapper on disk + `veila.user` runs it + wrapper execs `veilad` + `veilad` process alive for the session user (90s poll) |
+| `dinit_shutdown_commands` | dinit shutdown commands wired | `/usr/bin/{poweroff,halt,shutdown}` symlinks + `/usr/bin/{reboot,soft-reboot}` wrappers all executable when `enableDinit=true` + elogind shutdown hook + `zz-power` sudoers; per-DE custom reboot seed (niri: DMS `settings.json` `customPowerActionReboot`; niriWayle: wayle `config.toml` `dropdown-reboot-command`); polkit power rule asserted separately (`power_polkit_rule`) |
 | `gnome_keyring` | gnome-keyring secrets service (niri) | `apk info -e gnome-keyring` + `/usr/share/dbus-1/services/org.freedesktop.secrets.service` exists + `pam_gnome_keyring` in `/etc/pam.d/greetd` (gated niri) |
 
 **Nix build sandbox:** upstream default build dir (`/tmp`) — `/tmp` is mounted exec (no `noexec`), so the old `@nix-var-nix-build` tmp workaround (777 tmp + scoped temp dir) is gone. `trusted-users = root @wheel` is permanent (NixOS default — wheel is root-equivalent, no escalation). Nix SSL: `NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt` prefixed to all `su - user` nix client cmds.
@@ -119,6 +125,8 @@ All 4 layouts PASS 35/35 with markers enabled. Markers appended at END of each c
 **Log allowlist:** `log_errors` allowRe expanded 2026-09-09 to `commitpartial|bwrap.*pivot_root|To enable access to XDG directories` (flatpak XDG portal noise, was exact `commitpartial: No such file` + `bwrap: pivot_root: Invalid argument`). Base + btrfs `BTRFS error` allowlist retained. 2026-09-28: netns QEMU early-chain noise (`mount /run/netns/netns-*: Invalid argument`, matches both bare `mount` and `umount: can't unmount` variants) via `mount /run/netns.*Invalid argument`.
 
 **Harness result (niri+dinit fixture, run 2026-09-29T22-07-20Z):** **63/63 PASS** — `niri_*` checks, `niri_user_service` (Alpine `niri-session` → `niri` user service), `login_shell_trick` (passwd shell `/usr/libexec/feralos/login-shell` → fish symlink, not in `/etc/shells`), `turnstile_pkg` + `user_services_enabled` (turnstiled service + 8 user `boot.d` links), `dinit_user_services`, `gnome_keyring` (pkg + `org.freedesktop.secrets` service file + `pam_gnome_keyring` in greetd PAM), `dms_installed` (apk check), NM + wayvnc active; rustdesk checks removed.
+
+**Latest runs (2026-10-25 ADR-010 R1 amendment round):** kde dinit `2026-10-25T17-19-00Z` **77/77**; cosmic dinit `17-02-52Z` **77/77**; niri dinit `17-50-09Z` **113/113**; niriWayle dinit `17-57-48Z` **109/109**; niriWayle OpenRC `18-16-31Z` **92/92** (finale) — full matrix green after the initd-name amendment (fwupd/PPD on-demand). **(earlier 2026-10-25):** cosmic-on-elogind `14-19-46Z` **77/77**; kde session-bus `03-41-55Z` **77/77**. **(2026-10-24 autologin round):** kde dinit `2026-10-24T23-35-39Z` **74/74**; cosmic dinit `23-50-51Z` **74/74**. **(2026-10-20/21 full-feature round):** niriWayle dinit `2026-10-20T23-49-44Z` **109/109**; niriWayle OpenRC `23-57-22Z` **92/92**; DE matrix — niri `23-30-11Z` **113/113**, kde `23-37-50Z` **73/73**, cosmic `23-43-40Z` **73/73**.
 
 ## Cache reuse
 

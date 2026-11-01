@@ -1,6 +1,7 @@
 # FeralOS Package Inventory — Memory Safety Analysis
 
 **Last updated**: 2026-08-06 (from `apk info` output, 598 packages)
+**Summary table**: the condensed memory-safe alternatives table lives in `CONTEXT.md` ("Memory-Safe Alternatives") — this file is the detailed per-package inventory behind it.
 
 ## Summary
 
@@ -19,8 +20,6 @@ FeralOS replaces traditional C components with memory-safe alternatives where po
 | micro | Go | vim/nano (C) | Text editor |
 | ripgrep | Rust | grep (GNU C) | Fast grep |
 | fd | Rust | find (GNU C) | Fast find |
-| bat | Rust | cat (C) | Cat with syntax highlighting |
-| dust | Rust | du (C) | Disk usage |
 | bottom | Rust | top/htop (C) | Process monitor |
 | procs | Rust | ps (C) | Process viewer |
 | bandwhich | Rust | iftop/nethogs (C) | Bandwidth monitor |
@@ -53,7 +52,7 @@ FeralOS replaces traditional C components with memory-safe alternatives where po
 | musl-locales-lang | C | Locale data |
 | musl-fts | C | File tree traversal |
 | musl-obstack | C | Object stack |
-| openrc | C | Init system (future: dinit) |
+| openrc | C | Init system (dinit now shipped and selectable via `enableDinit`; OpenRC remains the fallback) |
 | openrc-user | C | User services |
 | mdev-conf | C | mdev configuration |
 | scanelf | C | ELF scanner |
@@ -64,7 +63,7 @@ FeralOS replaces traditional C components with memory-safe alternatives where po
 |---------|----------|-------|
 | fish | Rust | Friendly interactive shell (rewritten in Rust) |
 | fish-tools | Rust | Fish utilities |
-| less | C | Pager (dependency of bat; replaced with dummy package v999 using APK v3 mkpkg) |
+| less | C | Replaced by the `less-dummy` wrapper package v999 since 2026-10-09 — POSIX-sh wrapper that drops less flags and execs **moor** (Go, interactive pager: scroll/search/quit; passes content through on a pipe; since 2026-10-30 — the older `bat --paging=never` dump is obsolete, bat/dust removed: cat/du exist in uutils) |
 | readline | C | Line editing |
 | ncurses-terminfo | C | Terminal info |
 | ncurses-terminfo-base | C | Base terminfo |
@@ -355,17 +354,18 @@ These C packages remain because no memory-safe alternative exists or the compone
 
 ## Replacement Strategy
 
-1. **High priority**: uutils, sudo-rs, vector, micro, fish, ripgrep, fd, bat, bottom, procs, dust, bandwhich, gping, sd, viddy
+1. **High priority**: uutils, sudo-rs, vector, micro, fish, ripgrep, fd, moor, bottom, procs, bandwhich, gping, sd, viddy
 2. **Medium priority**: chrony → ntpd-rs (when packaged)
 3. **Low priority**: BusyBox (partially replaced by uutils)
 4. **No replacement**: musl, btrfs-progs, cryptsetup, QEMU, mesa, GTK
 
 ## Known Issues
 
-### Package Masking (Resolved)
+### Package Masking (Resolved — superseded 2026-10-09)
 - **Issue**: Alpine apk masking via `/etc/apk/world` conflicts with explicit package dependencies
-- **Example**: `bat` depends on `less` — masking `less` prevents `bat` from installing
-- **Resolution**: Replaced real `less` with dummy package (v999) using APK v3 `apk mkpkg`. Symlink `/usr/bin/less` → `/usr/bin/bat`. Installed before main `apk add`.
+- **Example**: the pager depends on `less` — masking `less` prevents the pager from installing
+- **Original resolution**: dummy `less` package (v999) with symlink `/usr/bin/less` → `/usr/bin/bat` — BROKEN in practice: bat re-execs its hardcoded `less -R` pager, hitting itself (`unexpected argument '-R'`).
+- **Current resolution**: `less-dummy` package (v999, r3) — regular-file POSIX-sh wrapper that DROPS less flags and execs **moor** (interactive pager; passes content through on a pipe; see the Shell & Terminal table). Symlink approach obsolete. The former `bat --paging=never` dump was replaced 2026-10-30 (bat/dust removed from the package lists — cat/du exist in uutils).
 
 ### Vector VRL Syntax Error (Fixed)
 - **Issue**: `parse_syslog(.message)` in syslog_parser transform is fallible
@@ -380,4 +380,4 @@ These C packages remain because no memory-safe alternative exists or the compone
 ### Ripgrep as grep Drop-in (Won't Fix)
 - **Issue**: ripgrep (`rg`) doesn't support POSIX BRE (`\+`)
 - **Root cause**: `efi-mkuki` uses `grep -q '^[0-9]\+\.[0-9][0-9A-Za-z_.-]*$'` for kernel version validation. `rg` uses Rust regex which doesn't support `\+`.
-- **Resolution**: Ripgrep NOT used as grep drop-in. Kept as optional interactive tool only. GNU grep removed — BusyBox grep provides POSIX BRE. Dummy packages only replace `less` → `bat` (true drop-in).
+- **Resolution**: Ripgrep NOT used as grep drop-in. Kept as optional interactive tool only. GNU grep removed — BusyBox grep provides POSIX BRE. Dummy packages only replace `less` → `moor` via the wrapper (true drop-in).

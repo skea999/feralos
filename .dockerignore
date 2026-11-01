@@ -1,0 +1,29 @@
+# Docker build context for the feralos-ci image (P0-3).
+# Keep the context small and secret-scan-clean: VCS state, harness artifacts
+# (multi-GB run disks/images) and local build outputs never enter the image.
+
+.git
+.agent-memory
+.agents
+.opencode
+.vscode
+
+# harness artifacts + VM images (gitignored, can be multi-GB)
+tests/artifacts
+tests/harness/cache
+tests/harness/work
+tests/harness/iso
+
+# local build outputs
+references
+*.qcow2
+*.iso
+feralos_installer*
+feralos_create_config
+feralos_secureboot
+feralos_tpm
+feralos_webmin
+skea_harness
+tests/harness/skea_harness
+tests/debug_run/debug_run
+node_modules

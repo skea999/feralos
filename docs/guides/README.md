@@ -10,6 +10,7 @@
 
 ## Desktop Application Guides
 
+- [`niriwayle.md`](./niriwayle.md) — **niriWayle desktop (flagship/recommended)**: niri compositor + Wayle shell (bar/notifications/OSD/wallpaper) + Veila lock screen + Raffi launcher + oo7 secrets (login auto-unlock via PAM, Key Rack GUI); session startup, PAM unlock chain, config paths, harness checks.
 - [`niri.md`](./niri.md) — **Niri wayland compositor**: greetd/regreet setup, niri configs, NetworkManager (lo-only interfaces + managed=true), wayvnc remote desktop (user dinit, loopback), DMS user-dinit service, /tmp exec + /var/tmp 1777, podman/webmin integration.
 - [`webmin.md`](./webmin.md) — **Webmin web administration (podman-based)**: podman container, compose with `read_only`+`tmpfs`, seed via webmin-seed, oneshot webmin-ensure, modules (firewall, packages, btrfs, smart, cron, logs), custom commands for btrbk/nix, Firefox PWA.
 - [`podman.md`](./podman.md) — **Podman rootless containers (btrfs driver)**: install, rootless config, `btrfs` storage via sed, `cgroups` service, Docker compatibility, volume management, Webmin integration.

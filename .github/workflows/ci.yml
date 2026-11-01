@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  # Full gate inside the feralos-ci image: gofmt + go vet + golangci-lint +
+  # go test + all binary builds + govulncheck + secret scan + shellcheck +
+  # docs checks (scripts/ci.sh mirrors .githooks/pre-commit).
+  validate:
+    name: gate (fmt+vet+lint+test+build+secrets+shellcheck+docs)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build CI image
+        run: docker build -t feralos-ci .
+      - name: Run gate
+        run: docker run --rm feralos-ci bash scripts/ci.sh
+
+  # Standalone ShellCheck job (same script list as scripts/ci.sh).
+  shellcheck:
+    name: shellcheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: ShellCheck project scripts
+        run: |
+          docker run --rm -v "$PWD:/mnt" --workdir /mnt koalaman/shellcheck:v0.10.0 \
+            setup.sh \
+            tests/harness/niri_realhw_check.sh \
+            tests/harness/debug_target_tpm_boot.sh \
+            tests/harness/debug.sh \
+            tests/harness/run_mcp.sh \
+            tests/harness/generate_mcp_config.sh \
+            scripts/history-scrub.sh \
+            scripts/ci.sh
+
+  # Standalone docs job: relative links + docs/ orphan report + AGENTS.md
+  # drift spot check.
+  docs:
+    name: docs check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build CI image
+        run: docker build -t feralos-ci .
+      - name: Docs link/orphan/drift check
+        run: docker run --rm feralos-ci bash scripts/docs_check.sh

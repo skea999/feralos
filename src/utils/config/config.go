@@ -93,8 +93,12 @@ type DynamicPackageRules struct {
 	FlatpakPackages []string          `yaml:"flatpakPackages"`
 	Groups          []string          `yaml:"groups"`
 	Services        map[string]string `yaml:"services"`
-	Modules         []string          `yaml:"modules"`
-	KernelCmdline   []string          `yaml:"kernelCmdline"`
+	// DinitServices enables dinit units whose names differ from the OpenRC
+	// service names (ADR-010: activation targets are named after their
+	// well-known D-Bus name; `services` keeps the OpenRC fallback names).
+	DinitServices map[string]string `yaml:"dinitServices"`
+	Modules       []string          `yaml:"modules"`
+	KernelCmdline []string          `yaml:"kernelCmdline"`
 }
 
 func LoadConfig(userPath string) (*Config, error) {
@@ -106,6 +110,8 @@ func LoadConfig(userPath string) (*Config, error) {
 	if err := yaml.Unmarshal(uData, conf); err != nil {
 		return nil, err
 	}
+
+	applyImpliedFlags(conf)
 
 	if err := LoadInternalRules(conf); err != nil {
 		return nil, err
@@ -121,9 +127,12 @@ func LoadConfig(userPath string) (*Config, error) {
 		conf.User.RunlevelsDinit[k] = v
 	}
 
-	// Input validation — reject shell metacharacters in fields that touch the shell
+	// Input validation — reject shell metacharacters in fields that touch the shell.
+	// Returns the partially-populated conf alongside the error: the caller
+	// (main.go) feeds it to the wizard pre-filled so the values can be fixed
+	// interactively instead of hard-stopping.
 	if err := validateConfig(conf); err != nil {
-		return nil, fmt.Errorf("input validation: %w", err)
+		return conf, fmt.Errorf("input validation: %w", err)
 	}
 
 	// LuksPassword fallback: use Login password if LUKS passphrase not set
@@ -166,24 +175,114 @@ func LoadInternalRules(conf *Config) error {
 	return yaml.Unmarshal(iData, &conf.Internal)
 }
 
+// applyImpliedFlags derives feature flags from the values that require them,
+// so a single YAML field is enough (no error asking for a second one).
+// extraPackagesEdge installs from the @edge tagged repos — those only exist
+// when enableEdgeRepos wrote them into /etc/apk/repositories, so the package
+// list implies the flag.
+func applyImpliedFlags(conf *Config) {
+	u := &conf.User
+	if len(u.ExtraPackagesEdge) > 0 && !u.EnableEdgeRepos {
+		u.EnableEdgeRepos = true
+		fmt.Println("[INFO] extraPackagesEdge set: enableEdgeRepos enabled automatically")
+	}
+}
+
+// ValidateConfig re-checks a configuration (exported for main.go, which runs
+// it after the wizard so invalid values never reach the disk phase).
+func ValidateConfig(conf *Config) error {
+	return validateConfig(conf)
+}
+
+// layoutUnencrypted is the only disk layout without a LUKS layer (the
+// password policy is skipped for it in validateConfig).
+const layoutUnencrypted = "btrfsUnencrypted"
+
+// validEnumValues returns the accepted values for a rules-driven enum field:
+// the internal_rules map keys (the wizard's option list) plus "none" and the
+// empty zero value — both mean "feature off" (logic.ApplyRules skips absent
+// map keys; desktops.Setup returns early for ""/none).
+func validEnumValues(m map[string]DynamicPackageRules) []string {
+	values := make([]string, 0, len(m)+2)
+	values = append(values, "", "none")
+	for key := range m {
+		values = append(values, key)
+	}
+	return values
+}
+
 // validateConfig rejects invalid values in user-provided fields.
 // Delegates to per-field validators in validators.go (shared with the wizard).
+// A hand-edited YAML gets the same scrutiny as the wizard:
+// enum fields, password policy, swap size and the required identity fields
+// are all enforced at load time instead of dying mid-install.
 func validateConfig(conf *Config) error {
 	u := &conf.User
+
+	// Enum fields. diskLayout must name a layout the installer switch
+	// implements; desktopEnvironment/videoDriver must be internal_rules keys
+	// or the synthetic off values. The rules-driven checks are guarded on a
+	// non-empty map: every real path (LoadConfig, main.go, the generator)
+	// loads internal_rules first — the guard only keeps validateConfig
+	// usable on a bare Config{} in tests.
+	if err := ValidateDiskLayout(u.DiskLayout); err != nil {
+		return err
+	}
+	if len(conf.Internal.DesktopEnvironments) > 0 {
+		if err := ValidateEnum("desktopEnvironment", u.DesktopEnvironment, validEnumValues(conf.Internal.DesktopEnvironments)); err != nil {
+			return err
+		}
+	}
+	if len(conf.Internal.VideoDrivers) > 0 {
+		if err := ValidateEnum("videoDriver", u.VideoDriver, validEnumValues(conf.Internal.VideoDrivers)); err != nil {
+			return err
+		}
+	}
+
+	// Required non-empty (both validators reject the empty string).
+	if err := ValidateUserName(u.UserName); err != nil {
+		return err
+	}
+	if err := ValidateHostname(u.Hostname); err != nil {
+		return err
+	}
+
+	// Password policy on encrypted layouts: the login password doubles as
+	// the LUKS passphrase fallback, so it must meet the strength rules and
+	// the effective LUKS passphrase (explicit or fallback) must be meta-free.
+	// btrfsUnencrypted has no LUKS layer — skipped there.
+	if u.DiskLayout != layoutUnencrypted {
+		if err := ValidatePassword(u.Password); err != nil {
+			return err
+		}
+		effectiveLuks := u.LuksPassword
+		if effectiveLuks == "" {
+			effectiveLuks = u.Password
+		}
+		if err := ValidateLuksPassword(effectiveLuks); err != nil {
+			return err
+		}
+	}
+
+	// Swap size syntax when swap is actually enabled (""/auto stay legal).
+	if u.EnableSwap {
+		if err := ValidateSwapSize(u.SwapSize); err != nil {
+			return err
+		}
+	}
 
 	if err := ValidateDisks(u.Disks); err != nil {
 		return err
 	}
-	if u.UserName != "" {
-		if err := ValidateUserName(u.UserName); err != nil {
-			return err
-		}
+	// locale/keymap via the shared validators (same meta rule — single
+	// source instead of the inline loop entries).
+	if err := ValidateLocale(u.Locale); err != nil {
+		return err
 	}
-	if u.Hostname != "" {
-		if err := ValidateHostname(u.Hostname); err != nil {
-			return err
-		}
+	if err := ValidateKeymap(u.Keymap); err != nil {
+		return err
 	}
+
 	if u.Timezone != "" {
 		if err := ValidateTimezone(u.Timezone); err != nil {
 			return err
@@ -194,10 +293,9 @@ func validateConfig(conf *Config) error {
 		{"userName", u.UserName},
 		{"hostname", u.Hostname},
 		{"timezone", u.Timezone},
-		{"locale", u.Locale},
-		{"keymap", u.Keymap},
 		{"password", u.Password},
 		{"luksPassword", u.LuksPassword},
+		{"sshAuthorizedKey", u.SshAuthorizedKey},
 	} {
 		if err := hasShellMeta(v.name, v.value); err != nil {
 			return err
@@ -208,11 +306,6 @@ func validateConfig(conf *Config) error {
 	}
 	if err := ValidateExtraPackages(u.ExtraPackagesEdge); err != nil {
 		return err
-	}
-	// extraPackagesEdge installs from the @edge tagged repos — those only
-	// exist when enableEdgeRepos wrote them into /etc/apk/repositories.
-	if len(u.ExtraPackagesEdge) > 0 && !u.EnableEdgeRepos {
-		return fmt.Errorf("extraPackagesEdge requires enableEdgeRepos: true (@edge tagged repos)")
 	}
 
 	// Runtime rule fields (populated by logic.ApplyRules, not wizard-editable)

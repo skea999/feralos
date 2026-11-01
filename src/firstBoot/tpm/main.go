@@ -13,6 +13,13 @@ import (
 	"feralos/src/utils/shell"
 )
 
+// Standalone binary: duplicated consts are intentional (firstBoot standalone
+// policy — each binary is self-sufficient; P3-7 const-ified within the file).
+const (
+	installConfigPath   = "/opt/feralos/config.yaml"
+	apkRepositoriesFile = "/etc/apk/repositories"
+)
+
 // InstallConfig matches the YAML written by hostPhase/features/install_config.go
 type InstallConfig struct {
 	DiskLayout string   `yaml:"disk_layout"`
@@ -26,7 +33,7 @@ type InstallConfig struct {
 
 func loadConfig() *InstallConfig {
 	cfg := &InstallConfig{}
-	data, err := os.ReadFile("/opt/feralos/config.yaml")
+	data, err := os.ReadFile(installConfigPath)
 	if err != nil {
 		// Fallback: parse kernel cmdline
 		uuids := getLUKSUUIDsFromCmdline()
@@ -199,9 +206,9 @@ func getPassphraseFile() (string, string) {
 
 func installClevis() {
 	// Read mirror from apk/repositories
-	repos, err := os.ReadFile("/etc/apk/repositories")
+	repos, err := os.ReadFile(apkRepositoriesFile)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "WARNING: cannot read /etc/apk/repositories: %v\n", err)
+		fmt.Fprintf(os.Stderr, "WARNING: cannot read %s: %v\n", apkRepositoriesFile, err)
 		return
 	}
 
@@ -228,7 +235,7 @@ func installClevis() {
 	edgeRepos := fmt.Sprintf("@edge %s/edge/main\n@edge %s/edge/community\n@edge %s/edge/testing",
 		mirrorBase, mirrorBase, mirrorBase)
 
-	f, err := os.OpenFile("/etc/apk/repositories", os.O_APPEND|os.O_WRONLY, 0o644)
+	f, err := os.OpenFile(apkRepositoriesFile, os.O_APPEND|os.O_WRONLY, 0o644)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "WARNING: cannot open repositories: %v\n", err)
 		return
@@ -260,7 +267,7 @@ func removeFromWorld(pkg string) {
 }
 
 func removeEdgeRepos() {
-	data, err := os.ReadFile("/etc/apk/repositories")
+	data, err := os.ReadFile(apkRepositoriesFile)
 	if err != nil {
 		return
 	}
@@ -270,7 +277,7 @@ func removeEdgeRepos() {
 			lines = append(lines, line)
 		}
 	}
-	_ = os.WriteFile("/etc/apk/repositories", []byte(strings.Join(lines, "\n")), 0o600) //nolint:gosec // /etc/apk/repositories is system-readable
+	_ = os.WriteFile(apkRepositoriesFile, []byte(strings.Join(lines, "\n")), 0o600) //nolint:gosec // /etc/apk/repositories is system-readable
 }
 
 func removeTemporaryKey(passFile string, uuids []string) {

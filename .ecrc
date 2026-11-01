@@ -1,0 +1,12 @@
+{
+  "Exclude": [
+    ".agents/",
+    ".opencode/",
+    ".git/",
+    "artifacts/",
+    "references/",
+    "handoff/",
+    "state/",
+    ".agent-memory/"
+  ]
+}

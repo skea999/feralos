@@ -163,6 +163,7 @@ qemu_log="$session_dir/qemu.log"
 qmp_sock="$socket_dir/qmp.sock"
 serial_sock="$socket_dir/serial.sock"
 
+# shellcheck disable=SC2054  # QEMU -global/-chardev/-qmp take ONE comma-separated key=value argument each
 qemu_args=(
   -name "$name_prefix"
   -machine q35,smm=on

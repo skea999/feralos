@@ -6,7 +6,7 @@
 
 Separate Go module `feralos/tests/harness` (`tests/harness/go.mod`, Go 1.22).
 
-```
+```text
 tests/harness/
 ├── cmd/skea_harness/main.go      # CLI: flag parsing, detectRepoRoot, cleanupVMs, printUsage
 ├── internal/

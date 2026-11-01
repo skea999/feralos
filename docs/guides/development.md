@@ -16,7 +16,7 @@ Ref: `AGENTS.md#Naming Conventions`.
 
 ## Module Map
 
-```
+```text
 src/
 ├── main.go                          # entry only — collect config, delegate
 ├── variables/ (variables.yaml, internal_rules.yaml)
@@ -121,7 +121,17 @@ No backward compat. Breaking changes allowed without fallback (e.g., `internal_r
 ```bash
 # vet + lint (native Linux, pre-commit does this)
 cd src && go vet ./...
-cd src && golangci-lint run ./...
+cd src && golangci-lint run ./...   # incl. wastedassign + nakedret; revive disabled (var-naming false-positives on camelCase package names = project convention)
+
+# static analysis suite (ursine pattern; same checks as scripts/ci.sh,
+# configs at repo root, tool versions pinned in the Dockerfile lint-tools)
+yamllint -c .yamllint.yml src/variables/internal_rules.yaml \
+  src/variables/variables.yaml tests/fixtures/variables/*.yaml   # BLOCKING
+gitleaks detect --source . --config .gitleaks.toml --no-banner --redact  # BLOCKING (history; no .git -> `gitleaks dir .`)
+typos --config typos.toml --format brief .                       # warn-only
+markdownlint-cli2 "docs/**/*.md" "*.md"                          # warn-only
+ec --config .ecrc .                                              # warn-only
+taplo lint --config taplo.toml .gitleaks.toml typos.toml         # warn-only, taplo optional
 
 # build
 cd src && go build -o ../feralos_installer .
@@ -138,7 +148,7 @@ cd tests/harness && go test ./...
 cd tests/harness
 ./skea_harness prepare-runner
 ./skea_harness run -f ~/Progetti/feralos/src/variables/variables.yaml
-./skea_harness run -f tests/fixtures/variables/btrfs_raid0_minimal.yaml  # 28 fixtures, full template mirror
+./skea_harness run -f tests/fixtures/variables/btrfs_raid0_minimal.yaml  # 30 fixtures, full template mirror
 ./skea_harness status && ./skea_harness cleanup
 
 # artifacts (gitignored): tests/artifacts/{feralos_create_config,harness}/{cache,prepare,runs,state}
@@ -152,5 +162,5 @@ Conventional Commits: `feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `chore:` +
 
 - `AGENTS.md` — all rules (source)
 - `docs/INSTALLER.md` — flow + structure
-- `docs/architecture/isolation.md`, `logging.md`, `feature_confinement.md`, `storage.md`, `firstboot.md`
+- `docs/architecture/isolation.md`, `logging.md`, `feature_confinement.md`, `storage.md`, `firstboot.md`, `dbus-activation.md`, `boot-oneshots.md`
 - `docs/adr/README.md` — ADRs 001-006

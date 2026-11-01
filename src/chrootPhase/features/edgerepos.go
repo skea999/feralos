@@ -6,6 +6,10 @@ import (
 	"fmt"
 )
 
+// apkRepositoriesFile is the guest apk repository list this feature appends
+// to and comments back out (P3-7: repeated path → const).
+const apkRepositoriesFile = "/etc/apk/repositories"
+
 // SetupEdgeRepos installs the extraPackagesEdge packages from the @edge
 // tagged repositories, in a controlled 3-step sequence at the very end of
 // the package flow:
@@ -31,7 +35,7 @@ func SetupEdgeRepos(conf *config.Config) error {
 	// 1. add the tagged @edge repositories
 	fmt.Println("[INFO] Adding @edge repositories...")
 	edgeRepos := fmt.Sprintf("@edge %s/edge/main\n@edge %s/edge/community\n@edge %s/edge/testing", conf.User.Mirror, conf.User.Mirror, conf.User.Mirror)
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("printf '%%s\n' '%s' >> /etc/apk/repositories", edgeRepos)); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("printf '%%s\n' '%s' >> %s", edgeRepos, apkRepositoriesFile)); err != nil {
 		return fmt.Errorf("failed to add edge repositories: %w", err)
 	}
 
@@ -43,7 +47,7 @@ func SetupEdgeRepos(conf *config.Config) error {
 	}
 
 	// 3. comment the @edge repositories out
-	if _, err := shell.ExecuteCmd(chroot, "sed -i 's/^@edge /# @edge /' /etc/apk/repositories"); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("sed -i 's/^@edge /# @edge /' %s", apkRepositoriesFile)); err != nil {
 		return fmt.Errorf("failed to comment edge repositories: %w", err)
 	}
 

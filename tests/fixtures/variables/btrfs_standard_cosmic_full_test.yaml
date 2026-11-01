@@ -2,7 +2,7 @@
 variables:
   unattended: true
   ignoreErrors: true
-  enableEdgeRepos: false
+  enableEdgeRepos: true
   disks:
   - /dev/sda
   userName: skea999
@@ -24,12 +24,12 @@ variables:
   enableTPM: true
   enableHardening: true
   enableZswap: true
-  enableNix: false
+  enableNix: true
   enableSwap: true
   swapSize: auto
   enableDebug: true
-  enablePodman: false
-  enableWebmin: false
+  enablePodman: true
+  enableWebmin: true
   webminListenAll: false
   enableDinit: true
   extraPackages:

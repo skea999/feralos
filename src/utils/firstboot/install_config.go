@@ -9,6 +9,11 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// InstallConfigPath is the in-guest location of the install config
+// (/opt/feralos/config.yaml). The firstBoot standalone binaries duplicate
+// the const by policy (self-sufficient binaries) — keep the values in sync.
+const InstallConfigPath = "/opt/feralos/config.yaml"
+
 // InstallConfig is the configuration written to /opt/feralos/config.yaml
 // during installation. FirstBoot binaries read this to understand the
 // disk layout and LUKS configuration without parsing kernel cmdline.
@@ -67,7 +72,7 @@ func WriteInstallConfig(conf *config.Config) error {
 	}
 
 	// Write config via heredoc + chmod 0600
-	cfgPath := chroot + "/opt/feralos/config.yaml"
+	cfgPath := chroot + InstallConfigPath
 	writeCmd := fmt.Sprintf("cat > %s <<'FERA_EOF'\n%s\nFERA_EOF", cfgPath, string(data))
 	if _, err := shell.ExecuteCmd("", writeCmd); err != nil {
 		return fmt.Errorf("failed to write install config: %w", err)
@@ -76,6 +81,6 @@ func WriteInstallConfig(conf *config.Config) error {
 		return fmt.Errorf("failed to chmod install config: %w", err)
 	}
 
-	fmt.Printf("[INFO] Install config written: %s/opt/feralos/config.yaml\n", chroot)
+	fmt.Printf("[INFO] Install config written: %s%s\n", chroot, InstallConfigPath)
 	return nil
 }

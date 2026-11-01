@@ -24,14 +24,17 @@ variables:
   enableTPM: true
   enableHardening: true
   enableZswap: true
-  enableNix: false
+  enableNix: true
   enableSwap: true
   swapSize: auto
   enableDebug: true
   enablePodman: true
-  enableWebmin: false
+  enableWebmin: true
   webminListenAll: false
   enableDinit: true
+  flatpakPackages:
+  - io.github.zarestia_dev.rclone-manager
+  - com.github.tchx84.Flatseal
   extraPackages:
   - okular
   extraPackagesEdge:

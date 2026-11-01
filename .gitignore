@@ -49,6 +49,9 @@ tests/artifacts/**/*
 !tests/artifacts/**/.gitkeep
 !tests/artifacts/feralos_create_config/.gitkeep
 
+# Local working artifacts (generated assets, candidates)
+/artifacts/
+
 *.qcow2
 *.iso
 

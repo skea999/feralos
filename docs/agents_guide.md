@@ -17,7 +17,7 @@ In opencode CLI press `Tab` and select an agent. These are the 6 you can pick:
 
 ## Daily workflow
 
-```
+```text
 Small task:    select build or @codebase
 Need analysis: select plan or @planner first
 Legal check:   select @legal-advisor
@@ -26,7 +26,7 @@ Everything else: @name when really needed
 
 ### Example
 
-```
+```text
 1. Tab → select @planner
    "plan a checkout feature"
 

@@ -4,7 +4,6 @@ import (
 	"feralos/src/utils/config"
 	"feralos/src/utils/shell"
 	"fmt"
-	"strings"
 )
 
 // SetupNiri configures the niri desktop environment:
@@ -62,8 +61,10 @@ exec niri -- regreet
 	}
 
 	// 3. regreet config — timezone from user variables
+	// Wallpaper: the FeralOS default (installed by installBrandingAssets in
+	// step 3a below — the path must match its 1080p target).
 	regreetConf := fmt.Sprintf(`[background]
-path = "/usr/share/wallpapers/default.png"
+path = "/usr/share/wallpapers/feralos-default.png"
 fit = "Contain"
 
 [GTK]
@@ -89,6 +90,13 @@ timezone = "%s"
 		return fmt.Errorf("write regreet config: %w", err)
 	}
 
+	// 3a. Branding — FeralOS logo (system hicolor icon) + default wallpapers
+	// (the regreet background above + ultrawide variant). Cosmetic: never
+	// fatal.
+	if err := installBrandingAssets(chroot); err != nil {
+		fmt.Printf("[WARNING] Branding assets not installed (non-fatal): %v\n", err)
+	}
+
 	// 4. greeter user + dirs. greetd apk does not create the 'greeter' user.
 	// The greeter's niri reads its config from its HOME (per-home, not
 	// /etc/xdg — gap 5.7): overlay off at the login screen (round 14).
@@ -104,7 +112,17 @@ hotkey-overlay {
     skip-at-startup
 }
 `, u.Keymap)
-	if _, err := shell.ExecuteCmd(chroot, "getent passwd greeter >/dev/null 2>&1 || adduser -D -s /bin/sh -h /var/lib/greetd greeter"); err != nil {
+	// -S (system user, UID 100-999): ReGreet 0.2.0 lists /etc/passwd users
+	// with UID in [UID_MIN, UID_MAX] (1000-60000 per /etc/login.defs) —
+	// without -S the greeter account (UID 1001) shows up as a login option.
+	// System UIDs are filtered out. GOTCHA: busybox adduser -S without -G
+	// defaults the primary group to "nogroup" and creates NO same-name
+	// group (loginutils/adduser.c: usegroup = "nogroup"), breaking the
+	// later chown greeter:greeter — so create the system group explicitly
+	// and pass -G. Side effects checked: turnstile spawns the user dinit
+	// for any non-root login (greeter included); explicit -s /bin/sh
+	// overrides the busybox system-user /bin/false default.
+	if _, err := shell.ExecuteCmd(chroot, "getent passwd greeter >/dev/null 2>&1 || { getent group greeter >/dev/null 2>&1 || addgroup -S greeter; adduser -S -G greeter -D -s /bin/sh -h /var/lib/greetd greeter; }"); err != nil {
 		return fmt.Errorf("create greeter user: %w", err)
 	}
 	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /var/lib/greetd/.config/niri"); err != nil {
@@ -141,8 +159,8 @@ hotkey-overlay {
 	// (pam_env in the turnstiled PAM stack) + the niri config environment
 	// block below.
 	environmentFile := fmt.Sprintf(`XDG_SESSION_DESKTOP=niri
-XDG_DATA_DIRS=/home/%s/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share:/usr/share
-`, u.UserName)
+XDG_DATA_DIRS=/home/%s/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share:/usr/share:/home/%s/.nix-profile/share
+`, u.UserName, u.UserName)
 	if err := writeFile(chroot, "/etc/environment", environmentFile); err != nil {
 		return fmt.Errorf("write /etc/environment: %w", err)
 	}
@@ -164,7 +182,15 @@ org.freedesktop.impl.portal.ScreenCast=wlr;
 	// Session services live in the user dinit instance started by turnstile
 	// at login; RustDesk removed — remote desktop = wayvnc (user dinit
 	// service, round 37/43).
-	userNiri := fmt.Sprintf(`input {
+	userNiri := fmt.Sprintf(`// CSD off (Windows-like): niri asks apps to omit client-side titlebars —
+// window controls live on the DMS bar (dms-window-buttons widget) plus keys
+// (Mod+Q close / Mod+F maximize / Mod+Shift+F fullscreen). DMS's own embedded
+// niri config ships prefer-no-csd active too. Caveats (niri docs): floating
+// windows lose resize handles — resize with Mod+right-click; apps must be
+// restarted for the change to apply.
+prefer-no-csd
+
+input {
     keyboard {
         xkb {
             rules "evdev"
@@ -178,15 +204,23 @@ environment {
     XDG_SESSION_TYPE "wayland"
     XDG_SESSION_DESKTOP "niri"
     XDG_CURRENT_DESKTOP "niri"
-    XDG_DATA_DIRS "/home/%s/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share:/usr/share"
+    XDG_DATA_DIRS "/home/%s/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share:/usr/share:/home/%s/.nix-profile/share"
     QT_QPA_PLATFORM "wayland"
-    QT_QPA_PLATFORMTHEME "gtk3"
+    QT_QPA_PLATFORMTHEME "xdgdesktopportal"
+    // Hard override: Qt drops client-side decorations (niri's prefer-no-csd
+    // also works via xdg-decoration negotiation; this env guarantees it —
+    // value must be numeric "1", "true" parses to 0 and does NOT disable).
+    QT_WAYLAND_DISABLE_WINDOWDECORATION "1"
     ELECTRON_OZONE_PLATFORM_HINT "auto"
     SDL_VIDEO_DRIVER "wayland"
     CLUTTER_BACKEND "wayland"
     _JAVA_AWT_WM_NONREPARENTING "1"
     WINIT_WAYLAND_NO_AVOID_RESIZE "1"
 }
+
+// NOTE: no hotkey-overlay skip-at-startup here — the "Important Hotkeys"
+// overlay is wanted (user request; shows the keybind cheatsheet at login).
+// Do not add a skip block.
 
 // --- XWayland for X11 apps ---
 xwayland-satellite {
@@ -203,7 +237,7 @@ spawn-at-startup "sh" "-c" "command -v xdg-user-dirs-update >/dev/null 2>&1 && x
 include "dms/binds.kdl"
 include "dms/layout.kdl"
 include "dms/colors.kdl"
-`, u.Keymap, u.UserName)
+`, u.Keymap, u.UserName, u.UserName)
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p /home/%s/.config/niri", u.UserName)); err != nil {
 		return fmt.Errorf("mkdir user niri config dir: %w", err)
 	}
@@ -227,6 +261,148 @@ include "dms/colors.kdl"
 		if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("su - %s -c 'dms setup %s'", u.UserName, setup)); err != nil {
 			fmt.Printf("[WARNING] dms setup %s failed: %v\n", setup, err)
 		}
+	}
+	// DMS theme seed: green (Settings → Theme & Colors → Generic grid), bar
+	// on TOP. settings.json does not exist until DMS's first launch —
+	// writing it pre-seeds the keys DMS loads and merges on startup. Bar
+	// position uses the v1→v2 MIGRATION path (configVersion 1): DMS builds
+	// the FULL default barConfigs itself — seeding a partial barConfigs
+	// would replace the whole default array (raw assignment, no deep merge)
+	// and break the bar, and duplicating the full default would drift with
+	// DMS versions. dankBarLeftWidgets swaps the focused-window widget for
+	// running apps; dankBarRightWidgets pins the right section + appends the
+	// dmsWindowButtons plugin (Windows-style maximize/fullscreen/close for
+	// the focused window — system-wide plugin under
+	// /etc/xdg/quickshell/dms-plugins, package dms-window-buttons).
+	dmsSettingsDir := fmt.Sprintf("/home/%s/.config/DankMaterialShell", u.UserName)
+	// DMS reboot fix (no elogind rebuild): DMS runs `loginctl reboot`
+	// (isElogind branch) → elogind execs the ABSOLUTE /sbin/reboot (busybox)
+	// → SIGTERM to dinit → dinit overwrites the shutdown type REBOOT→HALT =
+	// machine halts, never reboots (poweroff survives: busybox SIGUSR2 is
+	// ignored by dinit; diagnosis: run 2026-10-11T20-38-40Z live test).
+	// SessionService (1.6.2) runs `customPowerActionReboot` as the session
+	// user via `sh -c` → `sudo -n /usr/bin/reboot` = our dinit wrapper,
+	// NOPASSWD-granted to wheel for this exact binary (below). Wired only
+	// under dinit (the wrapper is dinit's; OpenRC keeps loginctl default).
+	settingsJSON := "{\n  \"configVersion\": 1,\n  \"currentThemeCategory\": \"generic\",\n  \"currentThemeName\": \"green\",\n  \"dankBarLeftWidgets\": [\"launcherButton\", \"workspaceSwitcher\", \"runningApps\"],\n  \"dankBarRightWidgets\": [\"systemTray\", \"clipboard\", \"cpuUsage\", \"memUsage\", \"notificationButton\", \"battery\", \"controlCenterButton\", \"dmsWindowButtons\"],\n  \"updaterUseCustomCommand\": true,\n  \"updaterCustomCommand\": \"/usr/local/bin/feralos-update\""
+	if u.EnableDinit {
+		settingsJSON += ",\n  \"customPowerActionReboot\": \"sudo -n /usr/bin/reboot\""
+	}
+	settingsJSON += "\n}\n"
+	if err := writeFile(chroot, fmt.Sprintf("%s/settings.json", dmsSettingsDir), settingsJSON); err != nil {
+		return fmt.Errorf("seed DMS settings.json: %w", err)
+	}
+	if u.EnableDinit {
+		// NOPASSWD for the dinit reboot wrapper only (wheel = admin already;
+		// reboot is no privilege escalation — same posture as the polkit
+		// login1 rule). sudo-rs reads /etc/sudoers.d. FILENAME MUST SORT
+		// AFTER "wheel": sudo-rs applies the LAST matching rule, and
+		// /etc/sudoers.d/wheel (`%wheel ALL=(ALL) ALL`, password) would
+		// otherwise override the NOPASSWD tag (live-caught via debug_run
+		// 2026-10-11: `sudo -l` showed the rule but execution asked auth).
+		if err := writeFile(chroot, "/etc/sudoers.d/zz-power", "%wheel ALL=(root) NOPASSWD: /usr/bin/reboot\n"); err != nil {
+			return fmt.Errorf("write sudoers power rule: %w", err)
+		}
+		if _, err := shell.ExecuteCmd(chroot, "chmod 440 /etc/sudoers.d/zz-power"); err != nil {
+			return fmt.Errorf("chmod sudoers power rule: %w", err)
+		}
+	}
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("chown %s:%s '%s/settings.json'", u.UserName, u.UserName, dmsSettingsDir)); err != nil {
+		return fmt.Errorf("chown DMS settings.json: %w", err)
+	}
+	// DMS plugin seed: enable the window-buttons plugin. Widget plugins are
+	// DISABLED by default (PluginService: getPluginSetting(id, "enabled",
+	// false)); the file is a bare map { "<pluginId>": { ... } } (verified
+	// against 1.6.2 SettingsData.parsePluginSettings).
+	pluginSettings := "{\n  \"dmsWindowButtons\": {\n    \"enabled\": true\n  }\n}\n"
+	if err := shell.WriteFile(chroot, dmsSettingsDir+"/plugin_settings.json", []byte(pluginSettings), 0644); err != nil {
+		return fmt.Errorf("seed DMS plugin_settings.json (window buttons): %w", err)
+	}
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("chown %s:%s '%s/plugin_settings.json'", u.UserName, u.UserName, dmsSettingsDir)); err != nil {
+		return fmt.Errorf("chown DMS plugin_settings.json: %w", err)
+	}
+	// DMS dark mode seed (belt+braces): fresh installs already default dark
+	// (SharedSessionSpec.js isLightMode def=false; PortalService applies mode
+	// changes only after the first read), but the explicit seed guarantees
+	// dark portal-independently. Session store = XDG state dir, NOT config.
+	dmsStateDir := fmt.Sprintf("/home/%s/.local/state/DankMaterialShell", u.UserName)
+	sessionJSON := "{\n  \"isLightMode\": false\n}\n"
+	if err := shell.WriteFile(chroot, dmsStateDir+"/session.json", []byte(sessionJSON), 0644); err != nil {
+		return fmt.Errorf("seed DMS session.json (dark mode): %w", err)
+	}
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("chown %s:%s '%s/session.json'", u.UserName, u.UserName, dmsStateDir)); err != nil {
+		return fmt.Errorf("chown DMS session.json: %w", err)
+	}
+	// DMS default apps: the Settings → Default Apps tab is a frontend for the
+	// freedesktop defaults — terminal via ~/.config/xdg-terminals.list
+	// (xdg-terminal-exec; DMS writes `<Id>.desktop` lines), everything else
+	// via ~/.config/mimeapps.list [Default Applications] (DMS reads/writes it
+	// through DesktopService). Seeding the standard files = DMS shows the
+	// values as set on first launch. Desktop IDs verified against Alpine
+	// (pkgs.alpinelinux.org contents): firefox.desktop, org.gnome.eog.desktop
+	// (NOT eog.desktop), com.system76.CosmicPlayer.desktop, Alacritty.desktop.
+	// MIME lists = DMS DefaultAppsTab.mimeMapping verbatim.
+	if err := writeFile(chroot, fmt.Sprintf("/home/%s/.config/xdg-terminals.list", u.UserName), "Alacritty.desktop"); err != nil {
+		return fmt.Errorf("seed default terminal (Alacritty): %w", err)
+	}
+	// NOTE: no manual theme seeds here (no kdeglobals/gtk settings.ini/dconf
+	// color-scheme/flatpak overrides) — the DMS plugin `dms-theme-sync`
+	// (third-party, GPL-3.0) is the theming authority: it propagates the
+	// DMS appearance (mode/colors/icons) to GTK, Qt, KDE, Flatpak. Manual
+	// seeds would conflict with it. The plugin + enablement are installed
+	// separately (see the plugin round).
+	// gsettings INFRASTRUCTURE kept (not a theme override): Alpine's dconf
+	// package ships NO /etc/dconf/profile/user (Debian ships it) — without
+	// the profile GLib never consults the user/system dbs and `gsettings
+	// get` returns schema defaults, verified live. `dconf update` compiles
+	// the (empty) system db so user-level writes from the plugin take
+	// effect immediately. Alpine's dconf also ships NO /etc/dconf at all
+	// (verified: apk add dconf in a clean container) — `dconf update` errors
+	// "Error opening directory /etc/dconf/db" without the system-db:local
+	// dir, so create it (harness run 2026-10-12T22-09-52Z caught the failure
+	// after the former seed write stopped creating it as a side effect).
+	dconfProfile := "user-db:user\nsystem-db:local\n"
+	if err := writeFile(chroot, "/etc/dconf/profile/user", dconfProfile); err != nil {
+		return fmt.Errorf("seed dconf profile: %w", err)
+	}
+	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /etc/dconf/db/local.d"); err != nil {
+		return fmt.Errorf("create dconf system db dir: %w", err)
+	}
+	if _, err := shell.ExecuteCmd(chroot, "dconf update"); err != nil {
+		return fmt.Errorf("dconf update: %w", err)
+	}
+	mimeapps := `[Default Applications]
+x-scheme-handler/https=firefox.desktop
+x-scheme-handler/http=firefox.desktop
+text/html=firefox.desktop
+application/xhtml+xml=firefox.desktop
+image/png=org.gnome.eog.desktop
+image/jpeg=org.gnome.eog.desktop
+image/gif=org.gnome.eog.desktop
+image/bmp=org.gnome.eog.desktop
+image/webp=org.gnome.eog.desktop
+image/avif=org.gnome.eog.desktop
+image/svg+xml=org.gnome.eog.desktop
+image/tiff=org.gnome.eog.desktop
+image/heic=org.gnome.eog.desktop
+image/heif=org.gnome.eog.desktop
+image/jxl=org.gnome.eog.desktop
+	audio/mpeg=com.system76.CosmicPlayer.desktop
+audio/x-flac=com.system76.CosmicPlayer.desktop
+audio/wav=com.system76.CosmicPlayer.desktop
+audio/ogg=com.system76.CosmicPlayer.desktop
+audio/aac=com.system76.CosmicPlayer.desktop
+audio/webm=com.system76.CosmicPlayer.desktop
+x-scheme-handler/geo=org.gnome.Maps.desktop
+text/calendar=org.gnome.Calendar.desktop
+x-scheme-handler/calendar=org.gnome.Calendar.desktop
+x-scheme-handler/webcal=org.gnome.Calendar.desktop
+x-scheme-handler/webcals=org.gnome.Calendar.desktop`
+	if err := writeFile(chroot, fmt.Sprintf("/home/%s/.config/mimeapps.list", u.UserName), mimeapps); err != nil {
+		return fmt.Errorf("seed default apps (mimeapps.list): %w", err)
+	}
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("chown %s:%s '/home/%s/.config/xdg-terminals.list' '/home/%s/.config/mimeapps.list'", u.UserName, u.UserName, u.UserName, u.UserName)); err != nil {
+		return fmt.Errorf("chown default app seeds: %w", err)
 	}
 	// DMS 1.6 layout template emits `background-effect { xray false }` — a
 	// niri node added after 25.11 (ext-background-effect-v1, unsupported by
@@ -330,28 +506,54 @@ exec /usr/bin/xdg-su "$@"
 	}
 
 	// 12. turnstiled — system service: the PAM module talks to it over its
-	// socket; it spawns the per-user dinit at login. Symlink into boot.d
-	// (admin dir; FeralOS dinit runs as PID1 with enableDinit).
-	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /etc/dinit.d/boot.d && test -f /etc/dinit.d/turnstiled && ln -sf /etc/dinit.d/turnstiled /etc/dinit.d/boot.d/turnstiled || true"); err != nil {
-		fmt.Printf("[WARNING] Failed to enable turnstiled: %v\n", err)
+	// socket; it spawns the per-user dinit at login.
+	//   dinit  — boot.d symlink (active-init enablement; FeralOS dinit = PID1)
+	//   OpenRC — ALWAYS enabled, never conditional: a dinit install must stay
+	//            bootable under OpenRC (fallback). The service ships in the
+	//            turnstile-openrc subpackage (same daemon, same dinit user
+	//            backend — turnstile is service-manager-agnostic).
+	if u.EnableDinit {
+		if _, err := shell.ExecuteCmd(chroot, "mkdir -p /etc/dinit.d/boot.d && test -f /etc/dinit.d/turnstiled && ln -sf /etc/dinit.d/turnstiled /etc/dinit.d/boot.d/turnstiled || true"); err != nil {
+			fmt.Printf("[WARNING] Failed to enable turnstiled: %v\n", err)
+		}
+	}
+	if _, err := shell.ExecuteCmd(chroot, "rc-update add turnstiled default"); err != nil {
+		fmt.Printf("[WARNING] Failed to enable turnstiled (OpenRC): %v\n", err)
 	}
 
-	// 13. user session services: enable them in boot.d of the primary user
-	// service dir (/usr/lib/dinit.d/user; turnstile's dinit backend also
-	// scans /etc/dinit.d/user, where packages install their files).
+	// 13. user session services: enable INFRASTRUCTURE services in boot.d of
+	// the primary user service dir (/usr/lib/dinit.d/user; turnstile's dinit
+	// backend also scans /etc/dinit.d/user, where packages install their
+	// files). Session apps (polkit-agent/dms/wayvnc) are NOT enabled here —
+	// upstream "add-wants niri.service" model: niri-session starts them
+	// after niri (aports niri-user-dinit), so the greetd greeter session
+	// (greeter.sh, which never runs niri-session) never gets desktop apps.
 	// Existence-filtered — only installed packages get enabled.
-	userServices := "dbus.user pipewire.user pipewire-pulse.user wireplumber.user wait-wayland.user polkit-agent.user dms.user wayvnc.user"
+	userServices := "dbus.user pipewire.user pipewire-pulse.user wireplumber.user wait-wayland.user org.freedesktop.portal.Desktop.user org.freedesktop.portal.Documents.user org.freedesktop.impl.portal.PermissionStore.user"
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p /usr/lib/dinit.d/user/boot.d && for s in %s; do [ -f /etc/dinit.d/user/$s ] && ln -sf /etc/dinit.d/user/$s /usr/lib/dinit.d/user/boot.d/$s; done", userServices)); err != nil {
 		fmt.Printf("[WARNING] Failed to enable user dinit services: %v\n", err)
+	}
+
+	// 14. Final ownership sweep — user-reported: seeded configs were
+	// root-owned in places. The per-seed chowns cover the FILES, but the
+	// DIRECTORIES created by the seeds' mkdir run as root (the general
+	// chown -R at step 13 runs BEFORE the seeds), leaving e.g.
+	// ~/.config/DankMaterialShell, ~/.config/gtk-4.0 and
+	// ~/.local/state/DankMaterialShell root-owned → DMS (user) could not
+	// create/save files there. Sweep AFTER every seed.
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("chown -R %s:%s /home/%s/.config /home/%s/.local", u.UserName, u.UserName, u.UserName, u.UserName)); err != nil {
+		return fmt.Errorf("final chown user config: %w", err)
 	}
 
 	fmt.Println("[INFO] niri desktop environment configured.")
 	return nil
 }
 
-// writeFile writes a file inside the chroot via shell (echo pattern).
+// writeFile writes a file inside the chroot (logged direct write — logging
+// rule amendment P2-5: the escaped `echo '<content>' > path` pattern is gone;
+// the log carries path + size, never the content). The trailing newline
+// reproduces the old `echo` byte-for-byte. Files needing another mode are
+// chmod'ed by the caller right after (unchanged behavior).
 func writeFile(chroot, path, content string) error {
-	escaped := strings.ReplaceAll(content, "'", "'\\''")
-	_, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p \"$(dirname '%s')\" && echo '%s' > '%s'", path, escaped, path))
-	return err
+	return shell.WriteFile(chroot, path, []byte(content+"\n"), 0644)
 }

@@ -20,7 +20,7 @@ Ref: `AGENTS.md#Architecture Principle`.
 
 Brief tree — full tree in `docs/INSTALLER.md#Project Structure`:
 
-```
+```text
 feralos_installer/
 ├── src/
 │   ├── main.go, go.mod, variables.yaml
@@ -43,7 +43,7 @@ feralos_installer/
 │       ├── features/ (hardening.go, zswap.go, nix.go, ...)
 │       └── desktops/ (desktops.go)
 ├── tests/
-│   ├── fixtures/variables/ (28 fixtures, full template mirror)
+│   ├── fixtures/variables/ (30 fixtures, full template mirror)
 │   ├── harness/ (cmd/skea_harness, internal/)
 │   └── artifacts/ (gitignored)
 ├── docs/ (PROJECT.md, INSTALLER.md, guides/, architecture/, adr/, harness/, intent/, ideas/)

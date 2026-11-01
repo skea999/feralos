@@ -1,0 +1,68 @@
+[files]
+extend-exclude = [
+  ".git/**",
+  "artifacts/**",
+  ".agents/**",
+  ".opencode/**",
+  "references/**",
+  "handoff/**",
+  "state/**",
+  ".agent-memory/**",
+  "Cargo.lock",
+  "go.sum",
+]
+
+[default]
+extend-ignore-identifiers-re = [
+  "feralos.*",
+  "skea999",
+  "dms.*",
+  "wayle.*",
+  "raffi.*",
+  "veila.*",
+  "oo7.*",
+  "stasis.*",
+  "matugen.*",
+  "niri.*",
+  "cosmic.*",
+  "dinit.*",
+  "turnstiled.*",
+  "elogind.*",
+  "greetd.*",
+  "regreet.*",
+  "booster.*",
+  "btrbk.*",
+  "apk.*",
+]
+
+[default.extend-words]
+feralos = "feralos"
+ursine = "ursine"
+ursined = "ursined"
+dms = "dms"
+wayle = "wayle"
+raffi = "raffi"
+veila = "veila"
+oo7 = "oo7"
+stasis = "stasis"
+matugen = "matugen"
+niri = "niri"
+dinit = "dinit"
+apk = "apk"
+flatpak = "flatpak"
+musl = "musl"
+kwin = "kwin"
+wayland = "wayland"
+qemu = "qemu"
+swtpm = "swtpm"
+# correction MUST equal the key (case-insensitive) to whitelist; a differing
+# value marks the word as a typo (the ursine `ovmf = "OVMF"` form flagged every
+# OVMF occurrence on typos v1.51.1).
+ovmf = "ovmf"
+# project vocabulary: POSIX BRE (regex flavor), dinitctl catlog (command),
+# "[r]etry" prompt bracket-split artifact, Italian quotes in AGENTS.md history
+bre = "bre"
+catlog = "catlog"
+etry = "etry"
+stati = "stati"
+polkit = "polkit"

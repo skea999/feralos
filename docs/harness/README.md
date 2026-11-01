@@ -17,6 +17,6 @@
 ## Quick links
 
 - Code: `tests/harness/cmd/skea_harness/main.go`, `tests/harness/internal/service/service.go`
-- Fixtures: `tests/fixtures/variables/` (28 fixtures, all mirror the full `src/variables/variables.yaml` template field set; `tests/fixtures/variables/README.md`)
+- Fixtures: `tests/fixtures/variables/` (30 fixtures, all mirror the full `src/variables/variables.yaml` template field set; `tests/fixtures/variables/README.md`)
 - Artifacts root: `tests/artifacts/harness/` (see [artifacts.md](artifacts.md))
 - Harness shim: `tests/harness/README.md`

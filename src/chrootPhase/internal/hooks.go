@@ -43,10 +43,11 @@ if [ "${STAGE}" = "post-commit" ] && [ "${APK_COMMAND}" = "${targetCmd}" ]; then
 fi
 
 exit 0`
-	escapedHook := strings.ReplaceAll(efiHook, "'", "'\\''")
-	hookCmd := fmt.Sprintf("mkdir -p /etc/apk/commit_hooks.d && echo '%s' > /etc/apk/commit_hooks.d/copy-efi.sh && chmod 755 /etc/apk/commit_hooks.d/copy-efi.sh", escapedHook)
-	if _, err := shell.ExecuteCmd(chroot, hookCmd); err != nil {
+	if err := shell.WriteFile(chroot, "/etc/apk/commit_hooks.d/copy-efi.sh", []byte(efiHook+"\n"), 0644); err != nil {
 		return fmt.Errorf("failed to write EFI sync hook: %w", err)
+	}
+	if _, err := shell.ExecuteCmd(chroot, "chmod 755 /etc/apk/commit_hooks.d/copy-efi.sh"); err != nil {
+		return fmt.Errorf("failed to chmod EFI sync hook: %w", err)
 	}
 
 	fmt.Println("[INFO] EFI sync hook written (dual-disk post-upgrade sync)")

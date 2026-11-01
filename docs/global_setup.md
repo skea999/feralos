@@ -50,7 +50,7 @@ opencode v1.15.13 requires `tools` in agent YAML frontmatter to be an **object**
 
 The upstream cavecrew agent files still use the array format, which causes `ConfigInvalidError` on startup:
 
-```
+```text
 Error: Configuration is invalid at ~/.config/opencode/agents/cavecrew-reviewer.md
 ↳ Expected object | undefined, got ["Read","Grep","Bash"] tools
 ```
@@ -144,7 +144,7 @@ Current full config:
 
 ## 5. Context7 MCP
 
-Configured in `opencode.json` (`mcp.context7` section). Requires a valid API key from https://context7.com.
+Configured in `opencode.json` (`mcp.context7` section). Requires a valid API key from <https://context7.com>.
 
 ## 6. Permission Configuration
 

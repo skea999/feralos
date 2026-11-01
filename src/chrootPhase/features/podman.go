@@ -27,27 +27,26 @@ func SetupPodman(conf *config.Config) error {
 
 	fmt.Println("[INFO] Configuring Podman rootless containers...")
 
-	// Enable services — OpenRC runlevels only under OpenRC. Under dinit the
-	// rules-driven enablement (podman-dinit service + chimera cgroups) owns
-	// this; rc-update symlinks would be dead weight.
-	if !conf.User.EnableDinit {
-		if _, err := shell.ExecuteCmdArgs(chroot, "rc-update", "add", "podman", "default"); err != nil {
-			fmt.Printf("[WARNING] Failed to add podman to default runlevel: %v\n", err)
-		}
+	// Enable services — OpenRC runlevels are ALWAYS configured, never
+	// conditional: a dinit install must stay bootable under OpenRC (the
+	// symlinks are inert under dinit; podman-dinit + chimera cgroups drive
+	// the active dinit side).
+	if _, err := shell.ExecuteCmdArgs(chroot, "rc-update", "add", "podman", "default"); err != nil {
+		fmt.Printf("[WARNING] Failed to add podman to default runlevel: %v\n", err)
+	}
 
-		// Enable cgroups (required by podman)
-		if _, err := shell.ExecuteCmdArgs(chroot, "rc-update", "add", "cgroups", "default"); err != nil {
-			fmt.Printf("[WARNING] Failed to add cgroups to default runlevel: %v\n", err)
-		}
+	// Enable cgroups (required by podman)
+	if _, err := shell.ExecuteCmdArgs(chroot, "rc-update", "add", "cgroups", "default"); err != nil {
+		fmt.Printf("[WARNING] Failed to add cgroups to default runlevel: %v\n", err)
 	}
 
 	// Configure subuid/subgid for rootless containers
 	subuidContent := fmt.Sprintf("%s:100000:65536\n", u.UserName)
 	subgidContent := fmt.Sprintf("%s:100000:65536\n", u.UserName)
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/subuid", subuidContent)); err != nil {
+	if err := shell.WriteFile(chroot, "/etc/subuid", []byte(subuidContent+"\n"), 0644); err != nil {
 		return fmt.Errorf("failed to write /etc/subuid: %w", err)
 	}
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("echo '%s' > /etc/subgid", subgidContent)); err != nil {
+	if err := shell.WriteFile(chroot, "/etc/subgid", []byte(subgidContent+"\n"), 0644); err != nil {
 		return fmt.Errorf("failed to write /etc/subgid: %w", err)
 	}
 
