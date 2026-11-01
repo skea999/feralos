@@ -167,6 +167,42 @@ environment.
 - session side: `$XDG_RUNTIME_DIR/dbus-1/services/<Name>.service` (materialized
   at login by `dbus-session`); no helper — `Exec=` runs directly.
 
+## Supervision audit — `feralos-dbus-audit` (enforcement tool)
+
+Standalone Go binary (`src/firstBoot/dbus-audit/` in the feralos repo,
+packaged as `feralos-dbus-audit` in feralos-aports, `/usr/libexec/feralos/feralos-dbus-audit`)
+that turns the ADR-010 rule into a machine-checkable report:
+
+- scans `/usr/share/dbus-1/services/*.service` (session activation
+  inventory), parses `Name=` (bus name) + `Exec=` (binary); placeholder
+  Execs (`/bin/false`/`/bin/true` upstream systemd traps) are skipped,
+  documented exemptions (e.g. `org.kde.kcookiejar5` — no unit possible on
+  Alpine 3.24) are builtin.
+- for every target checks BOTH unit-naming conventions in
+  `/etc/dinit.d/user/`: the canonical bus name (`org.freedesktop.secrets.user`)
+  and the service name (`pipewire.user`) → OK when either exists.
+- missing unit → `apk search` for `<bin>-user-dinit` / `<bus>-user-dinit`
+  → found: `apk add` + re-verify (FIXED); not found: MISS line
+  ("no *-user-dinit package for <bin> — create it in aports").
+- core session infra boot.d check (report-only): dbus, pipewire,
+  pipewire-pulse, wireplumber, wait-wayland, oo7/portal units must be
+  linked in `/usr/lib/dinit.d/user/boot.d` (or `/etc/.../boot.d`) WHEN
+  installed; `polkit-agent`/`wayvnc` are session-scoped (started by the
+  session script, never boot-linked — session-apps model) and are only
+  reported. Exit code is NOT affected by this section.
+- also reports the user's materialized session overrides
+  (`$XDG_RUNTIME_DIR/dbus-1/services`) for visibility.
+- runs in three modes: install-time (tail of chrootPhase, AFTER all
+  installations incl. nix/flatpak — the apk fallback can fix gaps on the
+  spot), boot-time (dinit oneshot + OpenRC initd, both `local.target`-
+  ordered because the report lands in the `@var-log` subvol;
+  `--log-file /var/log/feralos-dbus-audit.log`), CLI manual.
+- flags: `--log-file <path>` (boot mode), `--user <name>` (report
+  annotation + runtime override check; units are system-wide).
+- **exit code: 0 all covered, 1 = at least one target has no
+  *-user-dinit package** — CI/installer consumers use it to catch aports
+  gaps; the installer treats exit 1 as a WARNING (never fails the install).
+
 ## Inventory / status (tracking)
 
 | Target | Bus | Unit | Status |

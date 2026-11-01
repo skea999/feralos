@@ -8,9 +8,14 @@ chrootDir: "/mnt"
 #       — the launch helper's FIRST eligible dir — before dbus starts. Enabled
 #       on both inits (OpenRC initd + dinit unit, same name); no-op when no
 #       overrides are installed.
+# NOTE: feralos-dbus-audit (boot list): ADR-010 supervision audit oneshot —
+#       at boot it re-runs the activation-target audit and writes the report
+#       to /var/log/feralos-dbus-audit.log (the installer runs the same
+#       audit at the tail of chrootPhase; the aports package ships the
+#       binary + both oneshot units).
 defaultRunlevels:
   sysinit: ["devfs", "dmesg", "sysctl", "sysfs"]
-  boot: ["hwclock", "hostname", "bootmisc", "binfmt", "fsck", "root", "procfs", "loadkmap", "localmount", "klogd", "dbus-services-setup"]
+  boot: ["hwclock", "hostname", "bootmisc", "binfmt", "fsck", "root", "procfs", "loadkmap", "localmount", "klogd", "dbus-services-setup", "feralos-dbus-audit"]
   default: ["cgroups", "cpufrequtils", "networking"]
   shutdown: ["mount-ro", "killprocs", "savecache"]
 
@@ -118,6 +123,11 @@ standardPackages:
   # activatable). Installed everywhere; the setup unit is enabled on both
   # inits and no-ops without overrides.
   - feralos-dbus-activate
+  # ADR-010 enforcement: supervision audit binary + boot oneshot units
+  # (dinit unit + OpenRC initd in the package). The installer also builds
+  # the binary from source at the tail of chrootPhase (freshest) — this
+  # package guarantees the units + binary exist for post-install/CLI use.
+  - feralos-dbus-audit
   - shadow
   - eudev
   - udev-init-scripts

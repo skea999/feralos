@@ -115,6 +115,14 @@ func Run(conf *config.Config) error {
 		return fmt.Errorf("UKI build failed: %w", err)
 	}
 
+	// 16. D-Bus supervision audit (ADR-010 enforcement, non-fatal) — runs
+	// AFTER all installations (nix/flatpak included) so every activation
+	// file is on disk and the *-user-dinit apk fallback can install missing
+	// units. Exit 1 (aports gap) is a WARNING, never an install failure.
+	if err := internal.SetupDbusAudit(conf); err != nil {
+		fmt.Printf("[WARNING] D-Bus audit: %v\n", err)
+	}
+
 	fmt.Println("[INFO] ChrootPhase.Run completed successfully.")
 	return nil
 }
