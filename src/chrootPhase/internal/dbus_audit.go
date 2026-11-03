@@ -11,14 +11,14 @@ import (
 // SetupDbusAudit builds the feralos-dbus-audit binary host-side (same
 // pattern as the firstboot buildBinary helper) into the chroot at
 // /usr/libexec/feralos/feralos-dbus-audit, then runs the install-time
-// audit INSIDE the chroot — AFTER all package installations (nix/flatpak
-// included), so the apk fallback can pull a missing *-user-dinit package
-// right here. The aports package (same name) ships the binary for
-// post-install use plus the boot oneshot units; the installer build
-// overwrites it with the freshest binary before the audit runs.
-// Non-fatal by design: exit 1 (activation targets with no *-user-dinit
-// package) is a WARNING — the tool's job is to surface aports gaps, not
-// abort installs.
+// audit INSIDE the chroot with --no-fail — AFTER all package installations
+// (nix/flatpak included), so the auto-installer can pull supervision
+// packages right here. --no-fail = the audit never blocks the install
+// (report + MISS lines only); the post-install/boot signal stays strict
+// (exit 1, the oneshot marks itself FAILED so the user notices aports
+// gaps). The aports package (same name) ships the binary for post-install
+// use plus the boot oneshot units; the installer build overwrites it with
+// the freshest binary before the audit runs.
 func SetupDbusAudit(conf *config.Config) error {
 	shell.SetCaller("dbus_audit")
 	chroot := conf.Internal.ChrootDir
@@ -42,17 +42,18 @@ func SetupDbusAudit(conf *config.Config) error {
 	}
 	fmt.Printf("[INFO] feralos-dbus-audit binary: %s\n", binPath)
 
-	// FULL path (bare name is not on the chroot's PATH lookup). The
-	// trailing marker `; echo FERALOS_AUDIT_EXIT=$?` captures the REAL
-	// exit code from stdout: ExecuteCmd's error return cannot gate
-	// success here — the harness always sets SKEA_IGNORE_ERRORS=1 (and
-	// the interactive [i]gnore / noninteractive skip paths do the same),
-	// so a failing binary (exit 127 glibc-on-musl, or the designed
-	// exit-1 aports gap) returned nil and the old code printed the false
-	// "all activation targets supervised". The wrapper command itself
-	// always exits 0, which also keeps the 3-retry loop from re-running
-	// the audit.
-	out, err := shell.ExecuteCmd(chroot, "/usr/libexec/feralos/feralos-dbus-audit; echo FERALOS_AUDIT_EXIT=$?")
+	// FULL path (bare name is not on the chroot's PATH lookup). --no-fail:
+	// the audit ALWAYS exits 0 in installer mode — an extra package without
+	// a ready *-user-dinit must never stop an interactive install (the dbus
+	// raw-exec fallback keeps the system working until the supervision
+	// package lands in aports; the boot oneshot + CLI stay strict — exit 1,
+	// dinit marks the oneshot FAILED at boot, so the user notices). The
+	// trailing marker `; echo FERALOS_AUDIT_EXIT=$?` still captures the REAL
+	// exit code from stdout for diagnostics and keeps the wrapper itself at
+	// exit 0 (ExecuteCmd never sees a failure; the 3-retry loop never
+	// re-runs the audit). The report is complete either way — MISS lines
+	// name every gap.
+	out, err := shell.ExecuteCmd(chroot, "/usr/libexec/feralos/feralos-dbus-audit --no-fail; echo FERALOS_AUDIT_EXIT=$?")
 	if err != nil {
 		return fmt.Errorf("failed to run feralos-dbus-audit: %w", err)
 	}

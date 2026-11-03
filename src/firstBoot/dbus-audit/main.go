@@ -44,10 +44,14 @@
 //     writes the report to /var/log/feralos-dbus-audit.log via --log-file
 //   - CLI manual: plain invocation, structured report on stdout
 //
-// Exit code: 0 = every activation target is covered (unit exists, or the
-// supervision package was found and installed); 1 = at least one target has
-// no supervision package at all (an aports gap — CI/CI-like consumers use
-// this to catch regressions).
+// Exit code: the INSTALLER passes --no-fail → always 0 (an extra package
+// without a ready *-user-dinit must never stop an interactive install; the
+// dbus raw-exec fallback keeps the system working until the supervision
+// package lands in aports). Every other mode (boot oneshot, CLI, CI
+// consumers) stays STRICT: 0 = every activation target is covered, 1 = at
+// least one target has no supervision package (an aports gap — the
+// post-install signal the user must notice: the boot oneshot marks itself
+// FAILED and the report lands in /var/log/feralos-dbus-audit.log).
 //
 // Stdlib-only binary (the utils/shell import is part of the module): no new
 // third-party dependencies.
@@ -172,6 +176,7 @@ func (r *reporter) line(format string, a ...any) {
 func main() {
 	logFile := flag.String("log-file", "", "also write the report to this file (boot mode)")
 	userName := flag.String("user", "", "session user for the report (default: $USER; units are system-wide, this only annotates the report and the runtime override check)")
+	noFail := flag.Bool("no-fail", false, "report only: always exit 0 (installer mode) — without it a missing supervision package exits 1")
 	flag.Parse()
 
 	shell.SetCaller("dbus-audit")
@@ -202,6 +207,9 @@ func main() {
 	exitCode := auditActivationTargets(rep)
 	checkCoreBootd(rep)
 	reportSessionOverrides(rep, *userName)
+	if *noFail {
+		exitCode = 0
+	}
 
 	if logF != nil {
 		_ = logF.Close()

@@ -225,9 +225,15 @@ enforces the allowlist).
   `--log-file /var/log/feralos-dbus-audit.log`), CLI manual.
 - flags: `--log-file <path>` (boot mode), `--user <name>` (report
   annotation + runtime override check; units are system-wide).
-- **exit code: 0 all covered, 1 = at least one target has no supervision
-  package** — CI/installer consumers use it to catch aports gaps; the
-  installer treats exit 1 as a WARNING (never fails the install).
+- **exit code — strict by default (boot oneshot, CLI, CI consumers): 0 all
+  covered, 1 = at least one target has no supervision package.** That 1 is
+  the post-install signal the user must notice: the dinit oneshot marks
+  itself FAILED at boot and the report lands in
+  `/var/log/feralos-dbus-audit.log`. The INSTALLER passes `--no-fail`
+  (always exit 0): an extra package without a ready `*-user-dinit` must
+  never stop an interactive install — the dbus raw-exec fallback keeps the
+  system working until the supervision package lands in aports, and the
+  next boot's audit installs it automatically.
 
 ## Inventory / status (tracking)
 
