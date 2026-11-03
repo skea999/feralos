@@ -2,6 +2,7 @@ package internal
 
 import (
 	"fmt"
+	"strings"
 
 	"feralos/src/utils/config"
 	"feralos/src/utils/shell"
@@ -27,7 +28,12 @@ func SetupDbusAudit(conf *config.Config) error {
 		return fmt.Errorf("failed to create /usr/libexec/feralos: %w", err)
 	}
 
-	buildCmd := fmt.Sprintf("cd src && go build -o %s ./firstBoot/dbus-audit/", binPath)
+	// CGO_ENABLED=0: the installer host is Debian (glibc); a CGO build
+	// links glibc dynamically and the binary dies with exit 127 on the
+	// musl Alpine target. GOOS/GOARCH pinned to the x86_64 Alpine target
+	// (same arch as the feralos-aports repo). The binary is stdlib+shell
+	// only — CGO adds nothing.
+	buildCmd := fmt.Sprintf("cd src && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o %s ./firstBoot/dbus-audit/", binPath)
 	if _, err := shell.ExecuteCmd("", buildCmd); err != nil {
 		return fmt.Errorf("failed to build feralos-dbus-audit binary: %w", err)
 	}
@@ -36,10 +42,37 @@ func SetupDbusAudit(conf *config.Config) error {
 	}
 	fmt.Printf("[INFO] feralos-dbus-audit binary: %s\n", binPath)
 
-	if _, err := shell.ExecuteCmd(chroot, "feralos-dbus-audit"); err != nil {
-		fmt.Printf("[WARNING] feralos-dbus-audit: %v — activation targets lack a *-user-dinit package (create the units in feralos-aports)\n", err)
-		return nil
+	// FULL path (bare name is not on the chroot's PATH lookup). The
+	// trailing marker `; echo FERALOS_AUDIT_EXIT=$?` captures the REAL
+	// exit code from stdout: ExecuteCmd's error return cannot gate
+	// success here — the harness always sets SKEA_IGNORE_ERRORS=1 (and
+	// the interactive [i]gnore / noninteractive skip paths do the same),
+	// so a failing binary (exit 127 glibc-on-musl, or the designed
+	// exit-1 aports gap) returned nil and the old code printed the false
+	// "all activation targets supervised". The wrapper command itself
+	// always exits 0, which also keeps the 3-retry loop from re-running
+	// the audit.
+	out, err := shell.ExecuteCmd(chroot, "/usr/libexec/feralos/feralos-dbus-audit; echo FERALOS_AUDIT_EXIT=$?")
+	if err != nil {
+		return fmt.Errorf("failed to run feralos-dbus-audit: %w", err)
 	}
-	fmt.Println("[INFO] feralos-dbus-audit: all activation targets supervised")
+	auditExit := -1
+	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "FERALOS_AUDIT_EXIT=") {
+			if _, serr := fmt.Sscanf(line, "FERALOS_AUDIT_EXIT=%d", &auditExit); serr != nil {
+				auditExit = -1
+			}
+			break
+		}
+	}
+	switch auditExit {
+	case 0:
+		fmt.Println("[INFO] feralos-dbus-audit: all activation targets supervised")
+	case 1:
+		fmt.Println("[WARNING] feralos-dbus-audit: exit 1 — activation targets lack a supervision package (MISS lines above; create/rename it in feralos-aports, daemon apk name + -user-dinit/-dinit)")
+	default:
+		fmt.Printf("[WARNING] feralos-dbus-audit: exit %d — binary failed to run (check the report above)\n", auditExit)
+	}
 	return nil
 }

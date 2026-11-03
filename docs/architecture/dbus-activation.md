@@ -133,9 +133,15 @@ environment.
    `depends="feralos-dbus-activate"`, pkgrel bump, sha512sums. No materializer
    change needed — `dbus-services-setup` / `dbus-session` pick up new files
    automatically.
-4. `internal_rules.yaml`: package list += the `-dinit` package; `dinitServices`
-   += the unit name (only when it differs from the OpenRC script name);
-   `services` += the OpenRC name (only when an OpenRC script exists).
+4. **NEVER** add the supervision package to `internal_rules.yaml` — R1b names
+   it after the daemon's apk package (`<owner-of-Exec>-user-dinit` /
+   `<owner-of-Exec>-dinit`) and `feralos-dbus-audit` installs it at install
+   time (chroot step 8a). In aports, name the package after the daemon's apk
+   package (NOT the bus name — a bus name is an API identity: two daemons can
+   claim one name, e.g. `org.freedesktop.secrets` = gnome-keyring/oo7) and
+   `provides=` the bus names when the daemon serves several activation files
+   (e.g. `plasma-kauth-dinit`). `services` += the OpenRC name (only when an
+   OpenRC script exists and the service must be boot-enabled).
 5. Harness: `dbus_activation_uniform` covers the override automatically
    (packaged sources + boot materialization + upstream coverage on dinit); add
    the unit to the per-DE service lists when it must be boot-enabled.
@@ -167,23 +173,37 @@ environment.
 - session side: `$XDG_RUNTIME_DIR/dbus-1/services/<Name>.service` (materialized
   at login by `dbus-session`); no helper — `Exec=` runs directly.
 
-## Supervision audit — `feralos-dbus-audit` (enforcement tool)
+## Supervision audit — `feralos-dbus-audit` (auto-installer + enforcement)
 
 Standalone Go binary (`src/firstBoot/dbus-audit/` in the feralos repo,
 packaged as `feralos-dbus-audit` in feralos-aports, `/usr/libexec/feralos/feralos-dbus-audit`)
-that turns the ADR-010 rule into a machine-checkable report:
+that turns the ADR-010 rule into the AUTO-INSTALL mechanism (R1b,
+2026-11-03): it discovers every activation target and installs its
+supervision package, so `internal_rules.yaml` carries no `*-dinit`
+supervision packages at all (the go-test guard in `src/utils/config`
+enforces the allowlist).
 
-- scans `/usr/share/dbus-1/services/*.service` (session activation
-  inventory), parses `Name=` (bus name) + `Exec=` (binary); placeholder
-  Execs (`/bin/false`/`/bin/true` upstream systemd traps) are skipped,
-  documented exemptions (e.g. `org.kde.kcookiejar5` — no unit possible on
-  Alpine 3.24) are builtin.
-- for every target checks BOTH unit-naming conventions in
-  `/etc/dinit.d/user/`: the canonical bus name (`org.freedesktop.secrets.user`)
-  and the service name (`pipewire.user`) → OK when either exists.
-- missing unit → `apk search` for `<bin>-user-dinit` / `<bus>-user-dinit`
-  → found: `apk add` + re-verify (FIXED); not found: MISS line
-  ("no *-user-dinit package for <bin> — create it in aports").
+- scans BOTH upstream activation inventories — session
+  `/usr/share/dbus-1/services/*.service` AND system
+  `/usr/share/dbus-1/system-services/*.service` (the same enumeration as the
+  harness `dbus_activation_migration` check) — parses `Name=` (bus name) +
+  `Exec=` (binary path); placeholder Execs (`/bin/false`/`/bin/true` upstream
+  systemd traps) are skipped, documented exemptions (e.g.
+  `org.kde.kcookiejar5` — no unit possible on Alpine 3.24) are builtin.
+- for every target checks the unit-existence paths (session:
+  `/etc/dinit.d/user/<bus>.user` and `<bin>.user`; system: `<bus>`/`<bin>`
+  under `/lib/dinit.d`, `/usr/lib/dinit.d`, `/etc/dinit.d`) **plus** the
+  packaged FeralOS override (`/usr/share/feralos/dbus-services` /
+  `dbus-system-services`): the override's shim Exec aliases the bus name
+  onto the unit it starts (e.g. `org.freedesktop.login1` → `elogind`) → OK
+  when any path exists.
+- missing unit → resolve + `apk add` the supervision package, candidates in
+  order: `<who-owns(Exec)>-user-dinit`/`-dinit` (the daemon's apk package —
+  disambiguates same-API daemons like `org.freedesktop.secrets` and covers
+  multi-target daemons like plasma-workspace/kio with zero splits), then
+  `<bus>-user-dinit`/`-dinit` (resolves `provides=` aliases, e.g. the
+  plasma-kauth bus names). Installed + unit re-verified → FIXED; no package
+  → MISS line ("create it in aports — package = daemon apk name + suffix").
 - core session infra boot.d check (report-only): dbus, pipewire,
   pipewire-pulse, wireplumber, wait-wayland, oo7/portal units must be
   linked in `/usr/lib/dinit.d/user/boot.d` (or `/etc/.../boot.d`) WHEN
@@ -192,16 +212,18 @@ that turns the ADR-010 rule into a machine-checkable report:
   reported. Exit code is NOT affected by this section.
 - also reports the user's materialized session overrides
   (`$XDG_RUNTIME_DIR/dbus-1/services`) for visibility.
-- runs in three modes: install-time (tail of chrootPhase, AFTER all
-  installations incl. nix/flatpak — the apk fallback can fix gaps on the
-  spot), boot-time (dinit oneshot + OpenRC initd, both `local.target`-
+- runs in three modes: install-time (chroot_phase step 8a — AFTER all
+  installations incl. nix/flatpak, BEFORE the `@edge` install at step 8b,
+  because that step comments the `@edge` repos out and would hard-fail the
+  audit's `apk add` fallback against a `mesa@edge` world — the fallback
+  can fix gaps on the spot against stable-only repos), boot-time (dinit oneshot + OpenRC initd, both `local.target`-
   ordered because the report lands in the `@var-log` subvol;
   `--log-file /var/log/feralos-dbus-audit.log`), CLI manual.
 - flags: `--log-file <path>` (boot mode), `--user <name>` (report
   annotation + runtime override check; units are system-wide).
-- **exit code: 0 all covered, 1 = at least one target has no
-  *-user-dinit package** — CI/installer consumers use it to catch aports
-  gaps; the installer treats exit 1 as a WARNING (never fails the install).
+- **exit code: 0 all covered, 1 = at least one target has no supervision
+  package** — CI/installer consumers use it to catch aports gaps; the
+  installer treats exit 1 as a WARNING (never fails the install).
 
 ## Inventory / status (tracking)
 

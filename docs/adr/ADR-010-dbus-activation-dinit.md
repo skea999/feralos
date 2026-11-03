@@ -1,7 +1,7 @@
 # ADR-010: D-Bus activation routes through dinit services
 
 **Status:** Accepted
-**Date:** 2026-10-18
+**Date:** 2026-10-18 (amended 2026-10-25 R1; 2026-11-03 R1b package naming + audit auto-install)
 
 ## Context
 
@@ -23,7 +23,8 @@ implements the full mechanism itself.
 
 ## Decision
 
-Two universal rules, enforced by the harness:
+Two activation rules (R1 naming, R2 activation) plus the package-naming rule
+(R1b) — enforced by the harness checks and the install-time audit:
 
 **R1 — naming (amended 2026-10-25; the original blanket bus-name rule is
 superseded).** The unit name follows **who activates the service in FeralOS**:
@@ -57,6 +58,38 @@ Rules of thumb for future agents:
   the bus-name convention to system services; that created the `dinitServices`
   patchwork and a boot failure (cosmic-greeter r5, wrong unit name), and was
   rolled back to the classification above.
+
+**R1b — supervision package naming (2026-11-03, user decision).** The aports
+package that ships an activation unit is named after the **daemon's apk
+package** — the package that owns the activation file's `Exec=` binary — never
+after the bus name:
+
+| class | unit | package |
+|---|---|---|
+| session dbus-only | `<bus>.user` | `<daemon-apk-pkg>-user-dinit` |
+| system dbus-only (never boot-enabled) | `<bus>` | `<daemon-apk-pkg>-dinit` |
+| system boot-enabled (an OpenRC initd exists) | initd name | `<initd>-dinit` — unchanged |
+| non-activatable infra | service name | current names — unchanged |
+
+Rationale: a bus name is an **API identity, not a daemon identity** — multiple
+implementations can claim one name (`org.freedesktop.secrets` = gnome-keyring
+on niri, oo7 on niriWayle; each needs its own unit package, impossible when the
+package name is the bus name), and one daemon can serve many activation files
+(plasma-workspace: six `.service` files, one daemon package). The daemon
+package is derivable mechanically from data already on disk:
+`apk info --who-owns <Exec path>`.
+
+**Auto-install contract (2026-11-03).** The supervision packages are **never
+listed in `internal_rules.yaml`**. `feralos-dbus-audit` (install-time, chroot
+step 8a, after ALL package installs) discovers every activation target from
+the standard servicedirs (session `/usr/share/dbus-1/services` + system
+`/usr/share/dbus-1/system-services` — same enumeration as the harness
+`dbus_activation_migration` check), resolves the supervision package per
+target — candidates in order: `<who-owns(Exec)>`, then the bus name (resolves
+`provides=` aliases, e.g. the plasma-kauth bus names) — `apk add`s it, and
+reports MISS with exit 1 for aports gaps (installer: non-fatal WARNING). The
+boot-enabled initd-name services and the non-activatable infra stay in the
+rules/service maps as before.
 
 **R2 — activation.** The effective D-Bus service file carries
 `Exec=/usr/libexec/feralos/dbus-activate <unit> -- <upstream exec...>`.
@@ -134,7 +167,9 @@ the shim.
 
 - Every activated process is supervised (restart policy, dependencies, logging).
 - One uniform mechanism, one helper, one naming convention; new services follow
-  the checklist in `docs/architecture/dbus-activation.md`.
+  the checklist in `docs/architecture/dbus-activation.md`. The supervision
+  package takes the daemon's name (R1b) and is auto-installed by
+  `feralos-dbus-audit` — never listed in the rules.
 - We maintain the override files (data only) and the shim; no dbus fork.
 - `dbus_activation_uniform` harness check enforces the rule on the target
   (fails if any effective `.service` does not route through the shim or its unit
