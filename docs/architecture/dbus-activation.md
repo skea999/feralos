@@ -139,9 +139,13 @@ environment.
    time (chroot step 8a). In aports, name the package after the daemon's apk
    package (NOT the bus name — a bus name is an API identity: two daemons can
    claim one name, e.g. `org.freedesktop.secrets` = gnome-keyring/oo7) and
-   `provides=` the bus names when the daemon serves several activation files
-   (e.g. `plasma-kauth-dinit`). `services` += the OpenRC name (only when an
-   OpenRC script exists and the service must be boot-enabled).
+   when the daemon serves several activation files (e.g. `plasma-kauth-dinit`)
+   declare **VERSIONED** provides for the alias names:
+   `provides="gnome-calendar-user-dinit=${pkgver}-r${pkgrel} …"` — apk treats
+   UNVERSIONED provides as virtual and `apk add <alias>` refuses to select
+   the provider (harness run 2026-11-03T22-09-15Z, 6 gaps proved it).
+   `services` += the OpenRC name (only when an OpenRC script exists and the
+   service must be boot-enabled).
 5. Harness: `dbus_activation_uniform` covers the override automatically
    (packaged sources + boot materialization + upstream coverage on dinit); add
    the unit to the per-DE service lists when it must be boot-enabled.
