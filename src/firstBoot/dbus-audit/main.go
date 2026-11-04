@@ -294,8 +294,22 @@ func scanTargets(scope dbusScope, dir string) []dbusService {
 			continue
 		}
 		if isPlaceholderExec(svc.exec) {
-			fmt.Printf("SKIP   %s: placeholder Exec (%s) — systemd-only upstream trap\n", svc.file, svc.exec)
-			continue
+			// systemd-only trap (Exec=/bin/false). NOT skippable when WE
+			// ship the activation route: the packaged FeralOS override
+			// replaces the trap at login/boot (e.g. oo7-server's
+			// org.freedesktop.secrets trap on niriWayle — our override
+			// execs the real daemon through the shim; niri's gnome-keyring
+			// ships a real upstream file, which is why that DE never hit
+			// this). Re-derive the target from the override's upstream
+			// exec so who-owns resolution works.
+			if upstream := overrideUpstreamExec(&svc); upstream != "" {
+				svc.exec = upstream
+				svc.execPath = execPathFromExec(upstream)
+				svc.bin = filepath.Base(svc.execPath)
+			} else {
+				fmt.Printf("SKIP   %s: placeholder Exec (%s) — systemd-only upstream trap\n", svc.file, svc.exec)
+				continue
+			}
 		}
 		if exemptNames[svc.name] {
 			fmt.Printf("EXEMPT %s (%s): no unit possible upstream (documented)\n", svc.file, svc.name)
@@ -410,6 +424,35 @@ func overrideUnit(t *dbusService) string {
 		return ""
 	}
 	return shimUnit(svc.exec)
+}
+
+// overrideUpstreamExec returns the upstream exec stored in the packaged
+// FeralOS override for a target (the part after the shim's `--`) or "".
+// Placeholder-trap targets (Exec=/bin/false upstream) use this: the
+// override is the real activation route and its upstream exec identifies
+// the daemon binary for who-owns resolution.
+func overrideUpstreamExec(t *dbusService) string {
+	dir := sessionOverridesDir
+	if t.scope == scopeSystem {
+		dir = systemOverridesDir
+	}
+	return upstreamExecFromOverride(dir, t.name)
+}
+
+// upstreamExecFromOverride reads <dir>/<busName>.service and returns the
+// exec stored after the shim's `--` separator ("" when absent / not a shim).
+func upstreamExecFromOverride(dir string, busName string) string {
+	svc, err := parseServiceFile(filepath.Join(dir, busName+".service"))
+	if err != nil {
+		return ""
+	}
+	fields := strings.Fields(svc.exec)
+	for i, f := range fields {
+		if f == "--" && i+1 < len(fields) {
+			return strings.Trim(strings.Join(fields[i+1:], " "), `"'`)
+		}
+	}
+	return ""
 }
 
 // unitPathsFor lists every on-disk unit path that covers a target: both

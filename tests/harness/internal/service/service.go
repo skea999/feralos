@@ -1911,7 +1911,10 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		//     load is non-fatal and outside our control
 		//   - `+ set -euo pipefail`: bash xtrace echo of setup.sh itself
 		//   - modprobe: runner-host kernel dir probe (Debian cloud kernel)
-		allowSkip := regexp.MustCompile(`(?i)(booster: finit\(|set -euo pipefail|modprobe: can't change directory)`)
+		//   - `dbus-audit --no-fail`: the installer-mode audit CMD echo —
+		//     the flag NAME contains "fail" but means the opposite (exit
+		//     forced to 0; the report/MISS lines are the real signal)
+		allowSkip := regexp.MustCompile(`(?i)(booster: finit\(|set -euo pipefail|modprobe: can't change directory|dbus-audit --no-fail)`)
 		// WARNING sweep (installer.log only, user request): a warning in the
 		// install flow is an actionable finding — it must be fixed or
 		// explicitly allowlisted, never scrolled past (e.g. a silent service-

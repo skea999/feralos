@@ -159,6 +159,33 @@ func TestCandidateNames(t *testing.T) {
 	}
 }
 
+func TestUpstreamExecFromOverride(t *testing.T) {
+	dir := t.TempDir()
+	shim := `[D-BUS Service]
+Name=org.freedesktop.secrets
+Exec=/usr/libexec/feralos/dbus-activate org.freedesktop.secrets.user -- /usr/bin/oo7-daemon --replace
+`
+	if err := os.WriteFile(filepath.Join(dir, "org.freedesktop.secrets.service"), []byte(shim), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if got := upstreamExecFromOverride(dir, "org.freedesktop.secrets"); got != "/usr/bin/oo7-daemon --replace" {
+		t.Errorf("upstreamExecFromOverride = %q", got)
+	}
+	if got := upstreamExecFromOverride(dir, "org.example.Missing"); got != "" {
+		t.Errorf("missing override = %q", got)
+	}
+	noSep := `[D-BUS Service]
+Name=org.example.Plain
+Exec=/usr/bin/plain-daemon
+`
+	if err := os.WriteFile(filepath.Join(dir, "org.example.Plain.service"), []byte(noSep), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if got := upstreamExecFromOverride(dir, "org.example.Plain"); got != "" {
+		t.Errorf("non-shim override = %q", got)
+	}
+}
+
 func TestScopeSuffix(t *testing.T) {
 	if scopeSession.suffix() != "-user-dinit" {
 		t.Errorf("session suffix = %q", scopeSession.suffix())
