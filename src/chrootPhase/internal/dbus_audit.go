@@ -75,5 +75,27 @@ func SetupDbusAudit(conf *config.Config) error {
 	default:
 		fmt.Printf("[WARNING] feralos-dbus-audit: exit %d — binary failed to run (check the report above)\n", auditExit)
 	}
+
+	// Post-audit boot.d relink: supervision packages the audit just
+	// auto-installed (e.g. oo7-user-dinit on niriWayle) carry CORE INFRA
+	// units whose boot.d links were only created for packages that existed
+	// BEFORE this step (desktop setup step 13 runs earlier). Idempotent +
+	// existence-filtered; the set mirrors coreBootdUnits in
+	// firstBoot/dbus-audit/main.go (polkit-agent/wayvnc stay session-scoped,
+	// never boot-linked).
+	coreInfra := []string{
+		"dbus", "pipewire", "pipewire-pulse", "wireplumber", "wait-wayland",
+		"org.freedesktop.secrets",
+		"org.freedesktop.portal.Desktop",
+		"org.freedesktop.portal.Documents",
+		"org.freedesktop.impl.portal.PermissionStore",
+		"org.freedesktop.impl.portal.desktop.oo7",
+	}
+	relink := strings.Join(coreInfra, " ")
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p /usr/lib/dinit.d/user/boot.d && for s in %s; do [ -f /etc/dinit.d/user/$s ] && ln -sf /etc/dinit.d/user/$s /usr/lib/dinit.d/user/boot.d/$s; done", relink)); err != nil {
+		fmt.Printf("[WARNING] post-audit boot.d relink failed: %v\n", err)
+	} else {
+		fmt.Println("[INFO] post-audit boot.d relink done (core infra units installed by the audit are now linked)")
+	}
 	return nil
 }

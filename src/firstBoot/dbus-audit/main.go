@@ -294,21 +294,27 @@ func scanTargets(scope dbusScope, dir string) []dbusService {
 			continue
 		}
 		if isPlaceholderExec(svc.exec) {
-			// systemd-only trap (Exec=/bin/false). NOT skippable when WE
-			// ship the activation route: the packaged FeralOS override
-			// replaces the trap at login/boot (e.g. oo7-server's
-			// org.freedesktop.secrets trap on niriWayle — our override
-			// execs the real daemon through the shim; niri's gnome-keyring
-			// ships a real upstream file, which is why that DE never hit
-			// this). Re-derive the target from the override's upstream
-			// exec so who-owns resolution works.
 			if upstream := overrideUpstreamExec(&svc); upstream != "" {
+				// systemd-only trap (Exec=/bin/false) with the activation
+				// route ALREADY on disk: the packaged FeralOS override
+				// replaces the trap at login/boot — re-derive the target
+				// from the override's upstream exec so who-owns resolves.
 				svc.exec = upstream
 				svc.execPath = execPathFromExec(upstream)
 				svc.bin = filepath.Base(svc.execPath)
 			} else {
-				fmt.Printf("SKIP   %s: placeholder Exec (%s) — systemd-only upstream trap\n", svc.file, svc.exec)
-				continue
+				// Placeholder WITHOUT an on-disk override: the packaged
+				// override may ship inside the very supervision package
+				// this audit is about to install (chicken-and-egg —
+				// oo7-user-dinit on niriWayle carries BOTH the overrides
+				// for its /bin/false traps and the units; niri never hit
+				// this because gnome-keyring ships a real upstream file).
+				// Keep the target with bus-name-only identity: the bus
+				// candidate resolves via aports provides (versioned).
+				fmt.Printf("TRAP   %s: placeholder Exec (%s) — resolving via the bus name\n", svc.file, svc.exec)
+				svc.exec = ""
+				svc.execPath = ""
+				svc.bin = ""
 			}
 		}
 		if exemptNames[svc.name] {
