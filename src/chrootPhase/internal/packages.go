@@ -205,27 +205,21 @@ func SetupPackages(conf *config.Config) error {
 		}
 	}
 
-	// OpenRC klogd — ALWAYS installed, never conditional: our klogd-openrc
-	// package (989 series) replaces the vendor busybox-openrc script, which
-	// can never start here (`depend() need logger` — busybox syslogd was
-	// replaced by vector). Inert under dinit; required for an OpenRC
-	// fallback boot. No runtime file writes.
-	if out, err := shell.ExecuteCmdArgs(chroot, "apk", "add", "klogd-openrc"); err != nil {
-		fmt.Printf("[WARNING] klogd-openrc install failed: %v (%s)\n", err, strings.TrimSpace(out))
-	}
+	// NOTE: klogd-openrc lives in internal_rules.yaml standardPackages
+	// (unconditional distro content — both inits); it flows in with the
+	// standard batch above. The dinit-only core bundle below stays here:
+	// init plumbing, gated by EnableDinit (architecture principle:
+	// essential init packages hardcoded, distro content in YAML).
 
 	// Final APK upgrade
 	if err := FinalUpgrade(chroot); err != nil {
 		fmt.Printf("[WARNING] Final upgrade failed: %v\n", err)
 	}
 
-	// extraPackagesEdge (owned by features/edgerepos.go): adds the tagged
-	// @edge repos, installs the edge packages, comments the repos back out.
-	// LAST so the base install completes from the stable repos first
-	// (e.g. the mesa stack from edge: virgl gallium driver restored).
-	if err := features.SetupEdgeRepos(conf); err != nil {
-		return err
-	}
+	// extraPackagesEdge (owned by features/edgerepos.go) is NOT called here:
+	// it moved to chroot_phase.Run (step 8b) AFTER SetupDbusAudit — the
+	// audit's apk fallback must resolve while the repos are stable-only
+	// (SetupEdgeRepos comments the @edge repos out when done).
 
 	return nil
 }

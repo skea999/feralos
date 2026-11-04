@@ -146,6 +146,13 @@ standardPackages:
   # dinit service logs; runs via /etc/periodic/daily (cronie).
   - logrotate
   - vector
+  # klogd-openrc: our klogd (989 series) replaces the vendor busybox-openrc
+  # script, which can never start here (`depend() need logger` — busybox
+  # syslogd was replaced by vector). ALWAYS installed (both inits): inert
+  # under dinit, required for an OpenRC fallback boot. The dinit
+  # counterpart (klogd-dinit) ships in the dinit init bundle (packages.go,
+  # EnableDinit-gated — init plumbing, not distro content).
+  - klogd-openrc
   # Shell
   - fish
   - fish-tools
