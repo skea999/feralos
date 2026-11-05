@@ -1363,7 +1363,10 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 	// niri-family runtime checks (test-only greetd autologin session) poll
 	// up to 90s each for the session to come up; six of them in the worst
 	// case (session never starts) far exceed the 2min default verify budget.
-	if (cfg.DesktopEnvironment == desktopNiri || cfg.DesktopEnvironment == desktopNiriWayle) && cfg.Timeout < 10*time.Minute {
+	// kde/cosmic run 77 sequential checks too — run 2026-11-05T21-47-39Z
+	// died at check 37 with the 2min budget (verifyCtx expired, VM healthy).
+	if (cfg.DesktopEnvironment == desktopNiri || cfg.DesktopEnvironment == desktopNiriWayle ||
+		cfg.DesktopEnvironment == desktopKDE || cfg.DesktopEnvironment == desktopCosmic) && cfg.Timeout < 10*time.Minute {
 		cfg.Timeout = 10 * time.Minute
 	}
 
