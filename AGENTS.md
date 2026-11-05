@@ -8,6 +8,16 @@
 
 ## Recent Rounds (latest first)
 
+### 2026-11-05 - R1b completion: niriWayle 118/118 — audit trap-fallback + daemon parity
+**Agent:** codebase
+**Summary:** the niriWayle harness ladder drove 4 product/aports fixes to ALL GREEN (runs `00-09-49Z` 109/118 → `00-34-07Z` 112/118 → `01-08-02Z` 116/118 → `2026-11-05T21-24-11Z` **118/118**, 59 targets — 34 covered + 25 installed — 0 missing, exit 0).
+- **Audit trap-fallback** (`c9512cd` + `729cd61`, src/firstBoot/dbus-audit): upstream `Exec=/bin/false` traps are no longer SKIPped unconditionally — with an on-disk override the target re-derives from the override's upstream exec (who-owns works); WITHOUT one it stays in the scan with bus-name-only identity (chicken-and-egg: oo7-user-dinit carries BOTH its overrides and its units — the audit installs the package, the override materializes next login). Resolution via aports provides.
+- **aports provides round 2** (CI `41750591933` green): oo7-user-dinit r7 (+`org.freedesktop.secrets-user-dinit`/`org.freedesktop.impl.portal.desktop.oo7-user-dinit`), avahi-dinit r9 (+`org.freedesktop.Avahi-dinit`), bluez-dinit r8 (+`org.bluez-dinit`/`org.bluez.mesh-dinit`) — all VERSIONED. Proof live: `FIXED org.freedesktop.impl.portal.desktop.oo7 installed ...oo7-user-dinit` (provide-alias install).
+- **niriWayle rules = niri daemon parity** (`e073ff3` + `dfab872`): += accountsservice, power-profiles-daemon, udisks2, cups-pk-helper, kcron, gnome-online-accounts, evolution-data-server, xdg-desktop-portal-wlr — the removed `*-dinit` entries used to pull these daemons transitively; without the daemon there is NO activation file and the audit is structurally blind (nothing to discover).
+- **Gotchas caught by runs**: (1) unversioned provides = virtual — `apk add <alias>` refuses the provider (docker-proven alpine:3.22, harness-proven live); (2) the interim post-audit boot.d relink was redundant AND broken (checked `.user`-less names; desktop step 13 links AFTER the audit — deleted, NOTE comment in dbus_audit.go); (3) `--no-fail` contains the literal word "fail" → harness log_errors allowlists the audit CMD echo.
+- **Also landed**: `--no-fail` split (installer = exit always 0; boot/CLI/CI strict exit 1 = the user-visible signal; oneshot never restarts — scripted + restart=false, comment added in the aports unit, r2 `eefe6d2`+`8f0ad34`); klogd-openrc moved to standardPackages (`dfab872` — unconditional distro content in rules, dinit core bundle stays EnableDinit-gated in packages.go).
+- **Validated**: niri `2026-11-03T22-39-17Z` 115/115; niriWayle `2026-11-05T21-24-11Z` 118/118 (oo7_pam_unlock runtime proof green, log_errors clean, webmin_http green). Matrix remaining: kde (exercises plasma-kauth provides r2) + cosmic (playerctld provides) runs.
+
 ### 2026-11-03 14:00 - ADR-010 R1b: audit = supervision AUTO-INSTALLER; internal_rules carries zero *-dinit
 **Agent:** codebase
 **Summary:** user directive — `src/firstBoot/dbus-audit` discovers EVERY dbus-activated target and installs the aports counterpart itself; `internal_rules.yaml` drops all supervision packages (was ~40 entries across the 4 DE lists).
