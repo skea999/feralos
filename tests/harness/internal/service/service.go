@@ -1922,11 +1922,13 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		// install flow is an actionable finding — it must be fixed or
 		// explicitly allowlisted, never scrolled past (e.g. a silent service-
 		// enablement miss logged as "[WARNING] dinit: could not enable ...").
-		// Allowlist = the 3 recurring host-environment notices: 2x apt
+		// Allowlist = the recurring host-environment notices: 2x apt
 		// "does not have a stable CLI interface" (Debian runner-side apt
-		// wrappers) and the ssh known-hosts notice.
+		// wrappers), the ssh known-hosts notice, and the ca-certificates
+		// postinst "rehash" warning (Debian runner-side apt — the bundle
+		// file holds many certs, rehash skips it by design; harmless).
 		warnRe := regexp.MustCompile(`(?i)warning`)
-		warnAllowRe := regexp.MustCompile(`(?i)(apt does not have a stable CLI|Warning: Permanently added)`)
+		warnAllowRe := regexp.MustCompile(`(?i)(apt does not have a stable CLI|Warning: Permanently added|rehash: warning: skipping ca-certificates.crt)`)
 		// Innocuous lines: counters/negations ("0 errors", "no failed", ...),
 		// package name libgpg-error and Debian git dependency liberror-perl
 		// (apt install git output), efibootmgr "error trace:" on QEMU (no real
