@@ -124,9 +124,10 @@ standardPackages:
   # inits and no-ops without overrides.
   - feralos-dbus-activate
   # ADR-010 enforcement: supervision audit binary + boot oneshot units
-  # (dinit unit + OpenRC initd in the package). The installer also builds
-  # the binary from source at the tail of chrootPhase (freshest) — this
-  # package guarantees the units + binary exist for post-install/CLI use.
+  # (dinit unit + OpenRC initd in the package). The installer RUNS this
+  # packaged binary (chroot step 8a, --no-fail) — it does NOT compile it:
+  # the aports package is the single source of truth, bump its _commit pin
+  # whenever src/firstBoot/dbus-audit changes.
   - feralos-dbus-audit
   - shadow
   - eudev
