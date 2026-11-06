@@ -8,6 +8,15 @@
 
 ## Recent Rounds (latest first)
 
+### 2026-11-06 - Matrix COMPLETE: kde 78/78 + cosmic 78/78; installer runs the PACKAGED audit (no host build)
+**Agent:** codebase
+**Summary:** all four DEs green on the R1b auto-installer — niri 115/115, niriWayle 118/118, kde `2026-11-05T23-06-01Z` **78/78**, cosmic `2026-11-06T00-40-31Z` **78/78** (every DE: 0 missing, exit 0, log_errors clean). Plus: the installer no longer compiles feralos-dbus-audit — it runs the aports-packaged binary.
+- **kde fixes**: `system-config-printer-user-dinit` gained VERSIONED provides for the owner-derived name (`system-config-printer-common-user-dinit` — owner of /usr/bin/scp-dbus-service) + the bus name (`cb3b3d4`); the kmtpd5 unit+override moved INTO `kio-user-dinit` (who-owns(kmtpd5)=kio, `fac7e34`) and the transitional `kio-extras-user-dinit` was RETIRED (`bcadb56`). plasma-kauth 15 provides PROVEN live (0/30 system missing — all `OK` via units).
+- **CI lesson (runs #234/#235 failed at Smoke-install)**: the seed step loads REPODEST from the PUBLISHED Pages repo — RETIRED apks linger there and conflict (`kio-extras-user-dinit` vs the new kio-user-dinit). Fix = seed-step prune against the expected set (every `pkgname` + every `subpackages` entry from all APKBUILDs, `4de453a`); the first attempt over-pruned live subpackages (polkit-common, polkit-noelogind-libs, cli11-dev, *-doc/-lang/-openrc) — caught by CI `42124526384`, fixed `4de453a`. Lesson: an APKBUILD sum/retire change also needs CI SEED hygiene, and subpackages never have a `src/<name>` dir.
+- **Installer no-compile (user decision)**: `SetupDbusAudit` no longer builds host-side — `test -x` guard + runs the PACKAGED `/usr/libexec/feralos/feralos-dbus-audit --no-fail` (`f33e8bd`, nolint:nilerr on the intentional skip-return). aports `feralos-dbus-audit 0.1.0-r3` pinned to f33e8bd (`fff54cf`, CI green). **aports = single source of truth: bump the _commit pin whenever src/firstBoot/dbus-audit changes.** Cosmic run proved the path (RESULT OK exit=0, no host go build, run ~8 min vs ~13).
+- **Harness**: verification-timeout bump (10 min) extended to kde+cosmic (`1f499ac` — 77-check DEs exceeded the 2-min default; run `21-47-39Z` voided with verifyCtx expired, VM healthy); `rehash: warning: skipping ca-certificates.crt` allowlisted (`778aa24` — benign Alpine post-install notice, cosmic run 1 false-fail).
+- **Validated**: feralos gofmt/vet/lint/build/test green; aports CI `42137400871` green; kde run `2026-11-05T23-06-01Z` 78/78 (audit 87 targets — 55 covered + 32 installed, 0 missing); cosmic run `2026-11-06T00-40-31Z` 78/78 (13 targets — 6 covered + 7 installed incl. playerctld via the playerctl-user-dinit provide, 0 missing).
+
 ### 2026-11-05 - R1b completion: niriWayle 118/118 — audit trap-fallback + daemon parity
 **Agent:** codebase
 **Summary:** the niriWayle harness ladder drove 4 product/aports fixes to ALL GREEN (runs `00-09-49Z` 109/118 → `00-34-07Z` 112/118 → `01-08-02Z` 116/118 → `2026-11-05T21-24-11Z` **118/118**, 59 targets — 34 covered + 25 installed — 0 missing, exit 0).
