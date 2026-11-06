@@ -11,8 +11,9 @@ import (
 const apkRepositoriesFile = "/etc/apk/repositories"
 
 // SetupEdgeRepos installs the extraPackagesEdge packages from the @edge
-// tagged repositories, in a controlled 3-step sequence at the very end of
-// the package flow:
+// tagged repositories, in a controlled 3-step sequence as the LAST install
+// of chroot_phase.Run (step 8b, right after SetupDbusAudit — the audit's
+// apk fallback must run while the repos are still stable-only):
 //  1. append the tagged @edge repositories to /etc/apk/repositories
 //  2. install the extraPackagesEdge packages
 //  3. comment the @edge repositories back out

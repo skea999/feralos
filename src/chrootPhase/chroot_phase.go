@@ -76,6 +76,26 @@ func Run(conf *config.Config) error {
 		return fmt.Errorf("flatpak setup failed: %w", err)
 	}
 
+	// 8a. D-Bus supervision audit (ADR-010 enforcement, non-fatal) — runs
+	// AFTER all installations (apk add/nix/flatpak included) so every
+	// activation file is on disk and the *-user-dinit apk fallback can
+	// install missing units. MUST run BEFORE SetupEdgeRepos: that step
+	// comments the @edge repos out, and a world holding mesa@edge with
+	// disabled repos hard-fails every subsequent apk add (the audit's
+	// fallback included). Exit 1 (aports gap) is a WARNING, never an
+	// install failure.
+	if err := internal.SetupDbusAudit(conf); err != nil {
+		fmt.Printf("[WARNING] D-Bus audit: %v\n", err)
+	}
+
+	// 8b. extraPackagesEdge (@edge repos → install → comment back out) —
+	// LAST install step: the base install completes from stable repos
+	// first; placed after the audit so the audit's apk fallback always
+	// resolves against stable-only repos. Hard failure by design.
+	if err := features.SetupEdgeRepos(conf); err != nil {
+		return err
+	}
+
 	// 9. Setup desktop environment (configurations — kde/gnome need none)
 	if err := desktops.Setup(conf); err != nil {
 		return fmt.Errorf("desktop setup failed: %w", err)
@@ -113,14 +133,6 @@ func Run(conf *config.Config) error {
 	fmt.Println("[INFO] Building unsigned UKI...")
 	if err := internal.BuildUKI(conf); err != nil {
 		return fmt.Errorf("UKI build failed: %w", err)
-	}
-
-	// 16. D-Bus supervision audit (ADR-010 enforcement, non-fatal) — runs
-	// AFTER all installations (nix/flatpak included) so every activation
-	// file is on disk and the *-user-dinit apk fallback can install missing
-	// units. Exit 1 (aports gap) is a WARNING, never an install failure.
-	if err := internal.SetupDbusAudit(conf); err != nil {
-		fmt.Printf("[WARNING] D-Bus audit: %v\n", err)
 	}
 
 	fmt.Println("[INFO] ChrootPhase.Run completed successfully.")
