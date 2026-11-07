@@ -191,8 +191,12 @@ func setupDinitShutdownCommands(chroot string) error {
 		}
 	}
 
-	out, _ := shell.ExecuteCmd(chroot, "test -x /usr/bin/poweroff -a -x /usr/bin/reboot -a -x /usr/bin/halt -a -x /usr/bin/shutdown -a -x /usr/bin/soft-reboot && echo OK")
-	if !strings.Contains(out, "OK") {
+	// Deterministic output check via allowFail (same pattern as
+	// SetupDbusAudit): the probe cannot change across retries, so the
+	// ExecuteCmd retry/interactive machinery is pointless — the `&& echo OK`
+	// sentinel carries the result on stdout in EVERY mode.
+	out, _ := shell.ExecuteCmdWithAllowFail(chroot, "test -x /usr/bin/poweroff -a -x /usr/bin/reboot -a -x /usr/bin/halt -a -x /usr/bin/shutdown -a -x /usr/bin/soft-reboot && echo OK", true, false)
+	if strings.TrimSpace(out) != "OK" {
 		return fmt.Errorf("dinit shutdown commands were not installed correctly")
 	}
 

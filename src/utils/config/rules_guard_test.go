@@ -162,3 +162,45 @@ func TestRulesCarryRequiredTunables(t *testing.T) {
 		}
 	}
 }
+
+// TestDiskLayoutsPinned pins the diskLayouts ↔ DiskCountForLayout pairing:
+// the rules file keys and the validator's switch were hand-synced with no
+// test — a layout added to one side only would either orphan rules entries
+// (never applied) or hit the unknown-layout runtime error. Both directions
+// must match exactly and every layout must require a positive disk count.
+func TestDiskLayoutsPinned(t *testing.T) {
+	chdirSrc(t)
+
+	conf := &Config{}
+	if err := LoadInternalRules(conf); err != nil {
+		t.Fatalf("LoadInternalRules: %v", err)
+	}
+	rulesLayouts := conf.Internal.DiskLayouts
+
+	validatorLayouts := []string{"btrfsStandardServer", "btrfsStandard", "btrfsRaid0", "btrfsUnencrypted"}
+
+	// rules → validator: every diskLayouts key must be a known layout
+	for name := range rulesLayouts {
+		count, err := DiskCountForLayout(name)
+		if err != nil {
+			t.Errorf("diskLayouts key %q is not handled by DiskCountForLayout (orphaned rules entry)", name)
+			continue
+		}
+		if count <= 0 {
+			t.Errorf("diskLayouts key %q maps to a non-positive disk count (%d)", name, count)
+		}
+	}
+
+	// validator → rules: every handled layout must have a rules entry
+	for _, name := range validatorLayouts {
+		if _, ok := rulesLayouts[name]; !ok {
+			t.Errorf("DiskCountForLayout handles %q but diskLayouts has no entry for it", name)
+		}
+	}
+
+	// exact set: no extra rules keys beyond the validator's set
+	if len(rulesLayouts) != len(validatorLayouts) {
+		t.Errorf("diskLayouts has %d keys, DiskCountForLayout handles %d layouts — the sets drifted",
+			len(rulesLayouts), len(validatorLayouts))
+	}
+}
