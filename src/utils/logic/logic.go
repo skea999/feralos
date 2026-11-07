@@ -9,6 +9,16 @@ func ApplyRules(conf *config.Config) {
 	u := &conf.User
 	i := &conf.Internal
 
+	// applyRule assigns INTO the runlevel maps — a hand-built Config (no
+	// LoadConfig) can carry nil maps and would panic. Initialize once, top
+	// of the pipeline; pre-filled maps pass through untouched.
+	if u.Runlevels == nil {
+		u.Runlevels = map[string][]string{}
+	}
+	if u.RunlevelsDinit == nil {
+		u.RunlevelsDinit = map[string][]string{}
+	}
+
 	fmt.Println("[DEBUG] Starting dynamic rule application...")
 
 	// Always include base modules (fbcon, bridge, bonding, etc.)

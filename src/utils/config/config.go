@@ -90,6 +90,7 @@ type InternalRules struct {
 	MaintenanceCron         MaintenanceCronRules      `yaml:"maintenanceCron"`
 	Limits                  LimitsRules               `yaml:"limits"`
 	Nix                     NixRules                  `yaml:"nix"`
+	BoosterConfig           BoosterRules              `yaml:"boosterConfig"`
 }
 
 // FeralosRepoRules bootstraps the FeralOS apk repository (signing key).
@@ -127,6 +128,21 @@ type LimitsRules struct {
 type NixRules struct {
 	Channel     string `yaml:"channel"`
 	RegistryRef string `yaml:"registryRef"`
+}
+
+// BoosterRules tunes /etc/booster.yaml (chrootPhase/internal/boot.go).
+// Network mirrors booster.yaml's own sub-block shape (network.dhcp:
+// off/on — Dhcp=false renders "off").
+type BoosterRules struct {
+	Compression  string              `yaml:"compression"`  // initramfs compression codec
+	ExtraFiles   string              `yaml:"extraFiles"`   // extra_files baked into the image
+	MountTimeout string              `yaml:"mountTimeout"` // mount_timeout (booster duration, e.g. 3m)
+	Network      BoosterNetworkRules `yaml:"network"`
+}
+
+// BoosterNetworkRules is booster.yaml's network sub-block.
+type BoosterNetworkRules struct {
+	Dhcp bool `yaml:"dhcp"`
 }
 
 // DummyPackageRule defines a package to replace with a memory-safe dummy.
@@ -261,6 +277,9 @@ func validateInternalRules(i *InternalRules) error {
 	}
 	if i.Limits.NoFileDefault == 0 || i.Limits.NoFileUser == 0 {
 		return fmt.Errorf("internal_rules: limits.nofileDefault and limits.nofileUser are required (limits.conf)")
+	}
+	if i.BoosterConfig.Compression == "" || i.BoosterConfig.ExtraFiles == "" || i.BoosterConfig.MountTimeout == "" {
+		return fmt.Errorf("internal_rules: boosterConfig compression/extraFiles/mountTimeout are required (booster.yaml)")
 	}
 	if len(i.StandardUserGroups) == 0 {
 		return fmt.Errorf("internal_rules: standardUserGroups is required (user supplementary groups)")

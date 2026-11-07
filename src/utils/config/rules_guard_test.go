@@ -132,6 +132,9 @@ func TestRulesCarryRequiredTunables(t *testing.T) {
 	if i.Limits.NoFileDefault == 0 || i.Limits.NoFileUser == 0 {
 		t.Error("limits.nofileDefault/nofileUser are empty/zero (limits.conf)")
 	}
+	if i.BoosterConfig.Compression == "" || i.BoosterConfig.ExtraFiles == "" || i.BoosterConfig.MountTimeout == "" {
+		t.Error("boosterConfig compression/extraFiles/mountTimeout are empty (/etc/booster.yaml)")
+	}
 	if len(i.StandardUserGroups) == 0 {
 		t.Error("standardUserGroups is empty (users.go supplementary groups)")
 	}

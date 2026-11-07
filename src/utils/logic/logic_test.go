@@ -418,6 +418,40 @@ func TestApplyRules(t *testing.T) {
 	})
 }
 
+// TestApplyRulesNilRunlevelMaps is a focused regression on the top-of-
+// ApplyRules nil-map guard: a hand-built Config (no LoadConfig — e.g.
+// future test/tooling callers) can carry nil runtime maps, and applyRule
+// assigns INTO them. The guard must initialize instead of panicking while
+// the rule bodies stay fully applied.
+func TestApplyRulesNilRunlevelMaps(t *testing.T) {
+	t.Run("nil maps are initialized, no panic", func(t *testing.T) {
+		conf := newRulesConf()
+		conf.User.Runlevels = nil
+		conf.User.RunlevelsDinit = nil
+
+		ApplyRules(conf) // must not panic
+
+		if conf.User.Runlevels == nil || conf.User.RunlevelsDinit == nil {
+			t.Fatalf("Runlevels/RunlevelsDinit still nil after ApplyRules (nil-map guard missing)")
+		}
+	})
+
+	t.Run("rule body still applied with nil maps", func(t *testing.T) {
+		conf := newRulesConf()
+		conf.User.Runlevels = nil
+		conf.User.RunlevelsDinit = nil
+
+		ApplyRules(conf)
+
+		if got, want := conf.User.Runlevels["default"], []string{"sshd"}; !reflect.DeepEqual(got, want) {
+			t.Errorf("Runlevels[default]: got %v, want %v (layout rule body lost)", got, want)
+		}
+		if got, want := conf.User.RunlevelsDinit["default"], []string{"org.freedesktop.UDisks2"}; !reflect.DeepEqual(got, want) {
+			t.Errorf("RunlevelsDinit[default]: got %v, want %v (layout rule body lost)", got, want)
+		}
+	})
+}
+
 // TestApplyRulesUnknownLayoutKeepsEmptyRunlevels is a focused regression on
 // the early-return shape: with EVERY category key unknown, no rule fires and
 // the runlevel maps stay empty (keys not created).

@@ -44,15 +44,24 @@ func SetupBoot(conf *config.Config) error {
 	// 2. Write booster.yaml
 	fmt.Println("[INFO] Writing booster configuration...")
 	forceLoadModules := strings.Join(u.Modules, ",")
-	boosterYaml := fmt.Sprintf(`compression: zstd
+	// Tunables from the rules (boosterConfig): compression, extra_files,
+	// mount_timeout and the network.dhcp sub-block (dhcp: false renders
+	// "off" — enable_lvm/enable_mdraid/append_all_modaliases stay static).
+	dhcp := "off"
+	if conf.Internal.BoosterConfig.Network.Dhcp {
+		dhcp = "on"
+	}
+	boosterYaml := fmt.Sprintf(`compression: %s
 enable_lvm: false
 enable_mdraid: false
 network:
-  dhcp: off
+  dhcp: %s
 modules_force_load: %s
-mount_timeout: 3m
-extra_files: busybox,mount,btrfs
-append_all_modaliases: true`, forceLoadModules)
+mount_timeout: %s
+extra_files: %s
+append_all_modaliases: true`,
+		conf.Internal.BoosterConfig.Compression, dhcp, forceLoadModules,
+		conf.Internal.BoosterConfig.MountTimeout, conf.Internal.BoosterConfig.ExtraFiles)
 	if err := shell.WriteFile(chroot, "/etc/booster.yaml", []byte(boosterYaml+"\n"), 0644); err != nil {
 		return fmt.Errorf("failed to write booster.yaml: %w", err)
 	}

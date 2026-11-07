@@ -295,6 +295,17 @@ nix:
   channel: "https://nixos.org/channels/nixos-26.05"
   registryRef: "nixos-26.05"
 
+# /etc/booster.yaml tunables (chrootPhase/internal/boot.go SetupBoot).
+# network mirrors booster.yaml's own sub-block shape (network.dhcp:
+# off/on — dhcp: false renders "off"); mount_timeout is a booster duration
+# string.
+boosterConfig:
+  compression: zstd
+  extraFiles: "busybox,mount,btrfs"
+  mountTimeout: "3m"
+  network:
+    dhcp: false
+
 # 1. Disk Layouts Definitions
 diskLayouts:
   btrfsStandardServer:
