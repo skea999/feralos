@@ -2,6 +2,7 @@ package internal
 
 import (
 	"feralos/src/utils/config"
+	"feralos/src/utils/misc"
 	"feralos/src/utils/shell"
 	"fmt"
 	"strings"
@@ -63,8 +64,10 @@ func BuildUKI(conf *config.Config) error {
 	if len(u.Disks) >= 2 {
 		d1 := u.Disks[0]
 		d2 := u.Disks[1]
-		sp1 := getPartitionSpacer(d1)
-		sp2 := getPartitionSpacer(d2)
+		// utils/misc owns the spacer (exported — setsdisk.go); the former
+		// unexported copy here was byte-identical.
+		sp1 := misc.GetPartitionSpacer(d1)
+		sp2 := misc.GetPartitionSpacer(d2)
 
 		if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("efibootmgr --disk %s --part 1 --create --label 'Alpine Linux' --loader /Alpine/%s --verbose || true", d1+sp1, ukiEfi)); err != nil {
 			fmt.Printf("[WARNING] efibootmgr primary failed: %v\n", err)
@@ -79,11 +82,4 @@ func BuildUKI(conf *config.Config) error {
 	}
 
 	return nil
-}
-
-func getPartitionSpacer(disk string) string {
-	if strings.Contains(disk, "nvme") {
-		return "p"
-	}
-	return ""
 }

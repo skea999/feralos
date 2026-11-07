@@ -10,6 +10,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"feralos/src/utils/firstboot"
 	"feralos/src/utils/shell"
 )
 
@@ -83,14 +84,9 @@ func getLUKSUUIDsFromCmdline() []string {
 	if err != nil {
 		return nil
 	}
-	re := regexp.MustCompile(`rd\.luks\.name=([0-9a-f-]+)=`)
-	var uuids []string
-	for _, m := range re.FindAllStringSubmatch(string(cmdline), -1) {
-		if len(m) >= 2 {
-			uuids = append(uuids, m[1])
-		}
-	}
-	return uuids
+	// Shared parser (utils/firstboot ExtractLUKSUUIDs) — the former local
+	// regex copy here was byte-identical to install_config.go's.
+	return firstboot.ExtractLUKSUUIDs(string(cmdline))
 }
 
 func main() {

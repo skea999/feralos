@@ -36,6 +36,24 @@ type InstallConfig struct {
 	WebminListenAll bool     `yaml:"webmin_listen_all"`
 }
 
+// luksUUIDRe matches the rd.luks.name=<uuid>= parameters of the kernel
+// cmdline. Lower-hex + hyphen UUID (see btrfsStandard* layouts).
+var luksUUIDRe = regexp.MustCompile(`rd\.luks\.name=([0-9a-f-]+)=`)
+
+// ExtractLUKSUUIDs returns every LUKS UUID from rd.luks.name= cmdline
+// parameters in order of appearance (FindAllStringSubmatch: all matches,
+// appended in order); nil when none match. Pure function — shared with the
+// firstBoot/tpm binary, which used to run a byte-identical local regex.
+func ExtractLUKSUUIDs(cmdline string) []string {
+	var uuids []string
+	for _, m := range luksUUIDRe.FindAllStringSubmatch(cmdline, -1) {
+		if len(m) >= 2 {
+			uuids = append(uuids, m[1])
+		}
+	}
+	return uuids
+}
+
 // WriteInstallConfig writes /opt/feralos/config.yaml into the mounted chroot.
 // Called after chrootPhase so /etc/kernel/cmdline is already written by SetupBoot.
 func WriteInstallConfig(conf *config.Config) error {
@@ -59,13 +77,7 @@ func WriteInstallConfig(conf *config.Config) error {
 
 	// Extract LUKS UUIDs from kernel cmdline (written by chrootPhase/internal/boot.go)
 	if cmdlineStr, err := shell.ExecuteCmd("", fmt.Sprintf("cat %s 2>/dev/null || true", chroot+"/etc/kernel/cmdline")); err == nil {
-		re := regexp.MustCompile(`rd\.luks\.name=([0-9a-f-]+)=`)
-		matches := re.FindAllStringSubmatch(cmdlineStr, -1)
-		for _, m := range matches {
-			if len(m) >= 2 {
-				cfg.LuksUUIDs = append(cfg.LuksUUIDs, m[1])
-			}
-		}
+		cfg.LuksUUIDs = append(cfg.LuksUUIDs, ExtractLUKSUUIDs(cmdlineStr)...)
 	}
 
 	// Ensure /opt/feralos/ exists

@@ -6,43 +6,16 @@ import (
 	"path/filepath"
 	"strings"
 
-	"gopkg.in/yaml.v3"
-
 	"feralos/src/utils/shell"
 )
-
-// Standalone binary: the duplicated path const is intentional (firstBoot
-// standalone policy — P3-7 const-ified within the file).
-const installConfigPath = "/opt/feralos/config.yaml"
-
-type InstallConfig struct {
-	DiskLayout    string   `yaml:"disk_layout"`
-	Disks         []string `yaml:"disks"`
-	LuksUUIDs     []string `yaml:"luks_uuids"`
-	UserName      string   `yaml:"user_name"`
-	Hostname      string   `yaml:"hostname"`
-	Mirror        string   `yaml:"mirror"`
-	Branch        string   `yaml:"branch"`
-	KernelPackage string   `yaml:"kernel_package"`
-	KernelFlavor  string   `yaml:"kernel_flavor"`
-}
-
-func loadConfig() *InstallConfig {
-	cfg := &InstallConfig{}
-	data, err := os.ReadFile(installConfigPath)
-	if err != nil {
-		return cfg
-	}
-	_ = yaml.Unmarshal(data, cfg)
-	return cfg
-}
 
 func main() {
 	shell.SetCaller("secureboot")
 	fmt.Println("=== FeralOS — Secure Boot Setup ===")
 
-	cfg := loadConfig()
-	_ = cfg // config available for future use
+	// The install config (/opt/feralos/config.yaml) is NOT consumed by this
+	// binary: its UEFI keys are generated here from scratch and enrollment
+	// is self-contained (a previously loaded cfg was dead weight, removed).
 
 	// --- 1. Install sbctl ---
 	fmt.Println("\nInstalling sbctl...")
@@ -172,9 +145,14 @@ output_dir="/boot/efi/Alpine"
 output_name="linux-{flavor}.efi"
 backup=yes
 `
-	escapedConfContent := strings.ReplaceAll(confContent, "'", "'\\''")
-	_, _ = shell.ExecuteCmd("", "mkdir -p /etc/kernel-hooks.d")
-	_, _ = shell.ExecuteCmd("", fmt.Sprintf("echo '%s' > /etc/kernel-hooks.d/secureboot.conf", escapedConfContent))
+	// Static content via shell.WriteFile (logging rule) instead of the
+	// legacy `echo '<escaped>' >` pattern: byte-identical — the echo run
+	// trailed echo's newline after the already-newline-terminated content.
+	// Parent dir (/etc/kernel-hooks.d) is created 0755 by WriteFile's
+	// MkdirAll (the separate mkdir call is subsumed).
+	if err := shell.WriteFile("", "/etc/kernel-hooks.d/secureboot.conf", []byte(confContent+"\n"), 0644); err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR: failed to write secureboot.conf: %v\n", err)
+	}
 }
 
 func cleanup() {
