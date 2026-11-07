@@ -8,7 +8,7 @@ import (
 )
 
 // SetupMisc configures editor, PS1, timezone, pager,
-// subuid/subgid, limits, sudoers, LXC, mkinitfs removal, smartd, cron, keymap.
+// limits, sudoers, LXC, mkinitfs removal, smartd, cron, keymap.
 func SetupMisc(conf *config.Config) error {
 	chroot := conf.Internal.ChrootDir
 	u := &conf.User
@@ -31,9 +31,11 @@ func SetupMisc(conf *config.Config) error {
 	if err := setupPager(chroot); err != nil {
 		return err
 	}
-	if err := setupSubuidSubgid(chroot); err != nil {
-		return err
-	}
+
+	// 8. Subuid/subgid — NOT written here: SetupUsers (users.go) appends
+	// the ranges (utils/logic SubuidLines owns the format). This file used
+	// to write the identical root lines that users.go appended again
+	// (duplicate content).
 
 	// 10. System limits — NOT written here: SetupUsers (users.go) owns
 	// /etc/security/limits.conf. This file used to write an
@@ -144,19 +146,6 @@ func setupPager(chroot string) error {
 	}
 	if err := shell.WriteFile(chroot, "/etc/fish/conf.d/pager.fish", []byte("set -gx PAGER moor\n"), 0644); err != nil {
 		return fmt.Errorf("failed to write pager.fish: %w", err)
-	}
-	return nil
-}
-
-// setupSubuidSubgid writes the root subordinate id ranges.
-func setupSubuidSubgid(chroot string) error {
-	// 8. Subuid/subgid
-	fmt.Println("[INFO] Configuring subuid/subgid...")
-	if err := shell.WriteFile(chroot, "/etc/subuid", []byte("root:100000:65536\n"), 0644); err != nil {
-		return fmt.Errorf("failed to write subuid: %w", err)
-	}
-	if err := shell.WriteFile(chroot, "/etc/subgid", []byte("root:100000:65536\n"), 0644); err != nil {
-		return fmt.Errorf("failed to write subgid: %w", err)
 	}
 	return nil
 }

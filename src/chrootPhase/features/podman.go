@@ -2,6 +2,7 @@ package features
 
 import (
 	"feralos/src/utils/config"
+	"feralos/src/utils/logic"
 	"feralos/src/utils/shell"
 	"fmt"
 )
@@ -40,13 +41,14 @@ func SetupPodman(conf *config.Config) error {
 		fmt.Printf("[WARNING] Failed to add cgroups to default runlevel: %v\n", err)
 	}
 
-	// Configure subuid/subgid for rootless containers
-	subuidContent := fmt.Sprintf("%s:100000:65536\n", u.UserName)
-	subgidContent := fmt.Sprintf("%s:100000:65536\n", u.UserName)
-	if err := shell.WriteFile(chroot, "/etc/subuid", []byte(subuidContent+"\n"), 0644); err != nil {
+	// Configure subuid/subgid for rootless containers (format single-sourced
+	// in utils/logic SubuidLines; the write REPLACES the root line SetupUsers
+	// appended, like the literal version did).
+	subuid, subgid := logic.SubuidLines(u.UserName)
+	if err := shell.WriteFile(chroot, "/etc/subuid", []byte(subuid+"\n"), 0644); err != nil {
 		return fmt.Errorf("failed to write /etc/subuid: %w", err)
 	}
-	if err := shell.WriteFile(chroot, "/etc/subgid", []byte(subgidContent+"\n"), 0644); err != nil {
+	if err := shell.WriteFile(chroot, "/etc/subgid", []byte(subgid+"\n"), 0644); err != nil {
 		return fmt.Errorf("failed to write /etc/subgid: %w", err)
 	}
 

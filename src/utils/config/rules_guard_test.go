@@ -204,3 +204,57 @@ func TestDiskLayoutsPinned(t *testing.T) {
 			len(rulesLayouts), len(validatorLayouts))
 	}
 }
+
+// chimeraCoveredServices — OpenRC service names that must stay in the rules
+// dinitSkipServices list (one-directional pin: extra entries allowed, a
+// missing entry fails).
+//
+// Invariant: these services are enabled via defaultRunlevels /
+// packageLogic.services on OpenRC, but NO -dinit unit exists for them to
+// boot.d-link:
+//   - udev/udev-trigger/udev-settle/udev-postmount + btrfs-scan + dmcrypt +
+//     swap + cgroups — the chimera early chain provides them (the package
+//     bases are in dinitReplacedByChimera, so packages.go never converts
+//     them to -dinit either)
+//   - vector-setup — replaced under dinit by vector-dinit's tmpfiles file
+//   - loadkmap — provided dinit-natively (busybox-loadkmap-dinit) and
+//     enabled via defaultRunlevelsDinit; the skip keeps the OpenRC boot-list
+//     entry (same name in both lists) from creating a duplicate boot.d link.
+//
+// If one of these dropped out of dinitSkipServices, services.go's dinit
+// enablement loop would link a unit whose service file is never installed —
+// a dangling boot.d entry on every dinit install. The list is hand-synced
+// (no machine-readable source); this guard is the sync proof.
+var chimeraCoveredServices = []string{
+	"udev",
+	"udev-trigger",
+	"udev-settle",
+	"udev-postmount",
+	"btrfs-scan",
+	"dmcrypt",
+	"vector-setup",
+	"swap",
+	"cgroups",
+	"loadkmap",
+}
+
+// TestDinitSkipServicesCoverChimera enforces the chimera↔skip hand-sync
+// described on chimeraCoveredServices.
+func TestDinitSkipServicesCoverChimera(t *testing.T) {
+	chdirSrc(t)
+
+	conf := &Config{}
+	if err := LoadInternalRules(conf); err != nil {
+		t.Fatalf("LoadInternalRules: %v", err)
+	}
+	skip := make(map[string]bool, len(conf.Internal.DinitSkipServices))
+	for _, s := range conf.Internal.DinitSkipServices {
+		skip[s] = true
+	}
+
+	for _, s := range chimeraCoveredServices {
+		if !skip[s] {
+			t.Errorf("dinitSkipServices is missing %q — chimera-covered (or dinit-native) service present in the OpenRC enablement lists; without the skip, services.go boot.d-links a unit that no -dinit package provides", s)
+		}
+	}
+}

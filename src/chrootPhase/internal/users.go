@@ -2,6 +2,7 @@ package internal
 
 import (
 	"feralos/src/utils/config"
+	"feralos/src/utils/logic"
 	"feralos/src/utils/shell"
 	"fmt"
 	"os/exec"
@@ -140,15 +141,17 @@ func ensureIncusAdminGroup(chroot string) error {
 	return nil
 }
 
-// appendSubuidSubgid appends the user subordinate id ranges (the root ranges
-// were written unconditionally by SetupMisc earlier in the chroot run).
+// appendSubuidSubgid appends the root subordinate id ranges — format
+// single-sourced in utils/logic (SubuidLines; the former misc.go copy of the
+// identical lines was removed — SetupUsers always runs).
 func appendSubuidSubgid(chroot string) error {
 	// 7. Subuid/subgid
 	fmt.Println("[INFO] Configuring subuid/subgid...")
-	if err := shell.WriteFileAppend(chroot, "/etc/subuid", []byte("root:100000:65536\n"), 0644); err != nil {
+	subuid, subgid := logic.SubuidLines("root")
+	if err := shell.WriteFileAppend(chroot, "/etc/subuid", []byte(subuid), 0644); err != nil {
 		return fmt.Errorf("failed to write subuid: %w", err)
 	}
-	if err := shell.WriteFileAppend(chroot, "/etc/subgid", []byte("root:100000:65536\n"), 0644); err != nil {
+	if err := shell.WriteFileAppend(chroot, "/etc/subgid", []byte(subgid), 0644); err != nil {
 		return fmt.Errorf("failed to write subgid: %w", err)
 	}
 	return nil
