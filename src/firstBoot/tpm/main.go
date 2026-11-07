@@ -20,15 +20,44 @@ const (
 	apkRepositoriesFile = "/etc/apk/repositories"
 )
 
-// InstallConfig matches the YAML written by hostPhase/features/install_config.go
+// InstallConfig matches the YAML written by utils/firstboot/install_config.go
 type InstallConfig struct {
-	DiskLayout string   `yaml:"disk_layout"`
-	Disks      []string `yaml:"disks"`
-	LuksUUIDs  []string `yaml:"luks_uuids"`
-	UserName   string   `yaml:"user_name"`
-	Hostname   string   `yaml:"hostname"`
-	Mirror     string   `yaml:"mirror"`
-	Branch     string   `yaml:"branch"`
+	DiskLayout    string   `yaml:"disk_layout"`
+	Disks         []string `yaml:"disks"`
+	LuksUUIDs     []string `yaml:"luks_uuids"`
+	UserName      string   `yaml:"user_name"`
+	Hostname      string   `yaml:"hostname"`
+	Mirror        string   `yaml:"mirror"`
+	Branch        string   `yaml:"branch"`
+	KernelPackage string   `yaml:"kernel_package"`
+	KernelFlavor  string   `yaml:"kernel_flavor"`
+}
+
+// Fallbacks for an install config written by an older build (before
+// kernel_package/kernel_flavor existed). The same-build installer ALWAYS
+// writes both (utils/firstboot/install_config.go fills them from the
+// validated internal_rules kernel block) — these are defensive only.
+// KernelPackage is carried for parity with the rules contract; the tpm
+// binary derives its boot-image names from the flavor alone.
+const (
+	defaultKernelPackage = "linux-lts"
+	defaultKernelFlavor  = "lts"
+)
+
+// kernelNames derives the (kernel package, flavor) pair from the install
+// config with the defensive fallbacks above. The names mirror the canonical
+// chrootPhase derivation (chrootPhase/internal/uki.go): /boot/booster-<flavor>.img,
+// /boot/efi/Alpine/linux-<flavor>.efi, /boot/vmlinuz-<flavor>.
+func (c *InstallConfig) kernelNames() (string, string) {
+	pkg := c.KernelPackage
+	if pkg == "" {
+		pkg = defaultKernelPackage
+	}
+	flavor := c.KernelFlavor
+	if flavor == "" {
+		flavor = defaultKernelFlavor
+	}
+	return pkg, flavor
 }
 
 func loadConfig() *InstallConfig {
@@ -136,10 +165,11 @@ func main() {
 	}
 
 	// --- 8. Rebuild initramfs ---
-	rebuildInitramfs()
+	_, kernelFlavor := cfg.kernelNames()
+	rebuildInitramfs(kernelFlavor)
 
 	// --- 9. Rebuild signed UKI ---
-	rebuildSignedUKI()
+	rebuildSignedUKI(kernelFlavor)
 
 	fmt.Println("\n=== TPM binding complete ===")
 	if bindingOK {
@@ -297,7 +327,7 @@ func removeTemporaryKey(passFile string, uuids []string) {
 	}
 }
 
-func rebuildInitramfs() {
+func rebuildInitramfs(kernelFlavor string) {
 	fmt.Println("\nRebuilding initramfs...")
 	entries, err := os.ReadDir("/lib/modules")
 	if err != nil || len(entries) == 0 {
@@ -305,13 +335,13 @@ func rebuildInitramfs() {
 		return
 	}
 	kernelVersion := entries[0].Name()
-	imgPath := filepath.Join("boot", "booster-lts.img")
+	imgPath := filepath.Join("boot", fmt.Sprintf("booster-%s.img", kernelFlavor))
 	if _, err := shell.ExecuteCmd("", fmt.Sprintf("booster build --force --kernel-version %s %s", kernelVersion, imgPath)); err != nil {
 		fmt.Fprintf(os.Stderr, "WARNING: booster build failed: %v\n", err)
 	}
 }
 
-func rebuildSignedUKI() {
+func rebuildSignedUKI(kernelFlavor string) {
 	fmt.Println("Rebuilding signed UKI...")
 	cmdLine, err := os.ReadFile("/etc/kernel/cmdline")
 	if err != nil {
@@ -319,9 +349,9 @@ func rebuildSignedUKI() {
 		return
 	}
 	cmdline := strings.TrimSpace(string(cmdLine))
-	ukiPath := "/boot/efi/Alpine/linux-lts.efi"
-	vmlinuz := "/boot/vmlinuz-lts"
-	boosterImg := "/boot/booster-lts.img"
+	ukiPath := fmt.Sprintf("/boot/efi/Alpine/linux-%s.efi", kernelFlavor)
+	vmlinuz := fmt.Sprintf("/boot/vmlinuz-%s", kernelFlavor)
+	boosterImg := fmt.Sprintf("/boot/booster-%s.img", kernelFlavor)
 
 	if _, err := shell.ExecuteCmd("", fmt.Sprintf("efi-mkuki -c '%s' -o %s %s %s", cmdline, ukiPath, vmlinuz, boosterImg)); err != nil {
 		fmt.Fprintf(os.Stderr, "WARNING: efi-mkuki failed: %v\n", err)

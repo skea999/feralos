@@ -16,7 +16,10 @@ const InstallConfigPath = "/opt/feralos/config.yaml"
 
 // InstallConfig is the configuration written to /opt/feralos/config.yaml
 // during installation. FirstBoot binaries read this to understand the
-// disk layout and LUKS configuration without parsing kernel cmdline.
+// disk layout, LUKS configuration and kernel flavor/naming (kernel.package
+// + kernel.flavor from internal_rules.yaml — the tpm binary derives
+// booster-<flavor>.img / linux-<flavor>.efi / vmlinuz-<flavor> from the
+// flavor, no hardcoded literals) without parsing kernel cmdline.
 type InstallConfig struct {
 	DiskLayout      string   `yaml:"disk_layout"`
 	Disks           []string `yaml:"disks"`
@@ -26,6 +29,8 @@ type InstallConfig struct {
 	Hostname        string   `yaml:"hostname"`
 	Mirror          string   `yaml:"mirror"`
 	Branch          string   `yaml:"branch"`
+	KernelPackage   string   `yaml:"kernel_package"`
+	KernelFlavor    string   `yaml:"kernel_flavor"`
 	EnablePodman    bool     `yaml:"enable_podman"`
 	EnableWebmin    bool     `yaml:"enable_webmin"`
 	WebminListenAll bool     `yaml:"webmin_listen_all"`
@@ -45,6 +50,8 @@ func WriteInstallConfig(conf *config.Config) error {
 		Hostname:        u.Hostname,
 		Mirror:          u.Mirror,
 		Branch:          u.Branch,
+		KernelPackage:   conf.Internal.Kernel.Package,
+		KernelFlavor:    conf.Internal.Kernel.Flavor,
 		EnablePodman:    u.EnablePodman,
 		EnableWebmin:    u.EnableWebmin,
 		WebminListenAll: u.WebminListenAll,

@@ -538,13 +538,15 @@ func candidateNames(t *dbusService) []string {
 
 // ensurePackage resolves and installs the supervision package for a target.
 // Direct apk add — provider-aware (resolves provides= aliases). Best-effort:
-// any failure returns "" and the target counts as missing. ExecSilent — NOT
-// ExecuteCmd: the retry/interactive prompt path would hang a boot-time
-// oneshot (no tty at PID1) and spam the boot log; the audit logs its own
-// outcome lines (candidate failures land in the report as WARN).
+// any failure returns "" and the target counts as missing. ExecSilentArgs
+// (argv form, NO shell) — NOT ExecuteCmd: the retry/interactive prompt path
+// would hang a boot-time oneshot (no tty at PID1) and spam the boot log, and
+// argv keeps the file-derived candidate name out of command-string
+// concatenation. The audit logs its own outcome lines (candidate failures
+// land in the report as WARN).
 func ensurePackage(t *dbusService, rep *reporter) string {
 	for _, c := range candidateNames(t) {
-		if _, err := shell.ExecSilent("", "apk add "+c); err != nil {
+		if _, err := shell.ExecSilentArgs("", "apk", "add", c); err != nil {
 			rep.line("WARN   candidate %s failed: %v", c, strings.TrimSpace(err.Error()))
 			continue
 		}
@@ -559,7 +561,7 @@ func packageOwner(execPath string) string {
 	if execPath == "" || !strings.ContainsRune(execPath, '/') {
 		return ""
 	}
-	out, err := shell.ExecSilent("", "apk info --who-owns "+execPath)
+	out, err := shell.ExecSilentArgs("", "apk", "info", "--who-owns", execPath)
 	if err != nil {
 		return ""
 	}

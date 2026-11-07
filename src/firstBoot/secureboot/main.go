@@ -16,13 +16,15 @@ import (
 const installConfigPath = "/opt/feralos/config.yaml"
 
 type InstallConfig struct {
-	DiskLayout string   `yaml:"disk_layout"`
-	Disks      []string `yaml:"disks"`
-	LuksUUIDs  []string `yaml:"luks_uuids"`
-	UserName   string   `yaml:"user_name"`
-	Hostname   string   `yaml:"hostname"`
-	Mirror     string   `yaml:"mirror"`
-	Branch     string   `yaml:"branch"`
+	DiskLayout    string   `yaml:"disk_layout"`
+	Disks         []string `yaml:"disks"`
+	LuksUUIDs     []string `yaml:"luks_uuids"`
+	UserName      string   `yaml:"user_name"`
+	Hostname      string   `yaml:"hostname"`
+	Mirror        string   `yaml:"mirror"`
+	Branch        string   `yaml:"branch"`
+	KernelPackage string   `yaml:"kernel_package"`
+	KernelFlavor  string   `yaml:"kernel_flavor"`
 }
 
 func loadConfig() *InstallConfig {
