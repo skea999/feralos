@@ -225,26 +225,41 @@ func LoadConfig(userPath string) (*Config, error) {
 	return conf, nil
 }
 
-// LoadInternalRules loads internal_rules.yaml into conf.Internal.
-// Looks in standard locations relative to the working directory.
-// Used by LoadConfig and by the generator (enum options for the wizard).
-func LoadInternalRules(conf *Config) error {
-	iPaths := []string{
-		"src/variables/internal_rules.yaml",
-		"variables/internal_rules.yaml",
-		"../variables/internal_rules.yaml",
-	}
+// InternalRulesCandidatePaths is the search order for internal_rules.yaml,
+// all relative to the process CWD (repo root: src/variables/...; src/:
+// variables/...; harness/test dirs: ../variables/...). Single source for
+// the probe list: LoadInternalRules, the rules guard tests and the wizard
+// generator (utils/createConfig) all read through FindInternalRulesPath —
+// the list exists exactly once.
+var InternalRulesCandidatePaths = []string{
+	"src/variables/internal_rules.yaml",
+	"variables/internal_rules.yaml",
+	"../variables/internal_rules.yaml",
+}
 
-	var iData []byte
-	for _, p := range iPaths {
-		if data, err := os.ReadFile(p); err == nil {
-			iData = data
-			break
+// FindInternalRulesPath returns the first candidate path that exists, or
+// an error listing the probed paths.
+func FindInternalRulesPath() (string, error) {
+	for _, p := range InternalRulesCandidatePaths {
+		if _, err := os.Stat(p); err == nil {
+			return p, nil
 		}
 	}
+	return "", fmt.Errorf("internal_rules.yaml not found (probed: %v)", InternalRulesCandidatePaths)
+}
 
-	if iData == nil {
-		return fmt.Errorf("cannot find internal_rules.yaml in any expected location")
+// LoadInternalRules loads internal_rules.yaml into conf.Internal.
+// Resolved via FindInternalRulesPath (single probe list, shared with the
+// guard tests and the generator). Used by LoadConfig and by the generator
+// (enum options for the wizard).
+func LoadInternalRules(conf *Config) error {
+	iPath, err := FindInternalRulesPath()
+	if err != nil {
+		return err
+	}
+	iData, err := os.ReadFile(iPath)
+	if err != nil {
+		return err
 	}
 
 	if err := yaml.Unmarshal(iData, &conf.Internal); err != nil {

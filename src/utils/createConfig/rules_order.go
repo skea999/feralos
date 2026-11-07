@@ -1,21 +1,18 @@
 package createConfig
 
 import (
+	"fmt"
 	"os"
 
 	"gopkg.in/yaml.v3"
+
+	"feralos/src/utils/config"
 )
 
-// rulesCandidatePaths mirrors config.LoadInternalRules' search paths.
-// Duplicated LOCALLY on purpose: createConfig is standalone-confined (builds
-// as its own binary) and gains no dependency on the installer's config
-// loader — the rules file was already being read from here; this keeps the
-// read order-conservative instead of decoding it into maps first.
-var rulesCandidatePaths = []string{
-	"src/variables/internal_rules.yaml",
-	"variables/internal_rules.yaml",
-	"../variables/internal_rules.yaml",
-}
+// fallbackInfo is the one-line notice emitted when the rules read for
+// option ordering fails — the wizard then falls back to unordered enum
+// options, and the fallback stays VISIBLE instead of silent.
+const fallbackInfo = "[INFO] internal_rules unreadable for option ordering — using map order"
 
 // ruleEnumOrder carries the key order of internal_rules.yaml's three
 // enum-source mappings (diskLayouts / desktopEnvironments / videoDrivers)
@@ -27,18 +24,25 @@ type ruleEnumOrder struct {
 	videoDrivers        []string
 }
 
-// readInternalRulesBytes reads internal_rules.yaml from the first probe
-// path that exists (nil = no path worked). Silent on failure: the installer
-// already hard-fails when config.LoadInternalRules cannot load the rules,
-// so a nil result only means "no order data" (unordered prompt fallback) —
-// keeping stdout quiet preserves the prompt stream byte-stability.
+// readInternalRulesBytes reads internal_rules.yaml through the shared
+// resolver (config.FindInternalRulesPath — the single probe-list source;
+// the former locally duplicated path list is gone; createValues already
+// imports utils/config for validators — no new coupling). Failure keeps
+// the unordered fallback but no longer silently: one INFO line marks it
+// (the installer still hard-fails when config.LoadInternalRules cannot
+// load the rules, so nil here only means "no order data").
 func readInternalRulesBytes() []byte {
-	for _, p := range rulesCandidatePaths {
-		if data, err := os.ReadFile(p); err == nil {
-			return data
-		}
+	path, err := config.FindInternalRulesPath()
+	if err != nil {
+		fmt.Println(fallbackInfo)
+		return nil
 	}
-	return nil
+	data, err := os.ReadFile(path)
+	if err != nil {
+		fmt.Println(fallbackInfo)
+		return nil
+	}
+	return data
 }
 
 // parseRuleEnumOrder walks internal_rules.yaml WITHOUT unmarshalling into

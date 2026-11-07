@@ -476,6 +476,35 @@ func TestParseRuleEnumOrder(t *testing.T) {
 	}
 }
 
+// TestReadInternalRulesBytesFallbackLogs pins the unordered-fallback
+// notice: when the rules read for option ordering fails, readInternalRules
+// Logs prints the one INFO line instead of falling back silently (the
+// fallback itself stays — nil bytes = map iteration order). The test cwd
+// is a scratch dir so the probe outcome cannot depend on where the
+// developer ran go test from.
+func TestReadInternalRulesBytesFallbackLogs(t *testing.T) {
+	orig, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(t.TempDir()); err != nil {
+		t.Fatalf("chdir scratch dir: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(orig) })
+
+	var got []byte
+	out := captureStdout(t, func() {
+		got = readInternalRulesBytes()
+	})
+	if got != nil {
+		t.Errorf("rules read under a rules-less cwd returned %d bytes, want nil", len(got))
+	}
+	want := "[INFO] internal_rules unreadable for option ordering — using map order"
+	if !strings.Contains(out, want) {
+		t.Errorf("fallback notice missing from stdout: got %q, want line %q", out, want)
+	}
+}
+
 func TestEnumKeysInOrder(t *testing.T) {
 	m := map[string]string{"b": "1", "a": "2", "c": "3", "d": "4", "zeta": "5", "alpha": "6", "middle": "7", "omega": "8"}
 	inOrder := []string{"zeta", "alpha", "middle", "omega", "d", "c", "b", "a"}

@@ -46,13 +46,6 @@ var supervisionAllowlist = map[string]bool{
 // internal_rules.yaml package lists.
 var supervisionPkgRe = regexp.MustCompile(`"[A-Za-z0-9_+.@<>-]*-dinit"`)
 
-// rulesCandidatePaths mirrors LoadInternalRules' search paths (relative to
-// src/, the chdirSrc working directory).
-var rulesCandidatePaths = []string{
-	filepath.Join("variables", "internal_rules.yaml"),
-	filepath.Join("..", "variables", "internal_rules.yaml"),
-}
-
 // TestInternalRulesCarryNoSupervisionPackages enforces the ADR-010 R1b
 // auto-install contract: dbus-activated supervision packages are installed
 // by feralos-dbus-audit at install time and must never be listed in the
@@ -61,16 +54,14 @@ var rulesCandidatePaths = []string{
 func TestInternalRulesCarryNoSupervisionPackages(t *testing.T) {
 	chdirSrc(t)
 
-	var data []byte
-	var err error
-	for _, p := range rulesCandidatePaths {
-		data, err = os.ReadFile(p)
-		if err == nil {
-			break
-		}
-	}
+	// Same resolver as LoadInternalRules (single probe-list source).
+	path, err := FindInternalRulesPath()
 	if err != nil {
-		t.Fatalf("cannot read internal_rules.yaml: %v", err)
+		t.Fatalf("FindInternalRulesPath: %v", err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("cannot read %s: %v", path, err)
 	}
 
 	lines := strings.Split(string(data), "\n")
@@ -81,7 +72,7 @@ func TestInternalRulesCarryNoSupervisionPackages(t *testing.T) {
 			if supervisionAllowlist[pkg] {
 				continue
 			}
-			bad = append(bad, filepath.Base(rulesCandidatePaths[0])+":"+
+			bad = append(bad, filepath.Base(path)+":"+
 				strconv.Itoa(i+1)+": "+pkg)
 		}
 	}
