@@ -184,9 +184,6 @@ func SetupPackages(conf *config.Config) error {
 	// Podman packages (owned by features/podman.go)
 	allPkgs = append(allPkgs, features.PodmanPackages(conf)...)
 
-	// Webmin packages (owned by features/webmin.go)
-	allPkgs = append(allPkgs, features.WebminPackages(conf)...)
-
 	// Flatpak packages (owned by features/flatpak.go)
 	allPkgs = append(allPkgs, features.FlatpakPackages(conf)...)
 

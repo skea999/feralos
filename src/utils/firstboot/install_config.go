@@ -71,14 +71,13 @@ func WriteInstallConfig(conf *config.Config) error {
 		return fmt.Errorf("failed to marshal install config: %w", err)
 	}
 
-	// Write config via heredoc + chmod 0600
+	// Direct write (0600): the file carries the user Password + LUKS
+	// passphrase — the old heredoc form put the WHOLE command line (secrets
+	// included) into installer.log; WriteFile logs path + size only.
+	// Trailing \n preserved (the heredoc body ended with a blank line).
 	cfgPath := chroot + InstallConfigPath
-	writeCmd := fmt.Sprintf("cat > %s <<'FERA_EOF'\n%s\nFERA_EOF", cfgPath, string(data))
-	if _, err := shell.ExecuteCmd("", writeCmd); err != nil {
+	if err := shell.WriteFile("", cfgPath, append(data, '\n'), 0600); err != nil {
 		return fmt.Errorf("failed to write install config: %w", err)
-	}
-	if _, err := shell.ExecuteCmd("", fmt.Sprintf("chmod 0600 %s", cfgPath)); err != nil {
-		return fmt.Errorf("failed to chmod install config: %w", err)
 	}
 
 	fmt.Printf("[INFO] Install config written: %s%s\n", chroot, InstallConfigPath)

@@ -236,7 +236,7 @@ desktopEnvironments:
     services: {"sddm": "default", "dbus": "default", "turnstiled": "default", "ursined": "default"}
     groups: ["video", "input"]
   niri:
-    packages: ["niri", "niri-portalsconf", "greetd", "greetd-regreet", "elogind", "dbus", "ursine", "alacritty", "xdg-desktop-portal-wlr", "xdg-desktop-portal-gtk", "polkit-elogind", "polkit-gnome", "xwayland-satellite", "xwayland", "mesa-dri-gallium", "wayland-libs-server", "dms-shell", "dms-window-buttons", "matugen", "turnstile", "niri-user-dinit", "accountsservice", "power-profiles-daemon", "cups-pk-helper", "iptables", "ip6tables", "ebtables", "dbus-user-dinit", "pipewire-user-dinit", "pipewire-pulse-user-dinit", "wireplumber-user-dinit", "wayland-wait-user-dinit", "seahorse", "polkit-agent-user-dinit", "wayvnc", "wayvnc-user-dinit", "networkmanager", "networkmanager-cli", "networkmanager-tui", "networkmanager-wifi", "wireless-regdb", "bluez", "wpa_supplicant", "wireguard-tools", "qt6-qtmultimedia", "i2c-tools", "wtype", "simple-scan", "sane", "sane-backends", "sane-utils", "sane-airscan", "gnome-keyring", "cosmic-edit", "eog", "cups", "cups-filters", "avahi", "cosmic-player", "libreoffice", "galculator", "firefox", "firewalld-gui", "gnome-firmware", "gnome-disk-utility", "kcron", "ksystemlog", "kimageformats", "khal", "adw-gtk3", "dconf", "font-terminus", "font-inconsolata", "font-dejavu", "font-noto", "font-noto-cjk", "font-awesome", "font-noto-extra", "gnome-maps", "gnome-calendar"]
+    packages: ["niri", "niri-portalsconf", "greetd", "greetd-regreet", "elogind", "dbus", "ursine", "alacritty", "xdg-desktop-portal-wlr", "xdg-desktop-portal-gtk", "polkit-elogind", "polkit-gnome", "xwayland-satellite", "xwayland", "mesa-dri-gallium", "wayland-libs-server", "dms-shell", "dms-window-buttons", "matugen", "turnstile", "niri-user-dinit", "accountsservice", "power-profiles-daemon", "cups-pk-helper", "iptables", "ip6tables", "ebtables", "dbus-user-dinit", "pipewire-user-dinit", "pipewire-pulse-user-dinit", "wireplumber-user-dinit", "wayland-wait-user-dinit", "seahorse", "polkit-agent-user-dinit", "wayvnc", "wayvnc-user-dinit", "networkmanager", "networkmanager-cli", "networkmanager-tui", "networkmanager-wifi", "wireless-regdb", "bluez", "wpa_supplicant", "wireguard-tools", "qt6-qtmultimedia", "i2c-tools", "wtype", "simple-scan", "sane", "sane-backends", "sane-utils", "sane-airscan", "gnome-keyring", "cosmic-edit", "eog", "cups", "cups-filters", "avahi", "cosmic-player", "libreoffice", "galculator", "firefox", "firewalld", "firewalld-gui", "gnome-firmware", "gnome-disk-utility", "kcron", "ksystemlog", "kimageformats", "khal", "adw-gtk3", "dconf", "font-terminus", "font-inconsolata", "font-dejavu", "font-noto", "font-noto-cjk", "font-awesome", "font-noto-extra", "gnome-maps", "gnome-calendar"]
     flatpakPackages: ["io.github.zarestia_dev.rclone-manager", "com.github.tchx84.Flatseal"]
     # turnstile + niri-user-dinit: PAM session → user dinit (turnstiled);
     # Alpine niri-session's dinit branch starts the `niri` user service.
@@ -385,7 +385,8 @@ packageLogic:
     groups: ["kvm", "qemu"]
     modules: ["kvm"]
   podman:
-    packages: ["podman", "iptables", "podman-compose", "podman-docker", "fuse-overlayfs"]
+    # packages owned by features/podman.go (confinement); rules cover
+    # groups/services/modules when podman arrives via any path
     services: {"podman": "default", "cgroups": "default"}
     modules: ["overlay"]
   zram-init:
@@ -422,7 +423,8 @@ packageLogic:
   # dbus decides when it runs) — never boot-enabled, no initd enablement on
   # either init. Activation routes through the shim to the bus-named unit
   # (supervised under dinit; OpenRC fallback = raw exec, documented).
-  fwupd:
+  # No rule body needed — this comment is the record (an empty YAML key
+  # parses as null and carries no data).
   earlyoom:
     services: {"earlyoom": "default"}
   vlan:

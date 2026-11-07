@@ -85,9 +85,8 @@ func TestIsPlaceholderExec(t *testing.T) {
 		":":                 true,
 		"":                  true,
 		"/usr/bin/daemon":   false,
-		"/usr/bin/false -x": false, // binary IS false here only if basename; it is false
+		"/usr/bin/false -x": true, // basename = false → placeholder
 	}
-	cases["/usr/bin/false -x"] = true // basename = false → placeholder
 	for exec, want := range cases {
 		if got := isPlaceholderExec(exec); got != want {
 			t.Errorf("isPlaceholderExec(%q) = %v, want %v", exec, got, want)

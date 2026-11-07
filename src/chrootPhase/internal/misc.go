@@ -313,12 +313,22 @@ exit "$errors"
 // FAILED so the user notices aports gaps).
 func SetupDbusAudit(conf *config.Config) error {
 	shell.SetCaller("dbus_audit")
+	// Reset on EVERY exit path: chroot_phase.go sets no caller of its own,
+	// so without this every later step logs mislabeled as dbus_audit.
+	// "chroot_phase" = umbrella caller for steps that don't set one.
+	defer shell.SetCaller("chroot_phase")
 	chroot := conf.Internal.ChrootDir
 	const bin = "/usr/libexec/feralos/feralos-dbus-audit"
 
-	if _, err := shell.ExecuteCmdArgs(chroot, "test", "-x", bin); err != nil {
+	// Deterministic guard: allowFail=true — a benign existence probe must
+	// never trip the retry/interactive path (the old bare `test -x` retried
+	// 3× and prompted interactively; under SKEA_IGNORE_ERRORS the swallowed
+	// error nil-ed out and the skip never fired). The `&& echo OK` sentinel
+	// carries the result on stdout, so the skip branch fires in EVERY mode.
+	out, _ := shell.ExecuteCmdWithAllowFail(chroot, "test -x "+bin+" && echo OK", true, false)
+	if strings.TrimSpace(out) != "OK" {
 		fmt.Println("[WARNING] feralos-dbus-audit binary missing (feralos-dbus-audit package not installed?) — skipping the audit")
-		return nil //nolint:nilerr // intentional skip: missing binary = nothing to audit
+		return nil
 	}
 
 	// --no-fail → exit always 0: an extra package without a ready

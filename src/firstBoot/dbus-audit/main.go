@@ -88,9 +88,8 @@ const (
 	// user boot.d dirs: the turnstile-spawned user dinit waits for both —
 	// /usr/lib/dinit.d/user/boot.d (packages + installer links) and
 	// /etc/dinit.d/user/boot.d (admin dir).
-	bootdLibDir  = "/usr/lib/dinit.d/user/boot.d"
-	bootdEtcDir  = "/etc/dinit.d/user/boot.d"
-	auditLogFile = "/var/log/feralos-dbus-audit.log"
+	bootdLibDir = "/usr/lib/dinit.d/user/boot.d"
+	bootdEtcDir = "/etc/dinit.d/user/boot.d"
 )
 
 // systemUnitDirs — where system dinit units may live (first match wins).
@@ -220,8 +219,8 @@ func main() {
 // auditActivationTargets scans both activation inventories and returns the
 // exit code (0 covered, 1 gap).
 func auditActivationTargets(rep *reporter) int {
-	session := scanTargets(scopeSession, sessionServicesDir)
-	system := scanTargets(scopeSystem, systemServicesDir)
+	session := scanTargets(scopeSession, sessionServicesDir, rep)
+	system := scanTargets(scopeSystem, systemServicesDir, rep)
 
 	rep.line("")
 	if len(session) == 0 && len(system) == 0 {
@@ -241,7 +240,7 @@ func auditActivationTargets(rep *reporter) int {
 			}
 
 			// Missing unit — resolve + install the supervision package.
-			pkg := ensurePackage(t)
+			pkg := ensurePackage(t, rep)
 			if pkg != "" {
 				if unitExists(t) {
 					installed++
@@ -253,9 +252,15 @@ func auditActivationTargets(rep *reporter) int {
 				continue
 			}
 
+			// TRAP fallback targets carry bus-name-only identity (Exec
+			// blanked after the placeholder detection) — label accordingly.
+			execLabel := t.execPath
+			if t.exec == "" {
+				execLabel = "<trap>"
+			}
 			missing++
 			rep.line("MISS   %-45s exec=%s — no supervision package (tried %s) — create it in aports (package = daemon apk name + %s)",
-				t.name, t.execPath, strings.Join(candidateNames(t), ", "), t.scope.suffix())
+				t.name, execLabel, strings.Join(candidateNames(t), ", "), t.scope.suffix())
 		}
 	}
 
@@ -273,11 +278,12 @@ func auditActivationTargets(rep *reporter) int {
 
 // scanTargets parses every activation file of one scope, skipping
 // unparseable files, placeholder upstream traps and documented exemptions.
-// Dedupes by bus name (first file wins).
-func scanTargets(scope dbusScope, dir string) []dbusService {
+// Dedupes by bus name (first file wins). SKIP/TRAP/EXEMPT lines go through
+// the reporter so boot --log-file mode captures them too.
+func scanTargets(scope dbusScope, dir string, rep *reporter) []dbusService {
 	files, err := filepath.Glob(filepath.Join(dir, "*.service"))
 	if err != nil {
-		fmt.Printf("[ERROR] scanning %s: %v\n", dir, err)
+		rep.line("[ERROR] scanning %s: %v", dir, err)
 		return nil
 	}
 	seen := map[string]bool{}
@@ -285,12 +291,12 @@ func scanTargets(scope dbusScope, dir string) []dbusService {
 	for _, f := range files {
 		svc, err := parseServiceFile(f)
 		if err != nil {
-			fmt.Printf("SKIP   %s: %v\n", filepath.Base(f), err)
+			rep.line("SKIP   %s: %v", filepath.Base(f), err)
 			continue
 		}
 		svc.scope = scope
 		if svc.bin == "" {
-			fmt.Printf("SKIP   %s: no Exec\n", svc.file)
+			rep.line("SKIP   %s: no Exec", svc.file)
 			continue
 		}
 		if isPlaceholderExec(svc.exec) {
@@ -311,14 +317,14 @@ func scanTargets(scope dbusScope, dir string) []dbusService {
 				// this because gnome-keyring ships a real upstream file).
 				// Keep the target with bus-name-only identity: the bus
 				// candidate resolves via aports provides (versioned).
-				fmt.Printf("TRAP   %s: placeholder Exec (%s) — resolving via the bus name\n", svc.file, svc.exec)
+				rep.line("TRAP   %s: placeholder Exec (%s) — resolving via the bus name", svc.file, svc.exec)
 				svc.exec = ""
 				svc.execPath = ""
 				svc.bin = ""
 			}
 		}
 		if exemptNames[svc.name] {
-			fmt.Printf("EXEMPT %s (%s): no unit possible upstream (documented)\n", svc.file, svc.name)
+			rep.line("EXEMPT %s (%s): no unit possible upstream (documented)", svc.file, svc.name)
 			continue
 		}
 		if seen[svc.name] {
@@ -535,10 +541,11 @@ func candidateNames(t *dbusService) []string {
 // any failure returns "" and the target counts as missing. ExecSilent — NOT
 // ExecuteCmd: the retry/interactive prompt path would hang a boot-time
 // oneshot (no tty at PID1) and spam the boot log; the audit logs its own
-// outcome lines.
-func ensurePackage(t *dbusService) string {
+// outcome lines (candidate failures land in the report as WARN).
+func ensurePackage(t *dbusService, rep *reporter) string {
 	for _, c := range candidateNames(t) {
 		if _, err := shell.ExecSilent("", "apk add "+c); err != nil {
+			rep.line("WARN   candidate %s failed: %v", c, strings.TrimSpace(err.Error()))
 			continue
 		}
 		return c

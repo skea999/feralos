@@ -14,8 +14,10 @@ func PrepareChrootEnv(conf *config.Config) error {
 	u := conf.User
 
 	fmt.Println("[INFO] Configuring APK repositories...")
-	repoContent := fmt.Sprintf("echo '%s/%s/main\n%s/%s/community' > %s/etc/apk/repositories", u.Mirror, u.Branch, u.Mirror, u.Branch, chroot)
-	if _, err := shell.ExecuteCmd("", repoContent); err != nil {
+	// Direct write — exact bytes, no escaped-echo scaffolding (trailing \n
+	// preserved: `echo` used to terminate the last line the same way).
+	repoContent := fmt.Sprintf("%s/%s/main\n%s/%s/community\n", u.Mirror, u.Branch, u.Mirror, u.Branch)
+	if err := shell.WriteFile("", chroot+"/etc/apk/repositories", []byte(repoContent), 0644); err != nil {
 		return fmt.Errorf("failed to write repositories: %w", err)
 	}
 
