@@ -1,10 +1,10 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -70,7 +70,17 @@ func loadConfig() *InstallConfig {
 		cfg.LuksUUIDs = uuids
 		return cfg
 	}
-	_ = yaml.Unmarshal(data, cfg)
+	if err := yaml.Unmarshal(data, cfg); err != nil {
+		// A corrupt config must NOT hard-fail the first boot: the boot
+		// console has no salvage path, and every consumed field has a
+		// fallback (LUKS UUIDs from the kernel cmdline, kernel flavor
+		// default). But the degradation must be VISIBLE — print to BOTH
+		// streams (stdout: SSH/serial-captured logs; stderr: shell
+		// debugging convention).
+		warn := fmt.Sprintf("[WARNING] %s parse failed: %v (continuing with fallbacks)", installConfigPath, err)
+		fmt.Println(warn)
+		fmt.Fprintln(os.Stderr, warn)
+	}
 
 	// If no LUKS UUIDs in config, fallback to kernel cmdline
 	if len(cfg.LuksUUIDs) == 0 {
@@ -215,8 +225,7 @@ func getPassphraseFile() (string, string) {
 	}
 
 	fmt.Fprint(os.Stderr, "Enter existing LUKS passphrase: ")
-	var password string
-	_, _ = fmt.Scanln(&password)
+	password := readLineNoEcho()
 
 	tmpFile, err := os.CreateTemp("", "luks-pass-*.tmp")
 	if err != nil {
@@ -226,8 +235,39 @@ func getPassphraseFile() (string, string) {
 	_, _ = tmpFile.WriteString(password)
 	tmpFile.Close()
 	_ = os.Chmod(tmpFile.Name(), 0o600)
-	password = ""
 	return tmpFile.Name(), tmpFile.Name()
+}
+
+// readLineNoEcho reads one full line from stdin. fmt.Scanln is unsuitable
+// for a passphrase: it stops at the first space, silently truncating any
+// passphrase that contains whitespace. Echo is suppressed best-effort via
+// stty (the binary runs at first boot on the console; stty exists in the
+// Alpine base install). If stty fails — non-tty stdin, e.g. piped or
+// scripted input — the prompt continues WITH echo: the SKEA_LUKS_PASSWORD
+// environment variable is the supported non-tty path, and a best-effort
+// field-suppressed prompt is better than failing the first boot.
+func readLineNoEcho() string {
+	// stty must write/restore on the TERMINAL: stdin is passed through
+	// explicitly (the exec'd process inherits no tty otherwise).
+	echoOff := exec.Command("stty", "-echo")
+	echoOff.Stdin = os.Stdin
+	echoSuppressed := echoOff.Run() == nil
+	if echoSuppressed {
+		// restore echo even when the read errors — a terminal left in
+		// -echo mode would be unusable for interactive repair
+		defer func() {
+			echoOn := exec.Command("stty", "echo")
+			echoOn.Stdin = os.Stdin
+			_ = echoOn.Run()
+		}()
+	}
+
+	reader := bufio.NewReader(os.Stdin)
+	line, err := reader.ReadString('\n')
+	if err != nil && line == "" {
+		return ""
+	}
+	return strings.TrimSpace(line)
 }
 
 func installClevis() {
@@ -273,11 +313,23 @@ func installClevis() {
 	_, _ = shell.ExecuteCmd("", "apk update")
 	_, _ = shell.ExecuteCmd("", "apk add --no-cache clevis@edge tpm2-tools tpm2-tss tpm2-tss-tcti-device")
 
-	// Remove clevis from world
+	// Remove clevis from world.
+	// apk world records TAGGED names verbatim — docker-proven on
+	// alpine:3.22: with the @edge repo lines appended (the shape this
+	// function creates), `apk add --no-cache clevis@edge` leaves
+	// /etc/apk/world containing the literal `clevis@edge`, so an
+	// untagged "clevis" match would never hit. Once removeEdgeRepos()
+	// strips the @edge lines, a leftover tagged world entry references a
+	// non-existent tag — remove it to keep the world consistent with the
+	// stable-only repos.
 	removeFromWorld("clevis@edge")
 	removeEdgeRepos()
 }
 
+// removeFromWorld removes an exact world entry. apk world stores the
+// TAGGED literal for tagged installs (`clevis@edge`, docker-proven on
+// alpine:3.22) — callers must pass the tagged name; an untagged name
+// never matches.
 func removeFromWorld(pkg string) {
 	data, err := os.ReadFile("/etc/apk/world")
 	if err != nil {
@@ -330,8 +382,30 @@ func rebuildInitramfs(kernelFlavor string) {
 		fmt.Fprintln(os.Stderr, "WARNING: cannot find kernel modules")
 		return
 	}
-	kernelVersion := entries[0].Name()
-	imgPath := filepath.Join("boot", fmt.Sprintf("booster-%s.img", kernelFlavor))
+	// uki.go parity (chrootPhase/internal/uki.go picks `ls /lib/modules/ |
+	// head -1`): os.ReadDir returns the same filename-sorted order, so the
+	// lexically-first kernel version dir matches the chroot choice. The
+	// entries here are version dirs (e.g. "6.12.115-0-lts") — the
+	// vmlinuz-*/booster-* image names live in /boot — so filter to
+	// directories as the expected shape and fail clearly instead of
+	// silently taking entries[0] whatever it is.
+	var kernelVersion string
+	for _, entry := range entries {
+		if entry.IsDir() {
+			kernelVersion = entry.Name()
+			break
+		}
+	}
+	if kernelVersion == "" {
+		fmt.Fprintln(os.Stderr, "WARNING: no kernel version directories under /lib/modules")
+		return
+	}
+	// Absolute: this binary runs post-install/first-boot (harness SSH and
+	// real-hw shells start in a user home, not /), so the former relative
+	// "boot" join would have written the initramfs outside the real /boot
+	// — keep it consistent with the other /boot paths below
+	// (rebuildSignedUKI).
+	imgPath := fmt.Sprintf("/boot/booster-%s.img", kernelFlavor)
 	if _, err := shell.ExecuteCmd("", fmt.Sprintf("booster build --force --kernel-version %s %s", kernelVersion, imgPath)); err != nil {
 		fmt.Fprintf(os.Stderr, "WARNING: booster build failed: %v\n", err)
 	}
