@@ -90,3 +90,75 @@ func TestInternalRulesCarryNoSupervisionPackages(t *testing.T) {
 			strings.Join(bad, "\n"))
 	}
 }
+
+// TestRulesCarryRequiredTunables pins the stage-2 rules-ification contract:
+// the always-consumed tunables must be non-empty in the shipped rules (the
+// installer is tunable by editing ONLY internal_rules.yaml — losing one of
+// these would break every install), the niri family must enable turnstiled
+// via its services map, and standardPackages must keep the packaged ADR-010
+// entries (the installer RUNS the packaged audit binary — it does not
+// compile it).
+func TestRulesCarryRequiredTunables(t *testing.T) {
+	chdirSrc(t)
+
+	conf := &Config{}
+	if err := LoadInternalRules(conf); err != nil {
+		t.Fatalf("LoadInternalRules: %v", err)
+	}
+	i := conf.Internal
+
+	if i.Kernel.Package == "" {
+		t.Error("kernel.package is empty (hooks.go EFI sync hook watches it)")
+	}
+	if i.Kernel.Flavor == "" {
+		t.Error("kernel.flavor is empty (uki.go: vmlinuz-<flavor>/booster-<flavor>.img/linux-<flavor>.efi)")
+	}
+	if i.FeralosRepo.KeyringURL == "" {
+		t.Error("feralosRepo.keyringUrl is empty (packages.go repo bootstrap)")
+	}
+	if len(i.ResolvNameservers) == 0 {
+		t.Error("resolvNameservers is empty (chroot resolv.conf)")
+	}
+	for name, c := range map[string]string{
+		"apkAudit":  i.MaintenanceCron.ApkAudit,
+		"trim":      i.MaintenanceCron.Trim,
+		"scrub":     i.MaintenanceCron.Scrub,
+		"snapshots": i.MaintenanceCron.Snapshots,
+	} {
+		if c == "" {
+			t.Errorf("maintenanceCron.%s is empty (crontab schedule)", name)
+		}
+	}
+	if i.Limits.NoFileDefault == 0 || i.Limits.NoFileUser == 0 {
+		t.Error("limits.nofileDefault/nofileUser are empty/zero (limits.conf)")
+	}
+	if len(i.StandardUserGroups) == 0 {
+		t.Error("standardUserGroups is empty (users.go supplementary groups)")
+	}
+	if len(i.DinitSkipSessionManaged) == 0 {
+		t.Error("dinitSkipSessionManaged is empty (packages.go conversion skips)")
+	}
+
+	for _, de := range []string{"niri", "niriWayle"} {
+		rules, ok := i.DesktopEnvironments[de]
+		if !ok {
+			t.Fatalf("desktopEnvironments.%s missing", de)
+		}
+		if rules.Services["turnstiled"] == "" {
+			t.Errorf("desktopEnvironments.%s.services missing \"turnstiled\" enablement (services.go drives both inits)", de)
+		}
+	}
+
+	for _, pkg := range []string{"feralos-dbus-activate", "feralos-dbus-audit"} {
+		found := false
+		for _, p := range i.StandardPackages {
+			if p == pkg {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("standardPackages missing %s (the installer depends on the packaged binary)", pkg)
+		}
+	}
+}

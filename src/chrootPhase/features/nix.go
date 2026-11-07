@@ -28,6 +28,12 @@ func SetupNix(conf *config.Config) error {
 		fmt.Println("[INFO] Nix disabled, skipping...")
 		return nil
 	}
+	// Feature-gated rules contract: the stable channel + registry pin come
+	// from internal_rules (nix.channel / nix.registryRef) — an empty value
+	// would silently pin nothing (builtin registry resolves UNSTABLE).
+	if conf.Internal.Nix.Channel == "" || conf.Internal.Nix.RegistryRef == "" {
+		return fmt.Errorf("nix channel/registryRef missing from internal_rules (nix.channel + nix.registryRef)")
+	}
 
 	chroot := conf.Internal.ChrootDir
 	u := conf.User
@@ -71,7 +77,7 @@ trusted-users = root @wheel`
 		fmt.Printf("[WARNING] Failed to add nix-daemon to default: %v\n", err)
 	}
 
-	if _, err := shell.ExecuteCmdArgs(chroot, "nix-channel", "--add", "https://nixos.org/channels/nixos-26.05", "nixpkgs"); err != nil {
+	if _, err := shell.ExecuteCmdArgs(chroot, "nix-channel", "--add", conf.Internal.Nix.Channel, "nixpkgs"); err != nil {
 		fmt.Printf("[WARNING] Failed to add nix channel: %v\n", err)
 	}
 	// Unpack the channel manifest NOW: a freshly added channel is not usable
@@ -93,19 +99,19 @@ trusted-users = root @wheel`
 	// then the user registry (user wins over system — belt+braces).
 	// GOTCHA (fixed here): the user pin used to run only when nixPackages
 	// was non-empty — enableNix with no packages kept resolving unstable.
-	registryJSON := `{
+	registryJSON := fmt.Sprintf(`{
   "version": 2,
   "flakes": [
     {
       "from": { "type": "indirect", "id": "nixpkgs" },
-      "to": { "type": "github", "owner": "NixOS", "repo": "nixpkgs", "ref": "nixos-26.05" }
+      "to": { "type": "github", "owner": "NixOS", "repo": "nixpkgs", "ref": "%s" }
     }
   ]
-}`
+}`, conf.Internal.Nix.RegistryRef)
 	if err := shell.WriteFile(chroot, "/etc/nix/registry.json", []byte(registryJSON+"\n"), 0644); err != nil {
 		return fmt.Errorf("failed to write system flake registry: %w", err)
 	}
-	if _, err := shell.ExecuteCmdArgs(chroot, "su", "-", u.UserName, "-c", "NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt nix registry add nixpkgs github:NixOS/nixpkgs/nixos-26.05"); err != nil {
+	if _, err := shell.ExecuteCmdArgs(chroot, "su", "-", u.UserName, "-c", fmt.Sprintf("NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt nix registry add nixpkgs github:NixOS/nixpkgs/%s", conf.Internal.Nix.RegistryRef)); err != nil {
 		fmt.Printf("[WARNING] Failed to pin nixpkgs registry to stable: %v\n", err)
 	}
 

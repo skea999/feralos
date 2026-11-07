@@ -4,6 +4,7 @@ import (
 	"feralos/src/utils/config"
 	"feralos/src/utils/shell"
 	"fmt"
+	"strings"
 )
 
 // SetupNiriWayle configures the niriWayle desktop: niri compositor + Wayle
@@ -34,6 +35,9 @@ import (
 func SetupNiriWayle(conf *config.Config) error {
 	chroot := conf.Internal.ChrootDir
 	u := conf.User
+	// DE rules block (internal_rules desktopEnvironments.niriWayle): greeter
+	// groups + user dinit boot.d infrastructure units live there.
+	deRules := conf.Internal.DesktopEnvironments[u.DesktopEnvironment]
 
 	fmt.Println("[INFO] Configuring niriWayle desktop environment...")
 
@@ -160,6 +164,22 @@ hotkey-overlay {
 	// install time eliminates it.
 	if _, err := shell.ExecuteCmd(chroot, "su -s /bin/sh greeter -c 'fc-cache -f'"); err != nil {
 		fmt.Printf("[WARNING] fontconfig cache pre-build for greeter failed (non-fatal): %v\n", err)
+	}
+
+	// 4b. Login-shell trick (moved from users.go — desktop-owned now, runs
+	// AFTER user creation: chrootPhase step 5 users < step 9 desktops).
+	// wayle-session depends on niri-user-dinit, so the login-shell binary
+	// arrives via that dependency; same rationale as niri.go 4b (niri-
+	// session bash re-exec skip + pkexec /etc/shells acceptance). The three
+	// steps are idempotent.
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("usermod -s /usr/libexec/feralos/login-shell %s", u.UserName)); err != nil {
+		fmt.Printf("[WARNING] Failed to set %s shell to login-shell: %v\n", u.UserName, err)
+	}
+	if _, err := shell.ExecuteCmd(chroot, "ln -sf /usr/bin/fish /usr/libexec/feralos/login-shell"); err != nil {
+		fmt.Printf("[WARNING] Failed to re-point login-shell to fish: %v\n", err)
+	}
+	if _, err := shell.ExecuteCmd(chroot, "grep -qxF '/usr/libexec/feralos/login-shell' /etc/shells || echo '/usr/libexec/feralos/login-shell' >> /etc/shells"); err != nil {
+		fmt.Printf("[WARNING] Failed to list login-shell in /etc/shells: %v\n", err)
 	}
 
 	// 5. Session startup — wayle-session (wayle-session package) replaces
@@ -523,15 +543,13 @@ exec /usr/bin/xdg-su "$@"
 		return fmt.Errorf("chmod xdg-su: %w", err)
 	}
 
-	// 10. groups: session user gets video/input (DRM/seat) + audio
-	// (/dev/snd — PipeWire); greeter gets video/input/greetd (greetd re-owns
-	// /var/lib/greetd 0750 at boot — traversal needed). seat access via
-	// elogind D-Bus; render group absent on Alpine.
-	if _, err := shell.ExecuteCmd(chroot, "usermod -aG video,input,greetd greeter"); err != nil {
-		fmt.Printf("[WARNING] Failed to add greeter to video/input/greetd: %v\n", err)
-	}
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("usermod -aG audio %s", u.UserName)); err != nil {
-		fmt.Printf("[WARNING] Failed to add %s to audio group: %v\n", u.UserName, err)
+	// 10. groups: the session user's groups come from the rules (DE `groups`
+	// — incl. audio for /dev/snd, PipeWire); the greeter joins the DE
+	// `greeterGroups` (greetd re-owns /var/lib/greetd 0750 at boot —
+	// traversal needed). seat access via elogind D-Bus; render group absent
+	// on Alpine.
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("usermod -aG %s greeter", strings.Join(deRules.GreeterGroups, ","))); err != nil {
+		fmt.Printf("[WARNING] Failed to add greeter to greeterGroups: %v\n", err)
 	}
 
 	// 11. oo7 PAM wiring — the gnome-keyring analogue for this DE.
@@ -596,31 +614,24 @@ password optional pam_oo7.so
 		}
 	}
 
-	// 12. turnstiled — system service: the PAM module talks to it over its
-	// socket; it spawns the per-user dinit at login.
-	//   dinit  — boot.d symlink (active-init enablement; FeralOS dinit = PID1)
-	//   OpenRC — ALWAYS enabled, never conditional: a dinit install must stay
-	//            bootable under OpenRC (fallback). The service ships in the
-	//            turnstile-openrc subpackage (same daemon, same dinit user
-	//            backend — turnstile is service-manager-agnostic).
-	if u.EnableDinit {
-		if _, err := shell.ExecuteCmd(chroot, "mkdir -p /etc/dinit.d/boot.d && test -f /etc/dinit.d/turnstiled && ln -sf /etc/dinit.d/turnstiled /etc/dinit.d/boot.d/turnstiled || true"); err != nil {
-			fmt.Printf("[WARNING] Failed to enable turnstiled: %v\n", err)
-		}
-	}
-	if _, err := shell.ExecuteCmd(chroot, "rc-update add turnstiled default"); err != nil {
-		fmt.Printf("[WARNING] Failed to enable turnstiled (OpenRC): %v\n", err)
-	}
+	// 12. turnstiled enablement is RULES-DRIVEN: the DE `services` map
+	// carries "turnstiled": "default" (internal_rules.yaml) — services.go
+	// enables it on both inits (OpenRC: rc-update default, unconditional;
+	// dinit: boot.d symlink resolving /lib/dinit.d first, /etc/dinit.d
+	// fallback — turnstiled ships in /etc/dinit.d). Nothing desktop-specific
+	// left here.
 
 	// 13. user session services: enable INFRASTRUCTURE services in boot.d of
 	// the primary user service dir (/usr/lib/dinit.d/user; turnstile's dinit
 	// backend also scans /etc/dinit.d/user, where packages install their
-	// files). Session apps (polkit-agent/wayle/veila/wayvnc) are NOT enabled
-	// here — the session script (wayle-session, via niri-session's
-	// add-wants model) starts them after niri, so the greetd greeter session
-	// (greeter.sh, which never runs wayle-session) never gets desktop apps.
-	// Existence-filtered — only installed packages get enabled.
-	userServices := "dbus.user pipewire.user pipewire-pulse.user wireplumber.user wait-wayland.user org.freedesktop.secrets.user org.freedesktop.impl.portal.desktop.oo7.user org.freedesktop.portal.Desktop.user org.freedesktop.portal.Documents.user org.freedesktop.impl.portal.PermissionStore.user"
+	// files). The unit list comes from the rules (DE `userServices` —
+	// verbatim `.user` unit names). Session apps (polkit-agent/wayle/veila/
+	// wayvnc) are NOT enabled here — the session script (wayle-session, via
+	// niri-session's add-wants model) starts them after niri, so the greetd
+	// greeter session (greeter.sh, which never runs wayle-session) never
+	// gets desktop apps. Existence-filtered — only installed packages get
+	// enabled.
+	userServices := strings.Join(deRules.UserServices, " ")
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p /usr/lib/dinit.d/user/boot.d && for s in %s; do [ -f /etc/dinit.d/user/$s ] && ln -sf /etc/dinit.d/user/$s /usr/lib/dinit.d/user/boot.d/$s; done", userServices)); err != nil {
 		fmt.Printf("[WARNING] Failed to enable user dinit services: %v\n", err)
 	}

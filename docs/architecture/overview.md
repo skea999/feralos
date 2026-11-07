@@ -16,6 +16,10 @@ Standard core, pluggable data — installer logic never changes, only data chang
 
 Ref: `AGENTS.md#Architecture Principle`.
 
+## Rules Tunables (stage-2 rules-ification)
+
+The installer is tunable by editing ONLY `internal_rules.yaml`; the mechanism stays Go (2026-11-07). Tunable keys: `standardUserGroups`, `dinitSkipSessionManaged`, `feralosRepo.keyringUrl`, `kernel.{package,flavor}`, `microcode.{amd,intel}.{package,image}`, `edgeRepositories`, `resolvNameservers`, `maintenanceCron.{apkAudit,trim,scrub,snapshots}`, `limits.{nofileDefault,nofileUser}`, `nix.{channel,registryRef}`, per-DE `userServices` + `greeterGroups`. `LoadInternalRules` validates the always-consumed ones (empty = load error); edge/nix/microcode are feature-gated (their Setup functions enforce their own contracts). Guard: `TestRulesCarryRequiredTunables`. Full detail + misplacement moves: `AGENTS.md#Rules Tunables (stage-2 rules-ification)`.
+
 ## Project Structure
 
 Brief tree — full tree in `docs/INSTALLER.md#Project Structure`:

@@ -3,6 +3,7 @@ package internal
 import (
 	"feralos/src/chrootPhase/features"
 	"feralos/src/utils/config"
+	"feralos/src/utils/logic"
 	"feralos/src/utils/shell"
 	"fmt"
 	"strings"
@@ -43,25 +44,8 @@ func InstallDummyPackages(conf *config.Config) error {
 	return nil
 }
 
-// appendUnique adds items to slice if not already present.
-func appendUnique(slice []string, items ...string) []string {
-	for _, item := range items {
-		if item == "" {
-			continue
-		}
-		found := false
-		for _, s := range slice {
-			if s == item {
-				found = true
-				break
-			}
-		}
-		if !found {
-			slice = append(slice, item)
-		}
-	}
-	return slice
-}
+// appendUnique moved to utils/logic.AppendUnique (shared with logic.go —
+// the bodies were byte-identical).
 
 func createProvideDummy(chroot, pkgName string) error {
 	fmt.Printf("[INFO] Creating provide dummy: %s v999 (empty)\n", pkgName)
@@ -147,7 +131,9 @@ func SetupPackages(conf *config.Config) error {
 	// (dms-shell, quickshell, cli11) also come from feralos-aports. The
 	// keyring adds the signing key + repositories.d entry; the following
 	// `apk update` picks the new repo up (apk-tools 3 resolves from cache).
-	if err := bootstrapFeralosRepo(chroot); err != nil {
+	// URL from the rules (feralosRepo.keyringUrl; LoadInternalRules requires
+	// it non-empty).
+	if err := bootstrapFeralosRepo(chroot, conf.Internal.FeralosRepo.KeyringURL); err != nil {
 		return fmt.Errorf("feralos repo bootstrap failed: %w", err)
 	}
 
@@ -163,10 +149,16 @@ func SetupPackages(conf *config.Config) error {
 	allPkgs = append(allPkgs, u.AllPackages...)
 
 	cpuInfo, _ := shell.ExecuteCmdArgs(chroot, "cat", "/proc/cpuinfo")
+	// Microcode package per CPU vendor (rules: microcode map; empty entry =
+	// no microcode for that vendor).
 	if strings.Contains(cpuInfo, "AMD") {
-		allPkgs = append(allPkgs, "amd-ucode")
+		if mc := conf.Internal.Microcode["amd"]; mc.Package != "" {
+			allPkgs = append(allPkgs, mc.Package)
+		}
 	} else if strings.Contains(cpuInfo, "GenuineIntel") {
-		allPkgs = append(allPkgs, "intel-ucode")
+		if mc := conf.Internal.Microcode["intel"]; mc.Package != "" {
+			allPkgs = append(allPkgs, mc.Package)
+		}
 	}
 
 	firmwarePkgs := DetectFirmwarePackages(chroot)
@@ -179,7 +171,7 @@ func SetupPackages(conf *config.Config) error {
 	allPkgs = append(allPkgs, features.HardeningPackages(conf)...)
 
 	// Zswap modules (owned by features/zswap.go)
-	u.Modules = appendUnique(u.Modules, features.ZswapModules(conf)...)
+	u.Modules = logic.AppendUnique(u.Modules, features.ZswapModules(conf)...)
 
 	// Podman packages (owned by features/podman.go)
 	allPkgs = append(allPkgs, features.PodmanPackages(conf)...)
@@ -222,10 +214,11 @@ func SetupPackages(conf *config.Config) error {
 }
 
 // bootstrapFeralosRepo downloads and installs feralos-keyring, which adds
-// both the signing key and the repository definition to the chroot.
-func bootstrapFeralosRepo(chroot string) error {
+// both the signing key and the repository definition to the chroot. The URL
+// comes from the rules (feralosRepo.keyringUrl).
+func bootstrapFeralosRepo(chroot, keyringURL string) error {
 	fmt.Println("[INFO] Bootstrapping FeralOS package repository...")
-	url := "https://skea999.github.io/feralos-aports/feralos-aports/x86_64/feralos-keyring-1-r0.apk"
+	url := keyringURL
 	tmp := "/tmp/feralos-keyring.apk"
 	if _, err := shell.ExecuteCmdArgs(chroot, "wget", "-q", url, "-O", tmp); err != nil {
 		return fmt.Errorf("failed to download feralos-keyring: %w", err)
@@ -282,40 +275,14 @@ func installDinitPackages(conf *config.Config) error {
 		replaced[base] = true
 	}
 
-	// Daemons managed ELSEWHERE — never converted (no system dinit service,
-	// or the dinit service already ships in the main package):
-	//   pipewire/pipewire-pulse/wireplumber — user dinit (niri-session
-	//     wrapper starts the user manager; system instances would run as
-	//     root and fight the session ones)
-	//   alsa-utils (alsasound mixer state) — session audio is pipewire's
-	//   pulseaudio — replaced by pipewire-pulse (user session)
-	//   gnome-keyring — per-login-session daemon, never a system service
-	//   wpa_supplicant — NetworkManager spawns and supervises it itself
-	//   wireguard-tools — wg-quick is per-interface; WireGuard goes through
-	//     NetworkManager (native support) or manual config
-	//   openconnect/vpnc — VPN clients spawned by NetworkManager on demand
-	//   turnstile — the dinit service (/etc/dinit.d/turnstiled) ships in the
-	//     MAIN turnstile package (upstream data/dinit, kept: FeralOS dinit is
-	//     PID 1); there is no turnstile-dinit subpackage. Its -openrc
-	//     subpackage (turnstile-openrc) exists for the OpenRC flow only.
-	sessionSkip := map[string]bool{
-		"pipewire":        true,
-		"pipewire-pulse":  true,
-		"wireplumber":     true,
-		"alsa-utils":      true,
-		"pulseaudio":      true,
-		"gnome-keyring":   true,
-		"wpa_supplicant":  true,
-		"wireguard-tools": true,
-		"openconnect":     true,
-		"vpnc":            true,
-		"turnstile":       true,
-		// oo7-portal / oo7-server — user-session secret daemons (Alpine ships
-		//   them with -openrc scripts; there are no -dinit variants). The
-		//   daemons are dbus/session-activated; the -openrc scripts stay
-		//   installed for the OpenRC fallback boot.
-		"oo7-portal": true,
-		"oo7-server": true,
+	// Daemons managed ELSEWHERE — never converted: the rules list
+	// dinitSkipSessionManaged (internal_rules.yaml carries the per-package
+	// rationale: pipewire stack = user dinit, NM-spawned wpa_supplicant,
+	// VPN clients, turnstile ships its unit in the main package, oo7 user
+	// secrets daemons, ...).
+	sessionSkip := make(map[string]bool, len(conf.Internal.DinitSkipSessionManaged))
+	for _, base := range conf.Internal.DinitSkipSessionManaged {
+		sessionSkip[base] = true
 	}
 
 	installed, skipped, managedSkipped := 0, 0, 0

@@ -4,6 +4,7 @@ import (
 	"feralos/src/utils/config"
 	"feralos/src/utils/shell"
 	"fmt"
+	"strings"
 )
 
 // apkRepositoriesFile is the guest apk repository list this feature appends
@@ -30,12 +31,22 @@ func SetupEdgeRepos(conf *config.Config) error {
 	if len(conf.User.ExtraPackagesEdge) == 0 {
 		return nil
 	}
+	// Feature-gated rules contract: the repo list comes from internal_rules
+	// (edgeRepositories — appended as `@edge <mirror>/<repo>`); an empty
+	// list would install nothing while claiming the repos were added.
+	if len(conf.Internal.EdgeRepositories) == 0 {
+		return fmt.Errorf("edgeRepositories missing from internal_rules (enableEdgeRepos requires edgeRepositories)")
+	}
 
 	chroot := conf.Internal.ChrootDir
 
 	// 1. add the tagged @edge repositories
 	fmt.Println("[INFO] Adding @edge repositories...")
-	edgeRepos := fmt.Sprintf("@edge %s/edge/main\n@edge %s/edge/community\n@edge %s/edge/testing", conf.User.Mirror, conf.User.Mirror, conf.User.Mirror)
+	edgeLines := make([]string, 0, len(conf.Internal.EdgeRepositories))
+	for _, repo := range conf.Internal.EdgeRepositories {
+		edgeLines = append(edgeLines, fmt.Sprintf("@edge %s/%s", conf.User.Mirror, repo))
+	}
+	edgeRepos := strings.Join(edgeLines, "\n")
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("printf '%%s\n' '%s' >> %s", edgeRepos, apkRepositoriesFile)); err != nil {
 		return fmt.Errorf("failed to add edge repositories: %w", err)
 	}

@@ -16,8 +16,13 @@ func Run(conf *config.Config) error {
 
 	fmt.Println("[INFO] Starting ChrootPhase.Run...")
 
-	// 0. Write resolv.conf BEFORE first apk update (DNS needed for apk)
-	resolvConf := "nameserver 208.67.222.222\nnameserver 208.67.220.220\n"
+	// 0. Write resolv.conf BEFORE first apk update (DNS needed for apk).
+	// Nameservers from the rules (resolvNameservers; required by
+	// LoadInternalRules).
+	resolvConf := ""
+	for _, ns := range i.ResolvNameservers {
+		resolvConf += "nameserver " + ns + "\n"
+	}
 	if err := shell.WriteFile(chroot, "/etc/resolv.conf", []byte(resolvConf), 0644); err != nil {
 		return fmt.Errorf("failed to write resolv.conf: %w", err)
 	}
@@ -28,7 +33,7 @@ func Run(conf *config.Config) error {
 	}
 
 	// 1b. Inject EFI sync hook (dual-disk only, runs after packages installed)
-	if err := internal.InjectEfiSyncHook(chroot); err != nil {
+	if err := internal.InjectEfiSyncHook(conf); err != nil {
 		fmt.Printf("[WARNING] EFI sync hook: %v\n", err)
 	}
 

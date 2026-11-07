@@ -68,6 +68,41 @@ dinitSkipServices:
   - dmcrypt
   - vector-setup
 
+# Daemons managed ELSEWHERE than a system dinit service — their -openrc
+# subpackages are never converted to -dinit (packages.go installDinitPackages):
+#   pipewire/pipewire-pulse/wireplumber — user dinit (the session wrapper
+#     starts the user manager; system instances would run as root and fight
+#     the session ones)
+#   alsa-utils (alsasound mixer state) — session audio is pipewire's
+#   pulseaudio — replaced by pipewire-pulse (user session)
+#   gnome-keyring — per-login-session daemon, never a system service
+#   wpa_supplicant — NetworkManager spawns and supervises it itself
+#   wireguard-tools — wg-quick is per-interface; WireGuard goes through
+#     NetworkManager (native support) or manual config
+#   openconnect/vpnc — VPN clients spawned by NetworkManager on demand
+#   turnstile — the dinit service (/etc/dinit.d/turnstiled) ships in the MAIN
+#     turnstile package (upstream data/dinit, kept: FeralOS dinit is PID 1);
+#     there is no turnstile-dinit subpackage. Its -openrc subpackage exists
+#     for the OpenRC flow only.
+#   oo7-portal / oo7-server — user-session secret daemons (Alpine ships them
+#     with -openrc scripts; there are no -dinit variants). The daemons are
+#     dbus/session-activated; the -openrc scripts stay installed for the
+#     OpenRC fallback boot.
+dinitSkipSessionManaged:
+  - pipewire
+  - pipewire-pulse
+  - wireplumber
+  - alsa-utils
+  - pulseaudio
+  - gnome-keyring
+  - wpa_supplicant
+  - wireguard-tools
+  - openconnect
+  - vpnc
+  - turnstile
+  - oo7-portal
+  - oo7-server
+
 # -openrc subpackages whose service is already provided by the dinit-chimera
 # suite — never converted to -dinit (their -dinit equivalent does not exist
 # and must not be installed):
@@ -201,6 +236,65 @@ standardPackages:
   # XDG user dirs (for flatpak portal access)
   - xdg-user-dirs
 
+# Fixed supplementary groups the primary user always joins (users.go
+# setupStandardGroups). The dynamic per-package groups are separate
+# (packageLogic/DE `groups` — created on demand by setupUserGroups).
+standardUserGroups: [lp, input, cdrom, dialout, video, netdev, plugdev, users]
+
+# FeralOS package repository bootstrap (packages.go bootstrapFeralosRepo):
+# the keyring apk adds the signing key + the repositories.d entry.
+feralosRepo:
+  keyringUrl: "https://skea999.github.io/feralos-aports/feralos-aports/x86_64/feralos-keyring-1-r0.apk"
+
+# Kernel flavor consumed by the UKI/boot chain (uki.go booster-<flavor>.img,
+# linux-<flavor>.efi, /boot/vmlinuz-<flavor>) and by the EFI sync APK hook
+# (hooks.go targetPkg). The kernel PACKAGE itself ships in standardPackages.
+kernel:
+  package: "linux-lts"
+  flavor: "lts"
+
+# CPU microcode (packages.go install + boot.go/uki.go UKI assembly).
+# Selected at install time from /proc/cpuinfo (amd / intel keys).
+microcode:
+  amd:
+    package: "amd-ucode"
+    image: "/boot/amd-ucode.img"
+  intel:
+    package: "intel-ucode"
+    image: "/boot/intel-ucode.img"
+
+# @edge tagged repositories appended by features/edgerepos.go when
+# enableEdgeRepos is set (mirror prefix comes from the user `mirror`
+# variable). Commented back out after the edge install.
+edgeRepositories: [edge/main, edge/community, edge/testing]
+
+# chroot /etc/resolv.conf written BEFORE the first apk update (DNS needed
+# for apk) — chroot_phase.go step 0.
+resolvNameservers: [208.67.222.222, 208.67.220.220]
+
+# Maintenance schedules (crontab lines; command part fixed in Go):
+#   apkAudit   — weekly apk audit (misc.go)
+#   trim       — weekly TRIM via /usr/libexec/feralos-weekly-trim (storage.go)
+#   scrub      — weekly btrfs scrub (storage.go)
+#   snapshots  — daily btrbk snapshots (storage.go)
+maintenanceCron:
+  apkAudit: "0 4 * * 0"
+  trim: "0 3 * * 0"
+  scrub: "30 3 * * 0"
+  snapshots: "0 2 * * *"
+
+# /etc/security/limits.conf nofile values (users.go setupLimits).
+limits:
+  nofileDefault: 100000
+  nofileUser: 524288
+
+# Nix pins consumed by features/nix.go under enableNix: the stable channel
+# and the flake registry ref (system-wide /etc/nix/registry.json + user
+# `nix registry add nixpkgs github:NixOS/nixpkgs/<registryRef>`).
+nix:
+  channel: "https://nixos.org/channels/nixos-26.05"
+  registryRef: "nixos-26.05"
+
 # 1. Disk Layouts Definitions
 diskLayouts:
   btrfsStandardServer:
@@ -245,7 +339,8 @@ desktopEnvironments:
     # subpackage). The dinit USER backend is identical on both, so the
     # -user-dinit session stack below works under OpenRC too.
     # Login-shell trick: passwd shell = /usr/libexec/feralos/login-shell
-    # (not in /etc/shells) skips niri-session's bash re-exec (see users.go)
+    # (not in /etc/shells) skips niri-session's bash re-exec (wired by the
+    # desktop setup: desktops/niri.go / niri_wayle.go)
     # cava (DMS audio visualizer) NOT on Alpine v3.24 — re-add when packaged
     # iptables/ip6tables/ebtables: firewalld direct-rule backends (runtime)
     # audio stack = user dinit services (pipewire-user-dinit + deps pull
@@ -268,7 +363,14 @@ desktopEnvironments:
     # the base defaultRunlevels).
     # wayvnc = VNC server (round 37) — RustDesk flatpak REMOVED (round 43
     # cleanup philosophy: not part of the validated stack)
-    services: {"greetd": "default", "elogind": "default", "firewalld": "default", "polkit": "default", "cupsd": "default", "networkmanager": "default", "bluetooth": "default", "ursined": "default"}
+    services: {"greetd": "default", "elogind": "default", "firewalld": "default", "polkit": "default", "cupsd": "default", "networkmanager": "default", "bluetooth": "default", "ursined": "default", "turnstiled": "default"}
+    # turnstiled: PAM module talks to it over its socket at login; it spawns
+    # the per-user dinit. DUAL-INIT (services.go drives both): dinit gets the
+    # boot.d link (the unit ships in /etc/dinit.d/turnstiled — the enablement
+    # resolves /lib first, /etc fallback), OpenRC rc-update default (ALWAYS
+    # enabled — a dinit install must stay OpenRC-bootable). The service ships
+    # in the turnstile-openrc subpackage (same daemon, same dinit user
+    # backend — turnstile is service-manager-agnostic).
     # ADR-010 R1 amendment: explicitly-activated system units carry the OpenRC
     # initd name, so `services` alone drives both inits (dinitServices stays
     # empty). PPD (org.freedesktop.UPower.PowerProfiles) is dbus-activated on
@@ -278,6 +380,15 @@ desktopEnvironments:
     # plugdev: NM polkit rule allows GUI connection management (round 30);
     # lpadmin: CUPS SystemGroup (printer admin — cups-files.conf default)
     groups: ["video", "input", "audio", "plugdev", "netdev", "lpadmin"]
+    # greeter groups: the `greeter` user joins these (usermod -aG, desktop
+    # setup) — greetd re-owns /var/lib/greetd 0750 at boot (traversal).
+    greeterGroups: [video, input, greetd]
+    # User dinit boot.d infrastructure units (desktop setup links them into
+    # /usr/lib/dinit.d/user/boot.d, existence-filtered). SHAPE: verbatim unit
+    # file names INCLUDING the `.user` suffix — the consumer joins them with
+    # spaces into the shell loop unchanged. Session apps (polkit-agent/dms/
+    # wayvnc) are NOT here — the session script starts them (add-wants model).
+    userServices: ["dbus.user", "pipewire.user", "pipewire-pulse.user", "wireplumber.user", "wait-wayland.user", "org.freedesktop.portal.Desktop.user", "org.freedesktop.portal.Documents.user", "org.freedesktop.impl.portal.PermissionStore.user"]
     # DMS 1.6.x + quickshell 0.3.x ship as NATIVE apk packages (feralos-aports)
     # — the nix stack (dms-shell/quickshell/dgop/nixGL/execfilter) is gone.
     # matugen (dynamic wallpaper theming backend) now ships from OUR repo
@@ -314,7 +425,9 @@ desktopEnvironments:
     # Flatseal) alongside Key Rack. NOT copied: the DMS shell packages
     # (niri-only) and seahorse/gnome-keyring (oo7 + Key Rack own secrets;
     # seahorse conflicts on org.freedesktop.secrets.service).
-    services: {"greetd": "default", "elogind": "default", "firewalld": "default", "polkit": "default", "cupsd": "default", "networkmanager": "default", "bluetooth": "default", "ursined": "default"}
+    services: {"greetd": "default", "elogind": "default", "firewalld": "default", "polkit": "default", "cupsd": "default", "networkmanager": "default", "bluetooth": "default", "ursined": "default", "turnstiled": "default"}
+    # turnstiled: same dual-init wiring as niri (see above) — PAM → per-user
+    # dinit at login; enablement driven by services.go on both inits.
     # ADR-010 R1 amendment: services alone drives both inits (see niri). PPD =
     # dbus-activated on demand. upowerd/udisksd etc. are dbus system-activated
     # on demand (Wayle queries org.freedesktop.UPower) — the supervision
@@ -322,6 +435,11 @@ desktopEnvironments:
     # feralos-dbus-audit, never listed here; both inits work (OpenRC system
     # bus = raw-exec fallback through the shim).
     groups: ["video", "input", "audio", "plugdev", "netdev", "lpadmin"]
+    greeterGroups: [video, input, greetd]
+    # Same shape as niri's userServices (verbatim `.user` unit names) plus the
+    # oo7 secrets stack: org.freedesktop.secrets (oo7-server daemon) +
+    # org.freedesktop.impl.portal.desktop.oo7 (the oo7 Secret portal).
+    userServices: ["dbus.user", "pipewire.user", "pipewire-pulse.user", "wireplumber.user", "wait-wayland.user", "org.freedesktop.secrets.user", "org.freedesktop.impl.portal.desktop.oo7.user", "org.freedesktop.portal.Desktop.user", "org.freedesktop.portal.Documents.user", "org.freedesktop.impl.portal.PermissionStore.user"]
   cosmic:
     packages: ["cosmic-session", "cosmic-term", "cosmic-greeter", "cosmic-edit", "cosmic-player", "cosmic-store", "cosmic-settings", "cosmic-screenshot", "cosmic-icons", "cosmic-initial-setup", "adwaita-icon-theme", "desktop-file-utils", "hicolor-icon-theme", "elogind", "dbus", "polkit", "ursine", "pipewire", "xdg-desktop-portal-cosmic", "turnstile", "dbus-session-materializer-user-dinit", "cosmic-applets-user-dinit"]
     services: {"cosmic-greeter": "default", "elogind": "default", "dbus": "default", "turnstiled": "default", "ursined": "default"}

@@ -76,6 +76,57 @@ type InternalRules struct {
 	DummyPackages          map[string]DummyPackageRule    `yaml:"dummyPackages"`
 	ProvidePackages        []string                       `yaml:"providePackages"`
 	BaseModules            []string                       `yaml:"baseModules"`
+
+	// Tunables (stage-2 rules-ification): hardcoded Go data moved into the
+	// rules file so the installer is tunable by editing ONLY
+	// internal_rules.yaml. The mechanism stays Go.
+	StandardUserGroups      []string                  `yaml:"standardUserGroups"`
+	DinitSkipSessionManaged []string                  `yaml:"dinitSkipSessionManaged"`
+	FeralosRepo             FeralosRepoRules          `yaml:"feralosRepo"`
+	Kernel                  KernelRules               `yaml:"kernel"`
+	Microcode               map[string]MicrocodeRules `yaml:"microcode"`
+	EdgeRepositories        []string                  `yaml:"edgeRepositories"`
+	ResolvNameservers       []string                  `yaml:"resolvNameservers"`
+	MaintenanceCron         MaintenanceCronRules      `yaml:"maintenanceCron"`
+	Limits                  LimitsRules               `yaml:"limits"`
+	Nix                     NixRules                  `yaml:"nix"`
+}
+
+// FeralosRepoRules bootstraps the FeralOS apk repository (signing key).
+type FeralosRepoRules struct {
+	KeyringURL string `yaml:"keyringUrl"`
+}
+
+// KernelRules selects the kernel package + UKI flavor naming.
+type KernelRules struct {
+	Package string `yaml:"package"` // apk package name (hooks.go EFI sync hook)
+	Flavor  string `yaml:"flavor"`  // vmlinuz-<flavor>, booster-<flavor>.img, linux-<flavor>.efi
+}
+
+// MicrocodeRules is one CPU-vendor entry (amd / intel) of the microcode map.
+type MicrocodeRules struct {
+	Package string `yaml:"package"` // apk package installed at setup
+	Image   string `yaml:"image"`   // initramfs image path included in the UKI
+}
+
+// MaintenanceCronRules carries the crontab schedules (commands are fixed in Go).
+type MaintenanceCronRules struct {
+	ApkAudit  string `yaml:"apkAudit"`
+	Trim      string `yaml:"trim"`
+	Scrub     string `yaml:"scrub"`
+	Snapshots string `yaml:"snapshots"`
+}
+
+// LimitsRules are the /etc/security/limits.conf nofile values.
+type LimitsRules struct {
+	NoFileDefault int `yaml:"nofileDefault"`
+	NoFileUser    int `yaml:"nofileUser"`
+}
+
+// NixRules pins the stable channel + flake registry ref.
+type NixRules struct {
+	Channel     string `yaml:"channel"`
+	RegistryRef string `yaml:"registryRef"`
 }
 
 // DummyPackageRule defines a package to replace with a memory-safe dummy.
@@ -99,6 +150,14 @@ type DynamicPackageRules struct {
 	DinitServices map[string]string `yaml:"dinitServices"`
 	Modules       []string          `yaml:"modules"`
 	KernelCmdline []string          `yaml:"kernelCmdline"`
+
+	// Desktop-owned tunables (consumed by chrootPhase/desktops):
+	// UserServices  — user dinit boot.d infrastructure unit names, verbatim
+	//                 INCLUDING the `.user` suffix (joined with spaces into
+	//                 the shell loop by the niri/niriWayle setup).
+	// GreeterGroups — supplementary groups the `greeter` user joins.
+	UserServices  []string `yaml:"userServices"`
+	GreeterGroups []string `yaml:"greeterGroups"`
 }
 
 func LoadConfig(userPath string) (*Config, error) {
@@ -172,7 +231,44 @@ func LoadInternalRules(conf *Config) error {
 		return fmt.Errorf("cannot find internal_rules.yaml in any expected location")
 	}
 
-	return yaml.Unmarshal(iData, &conf.Internal)
+	if err := yaml.Unmarshal(iData, &conf.Internal); err != nil {
+		return err
+	}
+	return validateInternalRules(&conf.Internal)
+}
+
+// validateInternalRules enforces the ALWAYS-CONSUMED tunables: every install
+// path reads them regardless of feature flags, so empty means a hand-edited
+// rules file lost content and would silently produce a broken target (no
+// DNS in resolv.conf, wrong UKI naming, zeroed limits.conf, no user groups,
+// every -openrc package force-converted). Feature-gated keys are NOT
+// validated here (edgeRepositories / nix / microcode are consumed only under
+// enableEdgeRepos / enableNix / CPU detection — SetupEdgeRepos and SetupNix
+// enforce their own contracts, and empty microcode gracefully means "no
+// microcode").
+func validateInternalRules(i *InternalRules) error {
+	if i.Kernel.Package == "" || i.Kernel.Flavor == "" {
+		return fmt.Errorf("internal_rules: kernel.package and kernel.flavor are required (always consumed by the boot chain)")
+	}
+	if i.FeralosRepo.KeyringURL == "" {
+		return fmt.Errorf("internal_rules: feralosRepo.keyringUrl is required (repo bootstrap)")
+	}
+	if len(i.ResolvNameservers) == 0 {
+		return fmt.Errorf("internal_rules: resolvNameservers is required (chroot resolv.conf)")
+	}
+	if i.MaintenanceCron.ApkAudit == "" || i.MaintenanceCron.Trim == "" || i.MaintenanceCron.Scrub == "" || i.MaintenanceCron.Snapshots == "" {
+		return fmt.Errorf("internal_rules: maintenanceCron apkAudit/trim/scrub/snapshots are all required")
+	}
+	if i.Limits.NoFileDefault == 0 || i.Limits.NoFileUser == 0 {
+		return fmt.Errorf("internal_rules: limits.nofileDefault and limits.nofileUser are required (limits.conf)")
+	}
+	if len(i.StandardUserGroups) == 0 {
+		return fmt.Errorf("internal_rules: standardUserGroups is required (user supplementary groups)")
+	}
+	if len(i.DinitSkipSessionManaged) == 0 {
+		return fmt.Errorf("internal_rules: dinitSkipSessionManaged is required (dinit conversion skips)")
+	}
+	return nil
 }
 
 // applyImpliedFlags derives feature flags from the values that require them,

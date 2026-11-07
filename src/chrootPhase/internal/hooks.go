@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"feralos/src/utils/config"
 	"feralos/src/utils/shell"
 	"fmt"
 	"strings"
@@ -9,7 +10,9 @@ import (
 // InjectEfiSyncHook writes an APK commit hook that syncs /boot/efi to /boot/efi2
 // after kernel upgrades. Only for dual-disk layouts (checks /boot/efi2 exists).
 // Uses chrootPhase contract: shell.ExecuteCmd(chroot, ...) for all operations.
-func InjectEfiSyncHook(chroot string) error {
+// The watched kernel package comes from the rules (kernel.package).
+func InjectEfiSyncHook(conf *config.Config) error {
+	chroot := conf.Internal.ChrootDir
 	// Check if dual-disk (EFI2 exists)
 	checkCmd := fmt.Sprintf("test -d %s/boot/efi2 && echo yes || echo no", chroot)
 	out, _ := shell.ExecuteCmd("", checkCmd)
@@ -19,11 +22,11 @@ func InjectEfiSyncHook(chroot string) error {
 
 	fmt.Println("[INFO] Injecting EFI sync APK hook (dual-disk)...")
 
-	efiHook := `#!/bin/sh
+	efiHook := fmt.Sprintf(`#!/bin/sh
 
 STAGE="${1}"
 targetCmd="upgrade"
-targetPkg="linux-lts"
+targetPkg="%s"
 
 if [ "${STAGE}" = "post-commit" ] && [ "${APK_COMMAND}" = "${targetCmd}" ]; then
     echo "Executing ${targetPkg}-raid-efi.sh post-commit hook because apk is doing the command ${targetCmd}... "
@@ -42,7 +45,7 @@ if [ "${STAGE}" = "post-commit" ] && [ "${APK_COMMAND}" = "${targetCmd}" ]; then
     fi
 fi
 
-exit 0`
+exit 0`, conf.Internal.Kernel.Package)
 	if err := shell.WriteFile(chroot, "/etc/apk/commit_hooks.d/copy-efi.sh", []byte(efiHook+"\n"), 0644); err != nil {
 		return fmt.Errorf("failed to write EFI sync hook: %w", err)
 	}

@@ -61,21 +61,29 @@ append_all_modaliases: true`, forceLoadModules)
 	}
 
 	// 3. Write kernel hook
-	if err := writeBoosterHook(chroot); err != nil {
+	if err := writeBoosterHook(conf); err != nil {
 		return fmt.Errorf("booster hook failed: %w", err)
 	}
 
 	return nil
 }
 
-func writeBoosterHook(chroot string) error {
+// writeBoosterHook writes the apk kernel hook that builds the initramfs and
+// assembles the UKI. Microcode image paths come from the rules (microcode
+// map) — the kernel FLAVOR stays runtime-driven ($1 from the apk hook
+// invocation), so vmlinuz-<flavor> / linux-<flavor>.efi naming is preserved.
+// An empty microcode image simply makes its branch test false (no microcode).
+func writeBoosterHook(conf *config.Config) error {
+	chroot := conf.Internal.ChrootDir
+	amdUcode := conf.Internal.Microcode["amd"].Image
+	intelUcode := conf.Internal.Microcode["intel"].Image
 	fmt.Println("[INFO] Writing booster kernel hook...")
 
 	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /etc/kernel-hooks.d"); err != nil {
 		return fmt.Errorf("failed to create kernel-hooks.d: %w", err)
 	}
 
-	hookContent := `#!/bin/sh
+	hookContent := fmt.Sprintf(`#!/bin/sh
 FLAVOR="$1"
 NEW_VERSION="$2"
 tmpdir=$(mktemp -d)
@@ -89,19 +97,19 @@ output_name="linux-${FLAVOR}.efi"
 
 mkdir -p "${output_dir}"
 
-if [ -f /boot/amd-ucode.img ]; then
+if [ -f %s ]; then
   efi-mkuki \
       -c "${cmdline}" \
       -o "${output_dir}/${output_name}" \
       "/boot/vmlinuz-${FLAVOR}" \
-      /boot/amd-ucode.img \
+      %s \
       "${tmpdir}/initramfs"
-elif [ -f /boot/intel-ucode.img ]; then
+elif [ -f %s ]; then
   efi-mkuki \
       -c "${cmdline}" \
       -o "${output_dir}/${output_name}" \
       "/boot/vmlinuz-${FLAVOR}" \
-      /boot/intel-ucode.img \
+      %s \
       "${tmpdir}/initramfs"
 else
   efi-mkuki \
@@ -123,7 +131,7 @@ if [ -d /boot/efi2 ]; then
     mkdir -p /boot/efi2/EFI/BOOT
     cp -af "${output_dir}/${output_name}" /boot/efi2/EFI/BOOT/BOOTX64.EFI
 fi
-`
+`, amdUcode, amdUcode, intelUcode, intelUcode)
 	if err := shell.WriteFile(chroot, "/etc/kernel-hooks.d/50-booster.hook", []byte(hookContent+"\n"), 0644); err != nil {
 		return fmt.Errorf("failed to write booster hook: %w", err)
 	}

@@ -12,7 +12,7 @@ func ApplyRules(conf *config.Config) {
 	fmt.Println("[DEBUG] Starting dynamic rule application...")
 
 	// Always include base modules (fbcon, bridge, bonding, etc.)
-	u.Modules = appendUnique(u.Modules, i.BaseModules...)
+	u.Modules = AppendUnique(u.Modules, i.BaseModules...)
 
 	if layout, ok := i.DiskLayouts[u.DiskLayout]; ok {
 		fmt.Printf("[DEBUG] Applying Disk Layout: %s\n", u.DiskLayout)
@@ -29,8 +29,8 @@ func ApplyRules(conf *config.Config) {
 		applyRule(u, &gpu)
 	}
 
-	u.AllPackages = appendUnique(u.AllPackages, i.StandardPackages...)
-	u.AllPackages = appendUnique(u.AllPackages, u.ExtraPackages...)
+	u.AllPackages = AppendUnique(u.AllPackages, i.StandardPackages...)
+	u.AllPackages = AppendUnique(u.AllPackages, u.ExtraPackages...)
 
 	processed := make(map[string]bool)
 	for {
@@ -52,18 +52,18 @@ func ApplyRules(conf *config.Config) {
 }
 
 func applyRule(u *config.UserVariables, rule *config.DynamicPackageRules) {
-	u.AllPackages = appendUnique(u.AllPackages, rule.Packages...)
-	u.NixPackages = appendUnique(u.NixPackages, rule.NixPackages...)
-	u.FlatpakPackages = appendUnique(u.FlatpakPackages, rule.FlatpakPackages...)
-	u.UserGroups = appendUnique(u.UserGroups, rule.Groups...)
-	u.Modules = appendUnique(u.Modules, rule.Modules...)
-	u.KernelCmdline = appendUnique(u.KernelCmdline, rule.KernelCmdline...)
+	u.AllPackages = AppendUnique(u.AllPackages, rule.Packages...)
+	u.NixPackages = AppendUnique(u.NixPackages, rule.NixPackages...)
+	u.FlatpakPackages = AppendUnique(u.FlatpakPackages, rule.FlatpakPackages...)
+	u.UserGroups = AppendUnique(u.UserGroups, rule.Groups...)
+	u.Modules = AppendUnique(u.Modules, rule.Modules...)
+	u.KernelCmdline = AppendUnique(u.KernelCmdline, rule.KernelCmdline...)
 
 	for svc, level := range rule.Services {
 		if u.Runlevels[level] == nil {
 			u.Runlevels[level] = []string{}
 		}
-		u.Runlevels[level] = appendUnique(u.Runlevels[level], svc)
+		u.Runlevels[level] = AppendUnique(u.Runlevels[level], svc)
 	}
 
 	// ADR-010: dinit unit names for activation targets (they differ from the
@@ -73,11 +73,14 @@ func applyRule(u *config.UserVariables, rule *config.DynamicPackageRules) {
 		if u.RunlevelsDinit[level] == nil {
 			u.RunlevelsDinit[level] = []string{}
 		}
-		u.RunlevelsDinit[level] = appendUnique(u.RunlevelsDinit[level], svc)
+		u.RunlevelsDinit[level] = AppendUnique(u.RunlevelsDinit[level], svc)
 	}
 }
 
-func appendUnique(slice []string, items ...string) []string {
+// AppendUnique adds items to slice if not already present (empty items are
+// skipped). Single shared implementation — the former local copies in
+// logic.go and chrootPhase/internal/packages.go were byte-identical.
+func AppendUnique(slice []string, items ...string) []string {
 	for _, item := range items {
 		if item == "" {
 			continue

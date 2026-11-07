@@ -46,10 +46,19 @@ func SetupMisc(conf *config.Config) error {
 		return err
 	}
 	removeMkinitfs(chroot)
+	// ursine log dir (belt-and-braces beside the ursine post-install):
+	// ursined's dinit logfile is /var/log/ursine/ursined.log inside the
+	// @var-log subvol — the dir must exist or the unit fails at boot with
+	// "opening log file: No such file or directory". Harmless on installs
+	// without ursine. Lives with the other daemon-dir setups (moved from
+	// services.go, where it ran after users instead of with the misc block).
+	if err := setupUrsineLogDir(chroot); err != nil {
+		return err
+	}
 	if err := setupSmartd(chroot); err != nil {
 		return err
 	}
-	setupAuditCron(chroot)
+	setupAuditCron(chroot, conf.Internal.MaintenanceCron.ApkAudit)
 	generateSSHHostKeys(chroot)
 
 	// 17. FeralOS update script — wired to the DMS System Update button
@@ -189,6 +198,14 @@ func removeMkinitfs(chroot string) {
 	}
 }
 
+// setupUrsineLogDir creates /var/log/ursine with 0750 (see SetupMisc).
+func setupUrsineLogDir(chroot string) error {
+	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /var/log/ursine && chmod 0750 /var/log/ursine"); err != nil {
+		return fmt.Errorf("failed to create /var/log/ursine: %w", err)
+	}
+	return nil
+}
+
 // setupSmartd writes the smartd device scan configuration.
 func setupSmartd(chroot string) error {
 	// 14. Smartd config
@@ -200,11 +217,11 @@ func setupSmartd(chroot string) error {
 }
 
 // setupAuditCron appends the weekly APK audit job to the root crontab
-// (best-effort).
-func setupAuditCron(chroot string) {
+// (schedule from the rules: maintenanceCron.apkAudit — best-effort).
+func setupAuditCron(chroot, apkAuditCron string) {
 	// 15. APK audit cron
 	fmt.Println("[INFO] Configuring APK audit cron...")
-	if err := shell.WriteFileAppend(chroot, "/etc/crontabs/root", []byte("0 4 * * 0 /usr/bin/apk audit --full --quiet || true\n"), 0644); err != nil {
+	if err := shell.WriteFileAppend(chroot, "/etc/crontabs/root", []byte(apkAuditCron+" /usr/bin/apk audit --full --quiet || true\n"), 0644); err != nil {
 		fmt.Printf("[WARNING] Failed to write cron job: %v\n", err)
 	}
 }

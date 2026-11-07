@@ -37,15 +37,17 @@ logdir        /var/log/btrbk`
 	}
 
 	// Disk maintenance schedule (2026-09-30): daily btrbk snapshots, weekly
-	// btrfs scrub, weekly TRIM. Binary paths are resolved in the chroot so
-	// the cron lines never depend on the cron PATH; a missing tool skips its
-	// job with a warning (the packages are layout-driven).
+	// btrfs scrub, weekly TRIM (schedules from the rules: maintenanceCron).
+	// Binary paths are resolved in the chroot so the cron lines never depend
+	// on the cron PATH; a missing tool skips its job with a warning (the
+	// packages are layout-driven).
 	btrfsBin, _ := shell.ExecuteCmd(chroot, "command -v btrfs 2>/dev/null || true")
 	btrbkBin, _ := shell.ExecuteCmd(chroot, "command -v btrbk 2>/dev/null || true")
 	cryptBin, _ := shell.ExecuteCmd(chroot, "command -v cryptsetup 2>/dev/null || true")
 	btrfsBin = strings.TrimSpace(btrfsBin)
 	btrbkBin = strings.TrimSpace(btrbkBin)
 	cryptBin = strings.TrimSpace(cryptBin)
+	cron := conf.Internal.MaintenanceCron
 
 	if btrfsBin != "" && cryptBin != "" {
 		// TRIM with minimal discard exposure: enable discard passthrough on
@@ -75,13 +77,13 @@ exit $rc
 
 	cronLines := ""
 	if btrfsBin != "" {
-		cronLines += "\n0 3 * * 0 /usr/libexec/feralos-weekly-trim >> /var/log/btrfs-trim.log 2>&1"
-		cronLines += "\n30 3 * * 0 " + btrfsBin + " scrub start -B / >> /var/log/btrfs-scrub.log 2>&1"
+		cronLines += "\n" + cron.Trim + " /usr/libexec/feralos-weekly-trim >> /var/log/btrfs-trim.log 2>&1"
+		cronLines += "\n" + cron.Scrub + " " + btrfsBin + " scrub start -B / >> /var/log/btrfs-scrub.log 2>&1"
 	} else {
 		fmt.Println("[WARNING] btrfs not found — scrub/trim cron skipped")
 	}
 	if btrbkBin != "" {
-		cronLines += "\n0 2 * * * " + btrbkBin + " run >> /var/log/btrbk/cron.log 2>&1"
+		cronLines += "\n" + cron.Snapshots + " " + btrbkBin + " run >> /var/log/btrbk/cron.log 2>&1"
 	} else {
 		fmt.Println("[WARNING] btrbk not found — snapshot cron skipped")
 	}
