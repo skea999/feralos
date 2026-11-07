@@ -8,6 +8,15 @@
 
 ## Recent Rounds (latest first)
 
+### 2026-11-08 01:00 - Review follow-up: all 11 approved fixes landed (3 batches) + 17 new findings logged
+**Agent:** codebase
+**Summary:** the 11 remaining review findings fixed across 3 batches; every batch validated (gofmt/vet/build/test/lint green); 17 NEW issues spotted during execution and logged for the backlog.
+- **Batch 1** (`711d1f9` + `33c6b8d`): `boosterConfig` → internal_rules (LAST YAML-movable — compression/extraFiles/mountTimeout/network.dhcp, byte-identical render proof, guard extended); `applyRule` nil-map guard (hand-built Config no longer panics; 2 tests); `getPartitionSpacer` dedup (uki.go copy deleted → utils/misc, test moved); `ExtractLUKSUUIDs` extracted to utils/firstboot (tested, install_config + tpm share it — regex dup gone); secureboot dead `loadConfig` chain deleted + legacy echo write → `shell.WriteFile`.
+- **Batch 2** (`4036183`, tpm only): corrupt config.yaml now WARNS (was silent `_ = yaml.Unmarshal`); **apk world tag semantics DOCKER-PROVEN — world records `clevis@edge` TAGGED verbatim → the removeFromWorld literal was CORRECT (false positive resolved with evidence)**; LUKS passphrase = full-line read + stty echo suppression (Scanln whitespace truncation gone); kernel-dir selection filtered (IsDir) + sorted + clear warning (was silent entries[0]); imgPath absolute `/boot/...` (was cwd-relative).
+- **Batch 3** (`4bd5a54`, createConfig): `readLine` returns a sentinel error (`errInputClosed`) instead of os.Exit — the whole ask* chain propagates (mechanical signature changes, prompts byte-identical, `/dev/null`-stdin CLI behavior proven identical); **39 scanner-driven wizard tests** (askValid/askBool/askConfirm/askSecret double-entry/askDisks/display helpers — the wizard surface was untestable before).
+- **New findings logged (backlog, NOT fixed)**: tpm `removeEdgeRepos` writes repositories 0600 contradicting its own comment; `installClevis` assumes the first http repo line = main repo (mirror-order fragility); `SKEA_LUKS_PASSWORD` temp-file Chmod-after-CreateTemp TOCTOU window; `BOOT_CMDLINE_MARKER` comment line rides into the UKI cmdline (efi-mkuki tolerance unverified); `enumOptions` prompt order nondeterministic (map iteration — comment fixed, sort = user-visible change); `truncDefault` can split multibyte runes; `askAll` 31 boilerplate blocks (generic helper candidate); `PromptForConfig` still exits in-library (both mains are its only callers — full exit-extraction = optional next step); secureboot conf write failure non-fatal (stderr only).
+- **Validated**: each batch gofmt/vet/build/test/lint green; createValues CLI behavior byte-identical on /dev/null stdin; docker world-tag proof verbatim in tpm comments.
+
 ### 2026-11-07 17:00 - Full code review round: P1 fixes + rules-ification (12 keys) + misplacements
 **Agent:** codebase
 **Summary:** two-agent full review (placement/rules audit + code-quality) → 3 implementation stages, all validated; regression caught and fixed by the harness.
