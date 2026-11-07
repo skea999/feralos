@@ -1,8 +1,10 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
+	"io/fs"
 	"log"
 	"os"
 	"time"
@@ -36,7 +38,9 @@ func main() {
 	conf, err := config.LoadConfig(*userConfigPath)
 	if err != nil {
 		switch {
-		case os.IsNotExist(err):
+		case errors.Is(err, fs.ErrNotExist):
+			// LoadConfig wraps the read error with fmt.Errorf %w — os.IsNotExist
+			// does not unwrap, only errors.Is walks the chain.
 			fmt.Println("[WARN] No configuration file found. Starting with defaults...")
 			conf = &config.Config{}
 			// Rules needed by the wizard (enum options for layout/DE/video)

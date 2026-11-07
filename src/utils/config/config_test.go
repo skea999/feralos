@@ -1,10 +1,26 @@
 package config
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
 )
+
+// TestLoadConfigMissingFileIsNotExist pins the error contract main.go relies
+// on: the read error is wrapped (fmt.Errorf %w), so only errors.Is unwraps
+// to fs.ErrNotExist (the old os.IsNotExist check missed every wrapped
+// error and the missing-file path fataled instead of starting the wizard).
+func TestLoadConfigMissingFileIsNotExist(t *testing.T) {
+	_, err := LoadConfig(filepath.Join(t.TempDir(), "variables-missing.yaml"))
+	if err == nil {
+		t.Fatal("LoadConfig on a missing file: got nil error")
+	}
+	if !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("LoadConfig missing file error: %v, want errors.Is(err, fs.ErrNotExist)", err)
+	}
+}
 
 func TestApplyImpliedFlagsEdgeRepos(t *testing.T) {
 	tests := []struct {
