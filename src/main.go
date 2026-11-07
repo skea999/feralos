@@ -53,8 +53,14 @@ func main() {
 		}
 	}
 
-	// 3.1. Run Wizard (skips automatically if unattended: true)
-	createConfig.PromptForConfig(conf)
+	// 3.1. Run Wizard (skips automatically if unattended: true). Stdin
+	// close surfaces as an error; the same fatal-abort message the former
+	// in-library exit path printed is printed HERE + exit 1 — os.Exit
+	// stays in the CLI layer, byte-identical output and code.
+	if err := createConfig.PromptForConfig(conf); err != nil {
+		fmt.Println("\n[FATAL ERROR] input closed — aborting.")
+		os.Exit(1)
+	}
 
 	// 3.2. Re-validate before any disk work — the wizard pre-fills from the
 	// file and can fix invalid values; anything still invalid (e.g. an

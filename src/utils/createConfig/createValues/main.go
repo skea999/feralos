@@ -51,7 +51,13 @@ func main() {
 
 	// 3. Wizard (Defaults taken from just loaded YAML file)
 	conf.User.Unattended = false
-	createConfig.PromptForConfig(conf)
+	// Stdin close surfaces as an error; the same fatal-abort message the
+	// former in-library exit path printed is printed HERE + exit 1 —
+	// os.Exit stays in the CLI layer, byte-identical output and code.
+	if err := createConfig.PromptForConfig(conf); err != nil {
+		fmt.Println("\n[FATAL ERROR] input closed — aborting.")
+		os.Exit(1)
+	}
 
 	// 4. Save
 	if err := saveConfigStandalone(conf, *userFilePath); err != nil {
@@ -77,5 +83,9 @@ func saveConfigStandalone(conf *config.Config, filename string) error {
 	if err != nil {
 		return err
 	}
+	// 0600, not 0755/etc: the config carries the user password + LUKS
+	// passphrase in clear text (saveConfigStandalone is the wizard's save
+	// path) — owner-only read/write. MkdirAll above deliberately keeps
+	// 0755 (directories, not secret content).
 	return os.WriteFile(filename, data, 0600)
 }

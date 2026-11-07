@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"feralos/src/utils/config"
 )
@@ -356,8 +358,6 @@ func TestAskSecretRealValidators(t *testing.T) {
 	}
 }
 
-// captureStdout redirects package stdout (fmt.Printf prompts) into a
-
 func TestEnumOptions(t *testing.T) {
 	m := map[string]int{"b": 1, "a": 2, "c": 3}
 	opts := enumOptions(m)
@@ -421,5 +421,114 @@ func TestReadLine(t *testing.T) {
 	}
 	if _, err := readLine(sc); !errors.Is(err, errInputClosed) {
 		t.Fatalf("EOF err = %v, want errInputClosed", err)
+	}
+}
+
+// TestParseRuleEnumOrder pins the enum-source KEY ORDER to the file order
+// (user decision 2026-11: the wizard prompt order must match
+// internal_rules.yaml, not Go's random map iteration). The doc below uses a
+// deliberately NON-alphabetical order — a regression back to map iteration
+// cannot stably reproduce this sequence in any of the three maps (and
+// across the 20 repeats it cannot reproduce it twice), so the test fails
+// loudly on that path.
+func TestParseRuleEnumOrder(t *testing.T) {
+	// 40 keys, shuffled deliberately (not alphabetical).
+	var diskKeys [40]string
+	for i := range diskKeys {
+		diskKeys[i] = "layout" + string(rune('Z'-(i%26))) + fmt.Sprint(i)
+	}
+	var doc strings.Builder
+	doc.WriteString("topNoise: 1\n") // other top-level keys must not disturb
+	doc.WriteString("diskLayouts:\n")
+	for i, k := range diskKeys {
+		fmt.Fprintf(&doc, "  %s:\n    packages: [pkg%d]\n", k, i)
+	}
+	doc.WriteString("desktopEnvironments:\n  zeta: {packages: []}\n  alpha: {packages: []}\n  middle: {packages: []}\n")
+	doc.WriteString("videoDrivers:\n  foam: {packages: []}\n  edge: {packages: []}\n  emu: {packages: []}\n")
+
+	out := parseRuleEnumOrder([]byte(doc.String()))
+	if got, want := out.desktopEnvironments, []string{"zeta", "alpha", "middle"}; !slices.Equal(got, want) {
+		t.Fatalf("desktopEnvironments = %v, want %v (file order)", got, want)
+	}
+	if got, want := out.videoDrivers, []string{"foam", "edge", "emu"}; !slices.Equal(got, want) {
+		t.Fatalf("videoDrivers = %v, want %v (file order)", got, want)
+	}
+	wantDisk := diskKeys[:]
+	// Repeat: a map-iteration regression is nondeterministic — asserting
+	// the exact 40-key sequence twice in a row defeats it deterministically.
+	for round := 0; round < 2; round++ {
+		got := out.diskLayouts
+		if !slices.Equal(got, wantDisk) {
+			t.Fatalf("diskLayouts round %d = %v..., want file order %v...",
+				round, got[:3], wantDisk[:3])
+		}
+	}
+
+	// Odd shapes degrade to empty — never an error, never a prompt crash.
+	if empty := parseRuleEnumOrder([]byte("")); !slices.Equal(empty.desktopEnvironments, nil) {
+		t.Fatalf("empty doc gave %v", empty)
+	}
+	if empty := parseRuleEnumOrder([]byte("- scalar\n")); !slices.Equal(empty.diskLayouts, nil) {
+		t.Fatalf("scalar doc gave %v", empty)
+	}
+	if empty := parseRuleEnumOrder(nil); empty.desktopEnvironments != nil || empty.diskLayouts != nil || empty.videoDrivers != nil {
+		t.Fatalf("nil data gave %v", empty)
+	}
+}
+
+func TestEnumKeysInOrder(t *testing.T) {
+	m := map[string]string{"b": "1", "a": "2", "c": "3", "d": "4", "zeta": "5", "alpha": "6", "middle": "7", "omega": "8"}
+	inOrder := []string{"zeta", "alpha", "middle", "omega", "d", "c", "b", "a"}
+
+	if got, want := enumKeysInOrder(m, inOrder), inOrder; !slices.Equal(got, want) {
+		t.Fatalf("got %v, want %v (file order)", got, want)
+	}
+	// Order entries not in the map are skipped (no phantom keys emitted);
+	// the safety net keeps the remaining REAL keys so options are never
+	// silently dropped (the file-order prefix is preserved).
+	partial := enumKeysInOrder(m, []string{"gone", "zeta", "phantom", "b"})
+	if len(partial) != len(m) {
+		t.Fatalf("safety net lost keys: %v", partial)
+	}
+	if !slices.Equal(partial[:2], []string{"zeta", "b"}) {
+		t.Fatalf("file-order prefix = %v, want [zeta b]", partial[:2])
+	}
+	for _, phantom := range []string{"gone", "phantom"} {
+		if slices.Contains(partial, phantom) {
+			t.Fatalf("phantom key %q emitted: %v", phantom, partial)
+		}
+	}
+	// No order info at all: unordered fallback must still carry every key.
+	got := enumKeysInOrder(m, nil)
+	if len(got) != len(m) {
+		t.Fatalf("fallback len = %d, want %d", len(got), len(m))
+	}
+	for k := range m {
+		if !slices.Contains(got, k) {
+			t.Fatalf("fallback missing key %q in %v", k, got)
+		}
+	}
+	if got := enumKeysInOrder(map[string]string{}, []string{"x"}); len(got) != 0 {
+		t.Fatalf("empty map gave %v", got)
+	}
+}
+
+func TestTruncDefaultMultibyte(t *testing.T) {
+	// Multibyte value longer than 40 runes must truncate rune-wise: the
+	// output is valid UTF-8 and short (no mojibake replacement glyphs).
+	long := strings.Repeat("é", 41)
+	got := truncDefault(long)
+	if !utf8.ValidString(got) {
+		t.Fatalf("invalid UTF-8 produced: %q", got)
+	}
+	if want := strings.Repeat("é", 37) + "..."; got != want {
+		t.Fatalf("got %q, want %q (37 runes + \"...\")", got, want)
+	}
+	if got := truncDefault("é"); got != "é" {
+		t.Fatalf("short multibyte changed: %q", got)
+	}
+	near := strings.Repeat("é", 40)
+	if got := truncDefault(near); got != near {
+		t.Fatalf("40-rune value truncated: %q", got)
 	}
 }

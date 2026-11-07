@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -15,10 +16,10 @@ import (
 
 // errInputClosed marks stdin EOF/close. It is the only error the wizard
 // chain propagates: readLine produces it, every intermediate ask* function
-// returns it unchanged, and the top-level CLI caller (PromptForConfig)
-// turns it into the same fatal-abort message the library used to print
-// itself — CLI behavior stays byte-identical
-// ("\n[FATAL ERROR] input closed — aborting." + exit code 1).
+// returns it unchanged, and the CLI mains (installer + createValues) turn
+// it into the fatal-abort message + exit 1 AFTER PromptForConfig returns
+// it — os.Exit belongs to the CLI layer only (in-library exits broke the
+// exit chain; the printed message is byte-identical).
 var errInputClosed = errors.New("input closed")
 
 // PromptForConfig runs the interactive configuration wizard.
@@ -30,13 +31,14 @@ var errInputClosed = errors.New("input closed")
 //     whole loop with the previous answers as new defaults.
 //
 // Skips entirely when unattended is set in the YAML file.
-// Stdin EOF/close prints the fatal-abort message and exits 1 there (this
-// is the ONLY os.Exit in the library — the ask* chain behind it stays
-// exit-free and scanner-testable).
-func PromptForConfig(conf *config.Config) {
+// Stdin EOF/close surfaces as errInputClosed (the ONLY error the wizard
+// chain can produce): BOTH mains print the fatal-abort message and exit 1
+// on any non-nil return — no os.Exit inside the library, the ask* chain
+// stays exit-free and scanner-testable.
+func PromptForConfig(conf *config.Config) error {
 	if conf.User.Unattended {
 		fmt.Println("[INFO] Unattended mode active in YAML file. Skipping wizard.")
-		return
+		return nil
 	}
 
 	reader := bufio.NewScanner(os.Stdin)
@@ -47,19 +49,23 @@ func PromptForConfig(conf *config.Config) {
 	fmt.Println("==============================================")
 	fmt.Println("Press Enter to keep the value shown in [ ].")
 
+	// Enum option ORDER = the key order in internal_rules.yaml (user
+	// decision): Go map iteration is nondeterministic, so the file is
+	// re-walked as yaml.Node once, before the restart loop (order read
+	// once, reused on every summary restart).
+	order := parseRuleEnumOrder(readInternalRulesBytes())
+
 	for {
-		if err := askAll(reader, conf); err != nil {
-			fmt.Println("\n[FATAL ERROR] input closed — aborting.")
-			os.Exit(1)
+		if err := askAll(reader, conf, order); err != nil {
+			return err
 		}
 		printSummary(conf)
 		proceed, err := askConfirm(reader)
 		if err != nil {
-			fmt.Println("\n[FATAL ERROR] input closed — aborting.")
-			os.Exit(1)
+			return err
 		}
 		if proceed {
-			return
+			return nil
 		}
 		fmt.Println("\n[INFO] Restarting input — your previous answers are now the defaults.")
 	}
@@ -68,11 +74,19 @@ func PromptForConfig(conf *config.Config) {
 // askAll asks every user-variable field in order. Layout comes first so the
 // disk count can be validated against it immediately. Errors from the
 // read chain (stdin EOF/close) abort the wizard via the top-level caller.
-func askAll(reader *bufio.Scanner, conf *config.Config) error {
+//
+// The ~30 per-field blocks below (v, err := ask…; if err != nil { return
+// err }; u.X = v) deliberately stay EXPLICIT — evaluated against a generic
+// helper (store(&u.X, func() (T, error) { return ask… })): field targets
+// differ (bool/string/[]string), every ask call carries a distinct label +
+// validator/options pair, so the helper forces a closure per field for
+// zero net line savings and hides the read→validate→assign sequence the
+// explicit form states once per field.
+func askAll(reader *bufio.Scanner, conf *config.Config, order ruleEnumOrder) error {
 	u := &conf.User
-	layoutOptions := enumOptions(conf.Internal.DiskLayouts)
-	deOptions := append(enumOptions(conf.Internal.DesktopEnvironments), "none")
-	videoOptions := append(enumOptions(conf.Internal.VideoDrivers), "none")
+	layoutOptions := enumKeysInOrder(conf.Internal.DiskLayouts, order.diskLayouts)
+	deOptions := append(enumKeysInOrder(conf.Internal.DesktopEnvironments, order.desktopEnvironments), "none")
+	videoOptions := append(enumKeysInOrder(conf.Internal.VideoDrivers, order.videoDrivers), "none")
 
 	fmt.Println("\n--- General ---")
 	unattended, err := askBool(reader, "Unattended (installer skips wizard)", u.Unattended)
@@ -328,10 +342,12 @@ func askSecret(reader *bufio.Scanner, label string, allowEmpty bool, validate fu
 	readOnce := func() (string, error) {
 		if term.IsTerminal(int(os.Stdin.Fd())) {
 			pwd, err := term.ReadPassword(int(os.Stdin.Fd()))
-			fmt.Println()
 			if err != nil {
 				return "", err
 			}
+			// Newline only on SUCCESS — after a read error the retry loop
+			// prints its [ERROR] line and the spacer would orphan it.
+			fmt.Println()
 			return string(pwd), nil
 		}
 		return readLine(reader)
@@ -479,6 +495,32 @@ func enumOptions[T any](m map[string]T) []string {
 	return opts
 }
 
+// enumKeysInOrder returns the enum map's keys in internal_rules.yaml file
+// order (user decision: the wizard prompt order must match the file, not
+// Go's random map iteration). Falls back to enumOptions when no file order
+// is available (rules file missing/odd shape); keys absent from the map
+// are skipped, map keys missing from the file order (impossible while the
+// file is the map's source, kept as a safety net) append at the end.
+func enumKeysInOrder[T any](m map[string]T, order []string) []string {
+	if len(order) == 0 {
+		return enumOptions(m)
+	}
+	opts := make([]string, 0, len(m))
+	for _, k := range order {
+		if _, ok := m[k]; ok {
+			opts = append(opts, k)
+		}
+	}
+	if len(opts) != len(m) {
+		for k := range m {
+			if !slices.Contains(opts, k) {
+				opts = append(opts, k)
+			}
+		}
+	}
+	return opts
+}
+
 func maskDefault(s string) string {
 	if s == "" {
 		return "(empty)"
@@ -486,9 +528,13 @@ func maskDefault(s string) string {
 	return strings.Repeat("*", utf8.RuneCountInString(s))
 }
 
+// truncDefault shortens long single-line values for the summary; rune-safe
+// so a multibyte rune never splits into invalid UTF-8 (byte slicing used
+// to break at 37 bytes mid-rune).
 func truncDefault(s string) string {
-	if len(s) > 40 {
-		return s[:37] + "..."
+	if utf8.RuneCountInString(s) > 40 {
+		r := []rune(s)
+		return string(r[:37]) + "..."
 	}
 	return s
 }
