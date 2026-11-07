@@ -23,6 +23,15 @@ func SetupUsers(conf *config.Config) error {
 		return err
 	}
 
+	// Create incus-admin group if incus or incus-feature is installed.
+	// packageLogic.incus.groups fires at config-load time (ApplyRules) but
+	// incus enters the package list later (features/extraPackages) —
+	// late-arriving packages need this install-time group fallback
+	// (regression run 2026-11-07T15-56-12Z).
+	if err := ensureIncusAdminGroup(chroot); err != nil {
+		fmt.Printf("[WARNING] Failed to ensure incus-admin group: %v\n", err)
+	}
+
 	setupUserGroups(chroot, &u)
 	setupStandardGroups(chroot, &u, conf.Internal.StandardUserGroups)
 
@@ -101,6 +110,34 @@ func setupStandardGroups(chroot string, u *config.UserVariables, groups []string
 			fmt.Printf("[WARNING] Failed to add %s to group %s: %v\n", u.UserName, group, err)
 		}
 	}
+}
+
+// ensureIncusAdminGroup creates the incus-admin group if incus or incus-feature is installed.
+func ensureIncusAdminGroup(chroot string) error {
+	// Check if incus or incus-feature is installed
+	checkIncus, _ := shell.ExecuteCmd(chroot, "apk info -e incus >/dev/null 2>&1 && echo INSTALLED || echo NOT_INSTALLED")
+	checkIncusFeature, _ := shell.ExecuteCmd(chroot, "apk info -e incus-feature >/dev/null 2>&1 && echo INSTALLED || echo NOT_INSTALLED")
+
+	if !strings.Contains(checkIncus, "INSTALLED") && !strings.Contains(checkIncusFeature, "INSTALLED") {
+		fmt.Println("[DEBUG] incus/incus-feature not installed, skipping incus-admin group")
+		return nil
+	}
+
+	// Check if group already exists
+	checkGroup, _ := shell.ExecuteCmd(chroot, "getent group incus-admin >/dev/null 2>&1 && echo EXISTS || echo NOT_EXISTS")
+	if strings.TrimSpace(checkGroup) == "EXISTS" {
+		fmt.Println("[DEBUG] incus-admin group already exists")
+		return nil
+	}
+
+	// Create the group
+	fmt.Println("[INFO] Creating incus-admin group...")
+	if _, err := shell.ExecuteCmdArgs(chroot, "addgroup", "incus-admin"); err != nil {
+		return fmt.Errorf("failed to create incus-admin group: %w", err)
+	}
+
+	fmt.Println("[INFO] incus-admin group created successfully")
+	return nil
 }
 
 // appendSubuidSubgid appends the user subordinate id ranges (the root ranges
