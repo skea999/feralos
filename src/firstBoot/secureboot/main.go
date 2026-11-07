@@ -50,7 +50,11 @@ func main() {
 	_, _ = shell.ExecuteCmd("", "sbctl enroll-keys -m")
 
 	// --- 6. Write secureboot hook config ---
-	writeSecurebootConf()
+	if err := writeSecurebootConf(); err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR: failed to write secureboot.conf: %v\n", err)
+		cleanup()
+		os.Exit(1)
+	}
 
 	// --- 7. Verify ---
 	fmt.Println("\n=== Verification ===")
@@ -136,9 +140,9 @@ func importCerts() {
 	fmt.Println("Certs imported to /var/lib/sbctl/keys/")
 }
 
-func writeSecurebootConf() {
+func writeSecurebootConf() error {
 	fmt.Println("\nWriting secureboot hook config...")
-	confContent := `cmdline="$(cat /etc/kernel/cmdline)"
+	confContent := `cmdline="$(grep -v '^#' /etc/kernel/cmdline)"
 signing_cert="/etc/uefi-keys/db.crt"
 signing_key="/etc/uefi-keys/db.key"
 output_dir="/boot/efi/Alpine"
@@ -149,10 +153,13 @@ backup=yes
 	// legacy `echo '<escaped>' >` pattern: byte-identical — the echo run
 	// trailed echo's newline after the already-newline-terminated content.
 	// Parent dir (/etc/kernel-hooks.d) is created 0755 by WriteFile's
-	// MkdirAll (the separate mkdir call is subsumed).
+	// MkdirAll (the separate mkdir call is subsumed). The error is fatal:
+	// without this file the kernel hook never re-signs/re-binds the UKI
+	// after updates — failing loudly here beats a silently broken boot.
 	if err := shell.WriteFile("", "/etc/kernel-hooks.d/secureboot.conf", []byte(confContent+"\n"), 0644); err != nil {
-		fmt.Fprintf(os.Stderr, "ERROR: failed to write secureboot.conf: %v\n", err)
+		return fmt.Errorf("failed to write secureboot.conf: %w", err)
 	}
+	return nil
 }
 
 func cleanup() {

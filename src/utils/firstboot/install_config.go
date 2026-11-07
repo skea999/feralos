@@ -37,8 +37,13 @@ type InstallConfig struct {
 }
 
 // luksUUIDRe matches the rd.luks.name=<uuid>= parameters of the kernel
-// cmdline. Lower-hex + hyphen UUID (see btrfsStandard* layouts).
-var luksUUIDRe = regexp.MustCompile(`rd\.luks\.name=([0-9a-f-]+)=`)
+// cmdline. Canonical UUID shape (8-4-4-4-12 lowercase hex) — the former
+// `[0-9a-f-]+` also accepted hyphens anywhere, turning any garbage echo of
+// the parameter prefix into a "UUID" (a findfs lookup on it just wastes a
+// boot-time exec; cryptsetup would fail later). Real samples
+// (tests/artifacts/harness runs 2026-11-07T16-26-43Z / 15-56-12Z):
+// rd.luks.name=c572e494-fe65-4ad5-89c3-9cdd9ef93e35=luks-c572e494-….
+var luksUUIDRe = regexp.MustCompile(`rd\.luks\.name=([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})=`)
 
 // ExtractLUKSUUIDs returns every LUKS UUID from rd.luks.name= cmdline
 // parameters in order of appearance (FindAllStringSubmatch: all matches,

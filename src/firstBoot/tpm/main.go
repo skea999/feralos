@@ -218,9 +218,10 @@ func getPassphraseFile() (string, string) {
 			fmt.Fprintf(os.Stderr, "ERROR: failed to create temp file: %v\n", err)
 			os.Exit(1)
 		}
+		// os.CreateTemp always creates 0600 (Go 1.22): no chmod needed —
+		// the former by-name chmod was both redundant and racy.
 		_, _ = tmpFile.WriteString(pw)
 		tmpFile.Close()
-		_ = os.Chmod(tmpFile.Name(), 0o600)
 		return tmpFile.Name(), tmpFile.Name()
 	}
 
@@ -234,7 +235,6 @@ func getPassphraseFile() (string, string) {
 	}
 	_, _ = tmpFile.WriteString(password)
 	tmpFile.Close()
-	_ = os.Chmod(tmpFile.Name(), 0o600)
 	return tmpFile.Name(), tmpFile.Name()
 }
 
@@ -280,19 +280,39 @@ func installClevis() {
 
 	re := regexp.MustCompile(`^https?://.+`)
 	lines := strings.Split(string(repos), "\n")
-	mirrorBase := ""
+	// The edge base derives from the MAIN repository line (mirror/branch/
+	// main → mirror base): the former first-http-line assumption breaks
+	// whenever community (or any other repo) sorts or landed before main.
+	// Fallback keeps a mirror alive when no line ends in /main; the
+	// resulting URLs are unchanged when main is present.
+	trimmed := make([]string, 0, len(lines))
 	for _, line := range lines {
-		if re.MatchString(line) {
-			mirrorBase = strings.TrimSpace(line)
-			parts := strings.Split(mirrorBase, "/")
-			if len(parts) >= 3 {
-				mirrorBase = strings.Join(parts[:len(parts)-2], "/")
-			}
-			break
+		trimmed = append(trimmed, strings.TrimSpace(line))
+	}
+	mainLine := ""
+	firstHTTP := ""
+	for _, line := range trimmed {
+		if !re.MatchString(line) {
+			continue
+		}
+		if strings.HasSuffix(line, "/main") && mainLine == "" {
+			mainLine = line
+		}
+		if firstHTTP == "" {
+			firstHTTP = line
 		}
 	}
-
-	if mirrorBase == "" {
+	chosen := mainLine
+	if chosen == "" {
+		if firstHTTP == "" {
+			fmt.Fprintln(os.Stderr, "WARNING: cannot determine mirror base URL")
+			return
+		}
+		chosen = firstHTTP
+		fmt.Fprintf(os.Stderr, "WARNING: no %s line ending in /main found; deriving the edge base from the first repository line (%s)\n", apkRepositoriesFile, chosen)
+	}
+	mirrorBase, mirrorOK := repoDirBase(chosen)
+	if !mirrorOK {
 		fmt.Fprintln(os.Stderr, "WARNING: cannot determine mirror base URL")
 		return
 	}
@@ -326,6 +346,18 @@ func installClevis() {
 	removeEdgeRepos()
 }
 
+// repoDirBase strips the trailing <branch>/<repo> path segments of an
+// Alpine repository URL (…/v3.24/main → … ; …/edge/community → …/edge)
+// and reports failure for degenerate URLs (the former inline splice kept
+// going silently when the split was too short).
+func repoDirBase(repoURL string) (string, bool) {
+	parts := strings.Split(repoURL, "/")
+	if len(parts) < 3 {
+		return "", false
+	}
+	return strings.Join(parts[:len(parts)-2], "/"), true
+}
+
 // removeFromWorld removes an exact world entry. apk world stores the
 // TAGGED literal for tagged installs (`clevis@edge`, docker-proven on
 // alpine:3.22) — callers must pass the tagged name; an untagged name
@@ -355,23 +387,39 @@ func removeEdgeRepos() {
 			lines = append(lines, line)
 		}
 	}
-	_ = os.WriteFile(apkRepositoriesFile, []byte(strings.Join(lines, "\n")), 0o600) //nolint:gosec // /etc/apk/repositories is system-readable
+	// 0644: apk reads this file as any user (apk-tools stats it in
+	// non-root userspace flows); the former 0600 arg contradicted its
+	// own system-readable intent (inert on an existing file — WriteFile
+	// perm applies at create — but wrong if the file is ever recreated).
+	_ = os.WriteFile(apkRepositoriesFile, []byte(strings.Join(lines, "\n")), 0o644) //nolint:gosec // G306: /etc/apk/repositories must stay system-readable
 }
 
 func removeTemporaryKey(passFile string, uuids []string) {
 	allRemoved := true
+	// Best-effort key-file removal at exit, failure paths or not: a
+	// per-device cryptsetup failure previously kept the 0600 passphrase
+	// file on disk forever (re-runs return early in hasClevisTPM2Binding
+	// once TPM2 bindings exist, so nothing else ever cleaned it). The
+	// passphrase itself stays valid on every device regardless of the
+	// file — deleting the copy sacrifices no boot path, and a plaintext
+	// passphrase file left behind is the worse outcome.
+	defer func() {
+		if err := os.Remove(passFile); err != nil {
+			fmt.Fprintf(os.Stderr, "WARNING: failed to remove key file %s: %v\n", passFile, err)
+		}
+	}()
 	for _, uuid := range uuids {
 		device := findDeviceByUUID(uuid)
 		if device == "" {
 			continue
 		}
 		if _, err := shell.ExecuteCmd("", fmt.Sprintf("cryptsetup luksRemoveKey --key-file %s %s", passFile, device)); err != nil {
-			fmt.Fprintf(os.Stderr, "WARNING: failed to remove temporary Clevis binding key from %s: %v\n", device, err)
+			fmt.Fprintf(os.Stderr, "WARNING: failed to remove temporary Clevis binding key from %s: %v (key file deleted anyway; the slot may still exist)\n", device, err)
 			allRemoved = false
 		}
 	}
-	if allRemoved {
-		os.Remove(passFile)
+	if !allRemoved {
+		fmt.Fprintln(os.Stderr, "WARNING: some LUKS key-slot removals failed; verify slots with 'cryptsetup luksDump'.")
 	}
 }
 
@@ -411,14 +459,30 @@ func rebuildInitramfs(kernelFlavor string) {
 	}
 }
 
+// filterCmdlineComments drops comment lines (leading '#' after optional
+// whitespace — the "Generated by FeralOS Installer" marker written under
+// the cmdline for re-run detection) before the value reaches efi-mkuki
+// -c; remaining lines join with a space. TrimSpace keeps the no-marker
+// case byte-identical to the previous plain TrimSpace()+pass-through.
+func filterCmdlineComments(content string) string {
+	kept := make([]string, 0, strings.Count(content, "\n")+1)
+	for _, line := range strings.Split(content, "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), "#") {
+			continue
+		}
+		kept = append(kept, line)
+	}
+	return strings.TrimSpace(strings.Join(kept, " "))
+}
+
 func rebuildSignedUKI(kernelFlavor string) {
 	fmt.Println("Rebuilding signed UKI...")
-	cmdLine, err := os.ReadFile("/etc/kernel/cmdline")
+	cmdC, err := os.ReadFile("/etc/kernel/cmdline")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "WARNING: cannot read /etc/kernel/cmdline: %v\n", err)
 		return
 	}
-	cmdline := strings.TrimSpace(string(cmdLine))
+	cmdline := filterCmdlineComments(string(cmdC))
 	ukiPath := fmt.Sprintf("/boot/efi/Alpine/linux-%s.efi", kernelFlavor)
 	vmlinuz := fmt.Sprintf("/boot/vmlinuz-%s", kernelFlavor)
 	boosterImg := fmt.Sprintf("/boot/booster-%s.img", kernelFlavor)
