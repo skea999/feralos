@@ -156,6 +156,10 @@ backup=yes
 	// MkdirAll (the separate mkdir call is subsumed). The error is fatal:
 	// without this file the kernel hook never re-signs/re-binds the UKI
 	// after updates — failing loudly here beats a silently broken boot.
+	// NOTE (efi-mkuki -c unification round): the cmdline here keeps its
+	// runtime `$(grep -v ...)` substitution — efi-mkuki SOURCES this conf
+	// at hook time, so the value is evaluated by the hook itself, not
+	// embedded by our Go code — no embedding-form change applies.
 	if err := shell.WriteFile("", "/etc/kernel-hooks.d/secureboot.conf", []byte(confContent+"\n"), 0644); err != nil {
 		return fmt.Errorf("failed to write secureboot.conf: %w", err)
 	}

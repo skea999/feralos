@@ -118,6 +118,19 @@ func TestFilterCmdlineComments(t *testing.T) {
 	}
 }
 
+// TestShellSingleQuote pins the POSIX single-quote embedding used at the
+// efi-mkuki cmdline assignment: plain values keep the literal (the argv
+// efi-mkuki sees stays identical to the old direct `-c '%s'` form), an
+// embedded single quote survives via the `'\”` escape.
+func TestShellSingleQuote(t *testing.T) {
+	if got := shellSingleQuote("quiet rw"); got != "'quiet rw'" {
+		t.Errorf("shellSingleQuote(plain) = %q, want %q", got, "'quiet rw'")
+	}
+	if got := shellSingleQuote("a'b"); got != `'a'\''b'` {
+		t.Errorf("shellSingleQuote(embedded quote) = %q, want %q", got, `'a'\''b'`)
+	}
+}
+
 // TestRepoDirBase pins the edge-base derivation: the last TWO path
 // segments (branch/repo) are stripped, so v3.24/main and v3.24/community
 // both land on the mirror root — the shape installClevis needs to build

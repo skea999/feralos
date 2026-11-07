@@ -19,6 +19,7 @@ import (
 const (
 	installConfigPath   = "/opt/feralos/config.yaml"
 	apkRepositoriesFile = "/etc/apk/repositories"
+	apkWorldFile        = "/etc/apk/world"
 )
 
 // InstallConfig matches the YAML written by utils/firstboot/install_config.go
@@ -321,6 +322,11 @@ func installClevis() {
 	edgeRepos := fmt.Sprintf("@edge %s/edge/main\n@edge %s/edge/community\n@edge %s/edge/testing",
 		mirrorBase, mirrorBase, mirrorBase)
 
+	// O_APPEND|O_WRONLY (no O_CREATE) only ever opens the file
+	// repositories ALWAYS pre-exists here: written 0644 host-side by the
+	// installer bootstrap (PrepareChrootEnv) and never recreated since, so
+	// the 0o644 OpenFile arg is unused (open fails cleanly when absent —
+	// the perm is carried for the OpenFile signature only).
 	f, err := os.OpenFile(apkRepositoriesFile, os.O_APPEND|os.O_WRONLY, 0o644)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "WARNING: cannot open repositories: %v\n", err)
@@ -363,7 +369,9 @@ func repoDirBase(repoURL string) (string, bool) {
 // alpine:3.22) — callers must pass the tagged name; an untagged name
 // never matches.
 func removeFromWorld(pkg string) {
-	data, err := os.ReadFile("/etc/apk/world")
+	// The world path is the apkWorldFile const (same file layout as
+	// apkRepositoriesFile above) — no inline literal.
+	data, err := os.ReadFile(apkWorldFile)
 	if err != nil {
 		return
 	}
@@ -378,7 +386,7 @@ func removeFromWorld(pkg string) {
 	// both); the former 0o600 arg contradicted the stock file perms
 	// (inert on an existing file — WriteFile perm applies at create —
 	// but wrong if the file is ever recreated).
-	_ = os.WriteFile("/etc/apk/world", []byte(strings.Join(lines, "\n")), 0o644) //nolint:gosec // G306: /etc/apk/world must stay system-readable like repositories
+	_ = os.WriteFile(apkWorldFile, []byte(strings.Join(lines, "\n")), 0o644) //nolint:gosec // G306: /etc/apk/world must stay system-readable like repositories
 }
 
 func removeEdgeRepos() {
@@ -480,6 +488,15 @@ func filterCmdlineComments(content string) string {
 	return strings.TrimSpace(strings.Join(kept, " "))
 }
 
+// shellSingleQuote renders s as a POSIX single-quoted shell literal
+// (embedded single quotes become the `'\”` escape). Used at the
+// efi-mkuki call only for the cmdline ASSIGNMENT — the -c value itself
+// rides through the double-quoted variable (unified embedding form; see
+// rebuildSignedUKI).
+func shellSingleQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'"
+}
+
 func rebuildSignedUKI(kernelFlavor string) {
 	fmt.Println("Rebuilding signed UKI...")
 	cmdC, err := os.ReadFile("/etc/kernel/cmdline")
@@ -492,7 +509,12 @@ func rebuildSignedUKI(kernelFlavor string) {
 	vmlinuz := fmt.Sprintf("/boot/vmlinuz-%s", kernelFlavor)
 	boosterImg := fmt.Sprintf("/boot/booster-%s.img", kernelFlavor)
 
-	if _, err := shell.ExecuteCmd("", fmt.Sprintf("efi-mkuki -c '%s' -o %s %s %s", cmdline, ukiPath, vmlinuz, boosterImg)); err != nil {
+	// efi-mkuki -c carries the cmdline through a shell VARIABLE in double
+	// quotes — the boot.go hook + uki.go embedding form (an expansion is
+	// not re-parsed by the shell, so the -c argument is exactly the
+	// cmdline whatever its characters). Only the assignment embeds the
+	// raw value, single-quoted POSIX-escaped via shellSingleQuote.
+	if _, err := shell.ExecuteCmd("", fmt.Sprintf("cmdline=%s; efi-mkuki -c \"${cmdline}\" -o %s %s %s", shellSingleQuote(cmdline), ukiPath, vmlinuz, boosterImg)); err != nil {
 		fmt.Fprintf(os.Stderr, "WARNING: efi-mkuki failed: %v\n", err)
 		return
 	}
