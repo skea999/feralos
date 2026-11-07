@@ -373,7 +373,12 @@ func removeFromWorld(pkg string) {
 			lines = append(lines, line)
 		}
 	}
-	_ = os.WriteFile("/etc/apk/world", []byte(strings.Join(lines, "\n")), 0o600)
+	// 0644: docker-verified on alpine:3.22 — /etc/apk/world carries the
+	// same system-readable perms as /etc/apk/repositories (apk manages
+	// both); the former 0o600 arg contradicted the stock file perms
+	// (inert on an existing file — WriteFile perm applies at create —
+	// but wrong if the file is ever recreated).
+	_ = os.WriteFile("/etc/apk/world", []byte(strings.Join(lines, "\n")), 0o644) //nolint:gosec // G306: /etc/apk/world must stay system-readable like repositories
 }
 
 func removeEdgeRepos() {
