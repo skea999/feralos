@@ -139,13 +139,17 @@ environment.
    time (chroot step 8a). In aports, name the package after the daemon's apk
    package (NOT the bus name — a bus name is an API identity: two daemons can
    claim one name, e.g. `org.freedesktop.secrets` = gnome-keyring/oo7) and
-   when the daemon serves several activation files (e.g. `plasma-kauth-dinit`)
-   declare **VERSIONED** provides for the alias names:
-   `provides="gnome-calendar-user-dinit=${pkgver}-r${pkgrel} …"` — apk treats
+   group a daemon's activation files into ONE owner-named package (e.g. the
+   4 powerdevil KAuth helpers live in `powerdevil-dinit`; GNOME apps are four
+   owner-named packages). Declare **VERSIONED** provides for the alias names
+   ONLY where the Exec gives no derivable owner (bare command like
+   `obexd -n …`, or an `/bin/sh` wrapper like signon-ui):
+   `provides="org.bluez.obex-user-dinit=${pkgver}-r${pkgrel}"` — apk treats
    UNVERSIONED provides as virtual and `apk add <alias>` refuses to select
-   the provider (harness run 2026-11-03T22-09-15Z, 6 gaps proved it).
-   `services` += the OpenRC name (only when an OpenRC script exists and the
-   service must be boot-enabled).
+   the provider (harness run 2026-11-03T22-09-15Z, 6 gaps proved it); note
+   abuild checksum verification is POSITIONAL (sums must follow `source=`
+   order). `services` += the OpenRC name (only when an OpenRC script exists
+   and the service must be boot-enabled).
 5. Harness: `dbus_activation_uniform` covers the override automatically
    (packaged sources + boot materialization + upstream coverage on dinit); add
    the unit to the per-DE service lists when it must be boot-enabled.
@@ -308,17 +312,20 @@ side: override filenames, `Name=`, `dbus-wait-for -n` arguments, polkit action
 ids. Validated on the full matrix (see phases item 11).
 
 **Third-party targets (the rows from `44c598a`)** live in feralos-aports as
-transitional packages (`avahi-dinit`, `udisks2-dinit`, `geoclue-dinit`,
+owner-named supervision packages (`avahi-dinit`, `udisks2-dinit`, `geoclue-dinit`,
 `cups-pk-helper-dinit`, `kcron-dinit`, `gnome-online-accounts-user-dinit`,
-`evolution-data-server-user-dinit`, `gnome-apps-user-dinit`; avahi/udisks2
-extend existing `-dinit` packages). They are the first half of the dbus-broker
-model (every activation target has a manager unit) and are **retired** when the
-second half lands. Retirement gate: harness `dbus_activation_migration` —
-enumerates **every** activation file on the target live (no static list) and
-fails only when **dbus-broker is installed AND all targets are unit-covered**
-(exact-name package unit, or an override aliasing the name onto an existing
-package unit). While not both it passes with "keep the FeralOS activation
-mechanism", so the migration cannot be forgotten.
+`evolution-data-server-user-dinit`, and the R1b purity split: GNOME apps as four
+owner-named packages, the 15 KAuth helpers as nine owner-named system packages
+— powerdevil/plasma-workspace/kdeplasma-addons/plasma-desktop/sddm-kcm/
+plasma-disks/kinfocenter/libksysguard/ktexteditor/discover/plasma-firewall —
+`gnome-apps-user-dinit` and `plasma-kauth-dinit` are RETIRED). They are the first
+half of the dbus-broker model (every activation target has a manager unit) and
+are **retired** when the second half lands. Retirement gate: harness
+`dbus_activation_migration` — enumerates **every** activation file on the target
+live (no static list) and fails only when **dbus-broker is installed AND all
+targets are unit-covered** (exact-name package unit, or an override aliasing the
+name onto an existing package unit). While not both it passes with "keep the
+FeralOS activation mechanism", so the migration cannot be forgotten.
 
 **System-bus coverage is global** (harness `dbus_system_activation`, dinit-only,
 on EVERY DE): kde brings the 15 KAuth helpers + upower/PPD/accountsservice/

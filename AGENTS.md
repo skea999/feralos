@@ -8,6 +8,16 @@
 
 ## Recent Rounds (latest first)
 
+### 2026-11-07 - R1b TOTAL PURITY: renames + per-owner splits; matrix re-proven (115/118/78/78)
+**Agent:** codebase
+**Summary:** user directive — total naming purity. Every supervision package now = the apk owner of its Exec binary; provides glue removed everywhere EXCEPT the documented exception class (owner underivable: `/bin/false` traps → oo7-server-user-dinit keeps 2 bus provides for the trap fallback; bare-command obexd + `/bin/sh` signon-ui keep bus provides). Matrix re-proven on the new structure: niri `2026-11-07T13-01-53Z` **115/115**, kde `13-16-18Z` **78/78**, niriWayle `13-26-28Z` **118/118** (oo7_pam_unlock runtime green), cosmic `13-44-20Z` **78/78** — every audit 0 missing, exit 0.
+- **Renames**: `oo7-user-dinit` → **`oo7-server-user-dinit`** (owner of oo7-daemon); `playerctld-user-dinit` → **`playerctl-user-dinit`** (owner of /usr/bin/playerctld).
+- **Splits**: `gnome-apps-user-dinit` → 4 owner-named packages (gnome-calendar/gnome-disk-utility/gnome-firmware/gnome-maps-user-dinit, each depends its daemon); `plasma-kauth-dinit` → **11 owner-named system packages** — powerdevil-dinit (4 helpers), plasma-workspace-dinit (fontinst+localegenhelper), kdeplasma-addons-dinit (kameleonhelper), plasma-desktop-dinit (kcmclock — the helper is kcmdatetimehelper), sddm-kcm-dinit (kcmsddm), plasma-disks-dinit (kded.smart), kinfocenter-dinit (dmidecode), libksysguard-dinit (processlisthelper — NOT ksystemstats), ktexteditor-dinit (katetextbuffer), discover-dinit (alpineapkbackend — depends discover-backend-apk flavor), plasma-firewall-dinit (ufw). Owners verified per-binary on pkgs.alpinelinux.org (edge index EMPTY for plasma-desktop helpers → v3.24 fallback needed).
+- **Live proof (no glue)**: niri FIXED the 4 gnome apps via owner names; kde FIXED all 15 KAuth buses via the new owner packages + `Config.Printing` via `system-config-printer-common-user-dinit`; cosmic FIXED playerctld via `who-owns → playerctl-user-dinit` directly.
+- **aports**: commit `9f39006` (+fix `9eb7a65`), CI `42373560596` green (one transient Pages 503 re-run). **Lesson (AGENTS-worthy): abuild 3.17 checksum verification is POSITIONAL — sha512sums must follow `source=` order, not sorted order.** 4 retired apks pruned by the CI seed logic; Pages index verified (retired absent, 17 new present).
+- **Docs**: `dbus-activation.md` checklist step 4 rewritten (group by owner; provides ONLY for underivable-owner Execs) + third-party paragraph updated (retired names + the 11 owner packages).
+- **Validated**: all 4 runs above; aports CI green; Pages verified.
+
 ### 2026-11-06 - Matrix COMPLETE: kde 78/78 + cosmic 78/78; installer runs the PACKAGED audit (no host build)
 **Agent:** codebase
 **Summary:** all four DEs green on the R1b auto-installer — niri 115/115, niriWayle 118/118, kde `2026-11-05T23-06-01Z` **78/78**, cosmic `2026-11-06T00-40-31Z` **78/78** (every DE: 0 missing, exit 0, log_errors clean). Plus: the installer no longer compiles feralos-dbus-audit — it runs the aports-packaged binary.
