@@ -2,6 +2,13 @@
 
 All notable changes to FeralOS will be documented in this file.
 
+## 2026-11-08 — ursine 0.26.0 + admin-GUI dedup (Ursine is the control center)
+- **aports `ursine` 0.24.0-r1 → 0.26.0-r0** (`ae2ec8a` + fix `b9c6d33`): tag archive `v0.26.0`, new sha512, upstream `ursinectl.1` man page installed gzipped. v0.24→v0.26 packaging assets, `Cargo.lock`, workspace members and makedepends are unchanged — the new admin modules (packages, services, disks, network, bluetooth, firewall, printers, scanners setup, logs, crontab, snapshots, users, theming, Niri config, Flatpak permissions) are pure Rust with runtime-only tooling.
+- **CI catch**: first run `42513759478` failed abuild postcheck on the uncompressed man page (tests had passed 235/0) → `gzip -9` (same pattern as the green `veila` package) → run `42516718667` green; Pages carries `ursine-0.26.0-r0.apk` (200) and dropped `0.24.0-r1` (404). Also normalized a leading space on the first `sha512sums` line that breaks abuild 3.15's busybox checksum check.
+- **niri**: removed `kcron` (Ursine Crontab), `ksystemlog` (Ursine Logs), `gnome-disk-utility` (Ursine Disks), `firewalld-gui` (Ursine Firewall).
+- **niri + niriWayle**: removed the `com.github.tchx84.Flatseal` flatpak (Ursine's Flatpak permissions editor). Kept `simple-scan`, `gnome-firmware`, `seahorse` and the `firewalld`/`udisks2`/`cups`/`sane*` daemons — Ursine does not replace them.
+- Docs + fixture synced; `gofmt`/`vet`/`go test ./...`/`sh -n`/`abuild verify` green.
+
 ## 2026-11-08 — Backlog sweep: candidate-path resolvers as functions; empty-cmdline guards + aligned comment filtering everywhere
 - `utils/config`: `InternalRulesCandidatePaths` exported mutable var → `func InternalRulesCandidatePaths() []string` (fresh slice per call — the shared package-level slice can no longer be mutated or observed at import time); `FindInternalRulesPath` reads the function on both the probe loop and the error text. Callers were already resolver-only (`LoadInternalRules`, `rules_guard_test.go`, `createConfig/rules_order.go`) — no caller changes; zero code outside the resolver file.
 - `utils/config`: `TemplateCandidatePaths()` + `FindTemplatePath()` — the createValues 5-path template list (same drift surface as the pre-resolver rules list) is now single-source, mirroring the rules resolver (identical os.Stat-first-wins shape, order preserved, byte-identical not-found contract owned by the CLI).
