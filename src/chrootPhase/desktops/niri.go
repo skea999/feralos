@@ -179,13 +179,14 @@ hotkey-overlay {
 
 	// 5. Session startup — no wrapper: Alpine's /usr/bin/niri-session is used
 	// UNMODIFIED. greetd sets SHELL from passwd; the user is created with
-	// /usr/libexec/login-shell (NOT in /etc/shells), so niri-session
-	// skips its bash re-exec and reaches the dinit branch: turnstile (PAM,
-	// base-session) starts the user dinit at login and `dinitctl --user start
-	// niri` starts the `niri` service (niri-user-dinit); niri-shutdown clears
-	// the session env on exit. XDG session env comes from /etc/environment
-	// (pam_env in the turnstiled PAM stack) + the niri config environment
-	// block below.
+	// /usr/libexec/login-shell — the path IS listed in /etc/shells
+	// (pkexec requirement, step 4b) but it is NOT the fish binary itself
+	// (a symlink to fish), so niri-session skips its bash re-exec and
+	// reaches the dinit branch: turnstile (PAM, base-session) starts the
+	// user dinit at login and `dinitctl --user start niri` starts the
+	// `niri` service (niri-user-dinit); niri-shutdown clears the session
+	// env on exit. XDG session env comes from /etc/environment (pam_env in
+	// the turnstiled PAM stack) + the niri config environment block below.
 	environmentFile := fmt.Sprintf(`XDG_SESSION_DESKTOP=niri
 XDG_DATA_DIRS=/home/%s/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share:/usr/share:/home/%s/.nix-profile/share
 `, u.UserName, u.UserName)

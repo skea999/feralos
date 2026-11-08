@@ -59,10 +59,12 @@ func ExtractLUKSUUIDs(cmdline string) []string {
 	return uuids
 }
 
-// WriteInstallConfig writes /opt/feralos/config.yaml into the mounted chroot.
-// Called after chrootPhase so /etc/kernel/cmdline is already written by SetupBoot.
-func WriteInstallConfig(conf *config.Config) error {
-	chroot := conf.Internal.ChrootDir
+// BuildInstallConfig assembles the on-disk InstallConfig from conf — the
+// pure (no shell, no I/O) part of WriteInstallConfig, INCLUDING the
+// EnableWebmin password gating. The writer (WriteInstallConfig) is the only
+// caller; the LUKS UUID list stays with the writer (kernel cmdline is read
+// from the chroot — a shell edge, deliberately untested).
+func BuildInstallConfig(conf *config.Config) InstallConfig {
 	u := &conf.User
 
 	cfg := InstallConfig{
@@ -89,6 +91,15 @@ func WriteInstallConfig(conf *config.Config) error {
 	if !u.EnableWebmin {
 		cfg.Password = ""
 	}
+	return cfg
+}
+
+// WriteInstallConfig writes /opt/feralos/config.yaml into the mounted chroot.
+// Called after chrootPhase so /etc/kernel/cmdline is already written by SetupBoot.
+func WriteInstallConfig(conf *config.Config) error {
+	chroot := conf.Internal.ChrootDir
+
+	cfg := BuildInstallConfig(conf)
 
 	// Extract LUKS UUIDs from kernel cmdline (written by chrootPhase/internal/boot.go)
 	if cmdlineStr, err := shell.ExecuteCmd("", fmt.Sprintf("cat %s 2>/dev/null || true", chroot+"/etc/kernel/cmdline")); err == nil {

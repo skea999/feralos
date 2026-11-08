@@ -30,7 +30,7 @@ FirstBoot binaries read `/opt/feralos/config.yaml` for LUKS UUIDs (fallback: ker
 `tests/harness` — swtpm always passed to runner + target VMs even if `EnableTPM=false`.
 
 1. **Runner (Debian)**: installer runs, compiles binaries, writes config. swtpm present.
-2. **Target (Alpine) — first boot**: harness SSH runs `feralos_secureboot` + `feralos_tpm` + `feralos_webmin` (if enabled). Binaries install packages, configure features, bind LUKS to TPM2, start Webmin container. swtpm present.
+2. **Target (Alpine) — first boot**: harness SSH runs `feralos-secureboot` + `feralos-tpm` + `feralos-webmin` (if enabled). Binaries install packages, configure features, bind LUKS to TPM2, start Webmin container. swtpm present.
 3. **Target (Alpine) — verification**: harness checks `sbctl status`, `clevis luks list`, LUKS auto-unlock, `podman ps` + `wget https://localhost:10000/`. swtpm present.
 
 `BootTimeout` 10min for 3-boot with swtpm.

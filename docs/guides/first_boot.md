@@ -84,7 +84,7 @@ swtpm always passed to runner + target (even if `EnableTPM=false`). QEMU cannot 
 
 **TPM — `TPM not found at /dev/tpmrm0`:** BIOS → TPM Configuration → Enable TPM Device.
 
-**LUKS auto-unlock fails:** Enter passphrase, `clevis luks list -d /dev/nvme0n1p3` — no `tpm2` → rerun `feralos_tpm`.
+**LUKS auto-unlock fails:** Enter passphrase, `clevis luks list -d /dev/nvme0n1p3` — no `tpm2` → rerun `feralos-tpm`.
 
 ## Notes
 

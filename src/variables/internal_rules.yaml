@@ -349,9 +349,11 @@ desktopEnvironments:
     # boot.d link; OpenRC: rc-update — service ships in the turnstile-openrc
     # subpackage). The dinit USER backend is identical on both, so the
     # -user-dinit session stack below works under OpenRC too.
-    # Login-shell trick: passwd shell = /usr/libexec/login-shell
-    # (not in /etc/shells) skips niri-session's bash re-exec (wired by the
-    # desktop setup: desktops/niri.go / niri_wayle.go)
+    # Login-shell trick: passwd shell = /usr/libexec/login-shell (wired by
+    # the desktop setup: desktops/niri.go / niri_wayle.go). The shell IS
+    # listed in /etc/shells (pkexec requirement); the trick is that it is
+    # NOT the fish binary itself (a symlink to fish), so niri-session's
+    # bash re-exec check is bypassed.
     # cava (DMS audio visualizer) NOT on Alpine v3.24 — re-add when packaged
     # iptables/ip6tables/ebtables: firewalld direct-rule backends (runtime)
     # audio stack = user dinit services (pipewire-user-dinit + deps pull

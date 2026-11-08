@@ -937,7 +937,7 @@ Activatable features (Secure Boot, TPM, Webmin) use standalone binaries in `src/
 **3-boot harness flow**:
 
 1. **Runner (Debian)**: installer runs, compiles binaries, writes config. swtpm always present.
-2. **Target (Alpine) — first boot**: harness SSH runs `feralos_secureboot` + `feralos_tpm` + `feralos_webmin` (if enabled). Binaries install packages, configure features, bind LUKS to TPM2, start the Webmin container. swtpm always present.
+2. **Target (Alpine) — first boot**: harness SSH runs `feralos-secureboot` + `feralos-tpm` + `feralos-webmin` (if enabled). Binaries install packages, configure features, bind LUKS to TPM2, start the Webmin container. swtpm always present.
 3. **Target (Alpine) — verification**: harness checks sbctl status, clevis bindings, LUKS auto-unlock, `podman ps` + `wget https://localhost:10000/` (Webmin). swtpm always present.
 
 **Key rules**:

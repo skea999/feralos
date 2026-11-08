@@ -84,8 +84,8 @@ main.go (installer entry, no host deps)
        hostPhase.Run(conf)           // host-side: disks→mount→bootstrap→chroot prep
        chrootPhase.Run(conf)         // chroot-side: packages, services, boot, UKI
        firstboot.WriteInstallConfig  // reads cmdline → /opt/feralos/config.yaml
-       firstboot.SetupSecureboot     // compile + copy feralos_secureboot
-       firstboot.SetupTpm            // compile + copy feralos_tpm
+       firstboot.SetupSecureboot     // compile + copy feralos-secureboot
+       firstboot.SetupTpm            // compile + copy feralos-tpm
        cleanup.Cleanup(conf)         // final unmount before reboot
 ```
 
@@ -139,11 +139,11 @@ Runs AFTER chrootPhase completes (needs kernel cmdline from chroot).
    - For autonomous firstBoot binaries.
 
 2. **Setup Secureboot** (`utils/firstboot/secureboot.go`)
-   - Compile `feralos_secureboot` binary
+   - Compile `feralos-secureboot` binary
    - Copy to `/opt/feralos/bin/feralos-secureboot`, chmod 755
 
 3. **Setup TPM** (`utils/firstboot/tpm.go`)
-   - Compile `feralos_tpm` binary
+   - Compile `feralos-tpm` binary
    - Copy to `/opt/feralos/bin/feralos-tpm`, chmod 755
 
 ### Phase 2: Chroot Operations (chrootPhase)

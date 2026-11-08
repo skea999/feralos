@@ -39,8 +39,8 @@ main.go (installer entry)
        hostPhase.Run(conf)           // host-side: disks→mount→bootstrap→chroot prep
        chrootPhase.Run(conf)         // chroot-side: packages, services, boot, UKI
        firstboot.WriteInstallConfig  // reads cmdline → /opt/feralos/config.yaml
-       firstboot.SetupSecureboot     // compile + copy feralos_secureboot
-       firstboot.SetupTpm            // compile + copy feralos_tpm
+       firstboot.SetupSecureboot     // compile + copy feralos-secureboot
+       firstboot.SetupTpm            // compile + copy feralos-tpm
        cleanup.Cleanup(conf)         // final unmount before reboot
 ```
 

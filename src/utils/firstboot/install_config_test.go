@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	"feralos/src/utils/config"
+
 	"gopkg.in/yaml.v3"
 )
 
@@ -164,6 +166,110 @@ func TestExtractLUKSUUIDs(t *testing.T) {
 			}
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("ExtractLUKSUUIDs(%q) = %v, want %v", tt.cmdline, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestBuildInstallConfig pins the pure config-builder WriteInstallConfig
+// assembles through: the EnableWebmin password gating (secret lands on disk
+// only when the webmin firstboot binary — its sole reader — is installed),
+// the rules-sourced kernel fields (kernel package + UKI flavor naming) and
+// the LUKS UUID extraction the writer runs against the kernel cmdline
+// (mirrored here the same way the writer appends it).
+func TestBuildInstallConfig(t *testing.T) {
+	baseConf := config.Config{
+		User: config.UserVariables{
+			DiskLayout:      "btrfsStandard",
+			Disks:           []string{"/dev/vda", "/dev/vdb"},
+			UserName:        "skea999",
+			Password:        "secret",
+			Hostname:        "feral-host",
+			Mirror:          "https://dl-cdn.alpinelinux.org/alpine",
+			Branch:          "v3.24",
+			EnablePodman:    true,
+			WebminListenAll: true,
+		},
+		Internal: config.InternalRules{
+			Kernel: config.KernelRules{Package: "linux-lts", Flavor: "lts"},
+		},
+	}
+	cmdline := "rd.luks.name=c572e494-fe65-4ad5-89c3-9cdd9ef93e35=root quiet"
+
+	tests := []struct {
+		name       string
+		webmin     bool
+		wantPass   string
+		wantWebmin bool
+		wantListen bool
+	}{
+		{
+			name:       "webmin on — password set",
+			webmin:     true,
+			wantPass:   "secret",
+			wantWebmin: true,
+			wantListen: true,
+		},
+		{
+			name:       "webmin off — password cleared",
+			webmin:     false,
+			wantPass:   "",
+			wantWebmin: false,
+			wantListen: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			conf := baseConf
+			conf.User.EnableWebmin = tt.webmin
+
+			cfg := BuildInstallConfig(&conf)
+
+			// Password gating: only the webmin consumer justifies the
+			// secret on disk.
+			if cfg.Password != tt.wantPass {
+				t.Errorf("Password = %q, want %q", cfg.Password, tt.wantPass)
+			}
+			if cfg.EnableWebmin != tt.wantWebmin {
+				t.Errorf("EnableWebmin = %v, want %v", cfg.EnableWebmin, tt.wantWebmin)
+			}
+			if cfg.WebminListenAll != tt.wantListen {
+				t.Errorf("WebminListenAll = %v, want %v", cfg.WebminListenAll, tt.wantListen)
+			}
+
+			// Passthrough fields (independent of the webmin gate).
+			if !reflect.DeepEqual(cfg.Disks, baseConf.User.Disks) {
+				t.Errorf("Disks = %v, want %v", cfg.Disks, baseConf.User.Disks)
+			}
+			if cfg.DiskLayout != baseConf.User.DiskLayout {
+				t.Errorf("DiskLayout = %q, want %q", cfg.DiskLayout, baseConf.User.DiskLayout)
+			}
+			if cfg.UserName != baseConf.User.UserName || cfg.Hostname != baseConf.User.Hostname {
+				t.Errorf("user/hostname = %q/%q, want %q/%q",
+					cfg.UserName, cfg.Hostname, baseConf.User.UserName, baseConf.User.Hostname)
+			}
+			if cfg.Mirror != baseConf.User.Mirror || cfg.Branch != baseConf.User.Branch {
+				t.Errorf("mirror/branch = %q/%q, want %q/%q",
+					cfg.Mirror, cfg.Branch, baseConf.User.Mirror, baseConf.User.Branch)
+			}
+			if cfg.EnablePodman != baseConf.User.EnablePodman {
+				t.Errorf("EnablePodman = %v, want %v", cfg.EnablePodman, baseConf.User.EnablePodman)
+			}
+
+			// Kernel fields populated from internal_rules (conf.Internal).
+			if cfg.KernelPackage != "linux-lts" || cfg.KernelFlavor != "lts" {
+				t.Errorf("kernel = %q/%q, want linux-lts/lts", cfg.KernelPackage, cfg.KernelFlavor)
+			}
+
+			// LUKS UUIDs: the writer extracts them from /etc/kernel/cmdline
+			// (shell edge, untested); BuildInstallConfig leaves the slice
+			// nil — mirror the writer's append with the cmdline parser.
+			if cfg.LuksUUIDs != nil {
+				t.Errorf("LuksUUIDs = %v, want nil (publisher is the writer)", cfg.LuksUUIDs)
+			}
+			cfg.LuksUUIDs = append(cfg.LuksUUIDs, ExtractLUKSUUIDs(cmdline)...)
+			if !reflect.DeepEqual(cfg.LuksUUIDs, []string{"c572e494-fe65-4ad5-89c3-9cdd9ef93e35"}) {
+				t.Errorf("LuksUUIDs = %v, want single UUID from cmdline", cfg.LuksUUIDs)
 			}
 		})
 	}

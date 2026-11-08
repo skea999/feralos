@@ -143,6 +143,7 @@ func importCerts() {
 func writeSecurebootConf() error {
 	fmt.Println("\nWriting secureboot hook config...")
 	confContent := `cmdline="$(grep -v '^[[:space:]]*#' /etc/kernel/cmdline | tr '\n' ' ' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+: "${cmdline:?refusing: /etc/kernel/cmdline is empty after comment filtering}"
 signing_cert="/etc/uefi-keys/db.crt"
 signing_key="/etc/uefi-keys/db.key"
 output_dir="/boot/efi/Alpine"
@@ -163,10 +164,13 @@ backup=yes
 	// NOTE (comment-filter alignment round): the filter mirrors tpm's
 	// filterCmdlineComments (same shape as the boot.go hook / uki.go):
 	// comments at any indent dropped, lines joined to one space-separated
-	// line, edges trimmed. Empty case (comment-only file): the sourced
-	// value is "" and the conf has no control flow for a guard — the
-	// empty-cmdline refusals live in the Go consumers (uki.go guard,
-	// tpm rebuildSignedUKI branch) and in the hook, not in this conf.
+	// line, edges trimmed. Empty case (comment-only file): the inline
+	// SELF-GUARD right after the assignment (POSIX `:?` expansion) aborts
+	// the shell with a clear message whether this conf is sourced or
+	// executed — the kernel hook fails loudly, the existing UKI stays and
+	// the system still boots. The empty-cmdline refusals in the Go
+	// consumers (uki.go guard, tpm rebuildSignedUKI branch) remain for
+	// their own flows.
 	if err := shell.WriteFile("", "/etc/kernel-hooks.d/secureboot.conf", []byte(confContent+"\n"), 0644); err != nil {
 		return fmt.Errorf("failed to write secureboot.conf: %w", err)
 	}
