@@ -230,22 +230,57 @@ func LoadConfig(userPath string) (*Config, error) {
 // variables/...; harness/test dirs: ../variables/...). Single source for
 // the probe list: LoadInternalRules, the rules guard tests and the wizard
 // generator (utils/createConfig) all read through FindInternalRulesPath —
-// the list exists exactly once.
-var InternalRulesCandidatePaths = []string{
-	"src/variables/internal_rules.yaml",
-	"variables/internal_rules.yaml",
-	"../variables/internal_rules.yaml",
+// the list exists exactly once. A FUNCTION returning a fresh slice per
+// call (was an exported mutable var): callers cannot mutate a shared
+// package-level slice, and no one can observe the import-time value.
+func InternalRulesCandidatePaths() []string {
+	return []string{
+		"src/variables/internal_rules.yaml",
+		"variables/internal_rules.yaml",
+		"../variables/internal_rules.yaml",
+	}
 }
 
 // FindInternalRulesPath returns the first candidate path that exists, or
 // an error listing the probed paths.
 func FindInternalRulesPath() (string, error) {
-	for _, p := range InternalRulesCandidatePaths {
+	for _, p := range InternalRulesCandidatePaths() {
 		if _, err := os.Stat(p); err == nil {
 			return p, nil
 		}
 	}
-	return "", fmt.Errorf("internal_rules.yaml not found (probed: %v)", InternalRulesCandidatePaths)
+	return "", fmt.Errorf("internal_rules.yaml not found (probed: %v)", InternalRulesCandidatePaths())
+}
+
+// TemplateCandidatePaths is the search order for the variables.yaml
+// template the wizard generator (utils/createConfig/createValues) starts
+// from — same CWD-relative shape as InternalRulesCandidatePaths (repo
+// root, src/, src/utils/createConfig/, src/utils/createConfig/createValues/)
+// plus the hypothetical system path (a packaged install would land there).
+// A function returning a fresh slice per call, mirroring
+// InternalRulesCandidatePaths: the former local copy in createValues was
+// the same drift surface the rules list had before its resolver.
+func TemplateCandidatePaths() []string {
+	return []string{
+		"src/variables/variables.yaml",            // If run from project root
+		"variables/variables.yaml",                // If run from src/
+		"../variables/variables.yaml",             // If run from src/utils/createConfig/
+		"../../variables/variables.yaml",          // If run from src/utils/createConfig/createValues/
+		"/usr/local/share/feralos/variables.yaml", // Hypothetical system path
+	}
+}
+
+// FindTemplatePath resolves TemplateCandidatePaths: first os.Stat-success
+// wins, otherwise an error listing the probed paths (createValues Fatalf's
+// with its own message — byte-identical CLI output preserved; the resolver
+// only owns WHERE to look, not the CLI's failure wording).
+func FindTemplatePath() (string, error) {
+	for _, p := range TemplateCandidatePaths() {
+		if _, err := os.Stat(p); err == nil {
+			return p, nil
+		}
+	}
+	return "", fmt.Errorf("variables.yaml template not found (probed: %v)", TemplateCandidatePaths())
 }
 
 // LoadInternalRules loads internal_rules.yaml into conf.Internal.

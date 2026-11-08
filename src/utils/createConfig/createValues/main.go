@@ -16,25 +16,14 @@ func main() {
 	userFilePath := flag.String("file", "variables.yaml", "File to generate/modify")
 	flag.Parse()
 
-	// 1. Find the required template
-	// Try common paths to ensure we find it
-	templatePaths := []string{
-		"src/variables/variables.yaml",            // If run from project root
-		"variables/variables.yaml",                // If run from src/
-		"../variables/variables.yaml",             // If run from src/utils/createConfig/
-		"../../variables/variables.yaml",          // If run from src/utils/createConfig/createValues/
-		"/usr/local/share/feralos/variables.yaml", // Hypothetical system path
-	}
-
-	var templatePath string
-	for _, p := range templatePaths {
-		if _, err := os.Stat(p); err == nil {
-			templatePath = p
-			break
-		}
-	}
-
-	if templatePath == "" {
+	// 1. Find the required template. Single probe source:
+	// config.FindTemplatePath (TemplateCandidatePaths in utils/config,
+	// mirroring the internal_rules resolver) — the former locally
+	// duplicated 5-path list is gone; createValues already imports
+	// utils/config (no new coupling). The not-found message stays local:
+	// only this CLI owns its failure wording.
+	templatePath, err := config.FindTemplatePath()
+	if err != nil {
 		log.Fatalf("[FATAL ERROR] Cannot find required template. Make sure 'feralos/src/variables/variables.yaml' exists.")
 	}
 
