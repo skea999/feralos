@@ -341,13 +341,14 @@ desktopEnvironments:
     services: {"sddm": "default", "dbus": "default", "turnstiled": "default", "ursined": "default"}
     groups: ["video", "input"]
   niri:
-    packages: ["niri", "niri-portalsconf", "greetd", "greetd-regreet", "elogind", "dbus", "ursine", "alacritty", "xdg-desktop-portal-wlr", "xdg-desktop-portal-gtk", "polkit-elogind", "polkit-gnome", "xwayland-satellite", "xwayland", "mesa-dri-gallium", "wayland-libs-server", "dms-shell", "dms-window-buttons", "matugen", "turnstile", "niri-user-dinit", "accountsservice", "power-profiles-daemon", "cups-pk-helper", "iptables", "ip6tables", "ebtables", "dbus-user-dinit", "pipewire-user-dinit", "pipewire-pulse-user-dinit", "wireplumber-user-dinit", "wayland-wait-user-dinit", "seahorse", "polkit-agent-user-dinit", "wayvnc", "wayvnc-user-dinit", "networkmanager", "networkmanager-cli", "networkmanager-tui", "networkmanager-wifi", "wireless-regdb", "bluez", "wpa_supplicant", "wireguard-tools", "qt6-qtmultimedia", "i2c-tools", "wtype", "simple-scan", "sane", "sane-backends", "sane-utils", "sane-airscan", "gnome-keyring", "cosmic-edit", "eog", "cups", "cups-filters", "avahi", "cosmic-player", "libreoffice", "galculator", "firefox", "firewalld", "gnome-firmware", "kimageformats", "khal", "adw-gtk3", "dconf", "font-terminus", "font-inconsolata", "font-dejavu", "font-noto", "font-noto-cjk", "font-awesome", "font-noto-extra", "gnome-maps", "gnome-calendar"]
-    # Admin GUIs (cron/logs/disks/firewall/flatpak permissions) are NOT
-    # installed: ursine is the control center for those (kcron, ksystemlog,
-    # gnome-disk-utility, firewalld-gui, Flatseal removed). simple-scan and
-    # gnome-firmware stay — Ursine's scanner page is SANE setup only and it
-    # has no firmware-update module.
-    flatpakPackages: ["io.github.zarestia_dev.rclone-manager"]
+    packages: ["niri", "niri-portalsconf", "greetd", "greetd-regreet", "elogind", "dbus", "ursine", "alacritty", "xdg-desktop-portal-wlr", "xdg-desktop-portal-gtk", "polkit-elogind", "polkit-gnome", "xwayland-satellite", "xwayland", "mesa-dri-gallium", "wayland-libs-server", "dms-shell", "dms-window-buttons", "matugen", "turnstile", "niri-user-dinit", "power-profiles-daemon", "dbus-user-dinit", "pipewire-user-dinit", "pipewire-pulse-user-dinit", "wireplumber-user-dinit", "wayland-wait-user-dinit", "seahorse", "polkit-agent-user-dinit", "wayvnc", "wayvnc-user-dinit", "networkmanager", "networkmanager-cli", "networkmanager-tui", "networkmanager-wifi", "wireless-regdb", "bluez", "wpa_supplicant", "wireguard-tools", "qt6-qtmultimedia", "i2c-tools", "wtype", "simple-scan", "sane", "sane-backends", "sane-utils", "sane-airscan", "gnome-keyring", "cosmic-edit", "eog", "cups", "cups-filters", "avahi", "cosmic-player", "libreoffice", "galculator", "firefox", "firewalld", "gnome-firmware", "khal", "adw-gtk3", "dconf", "font-terminus", "font-inconsolata", "font-dejavu", "font-noto", "font-noto-cjk", "font-awesome", "font-noto-extra", "gnome-maps", "gnome-calendar"]
+    # Admin GUIs (cron/logs/disks/firewall) are NOT installed: ursine is the
+    # control center for those (kcron, ksystemlog, gnome-disk-utility,
+    # firewalld-gui removed). Flatseal STAYS — Ursine's Flatpak permissions
+    # editor covers sockets/devices/filesystems/env only, not the session
+    # bus policies. simple-scan and gnome-firmware stay — Ursine's scanner
+    # page is SANE setup only and it has no firmware-update module.
+    flatpakPackages: ["io.github.zarestia_dev.rclone-manager", "com.github.tchx84.Flatseal"]
     # turnstile + niri-user-dinit: PAM session → user dinit (turnstiled);
     # Alpine niri-session's dinit branch starts the `niri` user service.
     # DUAL-INIT: turnstiled runs as a system service on BOTH inits (dinit:
@@ -360,7 +361,17 @@ desktopEnvironments:
     # NOT the fish binary itself (a symlink to fish), so niri-session's
     # bash re-exec check is bypassed.
     # cava (DMS audio visualizer) NOT on Alpine v3.24 — re-add when packaged
-    # iptables/ip6tables/ebtables: firewalld direct-rule backends (runtime)
+    # firewalld on Alpine is NFTABLES-ONLY: the APKBUILD builds
+    # --without-iptables --without-ip6tables --without-ebtables, and nftables
+    # arrives as firewalld's own hard dep. The old iptables/ip6tables/ebtables
+    # trio was ONE apk (iptables — ip6tables/ebtables are only virtual
+    # provides of it) that firewalld never uses; removed. enablePodman still
+    # installs iptables for podman's own networking (features/podman.go).
+    # accountsservice + udisks2 are NOT listed either: they are hard
+    # requirements of ursine's Users/Disks modules (zbus
+    # org.freedesktop.Accounts with zero fallback; udisksctl for
+    # mount/unmount with no mount/umount fallback), so they ship as
+    # `depends=` of the ursine aports package instead of per-DE entries.
     # audio stack = user dinit services (pipewire-user-dinit + deps pull
     # pipewire/pipewire-pulse/wireplumber as runtime deps; session-supervised)
     # NetworkManager replaces ifupdown as the network service (DMS network/VPN
@@ -417,14 +428,14 @@ desktopEnvironments:
     # RustDesk removed (round 43 cleanup + user decision): wayvnc is the
     # remote-desktop path (user dinit service, loopback by default).
   niriWayle:
-    packages: ["niri", "greetd", "greetd-regreet", "elogind", "dbus", "ursine", "alacritty", "polkit-elogind", "xwayland-satellite", "xwayland", "mesa-dri-gallium", "xdg-desktop-portal-wlr", "turnstile", "wl-clipboard-rs", "wayle", "wayle-session", "veila", "stasis", "raffi", "raffi-toggle", "oo7", "matugen", "accountsservice", "power-profiles-daemon", "udisks2", "cups-pk-helper", "gnome-online-accounts", "evolution-data-server", "dbus-user-dinit", "pipewire-user-dinit", "pipewire-pulse-user-dinit", "wireplumber-user-dinit", "wayland-wait-user-dinit", "polkit-agent-user-dinit", "wayvnc", "wayvnc-user-dinit", "networkmanager", "networkmanager-cli", "networkmanager-tui", "networkmanager-wifi", "wireless-regdb", "bluez", "wpa_supplicant", "wireguard-tools", "firewalld", "ip6tables", "ebtables", "xdg-user-dirs", "wtype", "i2c-tools", "adwaita-icon-theme", "adw-gtk3", "font-terminus", "font-inconsolata", "font-dejavu", "font-noto-cjk", "font-awesome", "font-noto-extra", "cosmic-edit", "cosmic-player", "cosmic-files", "eog", "libreoffice", "galculator", "firefox", "khal", "simple-scan", "cups", "cups-filters", "avahi", "sane", "sane-backends", "sane-utils", "sane-airscan", "kimageformats"]
+    packages: ["niri", "greetd", "greetd-regreet", "elogind", "dbus", "ursine", "alacritty", "polkit-elogind", "xwayland-satellite", "xwayland", "mesa-dri-gallium", "xdg-desktop-portal-wlr", "turnstile", "wl-clipboard-rs", "wayle", "wayle-session", "veila", "stasis", "raffi", "raffi-toggle", "oo7", "matugen", "power-profiles-daemon", "dbus-user-dinit", "pipewire-user-dinit", "pipewire-pulse-user-dinit", "wireplumber-user-dinit", "wayland-wait-user-dinit", "polkit-agent-user-dinit", "wayvnc", "wayvnc-user-dinit", "networkmanager", "networkmanager-cli", "networkmanager-tui", "networkmanager-wifi", "wireless-regdb", "bluez", "wpa_supplicant", "wireguard-tools", "firewalld", "xdg-user-dirs", "wtype", "i2c-tools", "adwaita-icon-theme", "adw-gtk3", "font-terminus", "font-inconsolata", "font-dejavu", "font-noto-cjk", "font-awesome", "font-noto-extra", "cosmic-edit", "cosmic-player", "cosmic-files", "eog", "libreoffice", "galculator", "firefox", "khal", "simple-scan", "cups", "cups-filters", "avahi", "sane", "sane-backends", "sane-utils", "sane-airscan"]
     # Key Rack (app.drey.KeyRack) = the niriWayle secrets GUI — Flathub
     # flatpak, NOT an apk: oo7-server and seahorse both ship
     # /usr/share/dbus-1/services/org.freedesktop.secrets.service, so the
     # seahorse apk CANNOT coexist with the oo7 stack (file conflict = the
     # apk world stays permanently broken). nixpkgs only has Key Rack 0.4.0
     # (too old). Flathub ships current 0.6.x (Rust + native oo7 client).
-    flatpakPackages: ["app.drey.KeyRack", "io.github.zarestia_dev.rclone-manager"]
+    flatpakPackages: ["app.drey.KeyRack", "io.github.zarestia_dev.rclone-manager", "com.github.tchx84.Flatseal"]
     # niriWayle: niri compositor + Wayle shell (bar/notifications/OSD/wallpaper)
     # + Veila lock screen + Raffi launcher + oo7 secrets (gnome-keyring replacement).
     # Shares the session infra with niri: turnstile + per-user dinit, pipewire
@@ -438,9 +449,10 @@ desktopEnvironments:
     # also pulled via the wayle-session dependency; veila remains the lock
     # screen (ext-session-lock; idle timing owned by stasis).
     # Apps = productivity/media set + support (printing, scanning, Qt/KDE
-    # image+media plugins, adw-gtk3) + rclone-manager alongside Key Rack.
-    # Admin GUIs (cron/logs/disks/firewall/flatpak permissions) are NOT
-    # installed: ursine is the control center for those. simple-scan stays
+    # image+media plugins, adw-gtk3) + rclone-manager + Flatseal alongside
+    # Key Rack. Admin GUIs (cron/logs/disks/firewall) are NOT installed:
+    # ursine is the control center for those; Flatseal stays because Ursine
+    # does not edit Flatpak session-bus policies. simple-scan stays
     # (Ursine's scanner page is SANE setup only; image scanning was removed
     # upstream). NOT copied: the DMS shell packages (niri-only) and
     # seahorse/gnome-keyring (oo7 + Key Rack own secrets; seahorse conflicts

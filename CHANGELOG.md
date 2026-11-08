@@ -2,11 +2,18 @@
 
 All notable changes to FeralOS will be documented in this file.
 
+## 2026-11-08 — niriWayle package audit: ursine `depends`, nftables-only firewall, KDE codec dropped
+- **aports `ursine` `depends="accountsservice udisks2"`** (`pkgrel` 0→1): source-verified as hard requirements — Ursine's Users module is 100% zbus `org.freedesktop.Accounts` with no `/etc/passwd` fallback, and Disks runs `udisksctl` for mount/unmount with no `mount`/`umount` fallback (its capability probe even gates the plain lsblk listing). Declared as package deps so all four DEs get them, instead of explicit per-DE rules entries.
+- **niriWayle removals**: `cups-pk-helper` (Ursine printers is a root daemon running CUPS CLI — no polkit; sole Alpine reverse-dep `gnome-control-center` absent), `gnome-online-accounts` + `evolution-data-server` (zero consumers, +154 MiB incl. webkit2gtk), `kimageformats` (KDE Frameworks Qt image codecs, no Qt consumer on this DE).
+- **niri + niriWayle removals**: `iptables`, `ip6tables`, `ebtables` — Alpine firewalld is built `--without-iptables --without-ip6tables --without-ebtables` (nftables-only) and `nftables` is its own hard dep; `ip6tables`/`ebtables` were only virtual provides of the one `iptables` apk. The false rules comment "firewalld direct-rule backends" corrected; podman still installs `iptables` for its own networking.
+- **niri removal**: `kimageformats` (same reason — no KDE Frameworks on a non-KDE desktop).
+- **Kept**: `accountsservice`/`udisks2` (now ursine deps), `firewalld`, `khal`, `simple-scan`, `gnome-firmware`, `seahorse`, Flatseal, and the `cups`/`sane*`/`avahi` daemons. Harness `dbus_activation_units_live` now skips honestly when `udisks2`/`gnome-online-accounts` is not installed.
+
 ## 2026-11-08 — ursine 0.26.0 + admin-GUI dedup (Ursine is the control center)
 - **aports `ursine` 0.24.0-r1 → 0.26.0-r0** (`ae2ec8a` + fix `b9c6d33`): tag archive `v0.26.0`, new sha512, upstream `ursinectl.1` man page installed gzipped. v0.24→v0.26 packaging assets, `Cargo.lock`, workspace members and makedepends are unchanged — the new admin modules (packages, services, disks, network, bluetooth, firewall, printers, scanners setup, logs, crontab, snapshots, users, theming, Niri config, Flatpak permissions) are pure Rust with runtime-only tooling.
 - **CI catch**: first run `42513759478` failed abuild postcheck on the uncompressed man page (tests had passed 235/0) → `gzip -9` (same pattern as the green `veila` package) → run `42516718667` green; Pages carries `ursine-0.26.0-r0.apk` (200) and dropped `0.24.0-r1` (404). Also normalized a leading space on the first `sha512sums` line that breaks abuild 3.15's busybox checksum check.
 - **niri**: removed `kcron` (Ursine Crontab), `ksystemlog` (Ursine Logs), `gnome-disk-utility` (Ursine Disks), `firewalld-gui` (Ursine Firewall).
-- **niri + niriWayle**: removed the `com.github.tchx84.Flatseal` flatpak (Ursine's Flatpak permissions editor). Kept `simple-scan`, `gnome-firmware`, `seahorse` and the `firewalld`/`udisks2`/`cups`/`sane*` daemons — Ursine does not replace them.
+- **Flatseal KEPT on niri + niriWayle** (user correction after the first pass removed it): Ursine's Flatpak permissions editor only covers sockets/devices/filesystems/env, not the session-bus policies Flatseal edits. Also kept: `simple-scan`, `gnome-firmware`, `seahorse` and the `firewalld`/`udisks2`/`cups`/`sane*` daemons.
 - Docs + fixture synced; `gofmt`/`vet`/`go test ./...`/`sh -n`/`abuild verify` green.
 
 ## 2026-11-08 — Backlog sweep: candidate-path resolvers as functions; empty-cmdline guards + aligned comment filtering everywhere

@@ -34,6 +34,7 @@ variables:
   enableDinit: true
   flatpakPackages:
   - io.github.zarestia_dev.rclone-manager
+  - com.github.tchx84.Flatseal
   extraPackages:
   - okular
   extraPackagesEdge:

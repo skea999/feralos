@@ -286,10 +286,17 @@ func buildDesktopChecks(cfg *VerifyConfig, checks map[string]string) {
 		// (org.gnome.OnlineAccounts → goa-daemon). Asserts the dinit unit
 		// started via the shim AND the daemon environ has no DBUS_STARTER_*
 		// (a raw helper spawn leaves them; the shim path excludes them).
-		// The system half needs a system dinit (dinit installs only); the
-		// session half runs on both inits via the turnstile user dinit.
+		// The system half needs a system dinit (dinit installs only) AND the
+		// udisks2 package (now a ursine depends=, so always present on a full
+		// desktop); the session half runs on both inits via the turnstile user
+		// dinit and skips honestly when gnome-online-accounts is absent
+		// (niriWayle ships no GOA consumer).
 		checks["dbus_activation_units_live"] = fmt.Sprintf(`
-if [ "$(cat /proc/1/comm)" = "dinit" ]; then
+if [ "$(cat /proc/1/comm)" != "dinit" ]; then
+    echo "system unit activation SKIPPED (no system dinit)"
+elif ! apk info -e udisks2 >/dev/null 2>&1; then
+    echo "system unit activation SKIPPED (udisks2 not installed)"
+else
     pkill -f "^/usr/libexec/udisks2/udisksd$" 2>/dev/null || true
     dinitctl --system stop org.freedesktop.UDisks2 >/dev/null 2>&1 || true
     sleep 1
@@ -304,9 +311,8 @@ if [ "$(cat /proc/1/comm)" = "dinit" ]; then
     if tr "\0" "\n" < /proc/$pid/environ | grep -q "^DBUS_STARTER_"; then echo "system: udisksd spawned raw (DBUS_STARTER_* present)"; exit 1; fi
     dinitctl --system stop org.freedesktop.UDisks2 >/dev/null 2>&1 || true
     echo "system unit activation OK (UDisks2 via shim + dinit)"
-else
-    echo "system unit activation SKIPPED (no system dinit)"
 fi
+if apk info -e gnome-online-accounts >/dev/null 2>&1; then
 su - %s -s /bin/sh -c '
 export XDG_RUNTIME_DIR=/run/user/$(id -u)
 export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
@@ -325,6 +331,9 @@ if tr "\0" "\n" < /proc/$pid/environ | grep -q "^DBUS_STARTER_"; then echo "sess
 dinitctl --user stop org.gnome.OnlineAccounts.user >/dev/null 2>&1 || true
 echo "session unit activation OK (goa via shim + dinit)"
 ' || exit 1
+else
+    echo "session unit activation SKIPPED (gnome-online-accounts not installed)"
+fi
 echo 'dbus activation units live OK'
 `, cfg.InstalledUser)
 		// DMS-only (niri DE): niriWayle has NO DMS — Wayle is the shell.
@@ -966,10 +975,17 @@ echo "keep the FeralOS activation mechanism (dbus-broker=$broker, $missing/$tota
 		// (org.gnome.OnlineAccounts → goa-daemon). Asserts the dinit unit
 		// started via the shim AND the daemon environ has no DBUS_STARTER_*
 		// (a raw helper spawn leaves them; the shim path excludes them).
-		// The system half needs a system dinit (dinit installs only); the
-		// session half runs on both inits via the turnstile user dinit.
+		// The system half needs a system dinit (dinit installs only) AND the
+		// udisks2 package (now a ursine depends=, so always present on a full
+		// desktop); the session half runs on both inits via the turnstile user
+		// dinit and skips honestly when gnome-online-accounts is absent
+		// (niriWayle ships no GOA consumer).
 		checks["dbus_activation_units_live"] = fmt.Sprintf(`
-if [ "$(cat /proc/1/comm)" = "dinit" ]; then
+if [ "$(cat /proc/1/comm)" != "dinit" ]; then
+    echo "system unit activation SKIPPED (no system dinit)"
+elif ! apk info -e udisks2 >/dev/null 2>&1; then
+    echo "system unit activation SKIPPED (udisks2 not installed)"
+else
     pkill -f "^/usr/libexec/udisks2/udisksd$" 2>/dev/null || true
     dinitctl --system stop org.freedesktop.UDisks2 >/dev/null 2>&1 || true
     sleep 1
@@ -984,9 +1000,8 @@ if [ "$(cat /proc/1/comm)" = "dinit" ]; then
     if tr "\0" "\n" < /proc/$pid/environ | grep -q "^DBUS_STARTER_"; then echo "system: udisksd spawned raw (DBUS_STARTER_* present)"; exit 1; fi
     dinitctl --system stop org.freedesktop.UDisks2 >/dev/null 2>&1 || true
     echo "system unit activation OK (UDisks2 via shim + dinit)"
-else
-    echo "system unit activation SKIPPED (no system dinit)"
 fi
+if apk info -e gnome-online-accounts >/dev/null 2>&1; then
 su - %s -s /bin/sh -c '
 export XDG_RUNTIME_DIR=/run/user/$(id -u)
 export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
@@ -1005,6 +1020,9 @@ if tr "\0" "\n" < /proc/$pid/environ | grep -q "^DBUS_STARTER_"; then echo "sess
 dinitctl --user stop org.gnome.OnlineAccounts.user >/dev/null 2>&1 || true
 echo "session unit activation OK (goa via shim + dinit)"
 ' || exit 1
+else
+    echo "session unit activation SKIPPED (gnome-online-accounts not installed)"
+fi
 echo 'dbus activation units live OK'
 `, cfg.InstalledUser)
 	}
