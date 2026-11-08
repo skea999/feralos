@@ -2,23 +2,23 @@
 
 > **User guide** — part of `docs/guides/` (user installer guides). For development flow see `docs/guides/development.md`.
 
-Standalone Go programs for post-installation setup on real hardware. Compiled in `utils/firstboot/` (`src/utils/firstboot/secureboot.go` + `tpm.go`) → `/opt/feralos_*`, autonomous on first boot.
+Standalone Go programs for post-installation setup on real hardware. Compiled in `utils/firstboot/` (`src/utils/firstboot/secureboot.go` + `tpm.go`) → `/opt/feralos/bin/`, autonomous on first boot. Also referenced by the end-of-installer guide printed by `src/main.go` after the firstBoot binaries are placed.
 
 ## Programs
 
 | Program | Source | Purpose |
 |---------|--------|---------|
-| `feralos_secureboot` | `src/firstBoot/secureboot/main.go` | Enroll sbctl keys, build+sign UKI, write hooks |
-| `feralos_tpm` | `src/firstBoot/tpm/main.go` | Bind LUKS to TPM2 via clevis, rebuild initramfs+UKI |
+| `feralos-secureboot` | `src/firstBoot/secureboot/main.go` | Enroll sbctl keys, build+sign UKI, write hooks |
+| `feralos-tpm` | `src/firstBoot/tpm/main.go` | Bind LUKS to TPM2 via clevis, rebuild initramfs+UKI |
 
 On **QEMU harness** both are run automatically via SSH on first target boot (swtpm always present). On **real hardware** run manually after first boot.
 
 ## Building (from `src/`)
 
 ```bash
-go build -o ../feralos_secureboot ./firstBoot/secureboot/
-go build -o ../feralos_tpm ./firstBoot/tpm/
-# or via main: compiled automatically during install to /opt/feralos_*
+go build -o ../feralos-secureboot ./firstBoot/secureboot/
+go build -o ../feralos-tpm ./firstBoot/tpm/
+# or via main: compiled automatically during install to /opt/feralos/bin/
 ```
 
 ## Real Hardware — Prerequisites
@@ -29,10 +29,10 @@ go build -o ../feralos_tpm ./firstBoot/tpm/
 ## Step 1: Secure Boot Enrollment (first boot, before BIOS enable)
 
 ```bash
-# binaries already at /opt/feralos_secureboot after install
-sudo /opt/feralos_secureboot
+# binaries already at /opt/feralos/bin/feralos-secureboot after install
+sudo /opt/feralos/bin/feralos-secureboot
 # or if copied:
-# scp feralos_secureboot root@<target>:/root/ && ssh root@<target> /root/feralos_secureboot
+# scp feralos-secureboot root@<target>:/root/ && ssh root@<target> /root/feralos-secureboot
 ```
 
 What it does:
@@ -48,9 +48,9 @@ After enrollment:
 ## Step 2: TPM Auto-Unlock (second boot, after Secure Boot enabled)
 
 ```bash
-sudo /opt/feralos_tpm
+sudo /opt/feralos/bin/feralos-tpm
 # env var to avoid prompt:
-# SKEA_LUKS_PASSWORD="..." sudo /opt/feralos_tpm
+# SKEA_LUKS_PASSWORD="..." sudo /opt/feralos/bin/feralos-tpm
 ```
 
 What it does:
@@ -64,7 +64,7 @@ After binding: reboot → auto-unlock without passphrase (fallback to prompt if 
 
 ## Harness Flow (QEMU, automated)
 
-1. **Runner (Debian)** — installer compiles binaries → `/opt/feralos_*`, writes `/opt/feralos/config.yaml`
+1. **Runner (Debian)** — installer compiles binaries → `/opt/feralos/bin/`, writes `/opt/feralos/config.yaml`
 2. **Target first boot** — harness runs both binaries via SSH (swtpm always)
 3. **Target verification** — harness checks `sbctl status`, `clevis luks list`, LUKS auto-unlock
 

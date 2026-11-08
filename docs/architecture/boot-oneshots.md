@@ -20,8 +20,8 @@ conventions), ADR-010 (why the D-Bus materializer exists).
 | File | Installed as | Notes |
 |---|---|---|
 | `<name>` (dinit unit) | `/lib/dinit.d/<name>` | `type = scripted`, `command = ...`, `restart = false`; ordering via `before = <consumer>`; dependency via `depends-on = <target>` (mirror the consumer's own deps — e.g. both `dbus-services-setup` and `dbus` use `depends-on = local.target`) |
-| `<name>.initd` (OpenRC) | `/etc/init.d/<name>` | `#!/sbin/openrc-run`; `depend() { before <consumer> }`; `start() { ebegin "..." ; /usr/libexec/feralos/<script> ; eend $? ; }` |
-| the task script | `/usr/libexec/feralos/<name>-setup` | POSIX sh, busybox-safe; idempotent; self-healing (re-run every boot); `exit 0` when there is nothing to do; loud non-zero exit on failure (visible in the dinit service log / rc output) — never mask |
+| `<name>.initd` (OpenRC) | `/etc/init.d/<name>` | `#!/sbin/openrc-run`; `depend() { before <consumer> }`; `start() { ebegin "..." ; /usr/libexec/dinit/<script> ; eend $? ; }` |
+| the task script | `/usr/libexec/dinit/<name>-setup` | POSIX sh, busybox-safe; idempotent; self-healing (re-run every boot); `exit 0` when there is nothing to do; loud non-zero exit on failure (visible in the dinit service log / rc output) — never mask |
 
 Use the SAME service name on both inits (like `dbus-services-setup`): one
 `defaultRunlevels.boot` entry enables both. Names that differ would need a

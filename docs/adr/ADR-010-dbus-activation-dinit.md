@@ -1,7 +1,7 @@
 # ADR-010: D-Bus activation routes through dinit services
 
 **Status:** Accepted
-**Date:** 2026-10-18 (amended 2026-10-25 R1; 2026-11-03 R1b package naming + audit auto-install)
+**Date:** 2026-10-18 (amended 2026-10-25 R1; 2026-11-03 R1b package naming + audit auto-install; 2026-11-08 shim/override paths FHS-migrated — `/usr/libexec/dinit/`, `/usr/share/dinit/` — no rule change)
 
 ## Context
 
@@ -39,7 +39,7 @@ Rules of thumb for future agents:
 
 - The **bus name never leaves the D-Bus side**: override files are named after
   and carry `Name=<bus name>`; only the dinit unit name changes, and the
-  override's `Exec=/usr/libexec/feralos/dbus-activate <unit> -- …` aliases the
+  override's `Exec=/usr/libexec/dinit/dbus-activate <unit> -- …` aliases the
   bus name onto the (possibly renamed) unit. Activation therefore works
   regardless of the unit's name.
 - Readiness arguments that reference bus names (e.g.
@@ -92,9 +92,9 @@ boot-enabled initd-name services and the non-activatable infra stay in the
 rules/service maps as before.
 
 **R2 — activation.** The effective D-Bus service file carries
-`Exec=/usr/libexec/feralos/dbus-activate <unit> -- <upstream exec...>`.
-Overrides ship under `/usr/share/feralos/dbus-system-services` (system bus) and
-`/usr/share/feralos/dbus-services` (session bus); both are materialized into
+`Exec=/usr/libexec/dinit/dbus-activate <unit> -- <upstream exec...>`.
+Overrides ship under `/usr/share/dinit/dbus-system-services` (system bus) and
+`/usr/share/dinit/dbus-services` (session bus); both are materialized into
 the effective, highest-precedence servicedirs (`/usr/local` is forbidden by
 abuild, so nothing ships there directly):
 

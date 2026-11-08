@@ -43,7 +43,7 @@ Invariants:
 The *effective* D-Bus service file carries:
 
 ```text
-Exec=/usr/libexec/feralos/dbus-activate <unit> -- <upstream exec...>
+Exec=/usr/libexec/dinit/dbus-activate <unit> -- <upstream exec...>
 ```
 
 Override locations — packaged sources + the effective (materialized) files
@@ -51,8 +51,8 @@ Override locations — packaged sources + the effective (materialized) files
 
 | Bus | Shipped as (package files) | Effective location |
 |---|---|---|
-| system | `/usr/share/feralos/dbus-system-services/<Name>.service` | materialized at boot by `dbus-services-setup` (both inits, ordered before dbus) into `/usr/local/share/dbus-1/system-services/<Name>.service` — the launch helper's first eligible dir |
-| session | `/usr/share/feralos/dbus-services/<Name>.service` | materialized at login by the `dbus-session` wrapper into `$XDG_RUNTIME_DIR/dbus-1/services/<Name>.service` — the highest-precedence session servicedir (strict naming, read at bus startup) |
+| system | `/usr/share/dinit/dbus-system-services/<Name>.service` | materialized at boot by `dbus-services-setup` (both inits, ordered before dbus) into `/usr/local/share/dbus-1/system-services/<Name>.service` — the launch helper's first eligible dir |
+| session | `/usr/share/dinit/dbus-services/<Name>.service` | materialized at login by the `dbus-session` wrapper into `$XDG_RUNTIME_DIR/dbus-1/services/<Name>.service` — the highest-precedence session servicedir (strict naming, read at bus startup) |
 
 Why the system side cannot use `/etc/dbus-1/system-services` (the dbus-daemon
 precedence list puts it first, but that is not the full story): the system bus
@@ -118,14 +118,14 @@ environment.
    wrapper+config for daemons with configuration; `depends-on = dbus` like the
    other bus daemons).
 3. aports: ship the override `.service` file in
-   `/usr/share/feralos/dbus-system-services/` (system bus) or
-   `/usr/share/feralos/dbus-services/` (session bus) — **never** in
+   `/usr/share/dinit/dbus-system-services/` (system bus) or
+   `/usr/share/dinit/dbus-services/` (session bus) — **never** in
    `/etc/dbus-1/system-services` (not helper-activatable). Content:
 
    ```ini
    [D-BUS Service]
    Name=<Name>
-   Exec=/usr/libexec/feralos/dbus-activate <unit> -- <upstream exec...>
+   Exec=/usr/libexec/dinit/dbus-activate <unit> -- <upstream exec...>
    User=root
    ```
 
@@ -172,7 +172,7 @@ environment.
 - raw spawn / `Spawn.ServiceNotFound` → the helper could not resolve the name
   in the standard dirs: check the materialized override
   `/usr/local/share/dbus-1/system-services/<Name>.service` (source in
-  `/usr/share/feralos/dbus-system-services/`) and that `dbus-services-setup`
+  `/usr/share/dinit/dbus-system-services/`) and that `dbus-services-setup`
   ran (`dinitctl list` / `rc-status`); pattern details in `boot-oneshots.md`.
 - wrong `Exec=` used → the helper picks the first standard-dir twin
   (`/usr/local/share` > `/usr/share`); stray files in
@@ -184,7 +184,7 @@ environment.
 ## Supervision audit — `feralos-dbus-audit` (auto-installer + enforcement)
 
 Standalone Go binary (`src/firstBoot/dbus-audit/` in the feralos repo,
-packaged as `feralos-dbus-audit` in feralos-aports, `/usr/libexec/feralos/feralos-dbus-audit`)
+packaged as `feralos-dbus-audit` in feralos-aports, `/usr/libexec/dinit/feralos-dbus-audit`)
 that turns the ADR-010 rule into the AUTO-INSTALL mechanism (R1b,
 2026-11-03): it discovers every activation target and installs its
 supervision package, so `internal_rules.yaml` carries no `*-dinit`
@@ -201,7 +201,7 @@ enforces the allowlist).
 - for every target checks the unit-existence paths (session:
   `/etc/dinit.d/user/<bus>.user` and `<bin>.user`; system: `<bus>`/`<bin>`
   under `/lib/dinit.d`, `/usr/lib/dinit.d`, `/etc/dinit.d`) **plus** the
-  packaged FeralOS override (`/usr/share/feralos/dbus-services` /
+  packaged FeralOS override (`/usr/share/dinit/dbus-services` /
   `dbus-system-services`): the override's shim Exec aliases the bus name
   onto the unit it starts (e.g. `org.freedesktop.login1` → `elogind`) → OK
   when any path exists.
@@ -294,10 +294,10 @@ enforces the allowlist).
 | kcookiejar5 | session | — | EXEMPT (upstream broken on Alpine 3.24: activation file `Exec=/usr/bin/kded5`, binary absent — no unit possible; harness skips it with an explicit message) |
 | playerctld | session | `org.mpris.MediaPlayer2.playerctld.user` | DONE (`2c87f7a`; cosmic; the Alpine package is `playerctl` — binary + activation file together; `/usr/bin/playerctld`) |
 
-All system rows: override source `/usr/share/feralos/dbus-system-services/`,
+All system rows: override source `/usr/share/dinit/dbus-system-services/`,
 materialized at boot to `/usr/local/share/dbus-1/system-services/` by
 `dbus-services-setup` (2026-10-18 validation round — `/etc` proved
-helper-ineligible). All session rows: source `/usr/share/feralos/dbus-services/`,
+helper-ineligible). All session rows: source `/usr/share/dinit/dbus-services/`,
 materialized at login to `$XDG_RUNTIME_DIR/dbus-1/services/`.
 
 **R1 amendment (2026-10-25, user decision):** system units WE boot-enable carry
@@ -356,7 +356,7 @@ next activation restarts it.
 5. [x] harness: service lists, `dbus_activation_uniform` (init-aware), `dbus_activation_env` (real activation + forwarding proof)
 6. [x] docs: AGENTS policy section, ADR index, aports guide checklist, niriwayle/artifacts rows
 7. [x] validation round 1: builds, aports CI, harness runs on dinit + OpenRC, iterative fixes (runs `18-33-05Z` … `21-40-20Z`)
-8. [x] validation round 2 (system-bus helper eligibility): live + source proof that the launch helper resolves names ONLY against the standard dirs (trivial parser — `/etc` + `/run` never searched) → overrides moved to `/usr/share/feralos/dbus-system-services` + `dbus-services-setup` boot materializer into `/usr/local/share/dbus-1/system-services` (aports `2e0caa8`; comment follow-up `5f729ea`); uniform check reworked (sources + materialization + `/etc` clean; coverage loop dinit-only), env check reworked (no `DBUS_STARTER_*` + direct-shim `setenv` proof). Validated: dinit `2026-10-18T22-56-20Z` **106/106**; OpenRC `2026-10-18T23-03-31Z` **90/90**.
+8. [x] validation round 2 (system-bus helper eligibility): live + source proof that the launch helper resolves names ONLY against the standard dirs (trivial parser — `/etc` + `/run` never searched) → overrides moved to the packaging override dir + `dbus-services-setup` boot materializer into `/usr/local/share/dbus-1/system-services` (aports `2e0caa8`; comment follow-up `5f729ea`; override dir was `/usr/share/feralos/dbus-system-services` at the time — FHS-migrated 2026-11-08 to `/usr/share/dinit/dbus-system-services`); uniform check reworked (sources + materialization + `/etc` clean; coverage loop dinit-only), env check reworked (no `DBUS_STARTER_*` + direct-shim `setenv` proof). Validated: dinit `2026-10-18T22-56-20Z` **106/106**; OpenRC `2026-10-18T23-03-31Z` **90/90**.
 9. [x] KDE session-bus coverage (2026-10-25): 3 new unit-only packages (`obexd-user-dinit`, `ibus-user-dinit`, `system-config-printer-user-dinit`, aports `1289145`) + KDE list gains 9 session packages; `kcookiejar5` documented exemption; `log_errors` WARNING sweep with the 3-line allowlist; `services.go` boot.d symlink `/lib`-or-`/etc` resolution. Validated: kde full-feature dinit `2026-10-25T03-41-55Z` **77/77**.
 10. [x] cosmic session-bus coverage (2026-10-25): cosmic unified on elogind (user decision) — seatd daemon dropped (Alpine 3.24: nothing depends on it; cosmic-comp uses libseat's logind backend), `cosmic-greeter-dinit` r6 units `depends-on = org.freedesktop.login1`, NEW `playerctld-user-dinit`, rules `dinitServices` login1 mapping. Validated: cosmic full-feature dinit `2026-10-25T14-19-46Z` **77/77** (migration 0/14 uncovered).
 11. [x] R1 amendment (2026-10-25, user correction): system units we boot-enable carry the OpenRC initd name (cosmic-greeter r7 deps → `elogind` in `e7f1cc8`); dbus-activated system services stay bus-named and never boot-enabled (fwupd/PPD corrected to on-demand). aports `e7f1cc8` (elogind/polkit/bluetooth renames + dependents), `dinitServices` removed from the rules, skip-list cleanup, harness expected lists + `power_profiles` on-demand proof + `dbus_activation_env` race-proofing. Validated: kde `17-19-00Z` **77/77**, cosmic `17-02-52Z` **77/77**, niri `17-50-09Z` **113/113**, niriWayle dinit `17-57-48Z` **109/109**, niriWayle OpenRC `18-16-31Z` **92/92**.

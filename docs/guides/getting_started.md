@@ -76,8 +76,8 @@ sudo sbctl status                 # only if EnableSecureboot
 If `EnableSecureboot` / `EnableTPM` was set, installer only compiled binaries — run manually on real hardware:
 
 ```bash
-sudo /opt/feralos_secureboot   # installs sbctl, generates keys, enrolls, signs UKI
-sudo /opt/feralos_tpm          # binds LUKS to TPM2 (clevis), rebuilds initramfs+UKI
+sudo /opt/feralos/bin/feralos-secureboot   # installs sbctl, generates keys, enrolls, signs UKI
+sudo /opt/feralos/bin/feralos-tpm          # binds LUKS to TPM2 (clevis), rebuilds initramfs+UKI
 sudo reboot
 ```
 

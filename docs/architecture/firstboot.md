@@ -17,11 +17,11 @@ Binaries are autonomous — installer does NOT run them.
 Compiled and copied by `main` after `chrootPhase.Run()` completes:
 
 1. `firstboot.WriteInstallConfig(conf)` reads `/etc/kernel/cmdline` → writes `/opt/feralos/config.yaml` — disk layout, LUKS UUIDs, user info
-2. `firstboot.SetupSecureboot(conf)` → compiles `feralos_secureboot`, copies to `/opt/feralos_secureboot`, chmod 755 (guarded `EnableSecureboot`)
-3. `firstboot.SetupTpm(conf)` → compiles `feralos_tpm`, copies to `/opt/feralos_tpm`, chmod 755 (guarded `EnableTPM`)
-4. `firstboot.SetupWebmin(conf)` → compiles `feralos_webmin`, copies to `/opt/feralos_webmin`, chmod 755 (guarded `EnableWebmin`)
+2. `firstboot.SetupSecureboot(conf)` → compiles `feralos-secureboot`, copies to `/opt/feralos/bin/feralos-secureboot`, chmod 755 (guarded `EnableSecureboot`)
+3. `firstboot.SetupTpm(conf)` → compiles `feralos-tpm`, copies to `/opt/feralos/bin/feralos-tpm`, chmod 755 (guarded `EnableTPM`)
+4. `firstboot.SetupWebmin(conf)` → compiles `feralos-webmin`, copies to `/opt/feralos/bin/feralos-webmin`, chmod 755 (guarded `EnableWebmin`)
 
-Output: `/opt/feralos_secureboot`, `/opt/feralos_tpm`, `/opt/feralos_webmin`, `/opt/feralos/config.yaml` inside target.
+Output: `/opt/feralos/bin/feralos-{secureboot,tpm,webmin}`, `/opt/feralos/config.yaml` inside target.
 
 FirstBoot binaries read `/opt/feralos/config.yaml` for LUKS UUIDs (fallback: kernel cmdline).
 
@@ -40,11 +40,11 @@ FirstBoot binaries read `/opt/feralos/config.yaml` for LUKS UUIDs (fallback: ker
 User runs manually after first boot:
 
 ```bash
-/opt/feralos_secureboot   # before enabling Secure Boot in BIOS
+/opt/feralos/bin/feralos-secureboot   # before enabling Secure Boot in BIOS
 # reboot → BIOS: enable Secure Boot, Custom mode, save
-/opt/feralos_tpm          # binds LUKS; SKEA_LUKS_PASSWORD env avoids prompt
-/opt/feralos_webmin       # starts Webmin container (podman must be installed)
-/opt/feralos_webmin        # idempotent — seeds config only once, restarts container
+/opt/feralos/bin/feralos-tpm          # binds LUKS; SKEA_LUKS_PASSWORD env avoids prompt
+/opt/feralos/bin/feralos-webmin       # starts Webmin container (podman must be installed)
+/opt/feralos/bin/feralos-webmin        # idempotent — seeds config only once, restarts container
 ```
 
 See `docs/FIRST_BOOT.md#Usage on Real Hardware` for BIOS steps, env `SKEA_LUKS_PASSWORD`, troubleshooting.

@@ -274,7 +274,7 @@ resolvNameservers: [208.67.222.222, 208.67.220.220]
 
 # Maintenance schedules (crontab lines; command part fixed in Go):
 #   apkAudit   — weekly apk audit (misc.go)
-#   trim       — weekly TRIM via /usr/libexec/feralos-weekly-trim (storage.go)
+#   trim       — weekly TRIM via /etc/periodic/weekly/btrfs-trim (storage.go)
 #   scrub      — weekly btrfs scrub (storage.go)
 #   snapshots  — daily btrbk snapshots (storage.go)
 maintenanceCron:
@@ -349,7 +349,7 @@ desktopEnvironments:
     # boot.d link; OpenRC: rc-update — service ships in the turnstile-openrc
     # subpackage). The dinit USER backend is identical on both, so the
     # -user-dinit session stack below works under OpenRC too.
-    # Login-shell trick: passwd shell = /usr/libexec/feralos/login-shell
+    # Login-shell trick: passwd shell = /usr/libexec/login-shell
     # (not in /etc/shells) skips niri-session's bash re-exec (wired by the
     # desktop setup: desktops/niri.go / niri_wayle.go)
     # cava (DMS audio visualizer) NOT on Alpine v3.24 — re-add when packaged

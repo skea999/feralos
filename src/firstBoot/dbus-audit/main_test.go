@@ -40,7 +40,7 @@ Exec=/usr/bin/example-daemon --replace --flag
 func TestParseServiceFileShim(t *testing.T) {
 	path := writeTempService(t, `[D-BUS Service]
 Name=org.example.Daemon
-Exec=/usr/libexec/feralos/dbus-activate org.example.Daemon.user -- /usr/bin/example-daemon --flag
+Exec=/usr/libexec/dinit/dbus-activate org.example.Daemon.user -- /usr/bin/example-daemon --flag
 `)
 
 	svc, err := parseServiceFile(path)
@@ -162,7 +162,7 @@ func TestUpstreamExecFromOverride(t *testing.T) {
 	dir := t.TempDir()
 	shim := `[D-BUS Service]
 Name=org.freedesktop.secrets
-Exec=/usr/libexec/feralos/dbus-activate org.freedesktop.secrets.user -- /usr/bin/oo7-daemon --replace
+Exec=/usr/libexec/dinit/dbus-activate org.freedesktop.secrets.user -- /usr/bin/oo7-daemon --replace
 `
 	if err := os.WriteFile(filepath.Join(dir, "org.freedesktop.secrets.service"), []byte(shim), 0o644); err != nil {
 		t.Fatalf("write: %v", err)

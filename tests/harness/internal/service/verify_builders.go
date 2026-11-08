@@ -13,7 +13,7 @@ func buildStorageChecks(checks map[string]string) {
 	checks["storage_layout"] = "printf '===blkid===\n'; blkid; printf '\n===mapper===\n'; ls -1 /dev/mapper/luks-* 2>/dev/null; printf '\n===mounts===\n'; grep ' / ' /proc/mounts; printf '\n===btrfs_show===\n'; btrfs filesystem show /; printf '\n===btrfs_usage===\n'; btrfs filesystem usage -T /"
 	checks["fstab"] = "cat /etc/fstab"
 	checks["fstab_vs_mount"] = `echo "=== FSTAB vs MOUNT COMPARISON ===" && for mp in $(awk '/btrfs/ && !/^#/ {print $2}' /etc/fstab | sort -u); do fstab_opts=$(awk -v mp="$mp" '$2==mp && /btrfs/ && !/^#/ {print $4}' /etc/fstab | head -1); mount_opts=$(awk -v mp="$mp" '$2==mp {print $4}' /proc/mounts | head -1); if [ -n "$fstab_opts" ] && [ -n "$mount_opts" ]; then echo "=== $mp ==="; echo "  fstab:  $fstab_opts"; echo "  mount:  $mount_opts"; for opt in $(echo "$fstab_opts" | tr ',' '\n' | sort); do if ! echo "$mount_opts" | tr ',' '\n' | grep -q "^${opt}$"; then echo "  MISSING in mount: $opt"; fi; done; for opt in $(echo "$mount_opts" | tr ',' '\n' | sort); do if ! echo "$fstab_opts" | tr ',' '\n' | grep -q "^${opt}$"; then echo "  EXTRA in mount: $opt"; fi; done; fi; done; echo "=== DONE ==="`
-	checks["disk_schedule"] = "test -x /usr/libexec/feralos-weekly-trim && echo 'trim script OK' || echo 'trim script MISSING'; for pat in 'feralos-weekly-trim' 'scrub start' 'btrbk run'; do n=$(grep -c \"$pat\" /etc/crontabs/root 2>/dev/null); echo \"cron [$pat]: ${n:-0}\"; done"
+	checks["disk_schedule"] = "test -x /etc/periodic/weekly/btrfs-trim && echo 'trim script OK' || echo 'trim script MISSING'; for pat in 'btrfs-trim' 'scrub start' 'btrbk run'; do n=$(grep -c \"$pat\" /etc/crontabs/root 2>/dev/null); echo \"cron [$pat]: ${n:-0}\"; done"
 	checks["zswap_status"] = "cat /sys/kernel/debug/zswap/ 2>/dev/null || cat /sys/module/zswap/parameters/enabled 2>/dev/null || echo 'zswap not available'"
 	checks["swap_status"] = "swapon -s 2>/dev/null || cat /proc/swaps 2>/dev/null || echo 'no swap active'"
 	checks["apk_packages"] = "apk info | sort"
@@ -142,7 +142,7 @@ func buildFeatureChecks(cfg *VerifyConfig, checks map[string]string) {
 	// webmin-ensure oneshot restarts the container on this verification boot.
 	// No "|| echo" fallbacks — these must FAIL when webmin doesn't work.
 	if cfg.EnableWebmin {
-		checks["webmin_binary"] = "test -x /opt/feralos_webmin"
+		checks["webmin_binary"] = "test -x /opt/feralos/bin/feralos-webmin"
 		checks["webmin_container"] = "podman ps --format '{{.Names}}' | grep -q '^webmin$'"
 		checks["webmin_port"] = "podman port webmin 10000 | grep -q 10000"
 		checks["webmin_http"] = "for i in 1 2 3 4 5 6 7 8; do wget -q -T 5 -O /dev/null --no-check-certificate https://localhost:10000/ && exit 0; sleep 5; done; exit 1"
@@ -267,12 +267,12 @@ func buildDesktopChecks(cfg *VerifyConfig, checks map[string]string) {
 		// org.freedesktop.UPower.PowerProfiles unit. The unit is ACTIVATION-
 		// ONLY (ADR-010 R1 amendment 2026-10-25: dbus-by-design daemon — dbus
 		// decides when it runs; never boot-enabled). Override sources:
-		// /usr/share/feralos/dbus-system-services (materialized at boot into
+		// /usr/share/dinit/dbus-system-services (materialized at boot into
 		// /usr/local/share — see dbus_activation_uniform). Runtime: a REAL
 		// switch as the session user (exercises the wheel polkit rule AND the
 		// on-demand activation), then the dinit started-marker proves the
 		// unit came up through dbus activation → shim → dinit.
-		powerProfilesCmd := "test -f /usr/share/feralos/dbus-system-services/org.freedesktop.UPower.PowerProfiles.service && grep -q 'Exec=/usr/libexec/feralos/dbus-activate org.freedesktop.UPower.PowerProfiles' /usr/share/feralos/dbus-system-services/org.freedesktop.UPower.PowerProfiles.service && test -f /usr/share/feralos/dbus-system-services/net.hadess.PowerProfiles.service && grep -q 'Exec=/usr/libexec/feralos/dbus-activate org.freedesktop.UPower.PowerProfiles' /usr/share/feralos/dbus-system-services/net.hadess.PowerProfiles.service && test -f /lib/dinit.d/org.freedesktop.UPower.PowerProfiles || { echo 'PPD dinit activation wiring missing'; exit 1; }; test -f /usr/share/polkit-1/actions/power-profiles-daemon.policy && grep -q 'org.freedesktop.UPower.PowerProfiles.switch-profile' /usr/share/polkit-1/actions/power-profiles-daemon.policy || { echo 'PPD polkit policy missing'; exit 1; };"
+		powerProfilesCmd := "test -f /usr/share/dinit/dbus-system-services/org.freedesktop.UPower.PowerProfiles.service && grep -q 'Exec=/usr/libexec/dinit/dbus-activate org.freedesktop.UPower.PowerProfiles' /usr/share/dinit/dbus-system-services/org.freedesktop.UPower.PowerProfiles.service && test -f /usr/share/dinit/dbus-system-services/net.hadess.PowerProfiles.service && grep -q 'Exec=/usr/libexec/dinit/dbus-activate org.freedesktop.UPower.PowerProfiles' /usr/share/dinit/dbus-system-services/net.hadess.PowerProfiles.service && test -f /lib/dinit.d/org.freedesktop.UPower.PowerProfiles || { echo 'PPD dinit activation wiring missing'; exit 1; }; test -f /usr/share/polkit-1/actions/power-profiles-daemon.policy && grep -q 'org.freedesktop.UPower.PowerProfiles.switch-profile' /usr/share/polkit-1/actions/power-profiles-daemon.policy || { echo 'PPD polkit policy missing'; exit 1; };"
 		powerProfilesCmd += fmt.Sprintf(" su - %s -s /bin/sh -c 'p=$(powerprofilesctl get) || exit 1; powerprofilesctl set power-saver || exit 1; n=$(powerprofilesctl get); powerprofilesctl set \"$p\" || exit 1; if [ \"$n\" = power-saver ]; then echo \"power profiles OK (real switch: $p -> power-saver -> $p)\"; else echo \"power profile switch did not take effect ($n)\"; exit 1; fi'", cfg.InstalledUser)
 		if cfg.EnableDinit {
 			powerProfilesCmd += "; dinitctl list 2>/dev/null | grep -Eq '(\\{\\+|\\[\\+).*\\] org\\.freedesktop\\.UPower\\.PowerProfiles( |$)' && echo 'PPD started on demand (dbus activation -> shim -> dinit)' || { echo 'PPD unit not started after the real switch (activation routing broken)'; exit 1; };"
@@ -390,7 +390,7 @@ echo 'dbus activation units live OK'
 		// /etc/shells — pkexec requires it), turnstile PAM → user dinit,
 		// boot.d enables.
 		checks["niri_user_service"] = "test -f /etc/dinit.d/user/niri && grep -q 'niri --session' /etc/dinit.d/user/niri"
-		checks["login_shell_trick"] = fmt.Sprintf("getent passwd %s | cut -d: -f7 | grep -q feralos/login-shell && test -L /usr/libexec/feralos/login-shell && grep -qxF /usr/libexec/feralos/login-shell /etc/shells", cfg.InstalledUser)
+		checks["login_shell_trick"] = fmt.Sprintf("getent passwd %s | cut -d: -f7 | grep -q libexec/login-shell && test -L /usr/libexec/login-shell && grep -qxF /usr/libexec/login-shell /etc/shells", cfg.InstalledUser)
 		// turnstile_pkg: dual-init session launcher — files on BOTH inits;
 		// the service must actually RUN (dinit: boot.d link + started
 		// marker; OpenRC: init.d file + rc-status started + process).
@@ -690,14 +690,14 @@ for f in /usr/share/dbus-1/system-services/*.service; do
     [ -e "$f" ] || continue
     name=$(sed -n 's/^Name=//p' "$f" | head -1)
     [ -n "$name" ] || { echo "no Name= in $f"; fail=1; continue; }
-    src=/usr/share/feralos/dbus-system-services/$name.service
+    src=/usr/share/dinit/dbus-system-services/$name.service
     [ -f "$src" ] || { echo "missing system override source: $name"; fail=1; continue; }
-    grep -q '^Exec=/usr/libexec/feralos/dbus-activate ' "$src" || { echo "system override not shim: $name"; fail=1; continue; }
+    grep -q '^Exec=/usr/libexec/dinit/dbus-activate ' "$src" || { echo "system override not shim: $name"; fail=1; continue; }
     unit=$(sed -n 's/^Exec=.*dbus-activate \([^ ]*\) .*/\1/p' "$src" | head -1)
     [ -f "/lib/dinit.d/$unit" ] || { echo "system unit missing: $unit ($name)"; fail=1; continue; }
     eff=/usr/local/share/dbus-1/system-services/$name.service
     [ -f "$eff" ] || { echo "system override not materialized into /usr/local/share: $name"; fail=1; continue; }
-    grep -q '^Exec=/usr/libexec/feralos/dbus-activate ' "$eff" || { echo "materialized system override not shim: $name"; fail=1; continue; }
+    grep -q '^Exec=/usr/libexec/dinit/dbus-activate ' "$eff" || { echo "materialized system override not shim: $name"; fail=1; continue; }
 done
 for f in /etc/dbus-1/system-services/*.service; do
     [ -e "$f" ] || continue
@@ -725,11 +725,11 @@ done
 		// packages are converted to their -dinit equivalents there). OpenRC
 		// installs use the plain packages (no -dinit units to route to), so
 		// the coverage half applies to dinit installs only. Session
-		// overrides ship in /usr/share/feralos/dbus-services (abuild forbids
+		// overrides ship in /usr/share/dinit/dbus-services (abuild forbids
 		// /usr/local) and are materialized at login by the dbus-session
 		// wrapper into $XDG_RUNTIME_DIR/dbus-1/services — the highest-
 		// precedence servicedir (strict naming, read at bus start). System
-		// overrides ship in /usr/share/feralos/dbus-system-services and are
+		// overrides ship in /usr/share/dinit/dbus-system-services and are
 		// materialized at boot (dbus-services-setup, ordered before dbus)
 		// into /usr/local/share/dbus-1/system-services — the setuid launch
 		// helper resolves activation names ONLY against the standard dirs
@@ -745,7 +745,7 @@ for f in /usr/share/dbus-1/system-services/*.service; do
     [ -e "$f" ] || continue
     name=$(sed -n 's/^Name=//p' "$f" | head -1)
     [ -n "$name" ] || { echo "no Name= in $f"; fail=1; continue; }
-    [ -f "/usr/share/feralos/dbus-system-services/$name.service" ] || { echo "missing system override source: $name"; fail=1; }
+    [ -f "/usr/share/dinit/dbus-system-services/$name.service" ] || { echo "missing system override source: $name"; fail=1; }
 done
 `
 		}
@@ -759,24 +759,24 @@ for f in /usr/share/dbus-1/services/*.service; do
     case "$name" in
         org.kde.kcookiejar5) echo "skip (broken upstream: kded5 binary absent on Alpine 3.24 — no unit possible)"; continue ;;
     esac
-    src=/usr/share/feralos/dbus-services/$name.service
+    src=/usr/share/dinit/dbus-services/$name.service
     [ -f "$src" ] || { echo "missing session override source: $name"; fail=1; continue; }
-    grep -q '^Exec=/usr/libexec/feralos/dbus-activate ' "$src" || { echo "session override not shim: $name"; fail=1; continue; }
+    grep -q '^Exec=/usr/libexec/dinit/dbus-activate ' "$src" || { echo "session override not shim: $name"; fail=1; continue; }
     unit=$(sed -n 's/^Exec=.*dbus-activate \([^ ]*\) .*/\1/p' "$src" | head -1)
     [ -f "/etc/dinit.d/user/$unit" ] || { echo "user unit missing: $unit ($name)"; fail=1; continue; }
     rt="/run/user/$uid/dbus-1/services/$name.service"
     [ -f "$rt" ] || { echo "session override not materialized into the runtime dir: $name"; fail=1; continue; }
 done
-for f in /usr/share/feralos/dbus-system-services/*.service; do
+for f in /usr/share/dinit/dbus-system-services/*.service; do
     [ -e "$f" ] || continue
     name=$(sed -n 's/^Name=//p' "$f" | head -1)
     [ -n "$name" ] || { echo "no Name= in $f"; fail=1; continue; }
-    grep -q '^Exec=/usr/libexec/feralos/dbus-activate ' "$f" || { echo "system override not shim: $name"; fail=1; continue; }
+    grep -q '^Exec=/usr/libexec/dinit/dbus-activate ' "$f" || { echo "system override not shim: $name"; fail=1; continue; }
     unit=$(sed -n 's/^Exec=.*dbus-activate \([^ ]*\) .*/\1/p' "$f" | head -1)
     [ -f "/lib/dinit.d/$unit" ] || { echo "system unit missing: $unit ($name)"; fail=1; continue; }
     eff=/usr/local/share/dbus-1/system-services/$name.service
     [ -f "$eff" ] || { echo "system override not materialized into /usr/local/share: $name"; fail=1; continue; }
-    grep -q '^Exec=/usr/libexec/feralos/dbus-activate ' "$eff" || { echo "materialized system override not shim: $name"; fail=1; continue; }
+    grep -q '^Exec=/usr/libexec/dinit/dbus-activate ' "$eff" || { echo "materialized system override not shim: $name"; fail=1; continue; }
 done
 %sfor f in /etc/dbus-1/system-services/*.service; do
     [ -e "$f" ] || continue
@@ -816,7 +816,7 @@ diag() {
     pgrep -f "^/usr/libexec/dconf-service$" || echo "no dconf-service process"
     ls -l "$XDG_RUNTIME_DIR/dbus-1/services/" 2>&1 | head -5
     echo "--- direct shim attempt (bypasses dbus) ---"
-    FERALOS_DBUS_ACT_TEST=session DBUS_STARTER_BUS_TYPE=session /usr/libexec/feralos/dbus-activate ca.desrt.dconf.user -- /usr/libexec/dconf-service
+    FERALOS_DBUS_ACT_TEST=session DBUS_STARTER_BUS_TYPE=session /usr/libexec/dinit/dbus-activate ca.desrt.dconf.user -- /usr/libexec/dconf-service
     echo "shim rc=$?"
     sleep 2
     dinitctl --user status ca.desrt.dconf.user 2>&1 || true
@@ -850,7 +850,7 @@ sysdiag() {
         echo "no upowerd process"
     fi
     ls -l /usr/local/share/dbus-1/system-services/org.freedesktop.UPower.service 2>&1
-    ls -l /usr/share/feralos/dbus-system-services/org.freedesktop.UPower.service 2>&1
+    ls -l /usr/share/dinit/dbus-system-services/org.freedesktop.UPower.service 2>&1
     dinitctl --system catlog org.freedesktop.UPower 2>&1 | tail -10 || true
 }
 if [ "$(cat /proc/1/comm)" = "dinit" ] && apk info -e upower >/dev/null 2>&1; then
@@ -885,7 +885,7 @@ if [ "$(cat /proc/1/comm)" = "dinit" ] && apk info -e upower >/dev/null 2>&1; th
         while dinitctl --system --quiet is-started org.freedesktop.UPower >/dev/null 2>&1 && [ $i -lt 10 ]; do sleep 1; i=$((i+1)); done
         pkill -f "^/usr/libexec/upowerd$" 2>/dev/null || true
         sleep 1
-        FERALOS_DBUS_ACT_TEST=system-$try DBUS_STARTER_BUS_TYPE=system DBUS_STARTER_ADDRESS=unix:path=/run/dbus/system_bus_socket /usr/libexec/feralos/dbus-activate org.freedesktop.UPower -- /usr/libexec/upowerd
+        FERALOS_DBUS_ACT_TEST=system-$try DBUS_STARTER_BUS_TYPE=system DBUS_STARTER_ADDRESS=unix:path=/run/dbus/system_bus_socket /usr/libexec/dinit/dbus-activate org.freedesktop.UPower -- /usr/libexec/upowerd
         sleep 2
         pid=$(pgrep -f "^/usr/libexec/upowerd$" | head -1)
         if [ -n "$pid" ] && tr "\0" "\n" < /proc/$pid/environ 2>/dev/null | grep -q "^FERALOS_DBUS_ACT_TEST=system-$try$"; then
@@ -929,7 +929,7 @@ check_covered() {
         o=$(apk info -W "$p" 2>/dev/null | sed -n 's/.* is owned by \(.*\)$/\1/p')
         [ -n "$o" ] && return 0
     done
-    for s in "/usr/share/feralos/dbus-system-services/$n.service" "/usr/share/feralos/dbus-services/$n.service"; do
+    for s in "/usr/share/dinit/dbus-system-services/$n.service" "/usr/share/dinit/dbus-services/$n.service"; do
         [ -f "$s" ] || continue
         u=$(sed -n 's/^Exec=.*dbus-activate \([^ ]*\) .*/\1/p' "$s" | head -1)
         [ -n "$u" ] || continue

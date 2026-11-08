@@ -66,18 +66,28 @@ func WriteInstallConfig(conf *config.Config) error {
 	u := &conf.User
 
 	cfg := InstallConfig{
-		DiskLayout:      u.DiskLayout,
-		Disks:           u.Disks,
-		UserName:        u.UserName,
+		DiskLayout:    u.DiskLayout,
+		Disks:         u.Disks,
+		UserName:      u.UserName,
+		Hostname:      u.Hostname,
+		Mirror:        u.Mirror,
+		Branch:        u.Branch,
+		KernelPackage: conf.Internal.Kernel.Package,
+		KernelFlavor:  conf.Internal.Kernel.Flavor,
+		EnablePodman:  u.EnablePodman,
+		EnableWebmin:  u.EnableWebmin,
+		// Password ONLY when webmin is enabled (guarded below): the webmin
+		// firstboot binary is the sole reader (it sets the webmin + unix
+		// root passwords via changepass.pl/chpasswd); tpm asks interactively
+		// (or env) and secureboot never reads a password. The struct field
+		// and the yaml key stay (the webmin binary parses the whole shape);
+		// the secret just stops landing on disk when no consumer is
+		// installed.
 		Password:        u.Password,
-		Hostname:        u.Hostname,
-		Mirror:          u.Mirror,
-		Branch:          u.Branch,
-		KernelPackage:   conf.Internal.Kernel.Package,
-		KernelFlavor:    conf.Internal.Kernel.Flavor,
-		EnablePodman:    u.EnablePodman,
-		EnableWebmin:    u.EnableWebmin,
 		WebminListenAll: u.WebminListenAll,
+	}
+	if !u.EnableWebmin {
+		cfg.Password = ""
 	}
 
 	// Extract LUKS UUIDs from kernel cmdline (written by chrootPhase/internal/boot.go)

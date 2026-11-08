@@ -308,7 +308,7 @@ exit "$errors"
 
 // SetupDbusAudit runs the install-time ADR-010 supervision audit INSIDE the
 // chroot using the PACKAGED binary — feralos-dbus-audit (standardPackages)
-// ships /usr/libexec/feralos/feralos-dbus-audit; the aports package is the
+// ships /usr/libexec/dinit/feralos-dbus-audit; the aports package is the
 // single source of truth, so bump its _commit pin whenever
 // src/firstBoot/dbus-audit changes (the installer does NOT compile the
 // binary). Called as chroot_phase step 8a — AFTER all package installations
@@ -324,7 +324,10 @@ func SetupDbusAudit(conf *config.Config) error {
 	// "chroot_phase" = umbrella caller for steps that don't set one.
 	defer shell.SetCaller("chroot_phase")
 	chroot := conf.Internal.ChrootDir
-	const bin = "/usr/libexec/feralos/feralos-dbus-audit"
+	// /usr/libexec/dinit/ — the supervision/dinit service dir (turnstile
+	// precedent: /usr/libexec/turnstile/dinit); the distro name does not
+	// belong in binary paths.
+	const bin = "/usr/libexec/dinit/feralos-dbus-audit"
 
 	// Deterministic guard: allowFail=true — a benign existence probe must
 	// never trip the retry/interactive path (the old bare `test -x` retried

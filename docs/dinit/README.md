@@ -42,7 +42,7 @@ Packaging (APKBUILDs, CI, publishing) lives in the separate repo
    `niri-session` runs FIXED (shipped by `niri-user-dinit`, `replaces="niri"` —
    upstream post-25.11 dinit mechanism: full login-env setenv + dinit-monitor
    wait): the login-shell trick (passwd shell =
-   `/usr/libexec/feralos/login-shell`, not in `/etc/shells`; installer re-points
+   `/usr/libexec/login-shell`, not in `/etc/shells`; installer re-points
    the package symlink from `/bin/ash` to fish — busybox applet dispatch breaks
    the `/bin/ash` target when invoked as `login-shell`) skips its bash
    re-exec so its dinit branch starts the `niri` user service. Packages:

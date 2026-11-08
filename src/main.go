@@ -111,6 +111,24 @@ func main() {
 		fmt.Printf("[WARNING] Webmin setup: %v\n", err)
 	}
 
+	// End-of-installer first-boot guide — feature-conditioned, printed right
+	// after the firstBoot binaries are placed (before the sync wait + final
+	// cleanup). Paths mirror utils/firstboot (bin/feralos-<name> under
+	// /opt/feralos). Text deliberately carries no ERROR/WARN-adjacent words
+	// so the harness log_errors sweep never trips on the echoed guide.
+	fmt.Println("=== FeralOS installation complete ===")
+	fmt.Println("First-boot setup — run ON THE INSTALLED SYSTEM after rebooting:")
+	if conf.User.EnableSecureboot {
+		fmt.Println("  /opt/feralos/bin/feralos-secureboot    # Secure Boot keys + signed UKI")
+	}
+	if conf.User.EnableTPM {
+		fmt.Println("  /opt/feralos/bin/feralos-tpm           # TPM2 LUKS auto-unlock binding")
+	}
+	if conf.User.EnableWebmin {
+		fmt.Println("  /opt/feralos/bin/feralos-webmin        # Webmin container")
+	}
+	fmt.Println("Guide: docs/guides/first_boot.md (in the repo; on the installed system see /root or the docs online)")
+
 	// 9. Wait for filesystems to sync before final cleanup
 	fmt.Println("[INFO] Waiting 20s for filesystem sync...")
 	time.Sleep(20 * time.Second)

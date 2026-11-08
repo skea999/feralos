@@ -93,7 +93,7 @@ All 4 layouts PASS 35/35 with markers enabled. Markers appended at END of each c
 | `nix_tmp_exec` | `/tmp` mounted exec | `mount \| grep ' /tmp '` has NO `noexec` (nix builds use upstream default build dir `/tmp`; old `/nix/var/nix/build/tmp` workaround removed) |
 | `chmod_77_check` | No insecure chmod in installer.log | Count `chmod 777`/`chmod 1777` excluding `/nix/var/nix/build/tmp` (which SHOULD be 1777) must be 0; previous check flagged `775` false positive |
 | `works_in_real_life` | No ignored errors | `installer.log` must NOT contain `[WARNING] Non-interactive mode: ignoring error and continuing.` |
-| `webmin_binary` | Webmin firstboot binary present | `test -x /opt/feralos_webmin` |
+| `webmin_binary` | Webmin firstboot binary present | `test -x /opt/feralos/bin/feralos-webmin` |
 | `webmin_container` | Webmin container running | `podman ps --format '{{.Names}}' \| grep -q '^webmin$'` (no `\|\| echo` fallback — must FAIL when not running) |
 | `webmin_port` | Webmin port mapped | `podman port webmin 10000 \| grep -q 10000` |
 | `webmin_http` | Webmin HTTP answering | `wget -q -T 5 --no-check-certificate https://localhost:10000/` retry 8×5s |

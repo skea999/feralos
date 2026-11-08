@@ -32,7 +32,7 @@
 //
 // The unit-existence check honors both unit-naming conventions (bus name
 // and binary basename) AND the packaged FeralOS overrides
-// (/usr/share/feralos/dbus-services session, /usr/share/feralos/
+// (/usr/share/dinit/dbus-services session, /usr/share/dinit/
 // dbus-system-services system): an override aliases the bus name onto the
 // unit it starts, e.g. org.freedesktop.login1 → elogind (R1 amended).
 //
@@ -76,9 +76,10 @@ const (
 	// FeralOS override staging dirs (packaged files): consulted ONLY for the
 	// override-aware unit-existence check — an override aliases the bus name
 	// onto the unit it starts (never for discovery; discovery is the upstream
-	// inventory so new daemons are found without a static list).
-	sessionOverridesDir = "/usr/share/feralos/dbus-services"
-	systemOverridesDir  = "/usr/share/feralos/dbus-system-services"
+	// inventory so new daemons are found without a static list). '/usr/share/
+	// dinit' — FHS-honest: dialog/dinit extras, not distro-named dirs.
+	sessionOverridesDir = "/usr/share/dinit/dbus-services"
+	systemOverridesDir  = "/usr/share/dinit/dbus-system-services"
 
 	// unit dirs: session units are <name>.user under /etc/dinit.d/user;
 	// system units are plain names under /lib/dinit.d (packages), /usr/lib/
@@ -412,7 +413,7 @@ func isPlaceholderExec(exec string) bool {
 }
 
 // shimUnit extracts the <unit> argument from a FeralOS override Exec=
-// (/usr/libexec/feralos/dbus-activate <unit> -- <upstream exec>).
+// (/usr/libexec/dinit/dbus-activate <unit> -- <upstream exec>).
 func shimUnit(exec string) string {
 	fields := strings.Fields(exec)
 	if len(fields) < 2 {

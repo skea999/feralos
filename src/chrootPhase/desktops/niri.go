@@ -155,7 +155,7 @@ hotkey-overlay {
 
 	// 4b. Login-shell trick (moved from users.go — desktop-owned now, runs
 	// AFTER user creation: chrootPhase step 5 users < step 9 desktops).
-	// passwd shell = /usr/libexec/feralos/login-shell (niri-user-dinit) so
+	// passwd shell = /usr/libexec/login-shell (niri-user-dinit) so
 	// niri-session skips its bash re-exec and reaches the dinit branch.
 	// The shipped symlink targets /bin/ash, but busybox invoked as
 	// `login-shell` looks up an applet with that name and fails
@@ -167,19 +167,19 @@ hotkey-overlay {
 	// trap — only upstream Alpine's script did. Backward risk: reverting to
 	// upstream niri-session would re-arm that trap. All three steps
 	// idempotent.
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("usermod -s /usr/libexec/feralos/login-shell %s", u.UserName)); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("usermod -s /usr/libexec/login-shell %s", u.UserName)); err != nil {
 		fmt.Printf("[WARNING] Failed to set %s shell to login-shell: %v\n", u.UserName, err)
 	}
-	if _, err := shell.ExecuteCmd(chroot, "ln -sf /usr/bin/fish /usr/libexec/feralos/login-shell"); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, "ln -sf /usr/bin/fish /usr/libexec/login-shell"); err != nil {
 		fmt.Printf("[WARNING] Failed to re-point login-shell to fish: %v\n", err)
 	}
-	if _, err := shell.ExecuteCmd(chroot, "grep -qxF '/usr/libexec/feralos/login-shell' /etc/shells || echo '/usr/libexec/feralos/login-shell' >> /etc/shells"); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, "grep -qxF '/usr/libexec/login-shell' /etc/shells || echo '/usr/libexec/login-shell' >> /etc/shells"); err != nil {
 		fmt.Printf("[WARNING] Failed to list login-shell in /etc/shells: %v\n", err)
 	}
 
 	// 5. Session startup — no wrapper: Alpine's /usr/bin/niri-session is used
 	// UNMODIFIED. greetd sets SHELL from passwd; the user is created with
-	// /usr/libexec/feralos/login-shell (NOT in /etc/shells), so niri-session
+	// /usr/libexec/login-shell (NOT in /etc/shells), so niri-session
 	// skips its bash re-exec and reaches the dinit branch: turnstile (PAM,
 	// base-session) starts the user dinit at login and `dinitctl --user start
 	// niri` starts the `niri` service (niri-user-dinit); niri-shutdown clears

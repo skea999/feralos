@@ -140,11 +140,11 @@ Runs AFTER chrootPhase completes (needs kernel cmdline from chroot).
 
 2. **Setup Secureboot** (`utils/firstboot/secureboot.go`)
    - Compile `feralos_secureboot` binary
-   - Copy to `/opt/feralos_secureboot`, chmod 755
+   - Copy to `/opt/feralos/bin/feralos-secureboot`, chmod 755
 
 3. **Setup TPM** (`utils/firstboot/tpm.go`)
    - Compile `feralos_tpm` binary
-   - Copy to `/opt/feralos_tpm`, chmod 755
+   - Copy to `/opt/feralos/bin/feralos-tpm`, chmod 755
 
 ### Phase 2: Chroot Operations (chrootPhase)
 
@@ -336,15 +336,15 @@ nothing dbus-activatable may run unsupervised:
   bus name + `.user`; system services WE boot-enable (initd exists) = the OpenRC
   initd name; system services dbus-activated on demand = canonical bus name
 - The effective `.service` file carries
-  `Exec=/usr/libexec/feralos/dbus-activate <unit> -- <upstream exec>` — the shim
+  `Exec=/usr/libexec/dinit/dbus-activate <unit> -- <upstream exec>` — the shim
   forwards the activation env to dinit (`dinitctl setenv`) then `dinitctl start`
   (waits); OpenRC system-bus fallback = raw upstream exec; session bus always user
   dinit (both inits)
-- System overrides ship in `/usr/share/feralos/dbus-system-services` and are
+- System overrides ship in `/usr/share/dinit/dbus-system-services` and are
   materialized into `/usr/local/share/dbus-1/system-services` at boot by
   `dbus-services-setup` (the setuid launch helper resolves names ONLY against the
   standard dirs; `/etc/dbus-1/system-services` is daemon-enumerated but NOT
-  helper-activatable); session overrides ship in `/usr/share/feralos/dbus-services`
+  helper-activatable); session overrides ship in `/usr/share/dinit/dbus-services`
   and are materialized at login by the `dbus-session` wrapper
 - Full mechanism + new-service checklist: `docs/architecture/dbus-activation.md`
 

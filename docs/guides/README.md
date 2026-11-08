@@ -5,7 +5,7 @@
 ## User Installer Guides (for real hardware)
 
 - [`getting_started.md`](./getting_started.md) — **Real hardware quick start**: live USB (Alpine/Void), `setup.sh` → `feralos_installer` build, wizard (`variables.yaml`), install (<10 min), post-install checks. Entry point for end users.
-- [`first_boot.md`](./first_boot.md) — **First boot post-install**: run standalone `feralos_secureboot` + `feralos_tpm` from `/opt/feralos_*`, enroll sbctl, bind LUKS to TPM2, rebuild UKI. QEMU harness runs these automatically; real hardware runs manually.
+- [`first_boot.md`](./first_boot.md) — **First boot post-install**: run standalone `feralos-secureboot` + `feralos-tpm` from `/opt/feralos/bin/`, enroll sbctl, bind LUKS to TPM2, rebuild UKI. QEMU harness runs these automatically; real hardware runs manually.
 - [`variables.md`](./variables.md) — **Variables compilation**: full `variables.yaml` example + option tables (disks, layout, user, hostname, mirror, desktop, video, `Enable*`, `swapSize`, `extraPackages`), compilation via `logic.ApplyRules` + `internal_rules.yaml`, fixtures.
 
 ## Desktop Application Guides

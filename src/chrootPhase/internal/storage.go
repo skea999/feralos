@@ -53,9 +53,23 @@ logdir        /var/log/btrbk`
 		// TRIM with minimal discard exposure: enable discard passthrough on
 		// the active dm-crypt volumes, trim, then clear the passthrough. On
 		// btrfsUnencrypted there are no luks-* mappers (loop is a no-op).
+		//
+		// TRIM script at /etc/periodic/weekly/btrfs-trim — the Alpine cron
+		// home (run-parts consumer); FHS-honest lifecycle path, no
+		// distro-prefixed legacy name any more.
+		//
+		// Per Alpine 3.22 docker evidence: the base `crontabs` root crontab
+		// ships `0 3 * * 6 run-parts /etc/periodic/weekly` (and cronie adds no
+		// crontab of its own — it serves the same file), so the script ALSO
+		// runs via run-parts on the default weekly line. Our explicit tunable
+		// line below coexists: two weekly trim runs (default Sat 03:00, tunable
+		// per maintenanceCron.trim) — harmless for trim, the tunable schedule
+		// stays authoritative per the rules.
 		trimScript := fmt.Sprintf(`#!/bin/sh
 # FeralOS weekly TRIM (see installer storage.go). Enable discard passthrough
 # on active dm-crypt volumes, trim btrfs free space, clear the passthrough.
+# Also runs via /etc/crontabs/root's run-parts /etc/periodic/weekly (the
+# crontabs default line) in addition to the explicit crontab entry below.
 for d in /dev/mapper/luks-*; do
 	[ -e "$d" ] || continue
 	%s refresh --allow-discards "$d" || true
@@ -68,16 +82,16 @@ for d in /dev/mapper/luks-*; do
 done
 exit $rc
 `, cryptBin, btrfsBin, cryptBin)
-		if err := shell.WriteFile(chroot, "/usr/libexec/feralos-weekly-trim", []byte(trimScript+"\n"), 0644); err != nil {
+		if err := shell.WriteFile(chroot, "/etc/periodic/weekly/btrfs-trim", []byte(trimScript+"\n"), 0644); err != nil {
 			fmt.Printf("[WARNING] Failed to write trim script: %v\n", err)
-		} else if _, err := shell.ExecuteCmd(chroot, "chmod 755 /usr/libexec/feralos-weekly-trim"); err != nil {
+		} else if _, err := shell.ExecuteCmd(chroot, "chmod 755 /etc/periodic/weekly/btrfs-trim"); err != nil {
 			fmt.Printf("[WARNING] Failed to chmod trim script: %v\n", err)
 		}
 	}
 
 	cronLines := ""
 	if btrfsBin != "" {
-		cronLines += "\n" + cron.Trim + " /usr/libexec/feralos-weekly-trim >> /var/log/btrfs-trim.log 2>&1"
+		cronLines += "\n" + cron.Trim + " /etc/periodic/weekly/btrfs-trim >> /var/log/btrfs-trim.log 2>&1"
 		cronLines += "\n" + cron.Scrub + " " + btrfsBin + " scrub start -B / >> /var/log/btrfs-scrub.log 2>&1"
 	} else {
 		fmt.Println("[WARNING] btrfs not found — scrub/trim cron skipped")

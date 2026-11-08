@@ -3135,12 +3135,12 @@ func runSbctlOnTarget(ctx context.Context, targetGuest guest.Options, repoRoot s
 	}
 
 	// Secureboot binary is pre-installed by the installer at
-	// /opt/feralos_secureboot — no build/copy needed.
+	// /opt/feralos/bin/feralos-secureboot — no build/copy needed.
 	script := `set -eu
 export SKEA_NONINTERACTIVE=1
 export SKEA_NONINTERACTIVE_DECISION=ignore
 [ -x /root/debug.sh ] && sh /root/debug.sh || true
-[ -x /opt/feralos_secureboot ] && /opt/feralos_secureboot || true
+[ -x /opt/feralos/bin/feralos-secureboot ] && /opt/feralos/bin/feralos-secureboot || true
 `
 	var outBuf, errBuf strings.Builder
 	if err := guest.Run(ctx, targetGuest, "sh -s -- <<'SCRIPT'\n"+script+"\nSCRIPT", &outBuf, &errBuf); err != nil {
@@ -3161,12 +3161,12 @@ func runTPMOnTarget(ctx context.Context, targetGuest guest.Options, password str
 		password = "Alpine.1"
 	}
 	// TPM binary is pre-installed by the installer at
-	// /opt/feralos_tpm — no build/copy needed.
+	// /opt/feralos/bin/feralos-tpm — no build/copy needed.
 	script := `set -eu
 export SKEA_NONINTERACTIVE=1
 export SKEA_NONINTERACTIVE_DECISION=ignore
 export SKEA_LUKS_PASSWORD=` + shellQuote(password) + `
-/opt/feralos_tpm
+/opt/feralos/bin/feralos-tpm
 `
 
 	var outBuf, errBuf strings.Builder
@@ -3203,7 +3203,7 @@ func runScriptOnTarget(ctx context.Context, targetGuest guest.Options, script st
 func runWebminOnTarget(ctx context.Context, targetGuest guest.Options) (string, error) {
 	script := `set -eu
 export SKEA_NONINTERACTIVE=1
-/opt/feralos_webmin
+/opt/feralos/bin/feralos-webmin
 `
 	return runScriptOnTarget(ctx, targetGuest, script)
 }

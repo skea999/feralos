@@ -254,19 +254,19 @@ func FindInternalRulesPath() (string, error) {
 
 // TemplateCandidatePaths is the search order for the variables.yaml
 // template the wizard generator (utils/createConfig/createValues) starts
-// from — same CWD-relative shape as InternalRulesCandidatePaths (repo
-// root, src/, src/utils/createConfig/, src/utils/createConfig/createValues/)
-// plus the hypothetical system path (a packaged install would land there).
-// A function returning a fresh slice per call, mirroring
+// from — the same CWD-relative shape as InternalRulesCandidatePaths (repo
+// root, src/, src/utils/createConfig/, src/utils/createConfig/createValues/).
+// The hypothetical packaged system path is gone: no packaged install
+// exists and the repo paths are the only consumers. A function returning
+// a fresh slice per call, mirroring
 // InternalRulesCandidatePaths: the former local copy in createValues was
 // the same drift surface the rules list had before its resolver.
 func TemplateCandidatePaths() []string {
 	return []string{
-		"src/variables/variables.yaml",            // If run from project root
-		"variables/variables.yaml",                // If run from src/
-		"../variables/variables.yaml",             // If run from src/utils/createConfig/
-		"../../variables/variables.yaml",          // If run from src/utils/createConfig/createValues/
-		"/usr/local/share/feralos/variables.yaml", // Hypothetical system path
+		"src/variables/variables.yaml",   // If run from project root
+		"variables/variables.yaml",       // If run from src/
+		"../variables/variables.yaml",    // If run from src/utils/createConfig/
+		"../../variables/variables.yaml", // If run from src/utils/createConfig/createValues/
 	}
 }
 

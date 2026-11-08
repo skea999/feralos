@@ -91,8 +91,8 @@ variables:
 
 | Key | Type | Description |
 |-----|------|-------------|
-| `enableSecureboot` | `bool` | Compile `feralos_secureboot` → `/opt/feralos_secureboot`, enroll sbctl + sign UKI. Run manually on hardware, harness auto. |
-| `enableTPM` | `bool` | Compile `feralos_tpm` → `/opt/feralos_tpm`, bind LUKS → TPM2 via clevis. Always passes swtpm to QEMU. |
+| `enableSecureboot` | `bool` | Compile `feralos-secureboot` → `/opt/feralos/bin/feralos-secureboot`, enroll sbctl + sign UKI. Run manually on hardware (also printed by the end-of-installer guide), harness auto. |
+| `enableTPM` | `bool` | Compile `feralos-tpm` → `/opt/feralos/bin/feralos-tpm`, bind LUKS → TPM2 via clevis. Always passes swtpm to QEMU. |
 | `enableHardening` | `bool` | AppArmor, sysctl, permissions. Includes `enableDebug` false path. |
 | `enableZswap` | `bool` | Zswap compressed swap, `vm.min_free_kbytes` 1% RAM. Server always, others toggle. |
 | `enableNix` | `bool` | Nix package manager, `/nix` subvolumes, daemon. Build sandbox: upstream default (`/tmp`, exec since round 48 — no workaround). `trusted-users = root @wheel` (NixOS default — wheel is root-equivalent). |

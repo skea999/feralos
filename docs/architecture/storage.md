@@ -64,7 +64,7 @@ logrotate 7d):
 
 - **Daily btrbk** `02:00` — `btrbk run` (retention in `/etc/btrbk/btrbk.conf`:
   keep 7 daily / 4 weekly / 3 monthly) → `/var/log/btrbk/cron.log`
-- **Weekly TRIM** `Sun 03:00` — `/usr/libexec/feralos-weekly-trim`: enables
+- **Weekly TRIM** `Sun 03:00` — `/etc/periodic/weekly/btrfs-trim`: enables
   discard passthrough on active dm-crypt volumes (`cryptsetup refresh
   --allow-discards`), `btrfs filesystem trim -a /`, then clears the
   passthrough again (minimal exposure window). No luksFormat/booster changes;

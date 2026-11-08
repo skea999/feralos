@@ -24,8 +24,8 @@ Webmin is installed automatically when `enableWebmin: true` in `variables.yaml`.
 
 ### What happens during install
 
-1. Installer compiles `/opt/feralos_webmin` binary
-2. After first boot, run `/opt/feralos_webmin` to:
+1. Installer compiles `/opt/feralos/bin/feralos-webmin` binary
+2. After first boot, run `/opt/feralos/bin/feralos-webmin` to:
    - Configure Podman (storage driver btrfs, cgroups, subuid/subgid)
    - Create `/opt/webmin/` directory structure
    - Generate `docker-compose.yml`
@@ -37,10 +37,10 @@ Webmin is installed automatically when `enableWebmin: true` in `variables.yaml`.
 ### Manual Installation
 
 ```bash
-# Run the installer binary (standalone, like feralos_secureboot/tpm)
+# Run the installer binary (standalone, like feralos-secureboot/tpm)
 # Podman is already configured in chrootPhase (btrfs driver, cgroups, subuid/subgid)
 # Binary only verifies podman --version, seeds config, starts container
-/opt/feralos_webmin
+/opt/feralos/bin/feralos-webmin
 
 # Or configure manually
 mkdir -p /opt/webmin/{config,commands}
@@ -185,7 +185,7 @@ cd /opt/webmin && podman compose down
 
 ```bash
 # Check binary exists
-ls -la /opt/feralos_webmin
+ls -la /opt/feralos/bin/feralos-webmin
 
 # Check container status
 podman ps | grep webmin

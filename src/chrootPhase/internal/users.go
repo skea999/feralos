@@ -159,7 +159,7 @@ func appendSubuidSubgid(chroot string) error {
 
 // setupUserShell sets fish as the default shell for root and the primary
 // user. Desktops may override the USER shell afterwards (niri/niriWayle
-// re-point it to /usr/libexec/feralos/login-shell — the DE setup runs later
+// re-point it to /usr/libexec/login-shell — the DE setup runs later
 // in chrootPhase, so the final passwd shell is the DE's).
 func setupUserShell(chroot string, u *config.UserVariables) {
 	// 8. Shell (fish)

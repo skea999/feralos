@@ -172,13 +172,13 @@ hotkey-overlay {
 	// arrives via that dependency; same rationale as niri.go 4b (niri-
 	// session bash re-exec skip + pkexec /etc/shells acceptance). The three
 	// steps are idempotent.
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("usermod -s /usr/libexec/feralos/login-shell %s", u.UserName)); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("usermod -s /usr/libexec/login-shell %s", u.UserName)); err != nil {
 		fmt.Printf("[WARNING] Failed to set %s shell to login-shell: %v\n", u.UserName, err)
 	}
-	if _, err := shell.ExecuteCmd(chroot, "ln -sf /usr/bin/fish /usr/libexec/feralos/login-shell"); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, "ln -sf /usr/bin/fish /usr/libexec/login-shell"); err != nil {
 		fmt.Printf("[WARNING] Failed to re-point login-shell to fish: %v\n", err)
 	}
-	if _, err := shell.ExecuteCmd(chroot, "grep -qxF '/usr/libexec/feralos/login-shell' /etc/shells || echo '/usr/libexec/feralos/login-shell' >> /etc/shells"); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, "grep -qxF '/usr/libexec/login-shell' /etc/shells || echo '/usr/libexec/login-shell' >> /etc/shells"); err != nil {
 		fmt.Printf("[WARNING] Failed to list login-shell in /etc/shells: %v\n", err)
 	}
 
