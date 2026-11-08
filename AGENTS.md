@@ -8,6 +8,15 @@
 
 ## Recent Rounds (latest first)
 
+### 2026-11-08 18:45 - Aports orphan audit: portal/wlr system units retired, stale generator manifests pruned, FHS stage 2 verified
+**Agent:** codebase
+**Summary:** user challenge "how do you know they are unused?" answered with evidence, then the cleanup executed via subagent in feralos-aports; CI + Pages verified.
+- **FHS stage 2 confirmed**: `0dba60d` "refactor(paths): FHS-honest locations — /usr/share/dinit + /usr/libexec/dinit" (2026-11-08T01:52Z), parent `290df4f`; dbus staging `/usr/share/dinit/dbus-{,system-}services`, shim/audit/task scripts `/usr/libexec/dinit/`, login-shell `/usr/libexec/login-shell`, audit `_commit` → `bd9fef56`, touched packages `pkgrel+1`.
+- **Retired 2 wrong-class system units**: `xdg-document-portal-dinit` (`/usr/libexec/xdg-document-portal`) and `xdg-desktop-portal-wlr-dinit` (`/usr/libexec/xdg-desktop-portal-wlr --replace`) — both are per-session daemons; supervision already complete via `xdg-desktop-portal-user-dinit` (`Documents.user` + `portal-order` + override) and `xdg-desktop-portal-wlr-user-dinit`.
+- **Evidence before deletion**: aports grep = only self-`pkgname=` lines, zero `depends=`/`apk add` refs; feralos repo = zero functional refs (only historical harness artifacts/memory); no CI hardcoded portal names; build expected-set is derived dynamically from `src/*/APKBUILD`.
+- **Pruned 7 stale generator manifests** (`scripts/services/`): `xdg-desktop-portal`, `xdg-desktop-portal-wlr`, `xdg-document-portal`, `pipewire`, `wireplumber`, `sshd`, `btrfs-progs` (would regenerate removed/wrong packages); kept `covered-by: dinit-chimera` set (`busybox`, `cryptsetup`, `eudev`, `kbd`, `udev-init-scripts`). Pruned 6 corresponding `fetch-alpine-openrc.sh` TARGETS; `sh -n` green.
+- **Committed/pushed**: aports `d7bc81f` (12 files, +3/−81); CI run `42510457151` **green** (build/deploy/client-test). Pages proof: APKINDEX has NO retired names; both `.apk` URLs **404**; retained `xdg-desktop-portal-user-dinit` 0.1.0-r5 and `xdg-desktop-portal-wlr-user-dinit` 0.1.0-r3 return **200**.
+
 ### 2026-11-08 - Source-pinning policy: TAG archives everywhere, dms-shell/feralos-dbus-audit commit pins reverted, policy documented
 **Agent:** codebase
 **Summary:** user decision "all GitHub sources pin to TAG archives (stable releases) — NEVER commit archives; sha512 = integrity guard, tag = version contract" executed across aports + documented both sides.
