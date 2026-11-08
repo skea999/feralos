@@ -142,7 +142,7 @@ func importCerts() {
 
 func writeSecurebootConf() error {
 	fmt.Println("\nWriting secureboot hook config...")
-	confContent := `cmdline="$(grep -v '^#' /etc/kernel/cmdline)"
+	confContent := `cmdline="$(grep -v '^[[:space:]]*#' /etc/kernel/cmdline | tr '\n' ' ' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
 signing_cert="/etc/uefi-keys/db.crt"
 signing_key="/etc/uefi-keys/db.key"
 output_dir="/boot/efi/Alpine"
@@ -157,9 +157,16 @@ backup=yes
 	// without this file the kernel hook never re-signs/re-binds the UKI
 	// after updates — failing loudly here beats a silently broken boot.
 	// NOTE (efi-mkuki -c unification round): the cmdline here keeps its
-	// runtime `$(grep -v ...)` substitution — efi-mkuki SOURCES this conf
+	// runtime `$(grep ...)` substitution — efi-mkuki SOURCES this conf
 	// at hook time, so the value is evaluated by the hook itself, not
 	// embedded by our Go code — no embedding-form change applies.
+	// NOTE (comment-filter alignment round): the filter mirrors tpm's
+	// filterCmdlineComments (same shape as the boot.go hook / uki.go):
+	// comments at any indent dropped, lines joined to one space-separated
+	// line, edges trimmed. Empty case (comment-only file): the sourced
+	// value is "" and the conf has no control flow for a guard — the
+	// empty-cmdline refusals live in the Go consumers (uki.go guard,
+	// tpm rebuildSignedUKI branch) and in the hook, not in this conf.
 	if err := shell.WriteFile("", "/etc/kernel-hooks.d/secureboot.conf", []byte(confContent+"\n"), 0644); err != nil {
 		return fmt.Errorf("failed to write secureboot.conf: %w", err)
 	}

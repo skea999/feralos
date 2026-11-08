@@ -505,6 +505,18 @@ func rebuildSignedUKI(kernelFlavor string) {
 		return
 	}
 	cmdline := filterCmdlineComments(string(cmdC))
+	if cmdline == "" {
+		// uki.go/boot.go-hook parity: an empty cmdline after filtering
+		// (comment-only or blank file — the guard the READ-error path
+		// cannot give) must not rebuild the UKI with `-c ""`. The UKI is
+		// left untouched (the current one boots); the rebuild is skipped
+		// LOUDLY, both streams like the corrupt-loadConfig precedent,
+		// telling the user how to fix and re-run.
+		msg := "ERROR: /etc/kernel/cmdline is empty after comment filtering — the UKI would ship with no boot parameters; the signed-UKI rebuild is skipped. Fix /etc/kernel/cmdline (keep at least one non-comment line) and re-run /opt/feralos_tpm."
+		fmt.Println(msg)
+		fmt.Fprintln(os.Stderr, msg)
+		return
+	}
 	ukiPath := fmt.Sprintf("/boot/efi/Alpine/linux-%s.efi", kernelFlavor)
 	vmlinuz := fmt.Sprintf("/boot/vmlinuz-%s", kernelFlavor)
 	boosterImg := fmt.Sprintf("/boot/booster-%s.img", kernelFlavor)
