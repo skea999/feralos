@@ -39,6 +39,14 @@ Align all 48 `-dinit` packages to the Artix/Chimera service conventions (48 pkgs
 - Divergence from Artix by design remains in two places: ADR-008 wrapper+config files (customization point) and `restart = true` on getty only.
 - Verified: dinit niri full **74/74** (run `2026-10-02T00-15-22Z` — getty serial alive, dbus clean shutdown, elogind bus readiness, NM ordering), OpenRC minimal **49/49** (run `2026-10-02T00-27-53Z`, +3 checks = harness growth not regression).
 
+## Amendment 2026-11-08 — restart policy + dbus wording
+
+The 2026-10-02 decision predated the restart-policy sweep (2026-11-08; Chimera builds dinit with `--default-auto-restart=on-failure` — the sweep aligned all 144 units to that semantics):
+
+- Daemons carry the explicit pair `restart = on-failure`; `smooth-recovery` stays ON only for resident daemons and OFF for dbus-activated on-demand / idle-exit daemons (a legitimate idle exit must not be restarted — the next D-Bus call re-activates).
+- dbus is crash-only: `restart = on-failure` + `smooth-recovery = no` (matches Chimera's dbus exactly). The **"nobody restarts the bus"** wording above is SUPERSEDED — a crash is restarted, a clean exit never is. The ADR-007 stop-command shutdown guards are unchanged (unit comment: `dbus-dinit` r10).
+- Lifecycle evidence for the idle-exit class (upstream sources): flatpak-oci-authenticator + flatpak-system-helper exit after 10 min idle; nm-dispatcher after 10 s idle; nm-priv-helper after 2 s idle; plasma-localegen-helper after 30 s idle; at-spi-bus-launcher stays resident for the session (smooth-recovery correctly ON).
+
 ## References
 
 - feralos-aports commit `b69a573` — 48 `-dinit` packages aligned (103 files, +861/−163, CI green first try)
