@@ -8,6 +8,16 @@
 
 ## Recent Rounds (latest first)
 
+### 2026-11-08 - Restart-policy sweep: 144 units, on-failure default, smooth-recovery only on resident daemons
+**Agent:** codebase
+**Summary:** the restart-policy decision (memory: "align ALL units to Chimera's on-failure semantics") executed across aports — 144 unit files in 108 packages, CI green, niriWayle harness 118/118 zero regressions.
+- **The principle (researched: systemd + Chimera + Artix + dinit upstream)**: dbus-activated on-demand daemons must have NO automatic restart on clean exit — the next dbus call re-activates (that IS their restart mechanism). systemd Restart= default = no; upstream polkit unit carries no Restart=; upower/TLP = on-failure; Chimera builds dinit with --default-auto-restart=on-failure; Alpine builds STOCK = restart=always → every FeralOS unit without an explicit line restarted even on clean exits (the signon-ui churn: smooth-recovery=true + restart=always = 42 restarts/20min with ZERO clients, live-measured + foreground RC=0 30s exit proof).
+- **Policy applied**: boot-enabled/session long-running daemons = smooth-recovery=true kept + `restart = on-failure` explicit; dbus-activated on-demand (idle-exit capable: signon-ui×2, fwupd, cups-pk-helper, secretprompter + the smooth=false class geoclue/fprintd/kauth/EDS/GNOME apps) = `restart = on-failure` + `smooth-recovery = false`; one-shots restart=false (verified); getty restart=true (special, ADR-009); dms.user FLIPPED to smooth=false (its greeter-guard clean exit was respawning DMS forever on the greeter session — latent bug, harness autologin never exposed it); dinit-boot-log + getty keep restart=true (deliberate).
+- **Uncertain-flagged for review**: at-spi, flatpak-oci-authenticator, flatpak-SystemHelper, nm-dispatcher, nm-priv-helper, localegenhelper (on-failure + smooth kept); dbus (ADR-007 "nobody restarts the bus" wording vs crash-only on-failure — intent confirm).
+- **UPSTREAM BREAKAGE discovered en route**: DankMaterialShell renamed → duxlabs-dev/dux-shell (+ dank-qml-common → dux-qml-common), v1.6.2 re-published — sources repinned (bytes verified identical); tag archives are NOT immutable → pin by commit upstream-side (backlog). 6 CI cycles to green (checksum ordering, subpackage expected-set, DMS repins ×3, archive top-dir renames).
+- **NEW product bug found (backlog, pre-existing)**: `xdg-desktop-portal-dinit` runs `/usr/libexec/xdg-permission-store --replace` — the PERMISSION STORE, not the portal frontend (wrong binary in the unit).
+- **Validated**: aports CI `42494309880` green; Pages carries all bumped packages; niriWayle `2026-11-08T15-57-09Z` **118/118** (log_errors clean, dms/wayle/veila/stasis/oo7 runtime green).
+
 ### 2026-11-08 - FHS stage 1 (Go side): distro name out of directories; aports stage 2 lands together before any harness run
 **Agent:** codebase
 **Summary:** stage-1 FHS migration of every old-path class to FHS-honest locations; ALL pre-edit grep evidence captured; post-edit FINAL grep = ZERO hits in live src/harness/docs (classified leftovers below); gofmt/vet/build/test/lint green (src + harness), internal_rules.yaml parse green.
