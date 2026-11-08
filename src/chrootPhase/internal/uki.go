@@ -40,7 +40,7 @@ func BuildUKI(conf *config.Config) error {
 	// explicit empty guard, so a missing modules tree fails loudly before
 	// any build runs.
 	boostCmd := "KERNEL_VER=$(find /lib/modules -mindepth 1 -maxdepth 1 -type d | sort | head -1 | sed 's|^/lib/modules/||'); " +
-		"[ -n \"$KERNEL_VER\" ] || { echo 'ERROR: no kernel version directories under /lib/modules; refusing to build the initramfs' >&2; exit 1; }; " +
+		"[ -n \"$KERNEL_VER\" ] || { echo 'refusing: no kernel version directories under /lib/modules; refusing to build the initramfs' >&2; exit 1; }; " +
 		fmt.Sprintf("booster build --force --kernel-version \"${KERNEL_VER}\" %s", boosterImg)
 	if _, err := shell.ExecuteCmd(chroot, boostCmd); err != nil {
 		return fmt.Errorf("booster build failed: %w", err)
@@ -64,9 +64,9 @@ func BuildUKI(conf *config.Config) error {
 	// (the unified embedding form: shell does not re-parse the expanded
 	// value, so the argument is exactly the cmdline whatever it contains).
 	ukiCmd := "CMDLINE=$(grep -v '^[[:space:]]*#' /etc/kernel/cmdline | tr '\\n' ' ' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//') || true; "
-	ukiCmd += "[ -n \"$CMDLINE\" ] || { echo 'ERROR: /etc/kernel/cmdline is empty after comment filtering; refusing to build the UKI' >&2; exit 1; }; "
+	ukiCmd += "[ -n \"$CMDLINE\" ] || { echo 'refusing: /etc/kernel/cmdline is empty after comment filtering; refusing to build the UKI' >&2; exit 1; }; "
 	ukiCmd += "KERNEL_VER=$(find /lib/modules -mindepth 1 -maxdepth 1 -type d | sort | head -1 | sed 's|^/lib/modules/||'); "
-	ukiCmd += "[ -n \"$KERNEL_VER\" ] || { echo 'ERROR: no kernel version directories under /lib/modules; refusing to build the UKI' >&2; exit 1; }; "
+	ukiCmd += "[ -n \"$KERNEL_VER\" ] || { echo 'refusing: no kernel version directories under /lib/modules; refusing to build the UKI' >&2; exit 1; }; "
 	if ucodeImg != "" {
 		ukiCmd += fmt.Sprintf("efi-mkuki -k \"${KERNEL_VER}\" -c \"${CMDLINE}\" -o /boot/efi/Alpine/%s %s %s %s", ukiEfi, vmlinuz, ucodeImg, boosterImg)
 	} else {

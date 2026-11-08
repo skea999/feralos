@@ -109,7 +109,7 @@ booster build --force --kernel-version "${NEW_VERSION}-${FLAVOR}" "${tmpdir}/ini
 # abort the sequence) + an explicit empty guard BEFORE the build: a
 # silently empty cmdline would ship a kernel with no boot parameters.
 cmdline="$(grep -v '^[[:space:]]*#' /etc/kernel/cmdline | tr '\n' ' ' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')" || true
-[ -n "${cmdline}" ] || { echo 'ERROR: /etc/kernel/cmdline is empty after comment filtering; refusing to build the UKI (apk kernel hook)' >&2; exit 1; }
+[ -n "${cmdline}" ] || { echo 'refusing: /etc/kernel/cmdline is empty after comment filtering; refusing to build the UKI (apk kernel hook)' >&2; exit 1; }
 output_dir="/boot/efi/Alpine"
 output_name="linux-${FLAVOR}.efi"
 
