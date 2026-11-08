@@ -544,11 +544,12 @@ func candidateNames(t *dbusService) []string {
 // would hang a boot-time oneshot (no tty at PID1) and spam the boot log, and
 // argv keeps the file-derived candidate name out of command-string
 // concatenation. The audit logs its own outcome lines (candidate failures
-// land in the report as WARN).
+// surface as an informational NOTE; the raw apk error stays out of the
+// report — the final MISS line names every resolution that was tried).
 func ensurePackage(t *dbusService, rep *reporter) string {
 	for _, c := range candidateNames(t) {
 		if _, err := shell.ExecSilentArgs("", "apk", "add", c); err != nil {
-			rep.line("WARN   candidate %s failed: %v", c, strings.TrimSpace(err.Error()))
+			rep.line("NOTE   candidate %s unavailable — trying next resolution", c)
 			continue
 		}
 		return c
