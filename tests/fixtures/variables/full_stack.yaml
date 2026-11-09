@@ -1,4 +1,4 @@
-# full_stack.yaml: btrfsStandard server 2disk sb tpm hard zswap nix podman webmin dbg — full variables.yaml template mirror (machine-consumed)
+# full_stack.yaml: btrfsStandard server 2disk sb tpm hard zswap nix podman dbg — full variables.yaml template mirror (machine-consumed)
 variables:
   unattended: true
   ignoreErrors: true
@@ -30,8 +30,6 @@ variables:
   swapSize: auto
   enableDebug: true
   enablePodman: true
-  enableWebmin: true
-  webminListenAll: false
   enableDinit: false
   extraPackages:
   - incus-feature

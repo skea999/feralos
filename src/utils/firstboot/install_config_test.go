@@ -14,31 +14,29 @@ import (
 // empty slices must not sneak through the round-trip).
 func fixtureAllFields() InstallConfig {
 	return InstallConfig{
-		DiskLayout:      "btrfsStandard",
-		Disks:           []string{"/dev/sda"},
-		LuksUUIDs:       []string{"1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d"},
-		UserName:        "skea999",
-		Password:        "pass",
-		Hostname:        "feral-host",
-		Mirror:          "https://dl-cdn.alpinelinux.org/alpine",
-		Branch:          "v3.24",
-		KernelPackage:   "linux-lts",
-		KernelFlavor:    "lts",
-		EnablePodman:    true,
-		EnableWebmin:    true,
-		WebminListenAll: true,
+		DiskLayout:    "btrfsStandard",
+		Disks:         []string{"/dev/sda"},
+		LuksUUIDs:     []string{"1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d"},
+		UserName:      "skea999",
+		Hostname:      "feral-host",
+		Mirror:        "https://dl-cdn.alpinelinux.org/alpine",
+		Branch:        "v3.24",
+		KernelPackage: "linux-lts",
+		KernelFlavor:  "lts",
+		EnablePodman:  true,
 	}
 }
 
 // WantKeys are the YAML tags the standalone firstBoot binaries parse
 // (utils/firstboot/tpm/main.go etc. read /opt/feralos/config.yaml): a tag
-// drift silently breaks every reader — pin the wire format.
+// drift silently breaks every reader — pin the wire format. The config
+// carries no secrets (no password key).
 var wantKeys = map[string]bool{
 	"disk_layout": true, "disks": true, "luks_uuids": true,
-	"user_name": true, "password": true, "hostname": true,
+	"user_name": true, "hostname": true,
 	"mirror": true, "branch": true,
 	"kernel_package": true, "kernel_flavor": true,
-	"enable_podman": true, "enable_webmin": true, "webmin_listen_all": true,
+	"enable_podman": true,
 }
 
 func TestInstallConfigYAMLShape(t *testing.T) {
@@ -85,11 +83,11 @@ func TestInstallConfigYAMLBooleans(t *testing.T) {
 
 	// False bools must still SERIALIZE (writer emits full struct);
 	// readers rely on explicit false, not on yaml zero-value defaults.
-	data, err := yaml.Marshal(&InstallConfig{Password: "pass"})
+	data, err := yaml.Marshal(&InstallConfig{})
 	if err != nil {
 		t.Fatalf("marshal failed: %v", err)
 	}
-	for _, k := range []string{"enable_podman", "enable_webmin", "webmin_listen_all"} {
+	for _, k := range []string{"enable_podman"} {
 		if !strings.Contains(string(data), k+":") {
 			t.Errorf("zero-value bool %q dropped from yaml:\n%s", k, data)
 		}
@@ -172,23 +170,24 @@ func TestExtractLUKSUUIDs(t *testing.T) {
 }
 
 // TestBuildInstallConfig pins the pure config-builder WriteInstallConfig
-// assembles through: the EnableWebmin password gating (secret lands on disk
-// only when the webmin firstboot binary — its sole reader — is installed),
-// the rules-sourced kernel fields (kernel package + UKI flavor naming) and
-// the LUKS UUID extraction the writer runs against the kernel cmdline
-// (mirrored here the same way the writer appends it).
+// assembles through: the rules-sourced kernel fields (kernel package + UKI
+// flavor naming), the passthrough identity/feature fields, the LUKS UUID
+// extraction the writer runs against the kernel cmdline (mirrored here the
+// same way the writer appends it), and the no-secrets contract — the
+// builder never carries the login password onto disk (the former
+// stored-password consumer was removed; tpm prompts interactively at
+// first boot, secureboot reads none).
 func TestBuildInstallConfig(t *testing.T) {
 	baseConf := config.Config{
 		User: config.UserVariables{
-			DiskLayout:      "btrfsStandard",
-			Disks:           []string{"/dev/vda", "/dev/vdb"},
-			UserName:        "skea999",
-			Password:        "secret",
-			Hostname:        "feral-host",
-			Mirror:          "https://dl-cdn.alpinelinux.org/alpine",
-			Branch:          "v3.24",
-			EnablePodman:    true,
-			WebminListenAll: true,
+			DiskLayout:   "btrfsStandard",
+			Disks:        []string{"/dev/vda", "/dev/vdb"},
+			UserName:     "skea999",
+			Password:     "secret",
+			Hostname:     "feral-host",
+			Mirror:       "https://dl-cdn.alpinelinux.org/alpine",
+			Branch:       "v3.24",
+			EnablePodman: true,
 		},
 		Internal: config.InternalRules{
 			Kernel: config.KernelRules{Package: "linux-lts", Flavor: "lts"},
@@ -196,81 +195,49 @@ func TestBuildInstallConfig(t *testing.T) {
 	}
 	cmdline := "rd.luks.name=c572e494-fe65-4ad5-89c3-9cdd9ef93e35=root quiet"
 
-	tests := []struct {
-		name       string
-		webmin     bool
-		wantPass   string
-		wantWebmin bool
-		wantListen bool
-	}{
-		{
-			name:       "webmin on — password set",
-			webmin:     true,
-			wantPass:   "secret",
-			wantWebmin: true,
-			wantListen: true,
-		},
-		{
-			name:       "webmin off — password cleared",
-			webmin:     false,
-			wantPass:   "",
-			wantWebmin: false,
-			wantListen: true,
-		},
+	conf := baseConf
+	cfg := BuildInstallConfig(&conf)
+
+	// No secrets on disk: the login password lives in conf.User but must
+	// never reach the InstallConfig wire format.
+	if data, err := yaml.Marshal(&cfg); err != nil {
+		t.Fatalf("marshal failed: %v", err)
+	} else if strings.Contains(string(data), "password") {
+		t.Errorf("install config wire format carries a password:\n%s", data)
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			conf := baseConf
-			conf.User.EnableWebmin = tt.webmin
 
-			cfg := BuildInstallConfig(&conf)
+	// Passthrough fields.
+	if !reflect.DeepEqual(cfg.Disks, baseConf.User.Disks) {
+		t.Errorf("Disks = %v, want %v", cfg.Disks, baseConf.User.Disks)
+	}
+	if cfg.DiskLayout != baseConf.User.DiskLayout {
+		t.Errorf("DiskLayout = %q, want %q", cfg.DiskLayout, baseConf.User.DiskLayout)
+	}
+	if cfg.UserName != baseConf.User.UserName || cfg.Hostname != baseConf.User.Hostname {
+		t.Errorf("user/hostname = %q/%q, want %q/%q",
+			cfg.UserName, cfg.Hostname, baseConf.User.UserName, baseConf.User.Hostname)
+	}
+	if cfg.Mirror != baseConf.User.Mirror || cfg.Branch != baseConf.User.Branch {
+		t.Errorf("mirror/branch = %q/%q, want %q/%q",
+			cfg.Mirror, cfg.Branch, baseConf.User.Mirror, baseConf.User.Branch)
+	}
+	if cfg.EnablePodman != baseConf.User.EnablePodman {
+		t.Errorf("EnablePodman = %v, want %v", cfg.EnablePodman, baseConf.User.EnablePodman)
+	}
 
-			// Password gating: only the webmin consumer justifies the
-			// secret on disk.
-			if cfg.Password != tt.wantPass {
-				t.Errorf("Password = %q, want %q", cfg.Password, tt.wantPass)
-			}
-			if cfg.EnableWebmin != tt.wantWebmin {
-				t.Errorf("EnableWebmin = %v, want %v", cfg.EnableWebmin, tt.wantWebmin)
-			}
-			if cfg.WebminListenAll != tt.wantListen {
-				t.Errorf("WebminListenAll = %v, want %v", cfg.WebminListenAll, tt.wantListen)
-			}
+	// Kernel fields populated from internal_rules (conf.Internal).
+	if cfg.KernelPackage != "linux-lts" || cfg.KernelFlavor != "lts" {
+		t.Errorf("kernel = %q/%q, want linux-lts/lts", cfg.KernelPackage, cfg.KernelFlavor)
+	}
 
-			// Passthrough fields (independent of the webmin gate).
-			if !reflect.DeepEqual(cfg.Disks, baseConf.User.Disks) {
-				t.Errorf("Disks = %v, want %v", cfg.Disks, baseConf.User.Disks)
-			}
-			if cfg.DiskLayout != baseConf.User.DiskLayout {
-				t.Errorf("DiskLayout = %q, want %q", cfg.DiskLayout, baseConf.User.DiskLayout)
-			}
-			if cfg.UserName != baseConf.User.UserName || cfg.Hostname != baseConf.User.Hostname {
-				t.Errorf("user/hostname = %q/%q, want %q/%q",
-					cfg.UserName, cfg.Hostname, baseConf.User.UserName, baseConf.User.Hostname)
-			}
-			if cfg.Mirror != baseConf.User.Mirror || cfg.Branch != baseConf.User.Branch {
-				t.Errorf("mirror/branch = %q/%q, want %q/%q",
-					cfg.Mirror, cfg.Branch, baseConf.User.Mirror, baseConf.User.Branch)
-			}
-			if cfg.EnablePodman != baseConf.User.EnablePodman {
-				t.Errorf("EnablePodman = %v, want %v", cfg.EnablePodman, baseConf.User.EnablePodman)
-			}
-
-			// Kernel fields populated from internal_rules (conf.Internal).
-			if cfg.KernelPackage != "linux-lts" || cfg.KernelFlavor != "lts" {
-				t.Errorf("kernel = %q/%q, want linux-lts/lts", cfg.KernelPackage, cfg.KernelFlavor)
-			}
-
-			// LUKS UUIDs: the writer extracts them from /etc/kernel/cmdline
-			// (shell edge, untested); BuildInstallConfig leaves the slice
-			// nil — mirror the writer's append with the cmdline parser.
-			if cfg.LuksUUIDs != nil {
-				t.Errorf("LuksUUIDs = %v, want nil (publisher is the writer)", cfg.LuksUUIDs)
-			}
-			cfg.LuksUUIDs = append(cfg.LuksUUIDs, ExtractLUKSUUIDs(cmdline)...)
-			if !reflect.DeepEqual(cfg.LuksUUIDs, []string{"c572e494-fe65-4ad5-89c3-9cdd9ef93e35"}) {
-				t.Errorf("LuksUUIDs = %v, want single UUID from cmdline", cfg.LuksUUIDs)
-			}
-		})
+	// LUKS UUIDs: the writer extracts them from /etc/kernel/cmdline
+	// (shell edge, untested); BuildInstallConfig leaves the slice
+	// nil — mirror the writer's append with the cmdline parser.
+	if cfg.LuksUUIDs != nil {
+		t.Errorf("LuksUUIDs = %v, want nil (publisher is the writer)", cfg.LuksUUIDs)
+	}
+	cfg.LuksUUIDs = append(cfg.LuksUUIDs, ExtractLUKSUUIDs(cmdline)...)
+	if !reflect.DeepEqual(cfg.LuksUUIDs, []string{"c572e494-fe65-4ad5-89c3-9cdd9ef93e35"}) {
+		t.Errorf("LuksUUIDs = %v, want single UUID from cmdline", cfg.LuksUUIDs)
 	}
 }

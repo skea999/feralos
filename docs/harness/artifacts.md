@@ -93,10 +93,6 @@ All 4 layouts PASS 35/35 with markers enabled. Markers appended at END of each c
 | `nix_tmp_exec` | `/tmp` mounted exec | `mount \| grep ' /tmp '` has NO `noexec` (nix builds use upstream default build dir `/tmp`; old `/nix/var/nix/build/tmp` workaround removed) |
 | `chmod_77_check` | No insecure chmod in installer.log | Count `chmod 777`/`chmod 1777` excluding `/nix/var/nix/build/tmp` (which SHOULD be 1777) must be 0; previous check flagged `775` false positive |
 | `works_in_real_life` | No ignored errors | `installer.log` must NOT contain `[WARNING] Non-interactive mode: ignoring error and continuing.` |
-| `webmin_binary` | Webmin firstboot binary present | `test -x /opt/feralos/bin/feralos-webmin` |
-| `webmin_container` | Webmin container running | `podman ps --format '{{.Names}}' \| grep -q '^webmin$'` (no `\|\| echo` fallback — must FAIL when not running) |
-| `webmin_port` | Webmin port mapped | `podman port webmin 10000 \| grep -q 10000` |
-| `webmin_http` | Webmin HTTP answering | `wget -q -T 5 --no-check-certificate https://localhost:10000/` retry 8×5s |
 | `podman_*` | Podman functional | `podman info`, `podman ps` etc. when `enablePodman=true` |
 | `niri_*` | Niri desktop valid | `niri_config_valid` (validate both kdl), `greetd_config` (greeter files +x), `niri_greeter` (pgrep niri), `dms_installed` (apk check — `dms-shell`/`quickshell` native apks from feralos-aports) |
 | `niri_msg_version` | niri IPC version query (runtime) | `niri msg version` via discovered `niri*.sock` — rc 0 + first 2 lines as detail; sharper binary+IPC proof than `niri_ipc` (gated niri, 90s poll) |
@@ -117,8 +113,6 @@ All 4 layouts PASS 35/35 with markers enabled. Markers appended at END of each c
 **Nix build sandbox:** upstream default build dir (`/tmp`) — `/tmp` is mounted exec (no `noexec`), so the old `@nix-var-nix-build` tmp workaround (777 tmp + scoped temp dir) is gone. `trusted-users = root @wheel` is permanent (NixOS default — wheel is root-equivalent, no escalation). Nix SSL: `NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt` prefixed to all `su - user` nix client cmds.
 
 **Podman storage driver:** `btrfs` via `sed` on `/etc/containers/storage.conf` (keep Alpine's full config, override only `driver` line). `cgroups` service enabled alongside `podman`. `fuse-overlayfs` kept as fallback for rootless overlay. `iptables` added to package set.
-
-**Webmin (podman-based):** `demosthenesk/webmin:noble` image (pschatzmann dead), config seeded via `webmin-seed` container before first start, `tmpfs` for `/tmp /run /var/log /var/webmin` with `read_only: true`, quoted heredocs, binary exits 1 on compose failure, `podman --version` only (podman already in chrootPhase). Compose: `podman compose up -d`.
 
 **Niri + NetworkManager + wayvnc:** `regreet.toml` `reboot = ["reboot"]` / `poweroff = ["poweroff"]` (not `systemctl` — Alpine OpenRC); `xdg-user-dirs` in `standardPackages` (flatpak portal); `/lib/modules` mkdir before `apk update` in `chrootPhase/internal/packages.go`; RustDesk removed (flatpak + spawn + firewall ports) — remote desktop = wayvnc (`wayvnc-user-dinit`, user dinit, loopback 127.0.0.1:5900 default); NetworkManager replaces ifupdown (`/etc/network/interfaces` lo-only, `10-manage.conf managed=true`, plugdev/netdev groups); `/tmp` mounted exec (nosuid kept — OpenTUI/Bun `.so` extraction); `/var/tmp` created `1777` (O_TMPFILE — exempt in chmod-777 log scan); dinit conversion skips session/NM-managed services (pipewire stack, wpa_supplicant, wireguard-tools).
 

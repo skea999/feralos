@@ -58,14 +58,12 @@ echo "=== Builds (temp dir: $BIN) ==="
   fail "build failed: feralos_secureboot"
 (cd src && go build -o "$BIN/feralos_tpm" ./firstBoot/tpm/) ||
   fail "build failed: feralos_tpm"
-(cd src && go build -o "$BIN/feralos_webmin" ./firstBoot/webmin/) ||
-  fail "build failed: feralos_webmin"
 (cd tests/harness && go build -o "$BIN/skea_harness" ./cmd/skea_harness/) ||
   fail "build failed: skea_harness"
 (cd tests/debug_run && go build -o "$BIN/debug_run" .) ||
   fail "build failed: debug_run"
 ls -la "$BIN"
-ok "all 7 binaries built"
+ok "all 6 binaries built"
 
 echo "=== govulncheck (warning only, mirrors pre-commit) ==="
 if command -v govulncheck >/dev/null 2>&1; then

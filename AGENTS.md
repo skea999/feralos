@@ -8,6 +8,15 @@
 
 ## Recent Rounds (latest first)
 
+### 2026-11-08 22:50 - Webmin removed entirely (feature + firstboot binary + docs + harness)
+**Agent:** codebase
+**Summary:** user directive "togli completo" — Webmin dropped as a FeralOS feature. Reason established earlier in the same session: its module configs (`firewall_cmd=/usr/sbin/firewall-cmd`, `apk …`, `cron_dir=/etc/crontabs`, `log_files=/var/log/…`) point at container paths while the host is only bind-mounted under `/host/*` (and `/dev` isn't mounted at all) → the daemon answers HTTPS but the admin modules would edit the **container**, not the host.
+- **Deleted**: `src/firstBoot/webmin/` (binary + test), `src/utils/firstboot/webmin.go`, `docs/guides/webmin.md`.
+- **Schema**: `enableWebmin`/`webminListenAll` removed from `config.Config`, `variables.yaml`, the wizard (2 prompts + 2 summary lines), `writeHarnessVariables` and all **30 fixtures** (template mirror) + `fixtures/README.md`. **`InstallConfig.Password` deleted too** — the webmin binary was its SOLE reader (tpm prompts interactively, secureboot reads none) → **`/opt/feralos/config.yaml` now carries no secret at all**; the parity test was reshaped to pin the no-password wire shape.
+- **Harness**: `webmin_binary`/`webmin_container`/`webmin_port`/`webmin_http` checks gone, `runWebminOnTarget` gone, `EnableWebmin` gone from RunConfig/VariablesYAML/VerifyConfig + the loader + `cmd/skea_harness`.
+- **Scripts + docs**: `ci.sh` webmin build step dropped (7→6 binaries), `docs_check.sh` `feralos_webmin` marker dropped; AGENTS live sections (confinement table, FirstBoot, 3-boot flow, real-hw list, Docs Index, roadmap), `firstboot.md`, `feature_confinement.md`, `development.md`, `variables.md`, `guides/README.md`, `niri.md` (section retitled "Podman Integration"), `podman.md`, `artifacts.md`, `README.md`, `ROADMAP.md` synced. Recent-Rounds history left intact.
+- **Validated**: src + harness `gofmt -l` empty / `vet` / `build` / `go test ./... -count=1` (+ `golangci-lint` rc 0 both); `bash -n` both scripts (`sh -n` fails identically on the PRE-edit baseline — both are `#!/usr/bin/env bash` scripts, not a regression); 31 YAML files parse with **zero** `enableWebmin`/`webminListenAll`; `docs_check.sh` full run green; final grep = **0 live hits** (13 leftovers all classified historical/sanctioned). Podman untouched.
+
 ### 2026-11-08 21:00 - niriWayle package audit: daemons → ursine `depends`, firewall nftables truth, KDE codec dropped
 **Agent:** codebase
 **Summary:** user audit of the niriWayle list ("a che servono?") → every questioned package source-verified; the two Ursine hard requirements moved into the aports `depends=`, the rest dropped.
@@ -69,7 +78,7 @@
 - **Migration map**: dbus override staging `/usr/share/feralos/dbus-{,system-}services` → `/usr/share/dinit/…`; shim + audit binaries `/usr/libexec/feralos/…` → `/usr/libexec/dinit/…` (turnstile precedent: `/usr/libexec/turnstile/dinit`) — misc.go `SetupDbusAudit` const + comment, dbus-audit main.go header/consts/shim-comment, main_test.go override fixtures, harness greps (`power_profiles`, `dbus_activation_uniform`/`_env`/`_system_activation`, direct-shim invocations), ADR index + ADR-010 + dbus-activation.md R2/checklist/audit/inventory; login-shell → `/usr/libexec/login-shell` (niri.go/niri_wayle.go 3 lines each + comments, users.go comment, harness `login_shell_trick` x-grep, dinit/README, niri.md, internal_rules comment); trim script `/usr/libexec/feralos-weekly-trim` → `/etc/periodic/weekly/btrfs-trim` (WriteFile + chmod + cron line in storage.go; harness `disk_schedule` `btrfs-trim` grep; storage.md; rules comment); firstBoot binaries `/opt/feralos_<name>` → `/opt/feralos/bin/feralos-<name>` (firstboot.go `binPath` + NEW `mkdir -p $chroot/opt/feralos/bin` before `go build -o`; headers; tpm empty-cmdline error path; harness `_binary`/runner scripts; firstboot.md/INSTALLER.md/variables.md/getting_started.md/README/webmin.md/niri.md/artifacts.md).
 - **Docker cronie evidence (alpine:3.22)**: base image `/etc/crontabs/root` = busybox crontabs default AND `apk add cronie` adds NO crontab of its own (unchanged file) — BOTH carry `0 3 * * 6 run-parts /etc/periodic/weekly` (plus `/etc/periodic/weekly` exists in base layout; no /etc/cron.d). Consequence (kept, commented in storage.go + script header): `/etc/periodic/weekly/btrfs-trim` ALSO runs via run-parts weekly while our explicit tunable `maintenanceCron.trim` line stays → two weekly trim runs (default Sat 03:00 vs tunable Sun 03:00) — harmless for trim; NOT removing the tunable line.
 - **Trim script invariants verified**: shebang `#!/bin/sh` (line 56 pre-edit), name `btrfs-trim` dot-free.
-- **Password on disk only when needed** (`install_config.go`): `InstallConfig.Password` is set from `u.Password` then CLEARED when `!u.EnableWebmin` — webmin's firstboot binary is the sole reader (tpm prompts interactively, secureboot reads none); struct field + `password` yaml key stay (parity test pins the wire shape; readers parse the whole struct).
+- **No secrets on disk** (`install_config.go`): the install config carries no secrets at all — tpm prompts interactively at first boot, secureboot reads none, and webmin (the former sole reader of a stored password) was removed; the `InstallConfig` struct has no `password` field and the parity test pins the secret-free wire shape.
 - **Template resolver**: `/usr/local/share/feralos/variables.yaml` deleted from `TemplateCandidatePaths` (hypothetical packaged path; the 4 repo CWD paths remain; createValues output byte-shape unchanged — /dev/null-stdin md5 `25d011596a3cb34268dc479f8a3d7de5`).
 - **End-of-installer first-boot guide** (`src/main.go`, after the firstBoot setup calls, before the 20s sync wait): `=== FeralOS installation complete ===` + per-enabled-feature run lines (`/opt/feralos/bin/feralos-secureboot` / `-tpm` / `-webmin`) + `Guide: docs/guides/first_boot.md …` — text carries no ERROR/WARN-adjacent words (log_errors safe).
 - **Validated**: src gofmt -w + -l empty / vet / build / `go test ./... -count=1` (utils/shell suite included) / golangci-lint green; harness build + vet + `go test ./... -count=1` green; YAML parse OK (24 top-level keys).
@@ -927,7 +936,6 @@ Each `Enable*` flag (and `DesktopEnvironment`) is owned by exactly ONE file unde
 |---------|-----------|-------------|
 | `EnableSecureboot` | `utils/firstboot/secureboot.go` | `main.go` |
 | `EnableTPM` | `utils/firstboot/tpm.go` | `main.go` |
-| `EnableWebmin` | `utils/firstboot/webmin.go` | `main.go` |
 | `EnablePodman` | `chrootPhase/features/podman.go` | `packages.go` + `chroot_phase.go` |
 | `EnableHardening` | `chrootPhase/features/hardening.go` | `packages.go` + `chroot_phase.go` |
 | `EnableNix` | `chrootPhase/features/nix.go` | `packages.go` + `chroot_phase.go` |
@@ -981,33 +989,32 @@ No backward compat. Breaking changes allowed without fallback (e.g., breaking ch
 
 ## FirstBoot Architecture
 
-Activatable features (Secure Boot, TPM, Webmin) use standalone binaries in `src/firstBoot/`:
+Activatable features (Secure Boot, TPM) use standalone binaries in `src/firstBoot/`:
 
 - `src/firstBoot/secureboot/main.go` — autonomous: installs packages, generates EFI keys, enrolls sbctl, builds+signs UKI, writes hooks
 - `src/firstBoot/tpm/main.go` — autonomous: checks TPM, installs clevis@edge + tpm2-tools, binds LUKS to TPM2, rebuilds initramfs+UKI
-- `src/firstBoot/webmin/main.go` — autonomous: verifies podman, creates `/opt/webmin`, generates compose + module configs, seeds `/etc/webmin` from image (`webmin-seed` container), starts via `podman compose up -d`, creates `webmin-ensure` oneshot (dual-init: PID1 via `cat /proc/1/comm` → dinit `/etc/dinit.d/webmin-ensure` + `/usr/libexec/dinit-webmin-ensure` + boot.d link, OpenRC `/etc/init.d/webmin-ensure`), sets root password via `changepass.pl` + `chpasswd`
 
 **Installer flow**:
 
-1. `firstboot.SetupSecureboot(conf)` / `firstboot.SetupTpm(conf)` / `firstboot.SetupWebmin(conf)` compile binaries → copy to `/opt/feralos/bin/feralos-<name>` (mkdir of `/opt/feralos/bin` inside `buildBinary`), then `main` prints the end-of-installer first-boot guide (feature-conditioned paths, no ERROR/WARN-adjacent words)
+1. `firstboot.SetupSecureboot(conf)` / `firstboot.SetupTpm(conf)` compile binaries → copy to `/opt/feralos/bin/feralos-<name>` (mkdir of `/opt/feralos/bin` inside `buildBinary`), then `main` prints the end-of-installer first-boot guide (feature-conditioned paths, no ERROR/WARN-adjacent words)
 2. `firstboot.WriteInstallConfig(conf)` writes `/opt/feralos/config.yaml` (disk layout, LUKS UUIDs, user info)
 3. Binaries are autonomous — installer does NOT run them
 
 **3-boot harness flow**:
 
 1. **Runner (Debian)**: installer runs, compiles binaries, writes config. swtpm always present.
-2. **Target (Alpine) — first boot**: harness SSH runs `feralos-secureboot` + `feralos-tpm` + `feralos-webmin` (if enabled). Binaries install packages, configure features, bind LUKS to TPM2, start the Webmin container. swtpm always present.
-3. **Target (Alpine) — verification**: harness checks sbctl status, clevis bindings, LUKS auto-unlock, `podman ps` + `wget https://localhost:10000/` (Webmin). swtpm always present.
+2. **Target (Alpine) — first boot**: harness SSH runs `feralos-secureboot` + `feralos-tpm` (if enabled). Binaries install packages, configure features, bind LUKS to TPM2. swtpm always present.
+3. **Target (Alpine) — verification**: harness checks sbctl status, clevis bindings, LUKS auto-unlock, `podman ps` (when podman is enabled). swtpm always present.
 
 **Key rules**:
 
 - swtpm is always passed to runner + target VMs (even if EnableTPM=false) — simplifies harness
 - firstBoot binaries read `/opt/feralos/config.yaml` for disk layout + LUKS UUIDs (fallback: kernel cmdline)
-- On real hardware: user runs `/opt/feralos/bin/feralos-secureboot`, `/opt/feralos/bin/feralos-tpm` and `/opt/feralos/bin/feralos-webmin` manually after first boot (webmin is idempotent — seeds config once, restarts container; podman must be installed); the paths are printed by the installer's end-of-installer guide
+- On real hardware: user runs `/opt/feralos/bin/feralos-secureboot` and `/opt/feralos/bin/feralos-tpm` manually after first boot; the paths are printed by the installer's end-of-installer guide
 
 **Known limitation**: Secure Boot enrollment cannot be confirmed in QEMU (no real efivarfs). TPM auto-unlock CAN be confirmed and works reliably.
 
-→ Details: `docs/architecture/firstboot.md` (hostPhase/firstBoot design), `docs/guides/first_boot.md` (real hardware steps), `docs/guides/webmin.md` (webmin compose/seed), `docs/guides/podman.md` (btrfs driver), `docs/FIRST_BOOT.md` is deprecated → `guides/first_boot.md`
+→ Details: `docs/architecture/firstboot.md` (hostPhase/firstBoot design), `docs/guides/first_boot.md` (real hardware steps), `docs/guides/podman.md` (btrfs driver), `docs/FIRST_BOOT.md` is deprecated → `guides/first_boot.md`
 
 ## Project Structure
 
@@ -1017,7 +1024,7 @@ Full tree → `docs/INSTALLER.md#project-structure` and `docs/architecture/overv
 
 - **Architecture**: `docs/architecture/overview.md` (principle + tree), `isolation.md` (entry-point + internal rule + hostPhase order), `logging.md` (ExecuteCmd rule), `feature_confinement.md` (single-owner), `storage.md` (layouts: btrfsStandardServer, btrfsStandard, btrfsRaid0, btrfsUnencrypted), `firstboot.md` (secureboot/tpm 3-boot), `dbus-activation.md` (ADR-010 mechanism + new-service checklist + diagnostics), `boot-oneshots.md` (both-init boot oneshot pattern) — all double of AGENTS.md above
 - **ADRs**: `docs/adr/README.md` → ADR-001 Go installer, 002 isolation, 003 internal rule, 004 ExecuteCmd, 005 LUKS+Btrfs+booster+UKI, 006 no compat, 007 dinit shutdown ordering (decisions from AGENTS.md)
-- **Guides** (user guides only): `docs/guides/README.md` (index) → `getting_started.md` (real hardware), `first_boot.md` (secureboot/tpm post-install), `variables.md` (variables.yaml compilation), `niriwayle.md` (flagship niriWayle desktop — Wayle/Veila/Raffi/oo7 + PAM unlock), `niri.md` (niri + NetworkManager + wayvnc), `webmin.md` (podman-based web admin), `podman.md` (btrfs driver), `development.md` (how to code / separation)
+- **Guides** (user guides only): `docs/guides/README.md` (index) → `getting_started.md` (real hardware), `first_boot.md` (secureboot/tpm post-install), `variables.md` (variables.yaml compilation), `niriwayle.md` (flagship niriWayle desktop — Wayle/Veila/Raffi/oo7 + PAM unlock), `niri.md` (niri + NetworkManager + wayvnc), `podman.md` (btrfs driver), `development.md` (how to code / separation)
 - **Harness**: `docs/harness/README.md` (index) → `overview.md` (what it does), `workflow.md` (3-phase + 3-boot), `artifacts.md` (where generated, gitignored), `building.md` (where compiled binary goes), `development.md` (how to code), `commands.md` (CLI+MCP), `debug_run.md` (`tests/debug_run/` boot existing run, LUKS inject). `tests/harness/README.md` is pointer only.
 - **Intent / Ideas**: `docs/intent/vision.md`, `docs/intent/goals.md`, `docs/intent/vocabulary.md`, `docs/ideas/backlog.md` ← `CONTEXT.md` / `ROADMAP.md`
 - **Project context / inventory**: `docs/memory_safe_alternatives.md` (detailed per-package memory-safety inventory; condensed table → root `CONTEXT.md`), `docs/FERALOS_NAME.md` (name rationale), `docs/aports-pinning.md` (feralos-side copy of the aports source-pinning policy — canonical + full: `feralos-aports` `README.md` "Source pinning policy")
@@ -1032,7 +1039,7 @@ Full tree → `docs/INSTALLER.md#project-structure` and `docs/architecture/overv
 | Phase 1 | btrfsStandardServer, btrfsStandard, btrfsRaid0 | Completed |
 | Phase 1 | Generator, Test harness, Nix | Completed |
 | Phase 1 | btrfsUnencrypted | Completed |
-| Phase 1 | niri + NetworkManager + wayvnc + firewall + webmin/podman | Completed |
+| Phase 1 | niri + NetworkManager + wayvnc + firewall + podman | Completed |
 | Phase 1 | niriWayle flagship desktop (Wayle + Veila + Raffi + oo7) | Completed |
 | Phase 1 | Refining | In progress |
 | Phase 2 | Dinit (shipped, selectable via `enableDinit`), Custom repo (live) | In progress |

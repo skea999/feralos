@@ -33,8 +33,6 @@ variables:
   swapSize: auto # auto = 2×RAM (via utils/swap), or explicit 8G / 4096M / 4096K
   enableDebug: false
   enablePodman: false
-  enableWebmin: false
-  webminListenAll: false            # true = listen on all interfaces, false = localhost only
   enableDinit: true                 # true = dinit init system, false = OpenRC
   extraPackages:
     - incus-feature
@@ -100,9 +98,7 @@ variables:
 | `swapSize` | `string` | `auto` (2×RAM) or explicit `8G`/`4096M`/`4096K`. Split `/2` per disk on `btrfsRaid0`. |
 | `enableDebug` | `bool` | **Test-only flag** — real hardware must stay `false` (unsafe: weakens hardening). `true`: `loglevel=7`, `dmesg_restrict=0`, permissive printk/io_uring/memfd values (via `DebugOverrides`) + `console=ttyS0,115200` appended to kernel cmdline (serial console for harness boot watch + LUKS passphrase automation). `false`: hardened values, no serial console. All harness fixtures run with `true`. |
 | `enablePodman` | `bool` | Podman rootless containers, subuid/subgid, `podman`+`cgroups` services, `btrfs` storage driver (`sed` on `storage.conf`), `iptables`+`podman-compose`+`podman-docker`+`fuse-overlayfs`. |
-| `enableWebmin` | `bool` | Webmin **podman-based** web admin panel (requires podman). Standalone binary `src/firstBoot/webmin/main.go` (verifies podman, seeds config, `podman compose up -d`), image `demosthenesk/webmin:noble` (was `pschatzmann` dead), compose `read_only`+`tmpfs` (`/tmp /run /var/log /var/webmin`)+`cap_drop ALL`, seed `/etc/webmin` via `webmin-seed` container (bind mount shadow), oneshot `webmin-ensure`, `changepass.pl`+`chpasswd`. Modules: firewall, packages, btrfs, smart, proc, cron, logs, custom commands. `---` divider in compose docs. |
 | `flatpakPackages` | `[]string` | Flatpak apps (Flathub app IDs, or `remote:appID`). Set via `variables.yaml` and/or per-rule in `internal_rules.yaml` (niri: RClone Manager + Flatseal; niriWayle: Key Rack + RClone Manager + Flatseal). Triggers `flatpak` APK + `SetupFlatpak` (flathub remote + `flatpak install -y`). `xdg-user-dirs` + `/lib/modules` before apk required. |
-| `webminListenAll` | `bool` | `false`: localhost:10000 only. `true`: 0.0.0.0:10000 (all interfaces). |
 | `enableDinit` | `bool` | `true`: dinit init system (boot.d enablement, `/var/log/dinit/` logging, dinit-shutdown poweroff/reboot wiring). `false`: OpenRC. |
 | `enableEdgeRepos` | `bool` | Enables the `@edge` tagged repositories (main/community/testing) for `extraPackagesEdge` installs. Optional to set explicitly: a non-empty `extraPackagesEdge` **auto-enables it** (see `extraPackagesEdge`). Repos are NOT left enabled: they are added, used, and commented out per-install (see `extraPackagesEdge`). |
 

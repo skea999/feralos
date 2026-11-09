@@ -98,7 +98,6 @@ func run(args []string) error {
 				cfg.EnableSecureboot = rc.EnableSecureboot
 				cfg.EnableTPM = rc.EnableTPM
 				cfg.EnablePodman = rc.EnablePodman
-				cfg.EnableWebmin = rc.EnableWebmin
 				cfg.EnableDinit = rc.EnableDinit
 				cfg.EnableNix = rc.EnableNix
 				cfg.SwapSize = rc.SwapSize

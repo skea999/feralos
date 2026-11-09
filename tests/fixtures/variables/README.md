@@ -13,8 +13,8 @@ Harness loads via `internal/service/service.go:LoadVariablesFile` (`gopkg.in/yam
 
 ## Matrix (19 templates)
 
-| # | Template | diskLayout | enableSwap | swapSize | desktop | secureboot | TPM | hardening | zswap | nix | podman | webmin | Purpose |
-|---|----------|------------|------------|----------|---------|------------|-----|-----------|-------|-----|--------|--------|---------|
+| # | Template | diskLayout | enableSwap | swapSize | desktop | secureboot | TPM | hardening | zswap | nix | podman | Purpose |
+|---|----------|------------|------------|----------|---------|------------|-----|-----------|-------|-----|--------|---------|
 | 1 | `btrfs_standard_minimal.yaml` | btrfsStandard | true | auto (2×RAM) | none | false | false | false | false | false | false | false | Baseline (mirrors `src/variables/variables.yaml`) |
 | 2 | `btrfs_standard_noswap.yaml` | btrfsStandard | false | auto | none | false | false | false | false | false | false | false | @swap NoCoW without swapfile, `services_status` without swap |
 | 3 | `btrfs_standard_swap_explicit_8g.yaml` | btrfsStandard | true | 8g | none | false | false | false | false | false | false | false | Parse `8g→8192`, `mkswapfile --size 8192M` |
@@ -30,8 +30,8 @@ Harness loads via `internal/service/service.go:LoadVariablesFile` (`gopkg.in/yam
 | 13 | `btrfs_standard_niri.yaml` | btrfsStandard | true | auto | niri | false | false | false | false | true | false | false | Desktop niri (auto-nix) |
 | 14 | `full_stack.yaml` | btrfsStandard | true | auto | none | true | true | true | true | true | true | true | All true (replaces `tests/variables-full.yaml`) |
 | 15 | `btrfs_unencrypted_minimal.yaml` | btrfsUnencrypted | true | auto | none | false | false | false | false | false | false | false | No LUKS, VMs/testing, direct btrfs on partition 2 |
-| 16 | `btrfs_raid0_full_stack.yaml` | btrfsRaid0 | true | auto | none | true | true | true | true | true | true | true | RAID0 full stack with podman + webmin |
-| 17 | `btrfs_standard_server_full_stack.yaml` | btrfsStandardServer | true | auto | none | true | true | true | true | true | true | true | Server full stack with podman + webmin |
+| 16 | `btrfs_raid0_full_stack.yaml` | btrfsRaid0 | true | auto | none | true | true | true | true | true | true | RAID0 full stack with podman |
+| 17 | `btrfs_standard_server_full_stack.yaml` | btrfsStandardServer | true | auto | none | true | true | true | true | true | true | Server full stack with podman |
 | 18 | `btrfs_unencrypted_full_stack.yaml` | btrfsUnencrypted | true | auto | none | false | false | true | true | true | true | true | Unencrypted full stack (no secureboot/tpm) |
 | 19 | `btrfs_standard_secureboot_tpm.yaml` | btrfsStandard | true | auto | none | true | true | false | false | false | false | false | SecureBoot + TPM combined |
 

@@ -43,8 +43,6 @@ variables:
   swapSize: auto # auto = 2x RAM, or explicit like 8G / 4096M
   enableDebug: false
   enablePodman: true
-  enableWebmin: false
-  webminListenAll: false            # true = listen on all interfaces, false = localhost only
   enableDinit: true                 # true = dinit init system, false = OpenRC
 
   # Extra Packages

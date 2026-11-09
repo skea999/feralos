@@ -141,18 +141,13 @@ NetworkManager replaces ifupdown as the niri network service (`FIX-niri-dms.md` 
 - **/lib/modules handling**: `src/chrootPhase/internal/packages.go:SetupPackages` ensures `mkdir -p /lib/modules` **before** `apk update`/`apk add` (flatpak and others check kernel module path)
 - **xdg-user-dirs**: added to `standardPackages` (always installed) for flatpak portal `XDG` directory access
 
-## Webmin + Podman Integration
+## Podman Integration
 
-Webmin is **podman-based** (not host package):
-
-- Requires `enablePodman: true` + `enableWebmin: true` (compose needs podman)
 - Podman: `btrfs` driver via `sed` on `/etc/containers/storage.conf`, `cgroups` + `podman` services, `iptables`, `fuse-overlayfs` fallback, `podman-compose`+`podman-docker`, `docker→podman` dummy
-- Webmin binary: standalone `src/firstBoot/webmin/main.go` compiled to `/opt/feralos/bin/feralos-webmin`
-- Container: `demosthenesk/webmin:noble` image, `read_only: true` + `tmpfs`, seed `/etc/webmin` via `webmin-seed` container, `podman compose up -d`, oneshot `webmin-ensure`, `changepass.pl` + `chpasswd`
 - Nix (only when `enableNix: true` — independent from niri): upstream default build dir (`/tmp`, exec)
 - Locale: `it` → `it_IT.UTF-8` — bare `it` crashes `conmon` `setlocale` (musl)
 
-See `docs/guides/podman.md` and `docs/guides/webmin.md`.
+See `docs/guides/podman.md`.
 
 ## Troubleshooting
 

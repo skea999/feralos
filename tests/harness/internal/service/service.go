@@ -130,7 +130,6 @@ type RunConfig struct {
 	EnableSecureboot    bool
 	EnableHardening     bool
 	EnablePodman        bool `yaml:"enablePodman"`
-	EnableWebmin        bool `yaml:"enableWebmin"`
 	EnableDinit         bool `yaml:"enableDinit"`
 	EnableDebug         bool `yaml:"enableDebug"`
 	EnableZswap         bool
@@ -186,7 +185,6 @@ type VariablesYAML struct {
 		SwapSize                string   `yaml:"swapSize"`
 		EnableDebug             bool     `yaml:"enableDebug"`
 		EnablePodman            bool     `yaml:"enablePodman"`
-		EnableWebmin            bool     `yaml:"enableWebmin"`
 		EnableDinit             bool     `yaml:"enableDinit"`
 		ExtraPackages           []string `yaml:"extraPackages"`
 		ExtraPackagesEdge       []string `yaml:"extraPackagesEdge"`
@@ -247,7 +245,6 @@ func LoadVariablesFile(cfg *RunConfig, filePath string) error {
 	cfg.EnableSwap = v.EnableSwap
 	cfg.SwapSize = v.SwapSize
 	cfg.EnablePodman = v.EnablePodman
-	cfg.EnableWebmin = v.EnableWebmin
 	cfg.EnableDinit = v.EnableDinit
 	cfg.EnableDebug = v.EnableDebug
 	if len(v.NixPackages) > 0 {
@@ -308,7 +305,6 @@ type VerifyConfig struct {
 	EnableSecureboot   bool
 	EnableTPM          bool
 	EnablePodman       bool
-	EnableWebmin       bool
 	EnableDinit        bool
 	EnableDebug        bool
 	EnableNix          bool
@@ -1153,19 +1149,6 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg *RunConfig,
 		tpmBindingSuccessful = true
 	}
 
-	// Run Webmin binary — installs Webmin container (podman compose).
-	// webmin-ensure oneshot restarts it on the verification boot.
-	if cfg.EnableWebmin {
-		webminLogPath := filepath.Join(runDir, "webmin-post-install.log")
-		webminDiag, webminErr := runWebminOnTarget(ctx, targetGuest)
-		if webminDiag != "" {
-			_ = os.WriteFile(webminLogPath, []byte(webminDiag), 0o600)
-		}
-		if webminErr != nil {
-			logHarness("WARNING: webmin setup failed: %v\n", webminErr)
-		}
-	}
-
 	// Run diagnostics
 	postInstallDiag, diagErr := runPostInstallDiag(ctx, targetGuest)
 	if postInstallDiag != "" {
@@ -1291,7 +1274,6 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg *RunConfig,
 		EnableSecureboot:   cfg.EnableSecureboot,
 		EnableTPM:          cfg.EnableTPM,
 		EnablePodman:       cfg.EnablePodman,
-		EnableWebmin:       cfg.EnableWebmin,
 		EnableDinit:        cfg.EnableDinit,
 		EnableDebug:        cfg.EnableDebug,
 		EnableNix:          cfg.EnableNix,
@@ -2619,9 +2601,7 @@ func writeHarnessVariables(cfg *RunConfig, keyPair guest.KeyPair, outputPath, al
   enableDebug: true
 
   enablePodman: %s
-  enableWebmin: %s
   enableDinit: %s
-  webminListenAll: false
 
   extraPackages:
     - incus-feature
@@ -2649,7 +2629,6 @@ func writeHarnessVariables(cfg *RunConfig, keyPair guest.KeyPair, outputPath, al
 		yn(cfg.EnableSwap),
 		cfg.SwapSize,
 		yn(cfg.EnablePodman),
-		yn(cfg.EnableWebmin),
 		yn(cfg.EnableDinit),
 	)
 
@@ -3196,16 +3175,6 @@ func runScriptOnTarget(ctx context.Context, targetGuest guest.Options, script st
 		return "", err
 	}
 	return outBuf.String(), nil
-}
-
-// runWebminOnTarget runs the Webmin firstBoot binary — writes /opt/webmin
-// compose + configs, pulls the image and starts the container.
-func runWebminOnTarget(ctx context.Context, targetGuest guest.Options) (string, error) {
-	script := `set -eu
-export SKEA_NONINTERACTIVE=1
-/opt/feralos/bin/feralos-webmin
-`
-	return runScriptOnTarget(ctx, targetGuest, script)
 }
 
 func runPostInstallDiag(ctx context.Context, targetGuest guest.Options) (string, error) {

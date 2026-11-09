@@ -47,23 +47,20 @@ func fixtureInstallConfig() InstallConfig {
 // writer's wire format (utils/firstboot.InstallConfig — single author of
 // /opt/feralos/config.yaml): every key this binary must not lose a
 // typo-level rename silently breaks the reader. The private struct
-// intentionally carries a SUBSET of the lib keys (it consumes no
-// password/podman/webmin values) — subset-of is the drift guard.
+// intentionally carries a SUBSET of the lib keys (it consumes no feature
+// toggles) — subset-of is the drift guard.
 func TestInstallConfigYAMLKeysMatchLib(t *testing.T) {
 	libKeys := yamlKeys(t, firstboot.InstallConfig{
-		DiskLayout:      "btrfsStandard",
-		Disks:           []string{"/dev/sda"},
-		LuksUUIDs:       []string{"1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d"},
-		UserName:        "skea999",
-		Password:        "pass",
-		Hostname:        "feral-host",
-		Mirror:          "x",
-		Branch:          "v3.24",
-		KernelPackage:   "linux-lts",
-		KernelFlavor:    "lts",
-		EnablePodman:    true,
-		EnableWebmin:    true,
-		WebminListenAll: true,
+		DiskLayout:    "btrfsStandard",
+		Disks:         []string{"/dev/sda"},
+		LuksUUIDs:     []string{"1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d"},
+		UserName:      "skea999",
+		Hostname:      "feral-host",
+		Mirror:        "x",
+		Branch:        "v3.24",
+		KernelPackage: "linux-lts",
+		KernelFlavor:  "lts",
+		EnablePodman:  true,
 	})
 	if len(libKeys) == 0 {
 		t.Fatal("lib InstallConfig serialized no keys — struct emptied?")

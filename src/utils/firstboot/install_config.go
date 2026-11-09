@@ -21,19 +21,16 @@ const InstallConfigPath = "/opt/feralos/config.yaml"
 // booster-<flavor>.img / linux-<flavor>.efi / vmlinuz-<flavor> from the
 // flavor, no hardcoded literals) without parsing kernel cmdline.
 type InstallConfig struct {
-	DiskLayout      string   `yaml:"disk_layout"`
-	Disks           []string `yaml:"disks"`
-	LuksUUIDs       []string `yaml:"luks_uuids"`
-	UserName        string   `yaml:"user_name"`
-	Password        string   `yaml:"password"`
-	Hostname        string   `yaml:"hostname"`
-	Mirror          string   `yaml:"mirror"`
-	Branch          string   `yaml:"branch"`
-	KernelPackage   string   `yaml:"kernel_package"`
-	KernelFlavor    string   `yaml:"kernel_flavor"`
-	EnablePodman    bool     `yaml:"enable_podman"`
-	EnableWebmin    bool     `yaml:"enable_webmin"`
-	WebminListenAll bool     `yaml:"webmin_listen_all"`
+	DiskLayout    string   `yaml:"disk_layout"`
+	Disks         []string `yaml:"disks"`
+	LuksUUIDs     []string `yaml:"luks_uuids"`
+	UserName      string   `yaml:"user_name"`
+	Hostname      string   `yaml:"hostname"`
+	Mirror        string   `yaml:"mirror"`
+	Branch        string   `yaml:"branch"`
+	KernelPackage string   `yaml:"kernel_package"`
+	KernelFlavor  string   `yaml:"kernel_flavor"`
+	EnablePodman  bool     `yaml:"enable_podman"`
 }
 
 // luksUUIDRe matches the rd.luks.name=<uuid>= parameters of the kernel
@@ -60,14 +57,16 @@ func ExtractLUKSUUIDs(cmdline string) []string {
 }
 
 // BuildInstallConfig assembles the on-disk InstallConfig from conf — the
-// pure (no shell, no I/O) part of WriteInstallConfig, INCLUDING the
-// EnableWebmin password gating. The writer (WriteInstallConfig) is the only
+// pure (no shell, no I/O) part of WriteInstallConfig. The install config
+// carries NO secrets: the tpm binary prompts interactively at first boot,
+// secureboot reads none, and webmin — the former sole reader of a stored
+// password — was removed. The writer (WriteInstallConfig) is the only
 // caller; the LUKS UUID list stays with the writer (kernel cmdline is read
 // from the chroot — a shell edge, deliberately untested).
 func BuildInstallConfig(conf *config.Config) InstallConfig {
 	u := &conf.User
 
-	cfg := InstallConfig{
+	return InstallConfig{
 		DiskLayout:    u.DiskLayout,
 		Disks:         u.Disks,
 		UserName:      u.UserName,
@@ -77,21 +76,7 @@ func BuildInstallConfig(conf *config.Config) InstallConfig {
 		KernelPackage: conf.Internal.Kernel.Package,
 		KernelFlavor:  conf.Internal.Kernel.Flavor,
 		EnablePodman:  u.EnablePodman,
-		EnableWebmin:  u.EnableWebmin,
-		// Password ONLY when webmin is enabled (guarded below): the webmin
-		// firstboot binary is the sole reader (it sets the webmin + unix
-		// root passwords via changepass.pl/chpasswd); tpm asks interactively
-		// (or env) and secureboot never reads a password. The struct field
-		// and the yaml key stay (the webmin binary parses the whole shape);
-		// the secret just stops landing on disk when no consumer is
-		// installed.
-		Password:        u.Password,
-		WebminListenAll: u.WebminListenAll,
 	}
-	if !u.EnableWebmin {
-		cfg.Password = ""
-	}
-	return cfg
 }
 
 // WriteInstallConfig writes /opt/feralos/config.yaml into the mounted chroot.
@@ -116,10 +101,11 @@ func WriteInstallConfig(conf *config.Config) error {
 		return fmt.Errorf("failed to marshal install config: %w", err)
 	}
 
-	// Direct write (0600): the file carries the user Password + LUKS
-	// passphrase — the old heredoc form put the WHOLE command line (secrets
-	// included) into installer.log; WriteFile logs path + size only.
-	// Trailing \n preserved (the heredoc body ended with a blank line).
+	// Direct write (0600): the file carries NO secrets (see
+	// BuildInstallConfig) — the restrictive mode is kept as defense in
+	// depth for a root-owned config; content is never logged (WriteFile
+	// logs path + size only). Trailing \n preserved (the old heredoc body
+	// ended with a blank line).
 	cfgPath := chroot + InstallConfigPath
 	if err := shell.WriteFile("", cfgPath, append(data, '\n'), 0600); err != nil {
 		return fmt.Errorf("failed to write install config: %w", err)

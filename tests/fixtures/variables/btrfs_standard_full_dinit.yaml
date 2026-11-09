@@ -1,4 +1,4 @@
-# btrfs_standard_full_dinit.yaml: btrfsStandard server 2disk sb tpm hard zswap nix podman webmin dinit dbg — full variables.yaml template mirror (machine-consumed)
+# btrfs_standard_full_dinit.yaml: btrfsStandard server 2disk sb tpm hard zswap nix podman dinit dbg — full variables.yaml template mirror (machine-consumed)
 variables:
   unattended: true
   ignoreErrors: true
@@ -30,8 +30,6 @@ variables:
   swapSize: auto
   enableDebug: true
   enablePodman: true
-  enableWebmin: true
-  webminListenAll: false
   enableDinit: true
   extraPackages:
   - incus-feature

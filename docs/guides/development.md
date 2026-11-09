@@ -44,8 +44,7 @@ src/
 │       └── btrfsStandardServer/     # 2 disks RAID1, LUKS swap
 ├── firstBoot/
 │   ├── secureboot/main.go           # standalone — installs sbctl, keys, signs UKI
-│   ├── tpm/main.go                  # standalone — installs clevis, binds LUKS
-│   └── webmin/main.go               # standalone podman-based — compose + seed + oneshot
+│   └── tpm/main.go                  # standalone — installs clevis, binds LUKS
 └── chrootPhase/
     ├── chroot_phase.go              # Run(conf) — 14-step orchestrator (incl. flatpak, desktops)
     ├── internal/ (packages.go, boot.go, storage.go, uki.go, services.go, users.go, ...) # packages.go: /lib/modules before apk, dummy+firmware+feature packages
@@ -89,7 +88,6 @@ Cleanup (before/after) and firstboot (install config, secureboot/tpm compile) ar
 |---------|-----------|-------------|
 | `EnableSecureboot` | `utils/firstboot/secureboot.go` | `main.go` |
 | `EnableTPM` | `utils/firstboot/tpm.go` | `main.go` |
-| `EnableWebmin` | `utils/firstboot/webmin.go` | `main.go` (podman-based, verifies podman) |
 | `EnablePodman` | `chrootPhase/features/podman.go` | `packages.go` + `chroot_phase.go` (btrfs driver, cgroups) |
 | `EnableHardening` | `chrootPhase/features/hardening.go` | `packages.go` + `chroot_phase.go` |
 | `EnableNix` | `chrootPhase/features/nix.go` | `packages.go` + `chroot_phase.go` (upstream default build dir /tmp, exec since round 48) |

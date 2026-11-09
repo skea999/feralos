@@ -44,8 +44,6 @@ type UserVariables struct {
 	SwapSize         string `yaml:"swapSize"`
 	EnableDebug      bool   `yaml:"enableDebug"`
 	EnablePodman     bool   `yaml:"enablePodman"`
-	EnableWebmin     bool   `yaml:"enableWebmin"`
-	WebminListenAll  bool   `yaml:"webminListenAll"`
 	EnableDinit      bool   `yaml:"enableDinit"`
 
 	// Network

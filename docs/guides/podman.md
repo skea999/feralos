@@ -128,20 +128,6 @@ podman run -v mydata:/data docker.io/library/alpine:latest
 | Storage | `~/.local/share/containers/` | `/var/lib/containers/` |
 | Default | ✅ Yes | No |
 
-## Integration with Webmin
-
-Webmin's Custom Commands module can manage podman containers. Create scripts in `/etc/webmin/custom/commands/`:
-
-```bash
-# /etc/webmin/custom/commands/podman-ps
-#!/bin/sh
-podman ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
-
-# /etc/webmin/custom/commands/podman-images
-#!/bin/sh
-podman images --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}"
-```
-
 ## Troubleshooting
 
 ```bash

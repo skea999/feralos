@@ -107,9 +107,6 @@ func main() {
 	if err := firstboot.SetupTpm(conf); err != nil {
 		fmt.Printf("[WARNING] TPM setup: %v\n", err)
 	}
-	if err := firstboot.SetupWebmin(conf); err != nil {
-		fmt.Printf("[WARNING] Webmin setup: %v\n", err)
-	}
 
 	// End-of-installer first-boot guide — feature-conditioned, printed right
 	// after the firstBoot binaries are placed (before the sync wait + final
@@ -123,9 +120,6 @@ func main() {
 	}
 	if conf.User.EnableTPM {
 		fmt.Println("  /opt/feralos/bin/feralos-tpm           # TPM2 LUKS auto-unlock binding")
-	}
-	if conf.User.EnableWebmin {
-		fmt.Println("  /opt/feralos/bin/feralos-webmin        # Webmin container")
 	}
 	fmt.Println("Guide: docs/guides/first_boot.md (in the repo; on the installed system see /root or the docs online)")
 

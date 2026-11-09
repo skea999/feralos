@@ -2,6 +2,14 @@
 
 All notable changes to FeralOS will be documented in this file.
 
+## 2026-11-08 — Webmin removed entirely
+- **Feature deleted**: `src/firstBoot/webmin/` (standalone binary + test), `src/utils/firstboot/webmin.go`, `docs/guides/webmin.md`. Podman is unaffected and stays.
+- **Why**: Webmin runs in a Podman container where the host is bind-mounted only under `/host/*` (no `/dev`, `/var/log` = tmpfs) while its generated module configs point at container paths (`apk`, `/usr/sbin/firewall-cmd`, `/etc/crontabs`, `/var/log/…`) → the daemon answers HTTPS but the admin modules act on the container, not the host.
+- **Schema**: `enableWebmin` + `webminListenAll` removed from `config.Config`, `variables.yaml`, the config wizard, `writeHarnessVariables` and all 30 fixtures.
+- **No secrets on disk anymore**: `InstallConfig.Password` deleted — the webmin firstboot binary was its sole reader (`feralos-tpm` prompts interactively, `feralos-secureboot` reads none), so `/opt/feralos/config.yaml` now carries no password at all; the install-config parity test pins the new shape.
+- **Harness**: `webmin_binary`/`webmin_container`/`webmin_port`/`webmin_http` checks and `runWebminOnTarget` removed.
+- **CI/docs**: `scripts/ci.sh` drops the 7th binary build, `scripts/docs_check.sh` drops the `feralos_webmin` marker; guides/architecture/harness docs, README and ROADMAP synced.
+
 ## 2026-11-08 — niriWayle package audit: ursine `depends`, nftables-only firewall, KDE codec dropped
 - **aports `ursine` `depends="accountsservice udisks2"`** (`pkgrel` 0→1): source-verified as hard requirements — Ursine's Users module is 100% zbus `org.freedesktop.Accounts` with no `/etc/passwd` fallback, and Disks runs `udisksctl` for mount/unmount with no `mount`/`umount` fallback (its capability probe even gates the plain lsblk listing). Declared as package deps so all four DEs get them, instead of explicit per-DE rules entries.
 - **niriWayle removals**: `cups-pk-helper` (Ursine printers is a root daemon running CUPS CLI — no polkit; sole Alpine reverse-dep `gnome-control-center` absent), `gnome-online-accounts` + `evolution-data-server` (zero consumers, +154 MiB incl. webkit2gtk), `kimageformats` (KDE Frameworks Qt image codecs, no Qt consumer on this DE).

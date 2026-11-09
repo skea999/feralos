@@ -1,4 +1,4 @@
-# btrfs_unencrypted_full_stack.yaml: btrfsUnencrypted server 1disk hard zswap nix podman webmin dinit dbg — full variables.yaml template mirror (machine-consumed)
+# btrfs_unencrypted_full_stack.yaml: btrfsUnencrypted server 1disk hard zswap nix podman dinit dbg — full variables.yaml template mirror (machine-consumed)
 variables:
   unattended: true
   ignoreErrors: true
@@ -29,8 +29,6 @@ variables:
   swapSize: auto
   enableDebug: true
   enablePodman: true
-  enableWebmin: true
-  webminListenAll: false
   enableDinit: true
   extraPackages:
   - incus-feature

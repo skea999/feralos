@@ -246,16 +246,6 @@ func askAll(reader *bufio.Scanner, conf *config.Config, order ruleEnumOrder) err
 		return err
 	}
 	u.EnablePodman = podman
-	webmin, err := askBool(reader, "Enable Webmin (requires Podman)", u.EnableWebmin)
-	if err != nil {
-		return err
-	}
-	u.EnableWebmin = webmin
-	listenAll, err := askBool(reader, "Webmin Listen on All Interfaces", u.WebminListenAll)
-	if err != nil {
-		return err
-	}
-	u.WebminListenAll = listenAll
 	dinit, err := askBool(reader, "Enable Dinit (init system, false = OpenRC)", u.EnableDinit)
 	if err != nil {
 		return err
@@ -479,8 +469,6 @@ func printSummary(conf *config.Config) {
 	fmt.Printf("  swapSize:               %s\n", u.SwapSize)
 	fmt.Printf("  enableDebug:            %v\n", u.EnableDebug)
 	fmt.Printf("  enablePodman:           %v\n", u.EnablePodman)
-	fmt.Printf("  enableWebmin:           %v\n", u.EnableWebmin)
-	fmt.Printf("  webminListenAll:        %v\n", u.WebminListenAll)
 	fmt.Printf("  enableDinit:            %v\n", u.EnableDinit)
 	fmt.Printf("  extraPackages:          %s\n", strings.Join(u.ExtraPackages, " "))
 	fmt.Println("=======================================================")

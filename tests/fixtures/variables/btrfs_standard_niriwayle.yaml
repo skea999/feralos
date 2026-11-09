@@ -29,8 +29,6 @@ variables:
   swapSize: auto
   enableDebug: true
   enablePodman: false
-  enableWebmin: false
-  webminListenAll: false
   enableDinit: false
   extraPackages:
   - okular

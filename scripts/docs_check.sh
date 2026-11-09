@@ -5,7 +5,7 @@
 #   2. docs/ orphan check vs the indexes (FAIL — since P3-5 every docs/ file
 #      is either indexed or deleted; a new unindexed file breaks the gate)
 #   3. AGENTS.md <-> docs drift SPOT check (D-Bus Activation Rule amended R1
-#      + FirstBoot webmin) — fails on stale or missing markers
+#      + FirstBoot architecture) — fails on stale or missing markers
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -102,9 +102,7 @@ fi
 
 SECTION_FB=$(awk '/^## FirstBoot Architecture$/{f=1; next} /^## /{f=0} f' AGENTS.md)
 [ -n "$SECTION_FB" ] || fail "AGENTS.md section 'FirstBoot Architecture' not found"
-grep -q "feralos_webmin" <<<"$SECTION_FB" ||
-  fail "FirstBoot section: 'feralos_webmin' missing from the 3-boot flow"
-echo "✓ AGENTS.md drift spot check passed (D-Bus R1 + FirstBoot webmin)"
+echo "✓ AGENTS.md drift spot check passed (D-Bus R1 + FirstBoot)"
 
 echo "=== Docs check complete ==="
 exit 0

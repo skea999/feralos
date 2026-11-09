@@ -186,7 +186,7 @@ Stack: **k3s** + **LINSTOR/Pirateus** as distributed storage backend for **Incus
 - **Secure Boot**: Working (signed UKI)
 - **TPM**: Working (automatic LUKS unlock via Clevis)
 - **Nix**: Working (package manager for software not in Alpine repos)
-- **Podman + Webmin**: Working (containers + web admin UI)
+- **Podman**: Working (containers)
 
 ### FeralOS Package Repository
 

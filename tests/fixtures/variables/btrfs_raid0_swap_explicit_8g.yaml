@@ -30,8 +30,6 @@ variables:
   swapSize: 8G
   enableDebug: true
   enablePodman: false
-  enableWebmin: false
-  webminListenAll: false
   enableDinit: false
   extraPackages:
   - incus-feature

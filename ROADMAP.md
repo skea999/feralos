@@ -33,7 +33,7 @@ and custom repositories.
 | v0.6 | — | Done | Nix integration |
 | v0.7 | — | Done | Go installer: btrfsRaid0 (2-disk RAID0) |
 | v0.8 | — | Done | Go installer: btrfsStandardUnencrypted (VM layout, no LUKS) |
-| v0.9 | — | Done | swapSize refactor, secureboot/TPM firstboot binaries, podman/webmin |
+| v0.9 | — | Done | swapSize refactor, secureboot/TPM firstboot binaries, podman |
 | v1.0 | — | In progress | Refining: real-hardware rough edges |
 
 ## Phase 2 Milestones
@@ -70,7 +70,7 @@ See `docs/dinit/` (installer-side) and [feralos-aports](https://github.com/skea9
 | TPM auto-unlock | P0 | Done | clevis + firstboot binary |
 | swap (swapfile / LUKS partitions) + zswap | P1 | Done | swapSize auto = 2×RAM |
 | Nix integration | P1 | Done | nix.go, subvolumes, daemon config |
-| Podman + Webmin | P1 | Done | btrfs driver, web admin UI (firstboot binary) |
+| Podman | P1 | Done | btrfs driver, rootless containers |
 | Incus | P1 | Done | incus-feature chain (containers + VMs) |
 | Test suite | P2 | Done | harness (QEMU) up to 113 checks/fixture + debug_run |
 | Real-hardware refining | P2 | In progress | rough edges blocking bare-metal installs |

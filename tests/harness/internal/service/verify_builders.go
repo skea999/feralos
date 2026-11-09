@@ -76,10 +76,10 @@ echo 'less shim OK: pkg+moor installed, regular file, less flags dropped, moor p
 if grep -q 'unexpected argument' /tmp/.fish-h.out; then echo 'FAIL: clap error in fish history output:'; cat /tmp/.fish-h.out; rm -f /tmp/.fish-h.out; exit 1; fi
 rm -f /tmp/.fish-h.out
 echo 'fish history clean (no clap error)'`
-	// Bounded boot-wait before the snapshot: oneshots inside boot (e.g.
-	// webmin-ensure pulling the Webmin image) can keep boot.target
-	// "not-started" for minutes on a cold cache — poll up to 180s, then
-	// snapshot as-is (the eval judges the final state).
+	// Bounded boot-wait before the snapshot: a slow boot oneshot (cold
+	// cache, image or key generation) can keep boot.target "not-started"
+	// for minutes — poll up to 180s, then snapshot as-is (the eval judges
+	// the final state).
 	checks["services_status"] = "if [ -S /run/dinitctl ]; then i=0; while [ $i -lt 90 ]; do dinitctl list 2>/dev/null | grep -qE '^\\[\\[\\+\\] *boot' && break; sleep 2; i=$((i+1)); done; dinitctl list; else rc-status --all 2>/dev/null || rc-status 2>/dev/null; fi"
 	// Security checks — read installer.log from HOST (not target via SSH)
 	// Config file markers — verify installer wrote these files (not just Alpine defaults)
@@ -105,8 +105,8 @@ func buildLogChecks(checks map[string]string) {
 	checks["log_coverage"] = "for f in messages auth.log daemon.log kern.log sudo.log firewalld.log feralos.json.log vector.log dmesg; do if [ -s /var/log/$f ]; then echo \"$f: $(wc -l < /var/log/$f) lines\"; else echo \"$f: MISSING\"; fi; done"
 }
 
-// buildFeatureChecks — nix/podman/webmin/secureboot/flatpak feature
-// checks plus the always-registered nix config markers (feature domain).
+// buildFeatureChecks — nix/podman/secureboot/flatpak feature checks plus
+// the always-registered nix config markers (feature domain).
 func buildFeatureChecks(cfg *VerifyConfig, checks map[string]string) {
 	checks["trusted_users_clean"] = fmt.Sprintf("! grep -q %q /etc/nix/nix.conf", cfg.InstalledUser)
 	checks["nix_packages_missing"] = fmt.Sprintf("su - %s -c 'nix profile list 2>/dev/null' | grep -oE \"quickshell|dms-shell|rclone-ui|rclone|mission-center|cups-browsed\" | sort -u | wc -l", cfg.InstalledUser) // Flatpak checks — generic, only when a fixture explicitly requests
@@ -135,17 +135,6 @@ func buildFeatureChecks(cfg *VerifyConfig, checks map[string]string) {
 		// would override the stable channel for `nixpkgs#...` references.
 		// System registry file (covers root) + user registry both pinned.
 		checks["nix_registry_stable"] = fmt.Sprintf("grep -q 'nixos-26.05' /etc/nix/registry.json && su - %s -c 'nix registry list 2>/dev/null' | grep -q 'nixpkgs/nixos-26.05'", cfg.InstalledUser)
-	}
-
-	// Webmin checks — functional assertions: container running, port mapped,
-	// HTTP answering. Binary runs on first boot (runWebminOnTarget);
-	// webmin-ensure oneshot restarts the container on this verification boot.
-	// No "|| echo" fallbacks — these must FAIL when webmin doesn't work.
-	if cfg.EnableWebmin {
-		checks["webmin_binary"] = "test -x /opt/feralos/bin/feralos-webmin"
-		checks["webmin_container"] = "podman ps --format '{{.Names}}' | grep -q '^webmin$'"
-		checks["webmin_port"] = "podman port webmin 10000 | grep -q 10000"
-		checks["webmin_http"] = "for i in 1 2 3 4 5 6 7 8; do wget -q -T 5 -O /dev/null --no-check-certificate https://localhost:10000/ && exit 0; sleep 5; done; exit 1"
 	}
 
 	if cfg.EnableSecureboot {
