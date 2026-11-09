@@ -271,35 +271,37 @@ func buildDesktopChecks(cfg *VerifyConfig, checks map[string]string) {
 	if isNiriFamily {
 		// dbus_activation_units_live: real activation proof for the third-party
 		// targets covered by the new units (ADR-010): one system daemon
-		// (org.freedesktop.UDisks2 → udisksd) and one session daemon
+		// (org.freedesktop.Avahi → avahi-daemon) and one session daemon
 		// (org.gnome.OnlineAccounts → goa-daemon). Asserts the dinit unit
 		// started via the shim AND the daemon environ has no DBUS_STARTER_*
 		// (a raw helper spawn leaves them; the shim path excludes them).
 		// The system half needs a system dinit (dinit installs only) AND the
-		// udisks2 package (now a ursine depends=, so always present on a full
-		// desktop); the session half runs on both inits via the turnstile user
-		// dinit and skips honestly when gnome-online-accounts is absent
-		// (niriWayle ships no GOA consumer).
+		// avahi package (always in the DE lists — file-roller/nautilus-free
+		// mDNS discovery); the session half runs on both inits via the
+		// turnstile user dinit and skips honestly when gnome-online-accounts
+		// is absent (niriWayle ships no GOA consumer). UDisks2 was the
+		// previous target — it left the system with ursine 0.27 (no more
+		// accountsservice/udisks2 deps).
 		checks["dbus_activation_units_live"] = fmt.Sprintf(`
 if [ "$(cat /proc/1/comm)" != "dinit" ]; then
     echo "system unit activation SKIPPED (no system dinit)"
-elif ! apk info -e udisks2 >/dev/null 2>&1; then
-    echo "system unit activation SKIPPED (udisks2 not installed)"
+elif ! apk info -e avahi >/dev/null 2>&1; then
+    echo "system unit activation SKIPPED (avahi not installed)"
 else
-    pkill -f "^/usr/libexec/udisks2/udisksd$" 2>/dev/null || true
-    dinitctl --system stop org.freedesktop.UDisks2 >/dev/null 2>&1 || true
+    pkill -f "^/usr/sbin/avahi-daemon$" 2>/dev/null || true
+    dinitctl --system stop org.freedesktop.Avahi >/dev/null 2>&1 || true
     sleep 1
-    dbus-send --system --print-reply --dest=org.freedesktop.UDisks2 /org/freedesktop/DBus org.freedesktop.DBus.Peer.Ping >/dev/null 2>&1 || true
+    dbus-send --system --print-reply --dest=org.freedesktop.Avahi /org/freedesktop/DBus org.freedesktop.DBus.Peer.Ping >/dev/null 2>&1 || true
     i=0; ok=0
     while [ $i -lt 30 ]; do
-        if dinitctl --system list 2>/dev/null | grep -Eq "(\{\+|\[\+).*\] org\.freedesktop\.UDisks2( |$)" && pgrep -f "^/usr/libexec/udisks2/udisksd$" >/dev/null 2>&1; then ok=1; break; fi
+        if dinitctl --system list 2>/dev/null | grep -Eq "(\{\+|\[\+).*\] org\.freedesktop\.Avahi( |$)" && pgrep -f "^/usr/sbin/avahi-daemon$" >/dev/null 2>&1; then ok=1; break; fi
         sleep 1; i=$((i+1))
     done
-    if [ "$ok" != 1 ]; then dinitctl --system status org.freedesktop.UDisks2 2>&1 || true; dinitctl --system list 2>/dev/null | grep -i udisks || true; echo "system: UDisks2 unit did not start via dbus activation"; exit 1; fi
-    pid=$(pgrep -f "^/usr/libexec/udisks2/udisksd$" | head -1)
-    if tr "\0" "\n" < /proc/$pid/environ | grep -q "^DBUS_STARTER_"; then echo "system: udisksd spawned raw (DBUS_STARTER_* present)"; exit 1; fi
-    dinitctl --system stop org.freedesktop.UDisks2 >/dev/null 2>&1 || true
-    echo "system unit activation OK (UDisks2 via shim + dinit)"
+    if [ "$ok" != 1 ]; then dinitctl --system status org.freedesktop.Avahi 2>&1 || true; dinitctl --system list 2>/dev/null | grep -i avahi || true; echo "system: Avahi unit did not start via dbus activation"; exit 1; fi
+    pid=$(pgrep -f "^/usr/sbin/avahi-daemon$" | head -1)
+    if tr "\0" "\n" < /proc/$pid/environ | grep -q "^DBUS_STARTER_"; then echo "system: avahi-daemon spawned raw (DBUS_STARTER_* present)"; exit 1; fi
+    dinitctl --system stop org.freedesktop.Avahi >/dev/null 2>&1 || true
+    echo "system unit activation OK (Avahi via shim + dinit)"
 fi
 if apk info -e gnome-online-accounts >/dev/null 2>&1; then
 su - %s -s /bin/sh -c '
@@ -960,35 +962,37 @@ echo "keep the FeralOS activation mechanism (dbus-broker=$broker, $missing/$tota
 	if isNiriFamily {
 		// dbus_activation_units_live: real activation proof for the third-party
 		// targets covered by the new units (ADR-010): one system daemon
-		// (org.freedesktop.UDisks2 → udisksd) and one session daemon
+		// (org.freedesktop.Avahi → avahi-daemon) and one session daemon
 		// (org.gnome.OnlineAccounts → goa-daemon). Asserts the dinit unit
 		// started via the shim AND the daemon environ has no DBUS_STARTER_*
 		// (a raw helper spawn leaves them; the shim path excludes them).
 		// The system half needs a system dinit (dinit installs only) AND the
-		// udisks2 package (now a ursine depends=, so always present on a full
-		// desktop); the session half runs on both inits via the turnstile user
-		// dinit and skips honestly when gnome-online-accounts is absent
-		// (niriWayle ships no GOA consumer).
+		// avahi package (always in the DE lists — file-roller/nautilus-free
+		// mDNS discovery); the session half runs on both inits via the
+		// turnstile user dinit and skips honestly when gnome-online-accounts
+		// is absent (niriWayle ships no GOA consumer). UDisks2 was the
+		// previous target — it left the system with ursine 0.27 (no more
+		// accountsservice/udisks2 deps).
 		checks["dbus_activation_units_live"] = fmt.Sprintf(`
 if [ "$(cat /proc/1/comm)" != "dinit" ]; then
     echo "system unit activation SKIPPED (no system dinit)"
-elif ! apk info -e udisks2 >/dev/null 2>&1; then
-    echo "system unit activation SKIPPED (udisks2 not installed)"
+elif ! apk info -e avahi >/dev/null 2>&1; then
+    echo "system unit activation SKIPPED (avahi not installed)"
 else
-    pkill -f "^/usr/libexec/udisks2/udisksd$" 2>/dev/null || true
-    dinitctl --system stop org.freedesktop.UDisks2 >/dev/null 2>&1 || true
+    pkill -f "^/usr/sbin/avahi-daemon$" 2>/dev/null || true
+    dinitctl --system stop org.freedesktop.Avahi >/dev/null 2>&1 || true
     sleep 1
-    dbus-send --system --print-reply --dest=org.freedesktop.UDisks2 /org/freedesktop/DBus org.freedesktop.DBus.Peer.Ping >/dev/null 2>&1 || true
+    dbus-send --system --print-reply --dest=org.freedesktop.Avahi /org/freedesktop/DBus org.freedesktop.DBus.Peer.Ping >/dev/null 2>&1 || true
     i=0; ok=0
     while [ $i -lt 30 ]; do
-        if dinitctl --system list 2>/dev/null | grep -Eq "(\{\+|\[\+).*\] org\.freedesktop\.UDisks2( |$)" && pgrep -f "^/usr/libexec/udisks2/udisksd$" >/dev/null 2>&1; then ok=1; break; fi
+        if dinitctl --system list 2>/dev/null | grep -Eq "(\{\+|\[\+).*\] org\.freedesktop\.Avahi( |$)" && pgrep -f "^/usr/sbin/avahi-daemon$" >/dev/null 2>&1; then ok=1; break; fi
         sleep 1; i=$((i+1))
     done
-    if [ "$ok" != 1 ]; then dinitctl --system status org.freedesktop.UDisks2 2>&1 || true; dinitctl --system list 2>/dev/null | grep -i udisks || true; echo "system: UDisks2 unit did not start via dbus activation"; exit 1; fi
-    pid=$(pgrep -f "^/usr/libexec/udisks2/udisksd$" | head -1)
-    if tr "\0" "\n" < /proc/$pid/environ | grep -q "^DBUS_STARTER_"; then echo "system: udisksd spawned raw (DBUS_STARTER_* present)"; exit 1; fi
-    dinitctl --system stop org.freedesktop.UDisks2 >/dev/null 2>&1 || true
-    echo "system unit activation OK (UDisks2 via shim + dinit)"
+    if [ "$ok" != 1 ]; then dinitctl --system status org.freedesktop.Avahi 2>&1 || true; dinitctl --system list 2>/dev/null | grep -i avahi || true; echo "system: Avahi unit did not start via dbus activation"; exit 1; fi
+    pid=$(pgrep -f "^/usr/sbin/avahi-daemon$" | head -1)
+    if tr "\0" "\n" < /proc/$pid/environ | grep -q "^DBUS_STARTER_"; then echo "system: avahi-daemon spawned raw (DBUS_STARTER_* present)"; exit 1; fi
+    dinitctl --system stop org.freedesktop.Avahi >/dev/null 2>&1 || true
+    echo "system unit activation OK (Avahi via shim + dinit)"
 fi
 if apk info -e gnome-online-accounts >/dev/null 2>&1; then
 su - %s -s /bin/sh -c '

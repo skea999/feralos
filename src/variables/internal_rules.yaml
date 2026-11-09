@@ -168,6 +168,9 @@ standardPackages:
   - eudev
   - udev-init-scripts
   - openssh
+  # rsync: file-level copy/sync (btrfs snapshots cover images; rsync covers
+  # arbitrary dirs — user request 2026-11-09)
+  - rsync
   - mount
   - sed
   - blkid
@@ -341,7 +344,7 @@ desktopEnvironments:
     services: {"sddm": "default", "dbus": "default", "turnstiled": "default", "ursined": "default"}
     groups: ["video", "input"]
   niri:
-    packages: ["niri", "niri-portalsconf", "greetd", "greetd-regreet", "elogind", "dbus", "ursine", "alacritty", "xdg-desktop-portal-wlr", "xdg-desktop-portal-gtk", "polkit-elogind", "polkit-gnome", "xwayland-satellite", "xwayland", "mesa-dri-gallium", "wayland-libs-server", "dms-shell", "dms-window-buttons", "matugen", "turnstile", "niri-user-dinit", "power-profiles-daemon", "dbus-user-dinit", "pipewire-user-dinit", "pipewire-pulse-user-dinit", "wireplumber-user-dinit", "wayland-wait-user-dinit", "seahorse", "polkit-agent-user-dinit", "wayvnc", "wayvnc-user-dinit", "networkmanager", "networkmanager-cli", "networkmanager-tui", "networkmanager-wifi", "wireless-regdb", "bluez", "wpa_supplicant", "wireguard-tools", "qt6-qtmultimedia", "i2c-tools", "wtype", "simple-scan", "sane", "sane-backends", "sane-utils", "sane-airscan", "gnome-keyring", "cosmic-edit", "eog", "cups", "cups-filters", "avahi", "cosmic-player", "libreoffice", "galculator", "firefox", "firewalld", "gnome-firmware", "khal", "adw-gtk3", "dconf", "font-terminus", "font-inconsolata", "font-dejavu", "font-noto", "font-noto-cjk", "font-awesome", "font-noto-extra", "gnome-maps", "gnome-calendar"]
+    packages: ["niri", "niri-portalsconf", "greetd", "greetd-regreet", "elogind", "ursine", "alacritty", "xdg-desktop-portal-wlr", "xdg-desktop-portal-gtk", "polkit-elogind", "polkit-gnome", "xwayland-satellite", "xwayland", "mesa-dri-gallium", "wayland-libs-server", "dms-shell", "dms-window-buttons", "matugen", "turnstile", "niri-user-dinit", "power-profiles-daemon", "dbus-user-dinit", "pipewire-user-dinit", "pipewire-pulse-user-dinit", "wireplumber-user-dinit", "wayland-wait-user-dinit", "seahorse", "polkit-agent-user-dinit", "wayvnc", "wayvnc-user-dinit", "networkmanager", "networkmanager-cli", "networkmanager-tui", "networkmanager-wifi", "wireless-regdb", "bluez", "wpa_supplicant", "wireguard-tools", "qt6-qtmultimedia", "i2c-tools", "wtype", "simple-scan", "sane", "sane-backends", "sane-utils", "sane-airscan", "gnome-keyring", "cosmic-edit", "eog", "cups", "cups-filters", "avahi", "cosmic-player", "libreoffice", "galculator", "firefox", "gnome-firmware", "khal", "adw-gtk3", "dconf", "font-inconsolata", "font-dejavu", "font-noto", "font-noto-cjk", "font-awesome", "font-noto-extra", "gnome-maps", "gnome-calendar"]
     # Admin GUIs (cron/logs/disks/firewall) are NOT installed: ursine is the
     # control center for those (kcron, ksystemlog, gnome-disk-utility,
     # firewalld-gui removed). Flatseal STAYS — Ursine's Flatpak permissions
@@ -428,7 +431,7 @@ desktopEnvironments:
     # RustDesk removed (round 43 cleanup + user decision): wayvnc is the
     # remote-desktop path (user dinit service, loopback by default).
   niriWayle:
-    packages: ["niri", "greetd", "greetd-regreet", "elogind", "dbus", "ursine", "alacritty", "polkit-elogind", "xwayland-satellite", "xwayland", "mesa-dri-gallium", "xdg-desktop-portal-wlr", "turnstile", "wl-clipboard-rs", "wayle", "wayle-session", "veila", "stasis", "raffi", "raffi-toggle", "oo7", "matugen", "power-profiles-daemon", "dbus-user-dinit", "pipewire-user-dinit", "pipewire-pulse-user-dinit", "wireplumber-user-dinit", "wayland-wait-user-dinit", "polkit-agent-user-dinit", "wayvnc", "wayvnc-user-dinit", "networkmanager", "networkmanager-cli", "networkmanager-tui", "networkmanager-wifi", "wireless-regdb", "bluez", "wpa_supplicant", "wireguard-tools", "firewalld", "xdg-user-dirs", "wtype", "i2c-tools", "adwaita-icon-theme", "adw-gtk3", "font-terminus", "font-inconsolata", "font-dejavu", "font-noto-cjk", "font-awesome", "font-noto-extra", "cosmic-edit", "cosmic-player", "cosmic-files", "eog", "libreoffice", "galculator", "firefox", "khal", "simple-scan", "cups", "cups-filters", "avahi", "sane", "sane-backends", "sane-utils", "sane-airscan"]
+    packages: ["niri", "greetd", "greetd-regreet", "elogind", "ursine", "alacritty", "polkit-elogind", "xwayland-satellite", "xwayland", "mesa-dri-gallium", "xdg-desktop-portal-wlr", "turnstile", "wl-clipboard-rs", "wayle", "wayle-session", "veila", "stasis", "raffi", "raffi-toggle", "oo7", "matugen", "power-profiles-daemon", "dbus-user-dinit", "pipewire-user-dinit", "pipewire-pulse-user-dinit", "wireplumber-user-dinit", "wayland-wait-user-dinit", "polkit-agent-user-dinit", "wayvnc", "wayvnc-user-dinit", "networkmanager", "networkmanager-cli", "networkmanager-tui", "networkmanager-wifi", "wireless-regdb", "bluez", "wpa_supplicant", "wireguard-tools", "wtype", "i2c-tools", "dconf", "adwaita-icon-theme", "adw-gtk3", "font-inconsolata", "font-dejavu", "font-noto-cjk", "font-noto-emoji", "font-awesome", "font-noto-extra", "cosmic-edit", "cosmic-player", "cosmic-files", "eog", "evince", "file-roller", "libreoffice", "galculator", "firefox", "thunderbird", "gnome-firmware", "gnome-maps", "simple-scan", "obs-studio", "gst-libav", "cups", "cups-filters", "avahi", "sane", "sane-backends", "sane-utils", "sane-airscan"]
     # Key Rack (app.drey.KeyRack) = the niriWayle secrets GUI — Flathub
     # flatpak, NOT an apk: oo7-server and seahorse both ship
     # /usr/share/dbus-1/services/org.freedesktop.secrets.service, so the

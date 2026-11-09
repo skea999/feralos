@@ -2,6 +2,13 @@
 
 All notable changes to FeralOS will be documented in this file.
 
+## 2026-11-10 — niriWayle daily-driver completion + ursine 0.27 (no D-Bus) + gnome-portal shadow dummy
+- **aports**: NEW `hyprsunset` 0.4.0-r0 (ported from Alpine edge testing, upstream-tag pinned; dropped `-doc`/`-openrc` — Wayle's night-light module execs it directly) + `wayle` r1 `depends += hyprsunset`; NEW `xdg-desktop-portal-gnome` **999.0.0-r0 empty shadow-dummy** — Alpine's `niri-portalsconf` depends on the real package (nautilus + mutter backend); 999 beats every Alpine version so the chain dies at the empty shadow. Coverage stays gtk+wlr (interfaces verified from the `.portal` files; only RemoteDesktop/GlobalShortcuts lost). NEW `file-roller-user-dinit` (two activation names, one unit) + `evince-user-dinit`; RETIRED `xdg-desktop-portal-gnome-user-dinit`. `ursine` → **0.27.0-r0**, `depends="parted shadow util-linux"` — the no-D-Bus release (users via useradd/chpasswd, disks via mount/blkid, zbus dropped).
+- **niriWayle**: += `dconf`, `evince`, `file-roller`, `gnome-firmware`, `gnome-maps`, `thunderbird`, `obs-studio`, `gst-libav` (H.265 — the only missing gstreamer decoder), `font-noto-emoji`; -= `khal` and the duplicate `dbus`/`firewalld`/`xdg-user-dirs`/`font-terminus`. niri: duplicate trio removed. `accountsservice` + `udisks2` leave the install with ursine 0.27.
+- **Installer portals**: the user `niri-portals.conf` now carries the full override (`default=gtk;`, ScreenCast/Screenshot=`wlr`, Secret=`oo7-portal` / `gnome-keyring` on niri).
+- **Harness**: `dbus_activation_units_live` system target UDisks2 → `org.freedesktop.Avahi` (udisks2 no longer exists).
+- Not added by decision: gnome-calendar (Wayle has one), VLC, ibus, orca, gnome-characters, gnome-system-monitor (open item), task manager.
+
 ## 2026-11-08 — Webmin removed entirely
 - **Feature deleted**: `src/firstBoot/webmin/` (standalone binary + test), `src/utils/firstboot/webmin.go`, `docs/guides/webmin.md`. Podman is unaffected and stays.
 - **Why**: Webmin runs in a Podman container where the host is bind-mounted only under `/host/*` (no `/dev`, `/var/log` = tmpfs) while its generated module configs point at container paths (`apk`, `/usr/sbin/firewall-cmd`, `/etc/crontabs`, `/var/log/…`) → the daemon answers HTTPS but the admin modules act on the container, not the host.

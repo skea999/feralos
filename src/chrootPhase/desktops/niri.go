@@ -194,11 +194,21 @@ XDG_DATA_DIRS=/home/%s/.local/share/flatpak/exports/share:/var/lib/flatpak/expor
 		return fmt.Errorf("write /etc/environment: %w", err)
 	}
 
-	// 6. xdg-desktop-portal portal backend for the user — niri-portalsconf
-	// ships system default=gnome;gtk but ScreenCast needs the explicit wlr
-	// backend (gap 5.12; round 43 used a patched portal on the reference VM).
+	// 6. xdg-desktop-portal portal backend for the user — the user conf
+	// OVERRIDES Alpine's system niri-portals.conf entirely (that one lists
+	// default=gnome;gtk and its niri-portalsconf dependency pulls the gnome
+	// portal backend — which we shadow with an empty 999 dummy so the real
+	// package, and nautilus with it, never installs). default=gtk keeps the
+	// gtk backend as the generic provider; wlr owns the compositor-native
+	// Screenshot/ScreenCast. Secret stays pinned to gnome-keyring (niri
+	// ships gnome-keyring; its portal file serves the Secret interface —
+	// the explicit pin keeps resolution deterministic now that the gnome
+	// backend is absent).
 	userPortals := `[preferred]
+default=gtk;
 org.freedesktop.impl.portal.ScreenCast=wlr;
+org.freedesktop.impl.portal.Screenshot=wlr;
+org.freedesktop.impl.portal.Secret=gnome-keyring;
 `
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p /home/%s/.config/xdg-desktop-portal", u.UserName)); err != nil {
 		return fmt.Errorf("mkdir user portals dir: %w", err)
