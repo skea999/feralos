@@ -288,17 +288,17 @@ if [ "$(cat /proc/1/comm)" != "dinit" ]; then
 elif ! apk info -e avahi >/dev/null 2>&1; then
     echo "system unit activation SKIPPED (avahi not installed)"
 else
-    pkill -f "^/usr/sbin/avahi-daemon$" 2>/dev/null || true
+    pkill avahi-daemon 2>/dev/null || true
     dinitctl --system stop org.freedesktop.Avahi >/dev/null 2>&1 || true
     sleep 1
     dbus-send --system --print-reply --dest=org.freedesktop.Avahi /org/freedesktop/DBus org.freedesktop.DBus.Peer.Ping >/dev/null 2>&1 || true
     i=0; ok=0
     while [ $i -lt 30 ]; do
-        if dinitctl --system list 2>/dev/null | grep -Eq "(\{\+|\[\+).*\] org\.freedesktop\.Avahi( |$)" && pgrep -f "^/usr/sbin/avahi-daemon$" >/dev/null 2>&1; then ok=1; break; fi
+        if dinitctl --system list 2>/dev/null | grep -Eq "(\{\+|\[\+).*\] org\.freedesktop\.Avahi( |$)" && pgrep avahi-daemon >/dev/null 2>&1; then ok=1; break; fi
         sleep 1; i=$((i+1))
     done
     if [ "$ok" != 1 ]; then dinitctl --system status org.freedesktop.Avahi 2>&1 || true; dinitctl --system list 2>/dev/null | grep -i avahi || true; echo "system: Avahi unit did not start via dbus activation"; exit 1; fi
-    pid=$(pgrep -f "^/usr/sbin/avahi-daemon$" | head -1)
+    pid=$(pgrep avahi-daemon | head -1)
     if tr "\0" "\n" < /proc/$pid/environ | grep -q "^DBUS_STARTER_"; then echo "system: avahi-daemon spawned raw (DBUS_STARTER_* present)"; exit 1; fi
     dinitctl --system stop org.freedesktop.Avahi >/dev/null 2>&1 || true
     echo "system unit activation OK (Avahi via shim + dinit)"
@@ -979,17 +979,17 @@ if [ "$(cat /proc/1/comm)" != "dinit" ]; then
 elif ! apk info -e avahi >/dev/null 2>&1; then
     echo "system unit activation SKIPPED (avahi not installed)"
 else
-    pkill -f "^/usr/sbin/avahi-daemon$" 2>/dev/null || true
+    pkill avahi-daemon 2>/dev/null || true
     dinitctl --system stop org.freedesktop.Avahi >/dev/null 2>&1 || true
     sleep 1
     dbus-send --system --print-reply --dest=org.freedesktop.Avahi /org/freedesktop/DBus org.freedesktop.DBus.Peer.Ping >/dev/null 2>&1 || true
     i=0; ok=0
     while [ $i -lt 30 ]; do
-        if dinitctl --system list 2>/dev/null | grep -Eq "(\{\+|\[\+).*\] org\.freedesktop\.Avahi( |$)" && pgrep -f "^/usr/sbin/avahi-daemon$" >/dev/null 2>&1; then ok=1; break; fi
+        if dinitctl --system list 2>/dev/null | grep -Eq "(\{\+|\[\+).*\] org\.freedesktop\.Avahi( |$)" && pgrep avahi-daemon >/dev/null 2>&1; then ok=1; break; fi
         sleep 1; i=$((i+1))
     done
     if [ "$ok" != 1 ]; then dinitctl --system status org.freedesktop.Avahi 2>&1 || true; dinitctl --system list 2>/dev/null | grep -i avahi || true; echo "system: Avahi unit did not start via dbus activation"; exit 1; fi
-    pid=$(pgrep -f "^/usr/sbin/avahi-daemon$" | head -1)
+    pid=$(pgrep avahi-daemon | head -1)
     if tr "\0" "\n" < /proc/$pid/environ | grep -q "^DBUS_STARTER_"; then echo "system: avahi-daemon spawned raw (DBUS_STARTER_* present)"; exit 1; fi
     dinitctl --system stop org.freedesktop.Avahi >/dev/null 2>&1 || true
     echo "system unit activation OK (Avahi via shim + dinit)"

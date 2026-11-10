@@ -57,9 +57,15 @@ func concatUnits(groups ...[]string) []string {
 
 // Shared unit segments (order significant — the goldens pin the joined
 // strings): boot.d/user-stack infrastructure shared by both niri-family
-// DEs, the GTK/portal tail and the KDE-services tail of dinitUserSvcFiles,
-// and the runtime-stack infrastructure (no wait-wayland gate, compositor
-// first).
+// DEs, the GTK/portal tail shared by both, the KDE-services tail that only
+// exists on niri (the okular fixture extra pulls kio/kded/kwallet/signond
+// there — niriWayle has no KDE consumer), and the runtime-stack
+// infrastructure (no wait-wayland gate, compositor first).
+// 2026-11-10: the nautilus/localsearch/tracker/gnome-portal units are gone
+// on BOTH DEs (the xdg-desktop-portal-gnome 999 shadow dummy kills the
+// niri-portalsconf → portal-gnome → nautilus chain), so they left the
+// goldens; the dynamic checks (dbus_activation_uniform/migration) still
+// cover anything optional that happens to install.
 var (
 	sessionStackInfra = []string{
 		"dbus.user", "pipewire.user", "pipewire-pulse.user", "wireplumber.user",
@@ -69,19 +75,17 @@ var (
 	}
 	sessionStackGTKTail = []string{
 		"ca.desrt.dconf.user", "org.a11y.Bus.user",
-		"org.kde.kwalletd6.user", "org.kde.kded6.user",
-		"com.google.code.AccountsSSO.SingleSignOn.user",
-		"org.freedesktop.LocalSearch3.user", "org.freedesktop.LocalSearch3.Control.user",
-		"org.freedesktop.LocalSearch3.Writeback.user",
 		"org.freedesktop.Flatpak.user", "org.freedesktop.portal.Flatpak.user",
 		"org.flatpak.Authenticator.Oci.user",
 		"org.freedesktop.impl.portal.desktop.gtk.user", "org.freedesktop.impl.portal.desktop.wlr.user",
 	}
 	sessionStackKDETail = []string{
+		"org.kde.kwalletd6.user", "org.kde.kded6.user",
+		"com.google.code.AccountsSSO.SingleSignOn.user",
 		"org.kde.kiod6.user", "org.kde.kioexecd6.user", "org.kde.kpasswdserver6.user",
-		"org.kde.kssld6.user", "org.gnome.Nautilus.user", "org.gtk.GLib.PACRunner.user",
+		"org.kde.kssld6.user", "org.gtk.GLib.PACRunner.user",
 		"com.canonical.indicators.webcredentials.user", "com.nokia.singlesignonui.user",
-		"org.freedesktop.portal.Tracker.user", "org.kde.secretservicecompat.user",
+		"org.kde.secretservicecompat.user",
 		"org.freedesktop.impl.portal.desktop.kwallet.user",
 	}
 	sessionStackRuntimeInfra = []string{
@@ -90,11 +94,12 @@ var (
 		"org.freedesktop.impl.portal.PermissionStore.user",
 	}
 	// wayle additions over the niri base: oo7 secrets (org.freedesktop
-	// .secrets + the oo7 desktop portal), the Wayle session apps and the
-	// gnome desktop portal.
+	// .secrets + the oo7 desktop portal), the Wayle session apps, and the
+	// audit-installed supervision units for the daily-driver apps
+	// (gnome-maps/gnome-firmware/evince/file-roller — 2026-11-10).
 	wayleSecretsUnits    = []string{"org.freedesktop.secrets.user", "org.freedesktop.impl.portal.desktop.oo7.user"}
 	wayleSessionAppUnits = []string{"wayle.user", "veila.user", "stasis.user"}
-	wayleGnomePortalUnit = []string{"org.freedesktop.impl.portal.desktop.gnome.user"}
+	wayleAppUnits        = []string{"org.gnome.Maps.user", "org.gnome.Firmware.user", "org.gnome.evince.Daemon.user", "file-roller.user"}
 	niriSessionAppUnits  = []string{"polkit-agent.user", "dms.user"}
 	wayvncUnit           = []string{"wayvnc.user"}
 )
@@ -110,7 +115,7 @@ var deSessionStacks = map[string]deSessionStack{
 	desktopNiriWayle: {
 		dinitUserSvcFiles: joinUnits(concatUnits(
 			sessionStackInfra, wayleSecretsUnits, []string{"polkit-agent.user"}, wayleSessionAppUnits,
-			sessionStackGTKTail, wayleGnomePortalUnit, sessionStackKDETail)...),
+			sessionStackGTKTail, wayleAppUnits)...),
 		sessionAppsAbsent:    joinUnits(concatUnits(wayleSessionAppUnits, []string{"polkit-agent.user"})...),
 		userDinitRuntimeSvcs: joinUnits(concatUnits(sessionStackRuntimeInfra, wayleSecretsUnits, []string{"polkit-agent.user"}, wayleSessionAppUnits, wayvncUnit)...),
 		userSvcBootLinks:     joinUnits(concatUnits(sessionStackInfra, wayleSecretsUnits)...),
