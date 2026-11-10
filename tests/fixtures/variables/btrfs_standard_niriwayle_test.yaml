@@ -31,7 +31,7 @@ variables:
   enablePodman: true
   enableDinit: true
   extraPackages:
-  - okular
+  - satty
   extraPackagesEdge:
   - mesa@edge
   - mesa-gl@edge
