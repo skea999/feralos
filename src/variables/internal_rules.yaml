@@ -101,10 +101,6 @@ dinitSkipSessionManaged:
   - vpnc
   - turnstile
   - oo7-portal
-  # hyprsunset: on-demand binary (the Wayle night-light module execs it);
-  # its -openrc subpackage is a user-session supervisor with no daemon to
-  # convert — no -dinit counterpart exists or is needed.
-  - hyprsunset
   # xdg-desktop-portal family: SESSION-scoped daemons (frontend/wlr backend/
   # document portal) — supervision is the *-user-dinit packages
   # (xdg-desktop-portal-user-dinit + xdg-desktop-portal-wlr-user-dinit),
