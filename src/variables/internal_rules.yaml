@@ -92,13 +92,9 @@ dinitSkipSessionManaged:
   - pipewire
   - pipewire-pulse
   - wireplumber
-  - alsa-utils
-  - pulseaudio
   - gnome-keyring
   - wpa_supplicant
   - wireguard-tools
-  - openconnect
-  - vpnc
   - turnstile
   - oo7-portal
   # xdg-desktop-portal family: SESSION-scoped daemons (frontend/wlr backend/
