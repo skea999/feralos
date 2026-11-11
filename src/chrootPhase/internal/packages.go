@@ -206,9 +206,10 @@ func SetupPackages(conf *config.Config) error {
 	}
 
 	// extraPackagesEdge (owned by features/edgerepos.go) is NOT called here:
-	// it moved to chroot_phase.Run (step 8b) AFTER SetupDbusAudit — the
-	// audit's apk fallback must resolve while the repos are stable-only
-	// (SetupEdgeRepos comments the @edge repos out when done).
+	// it lives at the chroot TAIL (chroot_phase.Run step 17) — immediately
+	// after SetupDbusAudit (step 16) — so the audit's apk fallback resolves
+	// while the repos are stable-only (SetupEdgeRepos comments the @edge
+	// repos out when done).
 
 	return nil
 }

@@ -136,7 +136,8 @@ environment.
 4. **NEVER** add the supervision package to `internal_rules.yaml` — R1b names
    it after the daemon's apk package (`<owner-of-Exec>-user-dinit` /
    `<owner-of-Exec>-dinit`) and `feralos-dbus-audit` installs it at install
-   time (chroot step 8a). In aports, name the package after the daemon's apk
+   time (chroot step 16, the chroot tail). In aports, name the package after
+   the daemon's apk
    package (NOT the bus name — a bus name is an API identity: two daemons can
    claim one name, e.g. `org.freedesktop.secrets` = gnome-keyring/oo7) and
    group a daemon's activation files into ONE owner-named package (e.g. the
@@ -220,9 +221,11 @@ enforces the allowlist).
   reported. Exit code is NOT affected by this section.
 - also reports the user's materialized session overrides
   (`$XDG_RUNTIME_DIR/dbus-1/services`) for visibility.
-- runs in three modes: install-time (chroot_phase step 8a — AFTER all
-  installations incl. nix/flatpak, BEFORE the `@edge` install at step 8b,
-  because that step comments the `@edge` repos out and would hard-fail the
+- runs in three modes: install-time (chroot_phase step 16, the chroot TAIL —
+  after ALL other steps incl. nix/flatpak AND the desktop boot.d linking (so
+  the "core session infra" section reports the final boot state, no
+  pre-linking false WARNs), immediately BEFORE the `@edge` install at step
+  17, because that step comments the `@edge` repos out and would hard-fail the
   audit's `apk add` fallback against a `mesa@edge` world — the fallback
   can fix gaps on the spot against stable-only repos), boot-time (dinit oneshot + OpenRC initd, both `local.target`-
   ordered because the report lands in the `@var-log` subvol;

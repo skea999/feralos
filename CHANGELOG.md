@@ -2,6 +2,12 @@
 
 All notable changes to FeralOS will be documented in this file.
 
+## 2026-11-11 — installer reorder: dbus-audit + edge install moved to the chroot tail
+- `chroot_phase.Run`: the D-Bus supervision audit (was step 8a) and `extraPackagesEdge` (was 8b) moved to the TAIL — **step 16 (audit) immediately followed by step 17 (edge)**, after every other step including the desktop setup. The audit now sees the FINAL boot state: activation files on disk AND the user boot.d links already in place, so its "core session infra" section reports real OKs instead of pre-linking false WARNs ("unit installed but NOT linked in boot.d").
+- Order rationale preserved: audit immediately before edge, so its `apk add` fallback resolves while the repos are still stable-only (`SetupEdgeRepos` comments the `@edge` repos out when done). Edge stays a hard-failure step; audit stays `--no-fail`.
+- Known trade-off (accepted): an `@edge` package shipping D-Bus activation files would only be caught by the boot-time oneshot, not the install-time scan — the edge lists are GPU/mesa only today.
+- Audit binary untouched; comments + docs renumbered (step 8a/8b → 16/17).
+
 ## 2026-11-10 — niriWayle daily-driver completion + ursine 0.27 (no D-Bus) + gnome-portal shadow dummy
 - **aports**: NEW `hyprsunset` 0.4.0-r0 (ported from Alpine edge testing, upstream-tag pinned; dropped `-doc`/`-openrc` — Wayle's night-light module execs it directly) + `wayle` r1 `depends += hyprsunset`; NEW `xdg-desktop-portal-gnome` **999.0.0-r0 empty shadow-dummy** — Alpine's `niri-portalsconf` depends on the real package (nautilus + mutter backend); 999 beats every Alpine version so the chain dies at the empty shadow. Coverage stays gtk+wlr (interfaces verified from the `.portal` files; only RemoteDesktop/GlobalShortcuts lost). NEW `file-roller-user-dinit` (two activation names, one unit) + `evince-user-dinit`; RETIRED `xdg-desktop-portal-gnome-user-dinit`. `ursine` → **0.27.0-r0**, `depends="parted shadow util-linux"` — the no-D-Bus release (users via useradd/chpasswd, disks via mount/blkid, zbus dropped).
 - **niriWayle**: += `dconf`, `evince`, `file-roller`, `gnome-firmware`, `gnome-maps`, `thunderbird`, `obs-studio`, `gst-libav` (H.265 — the only missing gstreamer decoder), `font-noto-emoji`; -= `khal` and the duplicate `dbus`/`firewalld`/`xdg-user-dirs`/`font-terminus`. niri: duplicate trio removed. `accountsservice` + `udisks2` leave the install with ursine 0.27.

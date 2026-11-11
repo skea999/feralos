@@ -311,12 +311,15 @@ exit "$errors"
 // ships /usr/libexec/dinit/feralos-dbus-audit; the aports package is the
 // single source of truth, so bump its _commit pin whenever
 // src/firstBoot/dbus-audit changes (the installer does NOT compile the
-// binary). Called as chroot_phase step 8a — AFTER all package installations
-// (nix/flatpak included), so every activation file is on disk and the
-// auto-installer can pull supervision packages right here. --no-fail: the
-// audit NEVER blocks the install (report + MISS lines only); the
-// post-install/boot signal stays strict (exit 1, the oneshot marks itself
-// FAILED so the user notices aports gaps).
+// binary). Called as chroot_phase step 16 — the chroot TAIL, after every
+// other step (package installs nix/flatpak included AND the desktop setup,
+// so every activation file is on disk and the user boot.d links already
+// exist: the audit reports the final boot state, no pre-linking false
+// WARNs). Immediately followed by SetupEdgeRepos (step 17), so the
+// auto-installer's apk add still resolves while the repos are stable-only.
+// --no-fail: the audit NEVER blocks the install (report + MISS lines only);
+// the post-install/boot signal stays strict (exit 1, the oneshot marks
+// itself FAILED so the user notices aports gaps).
 func SetupDbusAudit(conf *config.Config) error {
 	shell.SetCaller("dbus_audit")
 	// Reset on EVERY exit path: chroot_phase.go sets no caller of its own,
