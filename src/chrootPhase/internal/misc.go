@@ -306,17 +306,22 @@ exit "$errors"
 	return nil
 }
 
-// SetupDbusAudit runs the install-time ADR-010 supervision audit INSIDE the
-// chroot using the PACKAGED binary — feralos-dbus-audit (standardPackages)
-// ships /usr/libexec/dinit/feralos-dbus-audit; the aports package is the
-// single source of truth, so bump its _commit pin whenever
-// src/firstBoot/dbus-audit changes (the installer does NOT compile the
-// binary). Called as chroot_phase step 16 — the chroot TAIL, after every
-// other step (package installs nix/flatpak included AND the desktop setup,
-// so every activation file is on disk and the user boot.d links already
-// exist: the audit reports the final boot state, no pre-linking false
-// WARNs). Immediately followed by SetupEdgeRepos (step 17), so the
-// auto-installer's apk add still resolves while the repos are stable-only.
+// SetupDbusAudit runs an ADR-010 supervision audit pass INSIDE the chroot
+// using the PACKAGED binary — feralos-dbus-audit (standardPackages) ships
+// /usr/libexec/dinit/feralos-dbus-audit; the aports package is the single
+// source of truth, so bump its _commit pin whenever src/firstBoot/dbus-audit
+// changes (the installer does NOT compile the binary).
+//
+// INVOKED TWICE (2026-11-11):
+//   - step 8a, INSTALL pass — before the desktop setup, because the
+//     desktop's user boot.d linking loop links units shipped by
+//     audit-installed packages; the apk fallback must have put them on disk
+//     by then. Its boot.d WARN lines are the honest not-yet-linked state.
+//   - step 16, REPORT pass — the chroot tail, after every other step: the
+//     boot.d section then reports the FINAL state (any WARN = regression),
+//     immediately before SetupEdgeRepos comments the @edge repos out (the
+//     apk fallback must resolve while the repos are stable-only).
+//
 // --no-fail: the audit NEVER blocks the install (report + MISS lines only);
 // the post-install/boot signal stays strict (exit 1, the oneshot marks
 // itself FAILED so the user notices aports gaps).

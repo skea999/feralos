@@ -221,13 +221,16 @@ enforces the allowlist).
   reported. Exit code is NOT affected by this section.
 - also reports the user's materialized session overrides
   (`$XDG_RUNTIME_DIR/dbus-1/services`) for visibility.
-- runs in three modes: install-time (chroot_phase step 16, the chroot TAIL —
-  after ALL other steps incl. nix/flatpak AND the desktop boot.d linking (so
-  the "core session infra" section reports the final boot state, no
-  pre-linking false WARNs), immediately BEFORE the `@edge` install at step
-  17, because that step comments the `@edge` repos out and would hard-fail the
-  audit's `apk add` fallback against a `mesa@edge` world — the fallback
-  can fix gaps on the spot against stable-only repos), boot-time (dinit oneshot + OpenRC initd, both `local.target`-
+- runs in three modes: install-time (chroot_phase runs it TWICE: **step 8a
+  = INSTALL pass** before the desktop setup — the apk fallback puts the
+  supervision packages on disk so the desktop's user boot.d linking loop
+  finds them; its boot.d WARN lines are the honest not-yet-linked state —
+  and **step 16 = REPORT pass**, the chroot TAIL immediately BEFORE the
+  `@edge` install at step 17, after every other step incl. the desktop
+  boot.d linking: the "core session infra" section reports the FINAL state
+  (any WARN = genuine regression), and the edge step comments the `@edge`
+  repos out so the fallback can only fix gaps against stable-only repos),
+  boot-time (dinit oneshot + OpenRC initd, both `local.target`-
   ordered because the report lands in the `@var-log` subvol;
   `--log-file /var/log/feralos-dbus-audit.log`), CLI manual.
 - flags: `--log-file <path>` (boot mode), `--user <name>` (report

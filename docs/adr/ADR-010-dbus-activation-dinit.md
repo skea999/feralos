@@ -80,9 +80,11 @@ package is derivable mechanically from data already on disk:
 `apk info --who-owns <Exec path>`.
 
 **Auto-install contract (2026-11-03).** The supervision packages are **never
-listed in `internal_rules.yaml`**. `feralos-dbus-audit` (install-time, chroot
-step 16, the chroot TAIL — after ALL package installs AND the desktop boot.d
-linking) discovers every activation target from
+listed in `internal_rules.yaml`**. `feralos-dbus-audit` (install-time, TWO
+passes: step 8a INSTALL pass before the desktop setup — the apk fallback
+puts the supervision packages on disk so the desktop's boot.d linking loop
+finds them — and step 16 REPORT pass at the chroot tail, reporting the final
+state) discovers every activation target from
 the standard servicedirs (session `/usr/share/dbus-1/services` + system
 `/usr/share/dbus-1/system-services` — same enumeration as the harness
 `dbus_activation_migration` check), resolves the supervision package per

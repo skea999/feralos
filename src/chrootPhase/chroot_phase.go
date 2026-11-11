@@ -81,6 +81,19 @@ func Run(conf *config.Config) error {
 		return fmt.Errorf("flatpak setup failed: %w", err)
 	}
 
+	// 8a. D-Bus supervision audit — INSTALL pass. Runs BEFORE the desktop
+	// setup because the desktop's user boot.d linking loop links units
+	// shipped by audit-installed packages (R1b: zero supervision packages
+	// in the rules — oo7-server-user-dinit, xdg-desktop-portal-user-dinit,
+	// ... arrive here via the audit's apk fallback). Its "core session
+	// infra" WARN lines reflect the not-yet-linked state — expected at
+	// this point; the FINAL state is reported by the second audit
+	// invocation at step 16 (chroot tail, immediately before the edge
+	// install). Same binary, untouched; --no-fail on every invocation.
+	if err := internal.SetupDbusAudit(conf); err != nil {
+		fmt.Printf("[WARNING] D-Bus audit: %v\n", err)
+	}
+
 	// 9. Setup desktop environment (configurations — kde/gnome need none)
 	if err := desktops.Setup(conf); err != nil {
 		return fmt.Errorf("desktop setup failed: %w", err)
@@ -120,15 +133,15 @@ func Run(conf *config.Config) error {
 		return fmt.Errorf("UKI build failed: %w", err)
 	}
 
-	// 16. D-Bus supervision audit (ADR-010 enforcement, non-fatal) — runs
-	// after EVERYTHING else in the chroot (package installs, flatpak/nix,
-	// desktop setup) so every activation file is on disk AND the user
-	// boot.d links already exist: the audit's "core session infra" section
-	// then reports the FINAL boot state instead of pre-linking false WARNs.
+	// 16. D-Bus supervision audit — REPORT pass (final boot state). Second
+	// invocation of the same untouched binary: after EVERYTHING else in the
+	// chroot (package installs, flatpak/nix, desktop setup AND the boot.d
+	// linking fed by the step-8a install pass), so the "core session infra"
+	// section reports real OKs — any WARN here is a genuine regression.
 	// MUST run immediately BEFORE SetupEdgeRepos: that step comments the
 	// @edge repos out, and a world holding mesa@edge with disabled repos
-	// hard-fails every subsequent apk add (the audit's fallback included).
-	// Exit 1 (aports gap) is a WARNING, never an install failure.
+	// hard-fails every subsequent apk add. Exit 1 (aports gap) is a
+	// WARNING, never an install failure.
 	if err := internal.SetupDbusAudit(conf); err != nil {
 		fmt.Printf("[WARNING] D-Bus audit: %v\n", err)
 	}
