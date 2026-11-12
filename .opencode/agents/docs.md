@@ -18,8 +18,32 @@ permissions:
 - action: read
   resource: '*'
   effect: allow
-- action: edit
-  resource: '*'
+- action: read
+  resource: '*.env'
+  effect: deny
+- action: read
+  resource: '*.env.*'
+  effect: deny
+- action: read
+  resource: '*.envrc'
+  effect: deny
+- action: read
+  resource: '*.envrc.*'
+  effect: deny
+- action: read
+  resource: '*.env.example'
+  effect: allow
+- action: read
+  resource: '*.env.sample'
+  effect: allow
+- action: read
+  resource: '*.env.template'
+  effect: allow
+- action: read
+  resource: '*.env.dist'
+  effect: allow
+- action: read
+  resource: '*.env.defaults'
   effect: allow
 - action: webfetch
   resource: '*'
@@ -27,17 +51,11 @@ permissions:
 - action: shell
   resource: '*'
   effect: deny
+- action: question
+  resource: '*'
+  effect: allow
 - action: skill
   resource: '*'
-  effect: deny
-- action: skill
-  resource: docs-validation
-  effect: allow
-- action: skill
-  resource: project-bootstrap
-  effect: allow
-- action: skill
-  resource: agent-diagnostics
   effect: allow
 - action: subagent
   resource: '*'
@@ -145,7 +163,7 @@ docs/
 - Load skills on demand only for active task/phase requirements.
 - Use one relevant skill by default; add a second only for explicit cross-domain needs.
 - If scope is ambiguous, ask a clarifying question before loading.
-- Use `docs-validation` for docs quality checks.
+- Run `npm run validate:docs` for docs lint and link checks (a command, not a skill).
 
 ## Quality Checks
 - Spell check all content

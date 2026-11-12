@@ -1,7 +1,6 @@
 ---
 description: Plan and coordinate a complex multi-phase project with agent handoffs
 agent: orchestrator
-argument-hint: '[feature, objective, or epic]'
 subagent: true
 ---
 
@@ -15,6 +14,7 @@ Create a comprehensive plan for the described project, then coordinate execution
 2. **Analyze**: Review current codebase state and affected components
 3. **Research**: Gather best practices and identify challenges
 4. **Plan**: Create detailed phased plan with agent assignments
+5. **Review**: Dispatch `@planner` (read-only) on the plan; record the verdict or skip reason
 
 ## Plan Template
 
@@ -24,6 +24,7 @@ For each phase, specify:
 - **Dependencies**: What must complete first
 - **Deliverables**: Expected outputs
 - **Validation**: How to verify success
+- **Plan review**: verdict or skip reason, recorded in Inputs
 
 ## Execution
 

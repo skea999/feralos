@@ -1,6 +1,6 @@
 ---
 description: Engineering Manager advisor for leadership decisions, team dynamics, and technical strategy
-mode: subagent
+mode: primary
 steps: 30
 permissions:
 - action: '*'
@@ -12,6 +12,99 @@ permissions:
 - action: shell
   resource: '*'
   effect: ask
+- action: shell
+  resource: git status *
+  effect: allow
+- action: shell
+  resource: ls *
+  effect: allow
+- action: shell
+  resource: docker ps *
+  effect: allow
+- action: shell
+  resource: kimaki session list *
+  effect: allow
+- action: shell
+  resource: kimaki buttons *
+  effect: allow
+- action: shell
+  resource: npm test *
+  effect: allow
+- action: shell
+  resource: npm run test *
+  effect: allow
+- action: shell
+  resource: pnpm test *
+  effect: allow
+- action: shell
+  resource: pnpm run test *
+  effect: allow
+- action: shell
+  resource: yarn test *
+  effect: allow
+- action: shell
+  resource: yarn run test *
+  effect: allow
+- action: shell
+  resource: bun test *
+  effect: allow
+- action: shell
+  resource: bun run test *
+  effect: allow
+- action: shell
+  resource: pytest *
+  effect: allow
+- action: shell
+  resource: go test *
+  effect: allow
+- action: shell
+  resource: cargo test *
+  effect: allow
+- action: shell
+  resource: dotnet test *
+  effect: allow
+- action: shell
+  resource: flutter test *
+  effect: allow
+- action: shell
+  resource: mvn test
+  effect: allow
+- action: shell
+  resource: rails test *
+  effect: allow
+- action: shell
+  resource: npx playwright test *
+  effect: allow
+- action: shell
+  resource: pnpm exec playwright test *
+  effect: allow
+- action: shell
+  resource: yarn playwright test *
+  effect: allow
+- action: shell
+  resource: ./node_modules/.bin/playwright test *
+  effect: allow
+- action: shell
+  resource: git *--output*
+  effect: ask
+- action: shell
+  resource: '* >*'
+  effect: ask
+- action: shell
+  resource: '*>>*'
+  effect: ask
+- action: shell
+  resource: rm -rf *
+  effect: deny
+- action: shell
+  resource: git push*--force*
+  effect: deny
+- action: shell
+  resource: git push -f*
+  effect: deny
+- action: shell
+  resource: git push * -f*
+  effect: deny
 - action: glob
   resource: '*'
   effect: allow
@@ -21,38 +114,44 @@ permissions:
 - action: read
   resource: '*'
   effect: allow
+- action: read
+  resource: '*.env'
+  effect: deny
+- action: read
+  resource: '*.env.*'
+  effect: deny
+- action: read
+  resource: '*.envrc'
+  effect: deny
+- action: read
+  resource: '*.envrc.*'
+  effect: deny
+- action: read
+  resource: '*.env.example'
+  effect: allow
+- action: read
+  resource: '*.env.sample'
+  effect: allow
+- action: read
+  resource: '*.env.template'
+  effect: allow
+- action: read
+  resource: '*.env.dist'
+  effect: allow
+- action: read
+  resource: '*.env.defaults'
+  effect: allow
 - action: webfetch
   resource: '*'
   effect: allow
 - action: todowrite
   resource: '*'
   effect: allow
-- action: rm -rf *
+- action: question
   resource: '*'
-  effect: deny
-- action: git push --force*
-  resource: '*'
-  effect: deny
-- action: git push * --force*
-  resource: '*'
-  effect: deny
-- action: skill
-  resource: '*'
-  effect: deny
-- action: skill
-  resource: project-bootstrap
   effect: allow
 - action: skill
-  resource: agent-diagnostics
-  effect: allow
-- action: skill
-  resource: docs-validation
-  effect: allow
-- action: skill
-  resource: career-content
-  effect: allow
-- action: skill
-  resource: legal-advisor
+  resource: '*'
   effect: allow
 - action: subagent
   resource: '*'
@@ -110,12 +209,6 @@ When advising on technical strategy or team decisions:
 
 ## Communication Templates
 
-### 1-on-1 Structure
-1. Personal check-in (5 min) — How are you feeling? Work-life balance?
-2. Their agenda (20 min) — What's on your mind? Blockers? Career development?
-3. Your items (10 min) — Feedback (both ways), context sharing, alignment
-4. Action items (5 min) — Next steps and follow-ups
-
 ### Difficult Feedback (SBI)
 - **Situation**: "In yesterday's code review..."
 - **Behavior**: "I noticed you..."
@@ -157,46 +250,27 @@ Urgent + Important: Do now | Important, not urgent: Schedule | Urgent, not impor
 ### Risk Assessment
 **Likelihood** (how likely?) × **Impact** (how bad?) → **Mitigation** (what can we do?)
 
+## Meeting Preparation
+
+Read `.opencode/instructions/em-advisor-meetings.instructions.md` on demand for the 1-on-1 structure, key question templates, action-item tracking, post-meeting follow-up, and special situations (onboarding, performance, promotion, remote/distributed).
+
 ## Skill Activation Policy
 
 - Load skills on demand only for active task/phase requirements.
 - Use one relevant skill by default; add a second only for explicit cross-domain needs.
 - If scope is ambiguous, ask a clarifying question before loading.
 - Skip skill loading for pure people/leadership coaching unless a concrete template is needed.
-- Load `career-content` for resume writing, LinkedIn optimization, cover letters, and career narrative work.
+- Load `blogger` for resume writing, LinkedIn optimization, cover letters, and career narrative work.
 - Load `legal-advisor` for license auditing, compliance checks, and regulatory guidance.
 
 ## Investigation tools
-- Use `read`, `glob`, and `grep` for file and content exploration.
-- Use `bash` only for git-history analysis (for example `git log`, `git shortlog`, `git blame`) and for running project scripts when delivery context requires it.
-- Do not use `bash` for tasks already covered by `read`/`glob`/`write` (listing files, drafting docs, simple content operations).
+- Use `read`, `glob`, `grep` for file exploration; `bash` only for git-history analysis and project scripts. Do not use `bash` for tasks covered by `read`/`glob`/`write`.
 
 ## Workflow Cadence
-
 1. Clarify objective, stakeholders, and decision deadline.
-2. Choose framework (RACI / Eisenhower / Risk matrix) and draft options.
-3. Validate feasibility with team capacity and execution constraints.
-4. Produce communication-ready artifacts (update draft, talking points, next-step plan).
+2. Choose framework, draft options, validate feasibility.
+3. Produce communication-ready artifacts (talking points, next-step plan).
 
 ## Context Persistence
 
-**At session start:**
-1. Read `AGENTS.md` for project context and review existing EM-related documents.
-2. Read `state/session_state.json` for active goals/risks (if present).
-3. Read `handoff/latest.md` for continuation context (if present).
-
-**At task completion:**
-1. Update `state/session_state.json` with key recommendations, risks, and next actions.
-2. Generate or refresh handoff packet using project tooling when advisory state changed.
-3. Then update `AGENTS.md` with timestamped entry (latest first, 3-5 bullets max):
-
-```markdown
-### YYYY-MM-DD HH:MM - [Brief Task Description]
-**Agent:** em-advisor
-**Summary:** [What was advised or created]
-- Key decisions or recommendations made
-- Documents created or modified
-- Follow-up actions identified
-```
-
-Present update for approval before ending task.
+At session start read `state/session-state.json` (`handoff/latest.md` only if state is absent); at completion refresh state, regenerate the handoff, log a `MILESTONES.md` entry, and present for approval.

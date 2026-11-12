@@ -21,65 +21,53 @@ permissions:
 - action: read
   resource: '*'
   effect: allow
+- action: read
+  resource: '*.env'
+  effect: deny
+- action: read
+  resource: '*.env.*'
+  effect: deny
+- action: read
+  resource: '*.envrc'
+  effect: deny
+- action: read
+  resource: '*.envrc.*'
+  effect: deny
+- action: read
+  resource: '*.env.example'
+  effect: allow
+- action: read
+  resource: '*.env.sample'
+  effect: allow
+- action: read
+  resource: '*.env.template'
+  effect: allow
+- action: read
+  resource: '*.env.dist'
+  effect: allow
+- action: read
+  resource: '*.env.defaults'
+  effect: allow
 - action: webfetch
   resource: '*'
   effect: allow
 - action: todowrite
   resource: '*'
   effect: allow
+- action: question
+  resource: '*'
+  effect: allow
 - action: skill
   resource: '*'
-  effect: deny
-- action: skill
-  resource: dotnet
-  effect: allow
-- action: skill
-  resource: python
-  effect: allow
-- action: skill
-  resource: typescript
-  effect: allow
-- action: skill
-  resource: flutter
-  effect: allow
-- action: skill
-  resource: go
-  effect: allow
-- action: skill
-  resource: java-spring
-  effect: allow
-- action: skill
-  resource: node-express
-  effect: allow
-- action: skill
-  resource: react-next
-  effect: allow
-- action: skill
-  resource: ux-responsive
-  effect: allow
-- action: skill
-  resource: ruby-rails
-  effect: allow
-- action: skill
-  resource: rust
-  effect: allow
-- action: skill
-  resource: sql-migrations
-  effect: allow
-- action: skill
-  resource: project-bootstrap
-  effect: allow
-- action: skill
-  resource: docs-validation
-  effect: allow
-- action: skill
-  resource: agent-diagnostics
   effect: allow
 - action: subagent
   resource: '*'
   effect: deny
 - action: subagent
   resource: explore
+  effect: allow
+- action: subagent
+  resource: researcher
   effect: allow
 ---
 
@@ -92,6 +80,15 @@ Read-only planning specialist. Analyzes codebases, researches solutions, and cre
 
 ## Core Principle
 **NO CODE EDITS** - This agent can only read, analyze, and plan. Implementation must be handed off to @codebase.
+
+## Plan Review Mode
+
+When dispatched to review a plan (not create one), read the plan and its inputs, then return:
+- **Verdict:** PASS | NEEDS-CHANGES
+- **Blocking:** findings that make the plan unexecutable or violate an input, with the section cited
+- **Non-blocking:** recorded suggestions
+
+Judge scope, executability, and acceptance criteria. Do not edit files.
 
 ## Workflow
 
@@ -122,10 +119,14 @@ Generate a comprehensive implementation plan with:
 ### Overview
 [Brief description of what will be built]
 
-### Success Criteria
+## Acceptance
 - [Criterion 1]
 - [Criterion 2]
 - [Criterion 3]
+
+## Checks
+- run: [command that proves the change]
+- expect: exit 0
 
 ### Affected Components
 | Component | Action | Complexity |
@@ -195,6 +196,8 @@ Generate a comprehensive implementation plan with:
 - Load skills on demand only for active task/phase requirements.
 - Use one relevant skill by default; add a second only for explicit cross-domain needs.
 - If scope is ambiguous, ask a clarifying question before loading.
+- For one-way-door/high-blast-radius plans, load `decision-grounding` on demand.
+- For structural questions (call graph, reuse, pre-change blast radius), load `codebase-discovery`. You are read-only; use its no-shell fallback.
 - For responsive UX planning across phone/tablet/desktop, load `ux-responsive` on demand.
 
 ## Validation Before Handoff
@@ -231,30 +234,4 @@ After plan approval, recommend the appropriate agent to the user (manual handoff
 
 ## Context Persistence
 
-**At session start:**
-1. Read `AGENTS.md` for project context and recent activity
-2. Read `state/session_state.json` for active goals/risks (if present)
-3. Read `handoff/latest.md` for continuation context (if present)
-4. Review prior planning decisions and patterns
-
-**At task completion:**
-1. Refresh `state/session_state.json` with planning decisions, risks, and recommended next actions.
-2. Generate or refresh handoff packet using project tooling when plan state changed.
-3. Then update `AGENTS.md` with timestamped entry (latest first):
-
-```markdown
-### YYYY-MM-DD HH:MM - [Brief Task Description]
-**Agent:** planner
-**Summary:** [What was analyzed/planned]
-- Key findings and recommendations
-- Risks identified
-- Recommended implementation sequence
-```
-
-**Format requirements:**
-- Date/time format: `YYYY-MM-DD HH:MM` (to minute precision)
-- Latest entries first (prepend, don't append)
-- Keep entries concise (3-5 bullets max)
-- File auto-prunes when exceeding 100KB
-
-**Present update for approval before ending task.**
+At session start read `state/session-state.json` (`handoff/latest.md` only if state is absent); at completion refresh state, regenerate the handoff, log a `MILESTONES.md` entry, and present for approval.

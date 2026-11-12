@@ -2,7 +2,7 @@
 description: Multi-language development agent with profile auto-detection for implementing features across
   .NET, Python, TypeScript, Flutter, Go, Java, Node.js, React, Ruby, and Rust projects
 mode: all
-steps: 50
+steps: 60
 permissions:
 - action: '*'
   resource: '*'
@@ -13,6 +13,99 @@ permissions:
 - action: shell
   resource: '*'
   effect: ask
+- action: shell
+  resource: git status *
+  effect: allow
+- action: shell
+  resource: ls *
+  effect: allow
+- action: shell
+  resource: docker ps *
+  effect: allow
+- action: shell
+  resource: kimaki session list *
+  effect: allow
+- action: shell
+  resource: kimaki buttons *
+  effect: allow
+- action: shell
+  resource: npm test *
+  effect: allow
+- action: shell
+  resource: npm run test *
+  effect: allow
+- action: shell
+  resource: pnpm test *
+  effect: allow
+- action: shell
+  resource: pnpm run test *
+  effect: allow
+- action: shell
+  resource: yarn test *
+  effect: allow
+- action: shell
+  resource: yarn run test *
+  effect: allow
+- action: shell
+  resource: bun test *
+  effect: allow
+- action: shell
+  resource: bun run test *
+  effect: allow
+- action: shell
+  resource: pytest *
+  effect: allow
+- action: shell
+  resource: go test *
+  effect: allow
+- action: shell
+  resource: cargo test *
+  effect: allow
+- action: shell
+  resource: dotnet test *
+  effect: allow
+- action: shell
+  resource: flutter test *
+  effect: allow
+- action: shell
+  resource: mvn test
+  effect: allow
+- action: shell
+  resource: rails test *
+  effect: allow
+- action: shell
+  resource: npx playwright test *
+  effect: allow
+- action: shell
+  resource: pnpm exec playwright test *
+  effect: allow
+- action: shell
+  resource: yarn playwright test *
+  effect: allow
+- action: shell
+  resource: ./node_modules/.bin/playwright test *
+  effect: allow
+- action: shell
+  resource: git *--output*
+  effect: ask
+- action: shell
+  resource: '* >*'
+  effect: ask
+- action: shell
+  resource: '*>>*'
+  effect: ask
+- action: shell
+  resource: rm -rf *
+  effect: deny
+- action: shell
+  resource: git push*--force*
+  effect: deny
+- action: shell
+  resource: git push -f*
+  effect: deny
+- action: shell
+  resource: git push * -f*
+  effect: deny
 - action: glob
   resource: '*'
   effect: allow
@@ -22,62 +115,44 @@ permissions:
 - action: read
   resource: '*'
   effect: allow
+- action: read
+  resource: '*.env'
+  effect: deny
+- action: read
+  resource: '*.env.*'
+  effect: deny
+- action: read
+  resource: '*.envrc'
+  effect: deny
+- action: read
+  resource: '*.envrc.*'
+  effect: deny
+- action: read
+  resource: '*.env.example'
+  effect: allow
+- action: read
+  resource: '*.env.sample'
+  effect: allow
+- action: read
+  resource: '*.env.template'
+  effect: allow
+- action: read
+  resource: '*.env.dist'
+  effect: allow
+- action: read
+  resource: '*.env.defaults'
+  effect: allow
 - action: webfetch
   resource: '*'
   effect: allow
 - action: todowrite
   resource: '*'
   effect: allow
-- action: rm -rf *
+- action: question
   resource: '*'
-  effect: deny
-- action: git push --force*
-  resource: '*'
-  effect: deny
-- action: git push * --force*
-  resource: '*'
-  effect: deny
+  effect: allow
 - action: skill
   resource: '*'
-  effect: deny
-- action: skill
-  resource: dotnet
-  effect: allow
-- action: skill
-  resource: python
-  effect: allow
-- action: skill
-  resource: typescript
-  effect: allow
-- action: skill
-  resource: flutter
-  effect: allow
-- action: skill
-  resource: go
-  effect: allow
-- action: skill
-  resource: java-spring
-  effect: allow
-- action: skill
-  resource: node-express
-  effect: allow
-- action: skill
-  resource: react-next
-  effect: allow
-- action: skill
-  resource: ux-responsive
-  effect: allow
-- action: skill
-  resource: ruby-rails
-  effect: allow
-- action: skill
-  resource: rust
-  effect: allow
-- action: skill
-  resource: sql-migrations
-  effect: allow
-- action: skill
-  resource: legal-advisor
   effect: allow
 - action: subagent
   resource: '*'
@@ -93,6 +168,12 @@ permissions:
   effect: allow
 - action: subagent
   resource: explore
+  effect: allow
+- action: subagent
+  resource: legal-advisor
+  effect: allow
+- action: subagent
+  resource: researcher
   effect: allow
 ---
 
@@ -129,10 +210,16 @@ Log detected profile at start: `Detected active profile: <profile>`
 2. After each step:
    - Run appropriate build/type check for detected profile
    - Execute tests if test directory exists
+   - For browser/E2E tests, use the project script or Playwright's official command (`npx playwright test`, `pnpm exec playwright test`, or `yarn playwright test`); never put `VAR=value` in front of a command — permission rules match the raw string, so put non-secret env vars in the host environment or test script (credentials belong in `.env` or CI secrets)
    - Pause only if a step fails validation or introduces unexpected complexity
 
 ### Phase 3: Completion
 - Summarize what was implemented
+- Include a confidence declaration:
+  ```
+  **Confidence:** HIGH | MODERATE | TENTATIVE
+  **Reasoning:** [Evidence strength, unknowns, assumptions made]
+  ```
 - Suggest handoffs to documentation or review agents
 - For license compliance or dependency licensing questions, consult @legal-advisor
 
@@ -156,8 +243,14 @@ Log detected profile at start: `Detected active profile: <profile>`
 - Load skills on demand only for active task/phase requirements.
 - Use one relevant skill by default; add a second only for explicit cross-domain needs.
 - If scope is ambiguous, ask a clarifying question before loading.
+- For feature or bugfix work, load `test-driven-development` before writing code; for any bug or test failure, load `systematic-debugging` before proposing a fix.
+- Before any completion/commit/PR claim, load `verification-before-completion`; after a fix, load `code-change-impact`; before writing code in a language, load that language's skill.
 - For CI/CD tasks, apply `.opencode/instructions/ci-cd-hygiene.instructions.md` on demand.
-- For responsive UI/UX tasks across phone/tablet/desktop, load `ux-responsive` on demand.
+- For UI/UX work: if a host design-router skill (`ui-ux-pro-max`) is present, load it first (one focused query; never paste dataset rows); otherwise load `ux-responsive` for cross-device responsive checks.
+- For structural questions (call graph, pre-change blast radius, "what else touches X"), load `codebase-discovery`; it owns the graph trigger, fallback, and staleness rule.
+
+## Tool Use
+- Prefer the native read/grep/glob tools to shell `cat`/`rg`/`grep` for inspection; shell is for execution.
 
 ## Code Standards
 - Write modular, functional code following language conventions
@@ -165,6 +258,10 @@ Log detected profile at start: `Detected active profile: <profile>`
 - Prefer declarative over imperative patterns
 - Follow SOLID principles
 - Use proper type systems when available
+
+## Parallel and Audit Work
+- When dispatched alongside other agents, respect the brief's file-ownership list; never edit a file owned by another worker. Report a shared-contract change instead of patching around it.
+- When the brief says audit or verify: report findings only, leave at least 5 steps, and do not clean up or fix. Return `PARTIAL` with the list of unchecked items if you stop early; cleanup and fix are separate dispatches.
 
 ## Commit Messages
 Use conventional commits format:
@@ -175,6 +272,9 @@ refactor(scope): description
 test(scope): description
 docs(scope): description
 ```
+
+> **Never run `git commit` or `git push`.** Leave changes staged/unstaged for the
+> orchestrator's Pre-Commit Review Gate — the orchestrator owns commits.
 
 ## Safety
 - Never implement without approval
@@ -191,30 +291,4 @@ When implementation requires iteration, use a bounded verify-and-continue loop:
 
 ## Context Persistence
 
-**At session start:**
-1. Read `AGENTS.md` for project context and recent activity
-2. Read `state/session_state.json` for active goals/risks (if present)
-3. Read `handoff/latest.md` for continuation context (if present)
-4. Review any established patterns and conventions from prior sessions
-
-**At task completion:**
-1. Update `state/session_state.json` with implementation decisions, open risks, and next actions.
-2. Generate or refresh handoff packet using project tooling when implementation phase meaningfully changed.
-3. Then update `AGENTS.md` with timestamped entry (latest first):
-
-```markdown
-### YYYY-MM-DD HH:MM - [Brief Task Description]
-**Agent:** codebase
-**Summary:** [What was implemented]
-- Key implementation decisions and rationale
-- Files created or modified
-- Tests added or updated
-```
-
-**Format requirements:**
-- Date/time format: `YYYY-MM-DD HH:MM` (to minute precision)
-- Latest entries first (prepend, don't append)
-- Keep entries concise (3-5 bullets max)
-- Only log significant implementations (skip trivial edits)
-
-**Present update for approval before ending task.**
+At session start read `state/session-state.json` (`handoff/latest.md` only if state is absent); at completion refresh state, regenerate the handoff, log a `MILESTONES.md` entry, and present for approval.

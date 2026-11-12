@@ -16,7 +16,8 @@ metadata:
 - Guide breakpoint strategy, interaction-mode adaptation, and validation steps
 
 ## When to use me
-Use this when implementing or reviewing UI that must work across small and large screens, touch and pointer inputs, or multiple orientations.
+Use this when implementing or reviewing UI that must work across small and
+large screens, touch and pointer inputs, or multiple orientations.
 
 ## Key Rules
 - Mobile-first layout strategy: start with constrained viewport, then scale up
@@ -36,6 +37,7 @@ Use this when implementing or reviewing UI that must work across small and large
 - Use a verify-fix-verify loop: run checks, fix issues, rerun until green
 
 ## Validation Commands
+
 ```bash
 # Run the active stack's lint/test/build checks.
 # Examples:
@@ -44,7 +46,22 @@ Use this when implementing or reviewing UI that must work across small and large
 # dotnet build && dotnet test
 ```
 
+## Richer design systems (optional delegation)
+
+When a project has the third-party **UI UX Pro Max** skill installed, prefer
+it for style, palette, typography, chart, icon, and stack-specific guidance.
+Run at most one focused search query per task and never paste dataset rows or
+reference tables into context. Invoke the `ui-ux-pro-max` skill by name; its
+install path is host-specific.
+
+It is a separate, opt-in skill (requires Python 3.x) and is **not** part of
+this pack — install a pinned version into the project with
+`npx ui-ux-pro-max-cli@2.15.0 init --ai opencode`. When it is absent, use the
+rules in this skill as the fallback.
+
 ## References
+- `references/design-review.md` — rubric for reviewing a UI diff: distinctiveness,
+  hierarchy, type, colour, spacing, states
 - https://www.w3.org/WAI/WCAG21/Understanding/reflow.html
 - https://web.dev/responsive-web-design-basics/
 - https://www.w3.org/WAI/WCAG22/quickref/

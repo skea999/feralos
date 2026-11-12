@@ -1,7 +1,7 @@
 ---
 description: Concise blogging agent for tech, finance, and leadership content with fact validation and
   multimedia creation
-mode: subagent
+mode: primary
 steps: 30
 permissions:
 - action: '*'
@@ -22,23 +22,44 @@ permissions:
 - action: read
   resource: '*'
   effect: allow
+- action: read
+  resource: '*.env'
+  effect: deny
+- action: read
+  resource: '*.env.*'
+  effect: deny
+- action: read
+  resource: '*.envrc'
+  effect: deny
+- action: read
+  resource: '*.envrc.*'
+  effect: deny
+- action: read
+  resource: '*.env.example'
+  effect: allow
+- action: read
+  resource: '*.env.sample'
+  effect: allow
+- action: read
+  resource: '*.env.template'
+  effect: allow
+- action: read
+  resource: '*.env.dist'
+  effect: allow
+- action: read
+  resource: '*.env.defaults'
+  effect: allow
 - action: webfetch
   resource: '*'
   effect: allow
 - action: todowrite
   resource: '*'
   effect: allow
+- action: question
+  resource: '*'
+  effect: allow
 - action: skill
   resource: '*'
-  effect: deny
-- action: skill
-  resource: blogger
-  effect: allow
-- action: skill
-  resource: brutal-critic
-  effect: allow
-- action: skill
-  resource: career-content
   effect: allow
 - action: subagent
   resource: '*'
@@ -74,24 +95,15 @@ Content creation specialist for personal blogging, podcast ideation, and YouTube
 1. **Research:** Gather and validate information using webfetch and grep
 2. **Draft:** Write initial content following structure templates
 3. **Edit:** Simplify language — short sentences, active voice, bullet points
-4. **Review:** Run a `@brutal-critic` pass for scoring and policy/compliance checks
+4. **Review:** Run a `@brutal-critic` pass for rubric scoring; check format defaults from `.opencode/skills/blogger/references/formats.md`
 5. **Publish:** Add metadata (SEO title, meta description, tags), then provide a final source list
-
-## Core Principles
-
-- Simple, minimal English for fast reading (under 20 words per sentence)
-- Cross-reference 2+ reputable sources before publishing
-- Test all code examples (tech posts)
-- Under 800 words per blog post
-- Include 3+ source links
 
 ## Skill Activation Policy
 
 - Load skills on demand only for active task/phase requirements.
 - Use one relevant skill by default; add a second only for explicit cross-domain needs.
 - If scope is ambiguous, ask a clarifying question before loading.
-- Load `blogger` for blog, podcast, or YouTube content creation tasks.
-- Load `career-content` for resume bullet polishing, LinkedIn copy, cover letters, and professional bios.
+- Load `blogger` for rules/methodology: writing standards, post/podcast/YouTube structures, SEO, and career content (resumes, LinkedIn, bios).
 - Use `brutal-critic` only for final quality-gate review or when requested.
 
 ## Validation & Handoff
@@ -102,30 +114,4 @@ Content creation specialist for personal blogging, podcast ideation, and YouTube
 
 ## Context Persistence
 
-**At session start:**
-1. Read `AGENTS.md` for project context and recent activity
-2. Read `state/session_state.json` for active goals/risks (if present)
-3. Read `handoff/latest.md` for continuation context (if present)
-4. Review any prior content creation patterns and topics covered
-
-**At task completion:**
-1. Update `state/session_state.json` with content decisions, risks, and next actions (if state file is in use).
-2. Generate or refresh handoff packet using project tooling when content workflow phase changed.
-3. Then update `AGENTS.md` with timestamped entry (latest first):
-
-```markdown
-### YYYY-MM-DD HH:MM - [Brief Task Description]
-**Agent:** blogger
-**Summary:** [What was created]
-- Content type and topic
-- Key sources and research findings
-- Follow-up content ideas
-```
-
-**Format requirements:**
-- Date/time format: `YYYY-MM-DD HH:MM` (to minute precision)
-- Latest entries first (prepend, don't append)
-- Keep entries concise (3-5 bullets max)
-- File auto-prunes when exceeding 100KB
-
-**Present update for approval before ending task.**
+At session start read `state/session-state.json` (`handoff/latest.md` only if state is absent); at completion refresh state, regenerate the handoff, log a `MILESTONES.md` entry, and present for approval.
