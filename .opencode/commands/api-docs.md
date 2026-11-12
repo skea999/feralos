@@ -1,8 +1,8 @@
 ---
 description: Generate comprehensive API documentation from code
 agent: docs
-argument-hint: "[module, file, or endpoint path]"
-subtask: true
+argument-hint: '[module, file, or endpoint path]'
+subagent: true
 ---
 
 # API Documentation Generation

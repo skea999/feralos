@@ -1,8 +1,8 @@
 ---
 description: Review content (blog post, script, outline) with harsh but constructive criticism
 agent: brutal-critic
-argument-hint: "[content text, file path, or topic]"
-subtask: true
+argument-hint: '[content text, file path, or topic]'
+subagent: true
 ---
 
 # Content Review

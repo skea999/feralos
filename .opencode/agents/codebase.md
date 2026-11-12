@@ -1,41 +1,99 @@
 ---
-description: Multi-language development agent with profile auto-detection for implementing features across .NET, Python, TypeScript, Flutter, Go, Java, Node.js, React, Ruby, and Rust projects
+description: Multi-language development agent with profile auto-detection for implementing features across
+  .NET, Python, TypeScript, Flutter, Go, Java, Node.js, React, Ruby, and Rust projects
 mode: all
-temperature: 0.1
 steps: 50
-permission:
-  "*": "deny"
-  edit: "allow"
-  bash: "ask"
-  glob: "allow"
-  grep: "allow"
-  read: "allow"
-  webfetch: "allow"
-  todowrite: "allow"
-  "rm -rf *": "deny"
-  "git push --force*": "deny"
-  "git push * --force*": "deny"
-  skill:
-    "*": "deny"
-    "dotnet": "allow"
-    "python": "allow"
-    "typescript": "allow"
-    "flutter": "allow"
-    "go": "allow"
-    "java-spring": "allow"
-    "node-express": "allow"
-    "react-next": "allow"
-    "ux-responsive": "allow"
-    "ruby-rails": "allow"
-    "rust": "allow"
-    "sql-migrations": "allow"
-    "legal-advisor": "allow"
-  task:
-    "*": "deny"
-    "review": "allow"
-    "docs": "allow"
-    "general": "allow"
-    "explore": "allow"
+permissions:
+- action: '*'
+  resource: '*'
+  effect: deny
+- action: edit
+  resource: '*'
+  effect: allow
+- action: shell
+  resource: '*'
+  effect: ask
+- action: glob
+  resource: '*'
+  effect: allow
+- action: grep
+  resource: '*'
+  effect: allow
+- action: read
+  resource: '*'
+  effect: allow
+- action: webfetch
+  resource: '*'
+  effect: allow
+- action: todowrite
+  resource: '*'
+  effect: allow
+- action: rm -rf *
+  resource: '*'
+  effect: deny
+- action: git push --force*
+  resource: '*'
+  effect: deny
+- action: git push * --force*
+  resource: '*'
+  effect: deny
+- action: skill
+  resource: '*'
+  effect: deny
+- action: skill
+  resource: dotnet
+  effect: allow
+- action: skill
+  resource: python
+  effect: allow
+- action: skill
+  resource: typescript
+  effect: allow
+- action: skill
+  resource: flutter
+  effect: allow
+- action: skill
+  resource: go
+  effect: allow
+- action: skill
+  resource: java-spring
+  effect: allow
+- action: skill
+  resource: node-express
+  effect: allow
+- action: skill
+  resource: react-next
+  effect: allow
+- action: skill
+  resource: ux-responsive
+  effect: allow
+- action: skill
+  resource: ruby-rails
+  effect: allow
+- action: skill
+  resource: rust
+  effect: allow
+- action: skill
+  resource: sql-migrations
+  effect: allow
+- action: skill
+  resource: legal-advisor
+  effect: allow
+- action: subagent
+  resource: '*'
+  effect: deny
+- action: subagent
+  resource: review
+  effect: allow
+- action: subagent
+  resource: docs
+  effect: allow
+- action: subagent
+  resource: general
+  effect: allow
+- action: subagent
+  resource: explore
+  effect: allow
 ---
 
 # Codebase Development Agent

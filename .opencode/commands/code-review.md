@@ -1,8 +1,8 @@
 ---
 description: Comprehensive code review for security, performance, and best practices
 agent: review
-argument-hint: "[file, PR, or scope — blank for current changes]"
-subtask: true
+argument-hint: '[file, PR, or scope — blank for current changes]'
+subagent: true
 ---
 
 # Code Review Prompt

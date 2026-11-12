@@ -1,8 +1,8 @@
 ---
 description: Prepare for upcoming 1-on-1 meetings with talking points and action items
 agent: em-advisor
-argument-hint: "[person] [context]"
-subtask: true
+argument-hint: '[person] [context]'
+subagent: true
 ---
 
 # 1-on-1 Preparation Prompt

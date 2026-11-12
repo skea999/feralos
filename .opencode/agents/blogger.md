@@ -1,26 +1,54 @@
 ---
-description: Concise blogging agent for tech, finance, and leadership content with fact validation and multimedia creation
+description: Concise blogging agent for tech, finance, and leadership content with fact validation and
+  multimedia creation
 mode: subagent
-temperature: 0.3
 steps: 30
-permission:
-  "*": "deny"
-  edit: "allow"
-  bash: "deny"
-  glob: "allow"
-  grep: "allow"
-  read: "allow"
-  webfetch: "allow"
-  todowrite: "allow"
-  skill:
-    "*": "deny"
-    "blogger": "allow"
-    "brutal-critic": "allow"
-    "career-content": "allow"
-  task:
-    "*": "deny"
-    "brutal-critic": "allow"
-    "explore": "allow"
+permissions:
+- action: '*'
+  resource: '*'
+  effect: deny
+- action: edit
+  resource: '*'
+  effect: allow
+- action: shell
+  resource: '*'
+  effect: deny
+- action: glob
+  resource: '*'
+  effect: allow
+- action: grep
+  resource: '*'
+  effect: allow
+- action: read
+  resource: '*'
+  effect: allow
+- action: webfetch
+  resource: '*'
+  effect: allow
+- action: todowrite
+  resource: '*'
+  effect: allow
+- action: skill
+  resource: '*'
+  effect: deny
+- action: skill
+  resource: blogger
+  effect: allow
+- action: skill
+  resource: brutal-critic
+  effect: allow
+- action: skill
+  resource: career-content
+  effect: allow
+- action: subagent
+  resource: '*'
+  effect: deny
+- action: subagent
+  resource: brutal-critic
+  effect: allow
+- action: subagent
+  resource: explore
+  effect: allow
 ---
 
 # Blogger Agent

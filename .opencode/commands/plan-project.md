@@ -1,8 +1,8 @@
 ---
 description: Plan and coordinate a complex multi-phase project with agent handoffs
 agent: orchestrator
-argument-hint: "[feature, objective, or epic]"
-subtask: true
+argument-hint: '[feature, objective, or epic]'
+subagent: true
 ---
 
 # Project Planning & Orchestration

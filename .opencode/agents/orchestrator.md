@@ -1,49 +1,123 @@
 ---
-description: Strategic coordinator for planning and orchestrating complex multi-phase workflows with execution options
+description: Strategic coordinator for planning and orchestrating complex multi-phase workflows with execution
+  options
 mode: subagent
-temperature: 0.2
 steps: 75
-permission:
-  "*": "deny"
-  edit: "ask"
-  bash: "ask"
-  glob: "allow"
-  grep: "allow"
-  read: "allow"
-  webfetch: "allow"
-  todowrite: "allow"
-  "rm -rf *": "deny"
-  "git push --force*": "deny"
-  "git push * --force*": "deny"
-  skill:
-    "*": "deny"
-    "dotnet": "allow"
-    "python": "allow"
-    "typescript": "allow"
-    "flutter": "allow"
-    "go": "allow"
-    "java-spring": "allow"
-    "node-express": "allow"
-    "react-next": "allow"
-    "ux-responsive": "allow"
-    "ruby-rails": "allow"
-    "rust": "allow"
-    "sql-migrations": "allow"
-    "project-bootstrap": "allow"
-    "docs-validation": "allow"
-    "agent-diagnostics": "allow"
-    "blogger": "allow"
-    "brutal-critic": "allow"
-  task:
-    "*": "deny"
-    "codebase": "allow"
-    "docs": "allow"
-    "review": "allow"
-    "planner": "allow"
-    "brutal-critic": "allow"
-    "legal-advisor": "allow"
-    "general": "allow"
-    "explore": "allow"
+permissions:
+- action: '*'
+  resource: '*'
+  effect: deny
+- action: edit
+  resource: '*'
+  effect: ask
+- action: shell
+  resource: '*'
+  effect: ask
+- action: glob
+  resource: '*'
+  effect: allow
+- action: grep
+  resource: '*'
+  effect: allow
+- action: read
+  resource: '*'
+  effect: allow
+- action: webfetch
+  resource: '*'
+  effect: allow
+- action: todowrite
+  resource: '*'
+  effect: allow
+- action: rm -rf *
+  resource: '*'
+  effect: deny
+- action: git push --force*
+  resource: '*'
+  effect: deny
+- action: git push * --force*
+  resource: '*'
+  effect: deny
+- action: skill
+  resource: '*'
+  effect: deny
+- action: skill
+  resource: dotnet
+  effect: allow
+- action: skill
+  resource: python
+  effect: allow
+- action: skill
+  resource: typescript
+  effect: allow
+- action: skill
+  resource: flutter
+  effect: allow
+- action: skill
+  resource: go
+  effect: allow
+- action: skill
+  resource: java-spring
+  effect: allow
+- action: skill
+  resource: node-express
+  effect: allow
+- action: skill
+  resource: react-next
+  effect: allow
+- action: skill
+  resource: ux-responsive
+  effect: allow
+- action: skill
+  resource: ruby-rails
+  effect: allow
+- action: skill
+  resource: rust
+  effect: allow
+- action: skill
+  resource: sql-migrations
+  effect: allow
+- action: skill
+  resource: project-bootstrap
+  effect: allow
+- action: skill
+  resource: docs-validation
+  effect: allow
+- action: skill
+  resource: agent-diagnostics
+  effect: allow
+- action: skill
+  resource: blogger
+  effect: allow
+- action: skill
+  resource: brutal-critic
+  effect: allow
+- action: subagent
+  resource: '*'
+  effect: deny
+- action: subagent
+  resource: codebase
+  effect: allow
+- action: subagent
+  resource: docs
+  effect: allow
+- action: subagent
+  resource: review
+  effect: allow
+- action: subagent
+  resource: planner
+  effect: allow
+- action: subagent
+  resource: brutal-critic
+  effect: allow
+- action: subagent
+  resource: legal-advisor
+  effect: allow
+- action: subagent
+  resource: general
+  effect: allow
+- action: subagent
+  resource: explore
+  effect: allow
 ---
 
 # Orchestrator Agent

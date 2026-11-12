@@ -1,8 +1,8 @@
 ---
 description: Write a blog post on a given topic with research and fact validation
 agent: blogger
-argument-hint: "[topic or title]"
-subtask: true
+argument-hint: '[topic or title]'
+subagent: true
 ---
 
 # Blog Post Creation

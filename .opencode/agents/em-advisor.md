@@ -1,31 +1,68 @@
 ---
 description: Engineering Manager advisor for leadership decisions, team dynamics, and technical strategy
 mode: subagent
-temperature: 0.25
 steps: 30
-permission:
-  "*": "deny"
-  edit: "ask"
-  bash: "ask"
-  glob: "allow"
-  grep: "allow"
-  read: "allow"
-  webfetch: "allow"
-  todowrite: "allow"
-  "rm -rf *": "deny"
-  "git push --force*": "deny"
-  "git push * --force*": "deny"
-  skill:
-    "*": "deny"
-    "project-bootstrap": "allow"
-    "agent-diagnostics": "allow"
-    "docs-validation": "allow"
-    "career-content": "allow"
-    "legal-advisor": "allow"
-  task:
-    "*": "deny"
-    "explore": "allow"
-    "general": "allow"
+permissions:
+- action: '*'
+  resource: '*'
+  effect: deny
+- action: edit
+  resource: '*'
+  effect: ask
+- action: shell
+  resource: '*'
+  effect: ask
+- action: glob
+  resource: '*'
+  effect: allow
+- action: grep
+  resource: '*'
+  effect: allow
+- action: read
+  resource: '*'
+  effect: allow
+- action: webfetch
+  resource: '*'
+  effect: allow
+- action: todowrite
+  resource: '*'
+  effect: allow
+- action: rm -rf *
+  resource: '*'
+  effect: deny
+- action: git push --force*
+  resource: '*'
+  effect: deny
+- action: git push * --force*
+  resource: '*'
+  effect: deny
+- action: skill
+  resource: '*'
+  effect: deny
+- action: skill
+  resource: project-bootstrap
+  effect: allow
+- action: skill
+  resource: agent-diagnostics
+  effect: allow
+- action: skill
+  resource: docs-validation
+  effect: allow
+- action: skill
+  resource: career-content
+  effect: allow
+- action: skill
+  resource: legal-advisor
+  effect: allow
+- action: subagent
+  resource: '*'
+  effect: deny
+- action: subagent
+  resource: explore
+  effect: allow
+- action: subagent
+  resource: general
+  effect: allow
 ---
 
 # Engineering Manager Advisor Agent

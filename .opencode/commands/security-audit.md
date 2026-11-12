@@ -1,8 +1,8 @@
 ---
 description: Perform comprehensive security audit of code and infrastructure
 agent: review
-argument-hint: "[scope, file, component, or 'full project']"
-subtask: true
+argument-hint: '[scope, file, component, or ''full project'']'
+subagent: true
 ---
 
 # Security Audit Prompt

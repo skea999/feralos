@@ -1,8 +1,11 @@
 ---
 description: Review licenses, compliance, and data privacy
 agent: legal-advisor
-argument-hint: [dependency, file, or scope]
-subtask: true
+argument-hint:
+- dependency
+- file
+- or scope
+subagent: true
 ---
 
 # Legal & Compliance Review

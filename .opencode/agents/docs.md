@@ -1,25 +1,50 @@
 ---
 description: Documentation and wiki generation specialist for creating comprehensive project documentation
 mode: subagent
-temperature: 0.1
 steps: 30
-permission:
-  "*": "deny"
-  edit: "allow"
-  glob: "allow"
-  grep: "allow"
-  read: "allow"
-  write: "allow"
-  webfetch: "allow"
-  bash: "deny"
-  skill:
-    "*": "deny"
-    "docs-validation": "allow"
-    "project-bootstrap": "allow"
-    "agent-diagnostics": "allow"
-  task:
-    "*": "deny"
-    "explore": "allow"
+permissions:
+- action: '*'
+  resource: '*'
+  effect: deny
+- action: edit
+  resource: '*'
+  effect: allow
+- action: glob
+  resource: '*'
+  effect: allow
+- action: grep
+  resource: '*'
+  effect: allow
+- action: read
+  resource: '*'
+  effect: allow
+- action: edit
+  resource: '*'
+  effect: allow
+- action: webfetch
+  resource: '*'
+  effect: allow
+- action: shell
+  resource: '*'
+  effect: deny
+- action: skill
+  resource: '*'
+  effect: deny
+- action: skill
+  resource: docs-validation
+  effect: allow
+- action: skill
+  resource: project-bootstrap
+  effect: allow
+- action: skill
+  resource: agent-diagnostics
+  effect: allow
+- action: subagent
+  resource: '*'
+  effect: deny
+- action: subagent
+  resource: explore
+  effect: allow
 ---
 
 # Documentation Agent
