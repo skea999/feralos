@@ -3,6 +3,13 @@
 **Active state**: `state/session-state.json`
 **Milestone log**: `CHANGELOG.md`
 
+## Current State (2026-11-13)
+
+- **Tooling**: OpenCode V2 (2.2.6, nix unstable) with the skea-store base template aligned — pack `agents-opencode` 4.3.5 (V2), caveman/context-mode/ast-grep global env, `opencode-rules` verified V2-native. Last V1 session imported (parent + 58 subagents). Maintenance recipe after every pack update: `docs/update.md`.
+- **Docs model**: `docs/` = canonical detail source; `AGENTS.md` = lean index (work history + known issues live in `CHANGELOG.md`).
+- **State**: this handoff + `state/session-state.json` (installer write-once-protected; git-tracked).
+- **Installer**: all four DEs green (niri 115, niriWayle 118 flagship, kde 78, cosmic 78); ADR-010 supervision audit shipped and invoked TWICE at install; Phase 2 dinit + custom repo live.
+
 ## Project Vision
 
 **FeralOS** is a new Linux distribution based on Alpine Linux, focused on **memory safety** and **security**. It replaces traditional C components with modern alternatives (uutils, micro, vector). For software not in Alpine repos or requiring glibc, **Nix** is used. **Dinit** ships as a selectable init (OpenRC stays as fallback — `enableDinit`, template default true). A **custom Alpine-style repository** for FeralOS packages is live on GitHub Pages.
@@ -238,6 +245,13 @@ Phase 1: Go installer complete + fixtures library + AGENTS compress + githooks v
 - **Btrfs RAID1** on LUKS (not mdadm)
 - **Phase separation**: hostPhase (writes files) vs chrootPhase (runs commands)
 - **Ripgrep NOT a drop-in for grep**: rg doesn't support POSIX BRE (`\+`), breaks `efi-mkuki`
+- **Dinit restart policy** (2026-11-08): `restart = on-failure` default, smooth-recovery only on resident daemons; dbus-activated on-demand daemons never restart on clean exit
+- **aports source pinning** (2026-11-08): TAG archives everywhere, never commit archives; sha512 = integrity guard, tag = version contract
+- **ADR-010 R1b** (2026-11-03): supervision package = owner-of-Exec apk package, never the bus name; internal_rules carries zero `*-dinit` (guard test)
+- **Two-pass dbus-audit** (2026-11-11): step 8a INSTALL pass (desktop linking needs audit packages) + step 16 REPORT pass at the chroot tail (before the @edge step)
+- **No secrets on disk** (2026-11-08): Webmin removed; `/opt/feralos/config.yaml` carries no password
+- **Docs model** (2026-11-13): `docs/` = canonical detail, `AGENTS.md` = lean index, work history in `CHANGELOG.md`
+- **State file** (2026-11-13): `state/session-state.json` primary, installer write-once-protected, git-restorable
 - **GNU grep removed**: BusyBox grep provides POSIX BRE, zero reverse dependencies
 - **Dummy packages**: Symlink approach (APK content, not wrapper scripts)
 - **Swapfile**: `btrfs filesystem mkswapfile` + `chattr +C` on dir before mount (Debian guide)
