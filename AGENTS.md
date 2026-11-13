@@ -759,7 +759,9 @@
 
 **Chain (complex)**: `context/recall` → `interview/refine` → `@planner` → *approve* → `@codebase` → PARALLEL(`@review`+`@code-reviewer`+`@vulnerability-scan`+`@information-scan`) → `@debugger/tests` → `@docs/docs` → save
 **Direct (simple)**: `@codebase` or specialist
-State: `state/session-state.json` (compact, read by the agents-opencode plugin context hook) · `state/session_state.json` (long-form archive) | Handoff: `handoff/latest.md`
+State: `state/session-state.json` (**primary** — full working state, read by the agents-opencode plugin context hook; write all future updates HERE) · `state/session_state.json` (frozen archive snapshot 2026-11-13, do not edit) | Handoff: `handoff/latest.md`
+
+State-file protection: the agents-opencode installer writes `state/session-state.json` only when missing (write-once-if-missing, code-proven + live-tested 2026-11-13) — it never overwrites. Git tracks the file: any accidental change is visible as a diff and restorable with `git checkout -- state/session-state.json`.
 
 **Installer Workflow**: Understand Requirements (`CONTEXT.md`, `ROADMAP.md`, shell ref) → Plan (`hostPhase`/`chrootPhase` modules) → Implement (Go, naming conventions) → Test locally → Test harness (QEMU) → Review → Commit (conventional)
 
