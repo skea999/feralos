@@ -591,7 +591,7 @@
 - **Go modules** (2 of 3 — `src/go.mod` was already `alpineInstaller`): `tests/harness/go.mod` → `module feralos/tests/harness`, `tests/debug_run/go.mod` → `module feralos/tests/debug_run`; imports updated in `cmd/skea_harness/main.go`, `internal/mcp/server.go`, `internal/service/service.go`.
 - **Guest path** (`service.go:716`): runner-VM repo root `/home/<user>/skeaAlpineInstaller` → `/home/<user>/feralos` (tar name derives from it — consistent). SAFE for existing runner images: the repo is copied at runtime (tar → extract), nothing baked in the image; old runs + debug_run unaffected (target VM paths independent).
 - **Docs**: `docs/harness/{debug_run,development,workflow,building}.md` (module names, run-dir example, `~/feralos.tar.gz`), `docs/guides/getting_started.md` (BONUS FIX: curl/clone URLs pointed to wrong owner `skem/skeaAlpineInstaller` + nonexistent `latest-stable` path → now real `raw.githubusercontent.com/skea999/feralos/main/setup.sh` + `github.com/skea999/feralos.git`), `docs/guides/development.md` + AGENTS.md harness example paths → `~/Progetti/feralos`.
-- **Historical occurrences KEPT** (correct as-is): AGENTS.md migration-round summary, `state/session_state.json` decision record, `.agent-memory` entry — they describe the OLD gitea repo name.
+- **Historical occurrences KEPT** (correct as-is): AGENTS.md migration-round summary, `state/session-state.json` decision record, `.agent-memory` entry — they describe the OLD gitea repo name.
 - Validated: zero remaining functional `skeaAlpineInstaller` occurrences (grep); harness + debug_run builds green (go build + go vet).
 
 ### 2026-10-10 15:45 - repo: hosting migrated Gitea → GitHub (skea999/feralos)
@@ -759,7 +759,7 @@
 
 **Chain (complex)**: `context/recall` → `interview/refine` → `@planner` → *approve* → `@codebase` → PARALLEL(`@review`+`@code-reviewer`+`@vulnerability-scan`+`@information-scan`) → `@debugger/tests` → `@docs/docs` → save
 **Direct (simple)**: `@codebase` or specialist
-State: `state/session-state.json` (**primary** — full working state, read by the agents-opencode plugin context hook; write all future updates HERE) · `state/session_state.json` (frozen archive snapshot 2026-11-13, do not edit) | Handoff: `handoff/latest.md`
+State: `state/session-state.json` (**primary** — full working state, read by the agents-opencode plugin context hook; write all future updates HERE) | Handoff: `handoff/latest.md`
 
 State-file protection: the agents-opencode installer writes `state/session-state.json` only when missing (write-once-if-missing, code-proven + live-tested 2026-11-13) — it never overwrites. Git tracks the file: any accidental change is visible as a diff and restorable with `git checkout -- state/session-state.json`.
 

@@ -58,7 +58,7 @@ feralos_installer/
 │   ├── harness/ (cmd/skea_harness, internal/, variables-*.yaml deprecated shims)
 │   └── artifacts/ (gitignored: cache, prepare, runs, state)
 ├── docs/ (PROJECT.md, INSTALLER.md, guides/, architecture/, adr/, harness/)
-├── state/session_state.json
+├── state/session-state.json
 └── handoff/latest.md
 ```
 

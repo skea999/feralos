@@ -1,6 +1,6 @@
 # Handoff
 
-**Active state**: `state/session_state.json`
+**Active state**: `state/session-state.json`
 **Milestone log**: `CHANGELOG.md`
 
 ## Project Vision
@@ -272,6 +272,6 @@ Phase 1: Go installer complete + fixtures library + AGENTS compress + githooks v
 
 ---
 
-*See `state/session_state.json` for current goals, decisions, risks, and next actions.*
+*See `state/session-state.json` for current goals, decisions, risks, and next actions.*
 *See `AGENTS.md` for project context and milestone history.*
 *See `docs/PROJECT.md` for full distribution vision.*
