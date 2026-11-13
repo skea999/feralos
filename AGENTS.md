@@ -759,7 +759,7 @@
 
 **Chain (complex)**: `context/recall` → `interview/refine` → `@planner` → *approve* → `@codebase` → PARALLEL(`@review`+`@code-reviewer`+`@vulnerability-scan`+`@information-scan`) → `@debugger/tests` → `@docs/docs` → save
 **Direct (simple)**: `@codebase` or specialist
-State: `state/session_state.json` | Handoff: `handoff/latest.md`
+State: `state/session-state.json` (compact, read by the agents-opencode plugin context hook) · `state/session_state.json` (long-form archive) | Handoff: `handoff/latest.md`
 
 **Installer Workflow**: Understand Requirements (`CONTEXT.md`, `ROADMAP.md`, shell ref) → Plan (`hostPhase`/`chrootPhase` modules) → Implement (Go, naming conventions) → Test locally → Test harness (QEMU) → Review → Commit (conventional)
 

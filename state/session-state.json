@@ -1,0 +1,89 @@
+{
+  "goal": "Build FeralOS — a new Linux distribution based on Alpine, focused on memory safety and security",
+  "current_phase": "Phase 1: Installer refining · Phase 2: Distribution (status: active)",
+  "last_updated": "2026-11-13T00:00:00.000Z",
+  "decisions": [
+    {
+      "date": "2026-09-30",
+      "decision": "dinit shutdown ordering enforced via stop-command guards: dbus/elogind wait (bounded) for turnstiled exit before stopping",
+      "rationale": "dinit 0.21 releases a dependency when dependents begin stopping (release_dependencies on prop_release) — depends-on cannot express stop-after-dependent-exit (source-verified + local repro: dependency TERM'd 3.7s before …"
+    },
+    {
+      "date": "2026-10-01",
+      "decision": "All -dinit services ship /etc/dinit.d/config/<svc>.conf via the Artix wrapper pattern (service -> /usr/lib/dinit/<svc> wrapper -> source config -> exec daemon ${VARS})",
+      "rationale": "OpenRC services shipped /etc/conf.d/<svc> sourced by init scripts (52 conf.d files inventoried via confd_dump); the dinit conversion hardcoded flags in service files — no user customization point, edits lost on apk upgr…"
+    },
+    {
+      "date": "2026-10-02",
+      "decision": "dinit service conventions = Artix/Chimera alignment: no restart on daemons (smooth-recovery only; getty exception), restart=false explicit on scripted one-shots, before=login.target convention, network ordering chain (p…",
+      "rationale": "Exhaustive audit (Artix gitea 7370 repos + 18768-pkg binary repo, Chimera cports + dinit-chimera) showed drift: restart=true could flap-loop/mask crashes, no login.target ordering, firewall race window, dnsmasq as root,…"
+    },
+    {
+      "date": "2026-10-09",
+      "decision": "less ships as aports package less-dummy (wrapper script, provides=less=999 + replaces=less) instead of runtime mkpkg symlink less->bat; CI pulls alpine from public.ecr.aws mirror",
+      "rationale": "Symlink was fundamentally broken: bat execs its HARDCODED pager 'less -R -F -K --no-init' on TTY (ignores $PAGER, only cat short-circuits) — symlink made bat re-exec itself, clap errored 'unexpected argument -R' (fish h…"
+    },
+    {
+      "date": "2026-10-13",
+      "decision": "Theming authority = dms-theme-sync DMS plugin (user decision): all manual theme seeds removed from the installer; the plugin is user-installed from the DMS plugin registry (GUI; no headless install exists — verified aga…",
+      "rationale": "The plugin propagates the DMS appearance (mode/colors/icons) to GTK/Qt/KDE/Flatpak and owns conflicts/backups; keeping manual seeds would fight it. Store installs git-clone the plugin into the user config and DMS update…"
+    },
+    {
+      "date": "2026-10-14",
+      "decision": "Dual-init user session stack: turnstiled runs under BOTH inits (turnstile-openrc subpackage + `before greetd` ordering; the dinit service keeps `before: login.target`) — the per-user dinit instance and all -user-dinit s…",
+      "rationale": "Turnstile is service-manager-agnostic by design (only its backend is dinit) and Alpine already ships the OpenRC service for it — we had dropped it on a stale 'no OpenRC on FeralOS' assumption. Live-caught boot-order rac…"
+    },
+    {
+      "date": "2026-10-14",
+      "decision": "OpenRC enablement is NEVER conditional (user rule): every rc-update + OpenRC-side artifact (klogd-openrc package, installer-written OpenRC services) is configured on ALL installs — a dinit install must remain bootable u…",
+      "rationale": "User requirement: both inits must work and a dinit install must be able to switch back to OpenRC. Previously the OpenRC runlevel loop and several rc-update blocks were gated behind !enableDinit ('dead weight' rationale …"
+    },
+    {
+      "date": "2026-10-16",
+      "decision": "Second desktop environment niriWayle (niri compositor + Wayle shell + Veila lock + Raffi launcher + oo7 secrets): reuses the niri session infrastructure (turnstile + per-user dinit + pipewire stack + portals + polkit ag…",
+      "rationale": "Wayle is a compositor-agnostic GTK4 shell with niri modules — DMS remains the niri DE shell, Wayle gives a lighter Rust/GTK4 alternative. Veila (ext-session-lock-v1 + PAM) covers locking; its daemon idle covers the secu…"
+    },
+    {
+      "date": "2026-10-17",
+      "decision": "Key Rack secrets GUI ships as a Flathub flatpak (app.drey.KeyRack) in niriWayle; seahorse removed from the niriWayle apk list; Secret portal pinned to oo7-portal; standing supervision rule: ALL user-session daemons = su…",
+      "rationale": "seahorse and oo7-server BOTH ship /usr/share/dbus-1/services/org.freedesktop.secrets.service — installing both leaves the apk world permanently broken (file conflict), so the secrets GUI cannot be an apk next to oo7. Ke…"
+    },
+    {
+      "date": "2026-10-18",
+      "decision": "NAMING: FeralOS positioned as BASED ON Alpine (feral descendant), NOT 'Alpine fork' (docs/FERALOS_NAME.md); wolf→bear spirit (Alpine brown bear, rewilding symbol)",
+      "rationale": "User review: FeralOS consumes Alpine's repositories for most packages -> the accurate standard term is 'based on Alpine' (precedents: postmarketOS, Adelie); 'Alpine fork' is already on the project vocabulary Avoid-list …"
+    }
+  ],
+  "open_risks": [
+    {
+      "risk": "NVMe disk naming varies across hardware",
+      "severity": "medium",
+      "mitigation": "Use blockdev for size detection, fdisk for partitioning"
+    },
+    {
+      "risk": "Nix integration may conflict with APK",
+      "severity": "medium",
+      "mitigation": "Use separate /nix prefix, avoid PATH conflicts"
+    },
+    {
+      "risk": "Boot failure after installation",
+      "severity": "high",
+      "status": "mitigated",
+      "mitigation": "LUKS keyfile auto-unlock, console=ttyS0,115200, per-device fallbacks"
+    }
+  ],
+  "blocked_by": [],
+  "next_actions": [
+    "User real-hw validation: console keymap (it layout) + niri rendering on real GPU",
+    "dms windows depth (niri_windows check currently rc-only)",
+    "Pages race hardening (structural): harness installs feralos repo packages from CI artifact, not live Pages URL",
+    "Test with partial features (Secure Boot only, TPM only)",
+    "Add more unit tests for verify checks"
+  ],
+  "artifacts": [
+    "AGENTS.md — authoritative project context + Recent Rounds (latest first)",
+    "state/session_state.json — long-form archive (114 completed rounds, 61 decisions, full text)",
+    "handoff/latest.md — continuation handoff",
+    "docs/ideas/backlog.md — open backlog"
+  ]
+}
