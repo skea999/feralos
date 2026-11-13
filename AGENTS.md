@@ -56,9 +56,9 @@ MEMORY_IMPORTANCE=high .agents/skills/session-memory/scripts/memory.sh save "ins
 ### User-created (no manifest entry — safe from pack overwrites)
 - `custom-researcher`
 
-### Config-overridden (pack agents with project `opencode.json` entries)
-- `information-scan`, `vulnerability-scan`
-- model overrides: `code-reviewer`, `information-scan`, `vulnerability-scan` (`opencode-go/deepseek-v4-flash`)
+### Config entries in `opencode.json`
+- `information-scan`, `vulnerability-scan` (empty objects — defaults)
+- model overrides: none — every agent follows the model selected in opencode (removed 2026-11-13; the pinned `opencode-go/deepseek-v4-flash` became unavailable)
 
 ## Skills
 
@@ -201,7 +201,7 @@ Full tree → `docs/INSTALLER.md#project-structure` and `docs/architecture/overv
 ## Docs Index (docs/ = canonical detail source; AGENTS.md = index)
 
 - **Architecture**: `docs/architecture/overview.md` (principle + tree + Rules Tunables + error handling), `isolation.md` (entry-point + internal rule + hostPhase fixed order), `logging.md` (ExecuteCmd rule), `feature_confinement.md` (single-owner rule + map + user-session daemon rule + per-DE inventory), `storage.md` (layouts: btrfsStandardServer, btrfsStandard, btrfsRaid0, btrfsUnencrypted), `firstboot.md` (secureboot/tpm 3-boot), `dbus-activation.md` (ADR-010 mechanism + new-service checklist + diagnostics), `boot-oneshots.md` (both-init boot oneshot pattern)
-- **ADRs**: `docs/adr/README.md` → ADR-001 Go installer, 002 isolation, 003 internal rule, 004 ExecuteCmd, 005 LUKS+Btrfs+booster+UKI, 006 no compat, 007 dinit shutdown ordering, ADR-010 dbus activation→dinit
+- **ADRs**: `docs/adr/README.md` → ADR-001 Go installer, 002 isolation, 003 internal rule, 004 ExecuteCmd, 005 LUKS+Btrfs+booster+UKI, 006 no compat, 007 dinit shutdown ordering, 008 dinit config files, 009 dinit service conventions, ADR-010 dbus activation→dinit, 011 docs canonical model
 - **Guides** (user guides only): `docs/guides/README.md` (index) → `getting_started.md` (real hardware), `first_boot.md` (secureboot/tpm post-install), `variables.md` (variables.yaml compilation), `niriwayle.md` (flagship niriWayle desktop — Wayle/Veila/Raffi/oo7 + PAM unlock), `niri.md` (niri + NetworkManager + wayvnc), `podman.md` (btrfs driver), `development.md` (how to code / separation)
 - **Harness**: `docs/harness/README.md` (index) → `overview.md` (what it does), `workflow.md` (3-phase + 3-boot), `artifacts.md` (where generated, gitignored), `building.md` (where compiled binary goes), `development.md` (how to code), `commands.md` (CLI+MCP), `debug_run.md` (`tests/debug_run/` boot existing run, LUKS inject). `tests/harness/README.md` is pointer only.
 - **Intent / Ideas**: `docs/intent/vision.md`, `docs/intent/goals.md`, `docs/intent/vocabulary.md`, `docs/ideas/backlog.md` ← `CONTEXT.md` / `ROADMAP.md`
