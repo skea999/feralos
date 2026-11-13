@@ -15,18 +15,12 @@
   "agents": {
     "planner": {},
     "review": {},
-    "code-reviewer": {
-      "model": "opencode-go/deepseek-v4-flash"
-    },
+    "code-reviewer": {},
     "researcher": {},
     "debugger": {},
     "test-automator": {},
-    "information-scan": {
-      "model": "opencode-go/deepseek-v4-flash"
-    },
-    "vulnerability-scan": {
-      "model": "opencode-go/deepseek-v4-flash"
-    },
+    "information-scan": {},
+    "vulnerability-scan": {},
     "codebase": {
       "permissions": [
         {
