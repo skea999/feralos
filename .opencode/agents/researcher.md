@@ -1,69 +1,69 @@
 ---
-description: Read-only research subagent that grounds high-stakes decisions in primary sources before
-  implementation
+description: Read-only research subagent that grounds high-stakes decisions in primary
+  sources before implementation
 mode: subagent
 steps: 20
 permissions:
-- action: '*'
-  resource: '*'
-  effect: deny
-- action: read
-  resource: '*'
-  effect: allow
-- action: read
-  resource: '*.env'
-  effect: deny
-- action: read
-  resource: '*.env.*'
-  effect: deny
-- action: read
-  resource: '*.envrc'
-  effect: deny
-- action: read
-  resource: '*.envrc.*'
-  effect: deny
-- action: read
-  resource: '*.env.example'
-  effect: allow
-- action: read
-  resource: '*.env.sample'
-  effect: allow
-- action: read
-  resource: '*.env.template'
-  effect: allow
-- action: read
-  resource: '*.env.dist'
-  effect: allow
-- action: read
-  resource: '*.env.defaults'
-  effect: allow
-- action: grep
-  resource: '*'
-  effect: allow
-- action: glob
-  resource: '*'
-  effect: allow
-- action: webfetch
-  resource: '*'
-  effect: allow
-- action: websearch
-  resource: '*'
-  effect: allow
-- action: edit
-  resource: '*'
-  effect: deny
-- action: shell
-  resource: '*'
-  effect: deny
-- action: subagent
-  resource: '*'
-  effect: deny
-- action: todowrite
-  resource: '*'
-  effect: deny
-- action: question
-  resource: '*'
-  effect: deny
+  - action: read
+    resource: "*.env"
+    effect: deny
+  - action: read
+    resource: "*.env.*"
+    effect: deny
+  - action: read
+    resource: "*.envrc"
+    effect: deny
+  - action: read
+    resource: "*.envrc.*"
+    effect: deny
+  - action: read
+    resource: "*.env.example"
+    effect: allow
+  - action: read
+    resource: "*.env.sample"
+    effect: allow
+  - action: read
+    resource: "*.env.template"
+    effect: allow
+  - action: read
+    resource: "*.env.dist"
+    effect: allow
+  - action: read
+    resource: "*.env.defaults"
+    effect: allow
+  - action: read
+    resource: "*"
+    effect: allow
+  - action: grep
+    resource: "*"
+    effect: allow
+  - action: glob
+    resource: "*"
+    effect: allow
+  - action: webfetch
+    resource: "*"
+    effect: allow
+  - action: websearch
+    resource: "*"
+    effect: allow
+  - action: edit
+    resource: "*"
+    effect: deny
+  - action: shell
+    resource: "*"
+    effect: deny
+  - action: subagent
+    resource: "*"
+    effect: deny
+  - action: todowrite
+    resource: "*"
+    effect: deny
+  - action: question
+    resource: "*"
+    effect: deny
+  - action: "*"
+    resource: "*"
+    effect: deny
 ---
 
 # Research Agent
