@@ -11,7 +11,7 @@ All per-round work summaries (formerly "Recent Rounds") live in [CHANGELOG.md](C
 
 ## Workflow
 
-**Chain (complex)**: `context/recall` → `interview/refine` → `@planner` → *approve* → `@codebase` → PARALLEL(`@review`+`@code-reviewer`+`@vulnerability-scan`+`@information-scan`) → `@debugger/tests` → `@docs/docs` → save. @review accepts lens briefs (requirements|code|security|ux-responsive — `orchestrator-reference.instructions.md` Pattern 8).
+**Chain (complex)**: `context/recall` → `interview/refine` → `@planner` → *approve* → `@codebase` → PARALLEL(`@review`+`@code-reviewer`+`@vulnerability-scan`+`@information-scan`) → `@debugger/tests` → `@docs/docs` → save. @review accepts lens briefs (requirements|code|security|ux-responsive — `orchestrator-reference.instructions.md` Pattern 8); security lens loads `security-audit`.
 **Direct (simple)**: a Tab-selectable agent direct — `codebase`, `planner`, `legal-advisor`, `researcher`, `blogger`, `em-advisor`, `orchestrator` (specialists are subagents: ask a primary agent to dispatch). High-stakes decision → `decision-grounding` skill. Architecture decision → `adr` skill.
 
 ## Changelog Policy
@@ -53,10 +53,12 @@ MEMORY_IMPORTANCE=high .agents/skills/session-memory/scripts/memory.sh save "ins
 
 ## Agents
 
+### User-created (no manifest entry — safe from pack overwrites)
+- `custom-researcher`
+
 ### Config-overridden (pack agents with project `opencode.json` entries)
-- `information-scan`
-- `vulnerability-scan`
-- plus model overrides: `code-reviewer`, `information-scan`, `vulnerability-scan` (`opencode-go/deepseek-v4-flash`)
+- `information-scan`, `vulnerability-scan`
+- model overrides: `code-reviewer`, `information-scan`, `vulnerability-scan` (`opencode-go/deepseek-v4-flash`)
 
 ## Skills
 
