@@ -33,19 +33,20 @@ This installs:
 | Commands | `~/.config/opencode/commands/` | `caveman`, `caveman-commit`, `caveman-compress`, `caveman-help`, `caveman-review`, `caveman-stats` |
 | Skills | `~/.config/opencode/skills/` | `cavecrew` |
 | Agents | `~/.config/opencode/agents/` | `cavecrew-builder`, `cavecrew-investigator`, `cavecrew-reviewer` |
-| Plugin | `~/.config/opencode/plugins/caveman/` | `caveman-config.cjs`, `plugin.js` (V2 API), `index.js` (entrypoint) |
+| Plugin | `~/.config/opencode/plugins/caveman/` | `caveman-config.cjs`, `caveman-parse.cjs`, `plugin.js` (V1 hooks), `server.js` (V2 entry), `index.js` (entrypoint shim) |
 
 On Windows, commands go in `%APPDATA%\opencode\commands\`, everything else in `~/.config/opencode/`.
+
+**Mode names (upstream 2026-11-12 redesign)**: the six legacy intensity levels are gone — three skills now: `caveman` (was lite/full), `ultracave` (was ultra), `megacave` (was wenyan-*). Legacy values map forward on read (`LEGACY_MODES` in `caveman-config.cjs`); the `.caveman-active` flag now stores `caveman`/`ultracave`/`megacave`/`off` + one-shot modes.
 
 ### OpenCode 2.x post-install fixes (applied 2026-11-13 — redo after a fresh caveman install)
 
 1. **Plugin entrypoint**: V2 loads local directory plugins from an `index.js` entrypoint only (package.json `main` is ignored). Add:
    ```bash
-   printf "// caveman plugin entry (V2 entrypoint convention: index.js)\nexport { default } from './plugin.js';\n" > ~/.config/opencode/plugins/caveman/index.js
+   printf "// caveman plugin entry (V2 entrypoint convention: index.js)\nexport { default } from './server.js';\n" > ~/.config/opencode/plugins/caveman/index.js
    ```
-2. **Plugin implementation**: the upstream `plugin.js` uses the V1 hook API (`session.created`, `tui.prompt.append`) which does NOT run on V2. Port it to `Plugin.define` + `ctx.session.hook("prompt")` (mode changes) + `ctx.session.hook("context")` (per-request reinforcement pushing into `event.system`). The current `plugin.js` is already ported.
-3. **Config entry**: reference the plugin by absolute directory path in `opencode.json` (`{"package": "/home/skem/.config/opencode/plugins/caveman"}`) — relative paths in the global config are not resolved against the config dir.
-4. **Agent frontmatter**: V2 ignores `name` in agent files (id = filename) — drop `name:` lines. `model: haiku` bare aliases are not valid V2 `provider/model` refs — drop them (inherit the parent model). `tools:` maps are legacy — replace the "no bash" restriction with `permissions: [{action: shell, resource: '*', effect: deny}]`.
+2. **Config entry**: reference the plugin by absolute directory path in `opencode.json` (`{"package": "/home/skem/.config/opencode/plugins/caveman"}`) — relative paths in the global config are not resolved against the config dir.
+3. **Agent frontmatter**: V2 ignores `name` in agent files (id = filename) — drop `name:` lines. Bare model aliases (`model: haiku`) are not valid V2 `provider/model` refs — drop them. `tools:` maps are legacy — replace with `permissions` rules. The upstream cavecrew agents are now V2-clean except the `name:` line.
 
 Verify:
 
@@ -168,3 +169,6 @@ What was migrated on this machine (backups: `opencode.json.v1bak`, `/tmp/opencod
 - **Plugins**: caveman + agents-opencode ported to the V2 plugin API (`Plugin.define({id, setup})`, `ctx.session.hook("prompt"/"context"/"compaction")`, `ctx.tool.hook("execute.before")`, `ctx.shell.hook("create.before")`). V1 plugin implementations do NOT run on V2. Local plugin dirs need an `index.js` entrypoint; configured paths must be directories (absolute path for the global one).
 - **Agents/commands frontmatter**: `permission` maps → `permissions` ordered lists; `temperature` dropped (no V2 effect); `subtask` → `subagent` in command files; legacy `tools` maps → permissions rules.
 - **Terminal settings**: `tui.json` → `cli.json` (auto-migrated by V2 on first start).
+- **Ecosystem update (same day)**: agents-opencode pack 2.1.1 → 4.3.5 (`nix shell nixpkgs#nodejs_24 --command npx agents-opencode@4.3.5 --update --all --target auto` — pack needs Node ≥24). The installer re-ships V1 frontmatter in its agent/command files on every update → re-apply the V2 frontmatter conversion after each update. Its plugin (`plugins/agents-opencode.ts` + `lib/guards.mjs`) is dual-entrypoint and loads natively on V2 (loose `.ts` files in `plugins/` are discovered). caveman upstream redesigned its modes (caveman/ultracave/megacave) and ships `server.js` as its V2 entry. opencode-rules 2.0.0 verified V2-native (`ctx.tool.hook` + `ctx.session.hook` + `ctx.event.subscribe`).
+- **Stale-copy cleanup**: duplicate pre-redesign caveman skills in `~/.agents/skills/` (source of "duplicate skill name" warnings) removed; `~/.config/opencode/skills/` is authoritative. Orphaned global leftovers removed: `node_modules`, `package-lock.json`, `tui.json`, `settings.json`, empty `command/` + `hooks/` dirs.
+- **CLI binary**: upgraded 2.2.5 → 2.2.6 via `nix profile upgrade opencode` (unstable snapshot). The background service picks up the new binary at its next start (`opencode service restart`, or just after closing all opencode instances).
