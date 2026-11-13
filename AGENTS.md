@@ -11,8 +11,13 @@ All per-round work summaries (formerly "Recent Rounds") live in [CHANGELOG.md](C
 
 ## Workflow
 
-**Chain (complex)**: `context/recall` → `interview/refine` → `@planner` → *approve* → `@codebase` → PARALLEL(`@review`+`@code-reviewer`+`@vulnerability-scan`+`@information-scan`) → `@debugger/tests` → `@docs/docs` → save
-**Direct (simple)**: `@codebase` or specialist
+**Chain (complex)**: `context/recall` → `interview/refine` → `@planner` → *approve* → `@codebase` → PARALLEL(`@review`+`@code-reviewer`+`@vulnerability-scan`+`@information-scan`) → `@debugger/tests` → `@docs/docs` → save. @review accepts lens briefs (requirements|code|security|ux-responsive — `orchestrator-reference.instructions.md` Pattern 8).
+**Direct (simple)**: a Tab-selectable agent direct — `codebase`, `planner`, `legal-advisor`, `researcher`, `blogger`, `em-advisor`, `orchestrator` (specialists are subagents: ask a primary agent to dispatch). High-stakes decision → `decision-grounding` skill. Architecture decision → `adr` skill.
+
+## Changelog Policy
+
+No change log here. Changes go to `CHANGELOG.md` (curated dated entries at the top + "Session work log" at the end), newest first. This file = stable context + policy only.
+
 State: `state/session-state.json` (**primary** — full working state, read by the agents-opencode plugin context hook; write all future updates HERE) | Handoff: `handoff/latest.md`
 
 State-file protection: the agents-opencode installer writes `state/session-state.json` only when missing (write-once-if-missing, code-proven + live-tested 2026-11-13) — it never overwrites. Git tracks the file: any accidental change is visible as a diff and restorable with `git checkout -- state/session-state.json`.
@@ -45,6 +50,31 @@ Storage `.agent-memory/`, scripts `.agents/skills/session-memory/scripts/`
 MEMORY_IMPORTANCE=high .agents/skills/session-memory/scripts/memory.sh save "insight" "Key finding" installer
 .agents/skills/session-memory/scripts/memory.sh save "summary" "Today: implemented X. Next: Z" -Tags installer go feralos
 ```
+
+## Agents
+
+### Config-overridden (pack agents with project `opencode.json` entries)
+- `information-scan`
+- `vulnerability-scan`
+- plus model overrides: `code-reviewer`, `information-scan`, `vulnerability-scan` (`opencode-go/deepseek-v4-flash`)
+
+## Skills
+
+- `.opencode/skills/` — agents-opencode pkg
+- `.agents/skills/` — skills.sh CLI (43)
+
+### User-modified (no auto-update)
+- `session-memory`
+- `using-agent-skills`
+
+### User-created
+None.
+
+## Docs
+
+- `docs/global-setup.md` — host + global environment setup (OpenCode V2)
+- `docs/update.md` — update procedure for all components
+- `docs/agents-guide.md` — agent roster + daily workflow
 
 ## Build & Test
 
@@ -174,7 +204,7 @@ Full tree → `docs/INSTALLER.md#project-structure` and `docs/architecture/overv
 - **Harness**: `docs/harness/README.md` (index) → `overview.md` (what it does), `workflow.md` (3-phase + 3-boot), `artifacts.md` (where generated, gitignored), `building.md` (where compiled binary goes), `development.md` (how to code), `commands.md` (CLI+MCP), `debug_run.md` (`tests/debug_run/` boot existing run, LUKS inject). `tests/harness/README.md` is pointer only.
 - **Intent / Ideas**: `docs/intent/vision.md`, `docs/intent/goals.md`, `docs/intent/vocabulary.md`, `docs/ideas/backlog.md` ← `CONTEXT.md` / `ROADMAP.md`
 - **Project context / inventory**: `docs/memory_safe_alternatives.md` (detailed per-package memory-safety inventory; condensed table → root `CONTEXT.md`), `docs/FERALOS_NAME.md` (name rationale), `docs/aports-pinning.md` (feralos-side copy of the aports source-pinning policy — canonical + full: `feralos-aports` `README.md` "Source pinning policy")
-- **AI tooling environment** (how this repo's agents/opencode setup is installed and updated — not FeralOS product docs): `docs/agents_guide.md` (agent roster + daily workflow), `docs/global_setup.md` (global opencode/caveman/cavecrew bootstrap), `docs/update.md` (update procedures)
+- **AI tooling environment** (how this repo's agents/opencode setup is installed and updated — not FeralOS product docs): `docs/agents-guide.md` (agent roster + daily workflow), `docs/global-setup.md` (global opencode/caveman/cavecrew bootstrap — canonical copy from the base template), `docs/update.md` (update procedures)
 
 → AI agents: read AGENTS.md first for the map, then follow `→` pointers into `docs/` for the full detail.
 
