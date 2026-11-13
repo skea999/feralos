@@ -2,6 +2,10 @@
 
 All notable changes to FeralOS will be documented in this file.
 
+## Known issues (living list — 2026-11-13 snapshot)
+
+`log_errors` shows QEMU-only noise (`smartd`/`fsck` whitelisted; netns `mount/umount /run/netns ... Invalid argument` QEMU early-chain noise allowlisted; udevd `/bin/false` module install errors — parport/psmouse/intel_gtt/input_leds/intel_pmc_bxt — from OpenRC udev path, harmless in QEMU, nix pivot fix landed). Resolved 2026-09-30: dinit shutdown ordering — `turnstiled` pam_elogind bus error at shutdown (dinit releases dependencies at dependent stop-start, not exit) fixed via feralos-aports `stop-command` guards on `dbus`/`elogind` (ADR-007, commit `75c566a`; harness 63/63 run 2026-09-30T00-08-04Z).
+
 ## 2026-11-11 — installer reorder: dbus-audit TWO PASSES + edge install at the chroot tail
 - `chroot_phase.Run`: `extraPackagesEdge` moved to the **chroot tail (step 17, LAST step before unmount)**; the D-Bus supervision audit is now **invoked TWICE** — **step 8a = INSTALL pass** (before the desktop setup: its apk fallback puts the R1b supervision packages on disk so the desktop's user boot.d linking loop finds them) and **step 16 = REPORT pass** (the tail, immediately before edge: the boot.d section reports the FINAL state — any WARN = genuine regression; 0 installed/0 missing on the validation run).
 - Why two passes: the boot.d linking NEEDS the audit-installed packages (circular with a single tail invocation — harness run `2026-11-11T01-18-59Z` caught it: linking loop died exit 1, secrets/oo7/portals never started at login, 109/114). The binary is untouched — two invocations of the same packaged `feralos-dbus-audit`.

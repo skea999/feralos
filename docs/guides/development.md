@@ -119,17 +119,9 @@ No backward compat. Breaking changes allowed without fallback (e.g., `internal_r
 ```bash
 # vet + lint (native Linux, pre-commit does this)
 cd src && go vet ./...
-cd src && golangci-lint run ./...   # incl. wastedassign + nakedret; revive disabled (var-naming false-positives on camelCase package names = project convention)
-
-# static analysis suite (ursine pattern; same checks as scripts/ci.sh,
-# configs at repo root, tool versions pinned in the Dockerfile lint-tools)
-yamllint -c .yamllint.yml src/variables/internal_rules.yaml \
-  src/variables/variables.yaml tests/fixtures/variables/*.yaml   # BLOCKING
-gitleaks detect --source . --config .gitleaks.toml --no-banner --redact  # BLOCKING (history; no .git -> `gitleaks dir .`)
-typos --config typos.toml --format brief .                       # warn-only
-markdownlint-cli2 "docs/**/*.md" "*.md"                          # warn-only
-ec --config .ecrc .                                              # warn-only
-taplo lint --config taplo.toml .gitleaks.toml typos.toml         # warn-only, taplo optional
+cd src && golangci-lint run ./...   # incl. wastedassign + nakedret
+cd tests/harness && go vet ./...
+cd tests/harness && golangci-lint run ./...
 
 # build
 cd src && go build -o ../feralos_installer .
@@ -151,6 +143,15 @@ cd tests/harness
 
 # artifacts (gitignored): tests/artifacts/{feralos_create_config,harness}/{cache,prepare,runs,state}
 ```
+
+## Lint detail (dupl exclusions + static analysis suite)
+
+**Dupl exclusions** (intentional duplication): `src/hostPhase/disks/` (layout packages), `src/chrootPhase/desktops/` (derived desktop flows — niri.go/niri_wayle.go are intentionally duplicated, same policy as disk layouts: do NOT merge or extract shared blocks), `src/utils/firstboot/` (standalone binaries). Config: `.golangci.yml` → `dupl.threshold: 100` + `exclude-rules`. Linter set also carries `wastedassign` + `nakedret` (both clean); `revive` is DISABLED — its var-naming rule flags every MixedCaps package name (`hostPhase`, `chrootPhase`, `btrfsStandard`, `createConfig`…), which is the documented project convention ("Folders camelCase"), so its findings are false positives (rationale comment in `.golangci.yml`). Full polish task history is in the git log.
+
+**Static analysis suite (ursine pattern)** — configs at repo root: `.ecrc`, `.gitleaks.toml`, `.gitleaksignore`, `.markdownlint-cli2.jsonc`, `.shellcheckrc`, `typos.toml`, `.yamllint.yml`, `taplo.toml`; wired into `scripts/ci.sh` after the existing checks; tool versions pinned in `Dockerfile` lint-tools (gitleaks 8.30.1, typos 1.51.1, yamllint 1.38.0, markdownlint-cli2 0.24.0 + Node 22.23.4, editorconfig-checker 4.0.2; taplo optional/not in image):
+- **blocking**: `yamllint -c .yamllint.yml` over every `*.yaml`/`*.yml` in the tree except artifacts/vendor dirs (broken YAML breaks the installer); `gitleaks detect --source . --config .gitleaks.toml --no-banner --redact` (git checkout = full commit history; known historical findings fingerprinted in `.gitleaksignore`; the docker image ships no `.git` → ci.sh falls back to `gitleaks dir .` working-tree scan; the old pattern-grep scan stays as the fallback for hosts without gitleaks)
+- **warn-only**: `typos --config typos.toml --format brief .`, `markdownlint-cli2` (globs/ignores in `.markdownlint-cli2.jsonc`), `ec --config .ecrc .`, `taplo lint --config taplo.toml`
+- `.editorconfig` exceptions: `*.md` keeps trailing whitespace + `indent_size = unset`; `*.go` indent rules unset — gofmt is the sole Go indentation authority (editorconfig-checker cannot tell code from space-indented raw-string content)
 
 ## Commit Convention
 
