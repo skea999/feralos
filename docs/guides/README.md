@@ -17,5 +17,6 @@
 ## Development Guides (for contributors)
 
 - [`development.md`](./development.md) — **How to code / how things are separated**: Go conventions (snake_case files, camelCase folders), module map (`main.go` → `hostPhase`/`chrootPhase`), isolation (Entry Point, internal rule, hostPhase order), feature confinement (single-owner), logging (`shell.ExecuteCmd`), commits, build/test/harness.
+- [`audit.md`](./audit.md) — **Repository Audit & History Scrub**: reusable credential-free/anonymous procedure for auditing repo history.
 
 See also: `docs/architecture/` (deep dives), `docs/harness/` (QEMU harness full docs), `docs/INSTALLER.md` (full flow).
