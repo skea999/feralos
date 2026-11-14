@@ -13,6 +13,7 @@
 | [development.md](development.md) | How to code the harness — module structure, key patterns, adding checks |
 | [commands.md](commands.md) | CLI reference for all `skea_harness` commands and MCP tools |
 | [debug_run.md](debug_run.md) | `tests/debug_run/` — boot existing run without reinstall, auto-detect latest, LUKS inject |
+| [vm-desktop.md](vm-desktop.md) | `tests/vm-desktop/` — FeralOS desktop as a full VM inside a container on a GPU-less host (boxd), over VNC; agent screenshot and input tools |
 
 ## Quick links
 

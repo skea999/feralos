@@ -1,0 +1,15 @@
+# FeralOS as a full virtual machine inside a container, desktop over VNC.
+# Host needs only /dev/kvm (no GPU): the guest's virtio-vga-gl is rendered
+# on the processor by Mesa llvmpipe through QEMU's SDL window on an Xvfb
+# screen (matchbox maximizes it), and x11vnc serves that screen.
+# Orchestration: start.sh; agent tools: shot.sh (screen), input.sh (keys, clicks).
+FROM docker.io/library/debian:trixie-slim
+
+RUN apt-get update \
+ && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      qemu-system-x86 qemu-system-gui qemu-system-modules-opengl qemu-utils \
+      ovmf swtpm cloud-image-utils genisoimage openssh-client \
+      golang-go ca-certificates \
+      xvfb x11vnc matchbox-window-manager xdotool x11-xkb-utils x11-apps netpbm \
+      libgl1-mesa-dri libegl-mesa0 socat procps \
+ && rm -rf /var/lib/apt/lists/*
