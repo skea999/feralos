@@ -107,11 +107,11 @@ v1/v2 key invariant and blocks installer merges):
   "compaction": { "auto": true },
   "permissions": [
     { "action": "shell", "resource": "*", "effect": "allow" },
-    { "action": "*", "resource": "*", "effect": "allow" },
-    { "action": "shell", "resource": "sudo", "effect": "deny" },
-    { "action": "shell", "resource": "sudo *", "effect": "deny" },
-    { "action": "shell", "resource": "doas", "effect": "deny" },
-    { "action": "shell", "resource": "doas *", "effect": "deny" }
+    { "action": "*", "resource": "*", "effect": "allow" }
+  ],
+  "policies": [
+    { "action": "tool.use", "resource": "shell:sudo *", "effect": "deny" },
+    { "action": "tool.use", "resource": "shell:doas *", "effect": "deny" }
   ],
   "providers": {
     "ollama": {
@@ -255,21 +255,20 @@ Configured in the global `mcp.servers.context7` section (section 2). Requires a 
 
 ## 8. Permission Configuration
 
-Global config carries one hard rule: **no privilege escalation** — `sudo` and `doas` (Alpine's sudo-equivalent) are denied as shell patterns; everything else is allowed. V2 uses one ordered `permissions` array; the official V2 rule is **last matching rule wins**, so the broad
-allow rules come FIRST and the sudo/doas deny patterns LAST — the deny wins for the commands it names. Any other matching `deny` also blocks. Per-project configs mirror the same shape and may add project-specific restrictions.
+Global config carries one hard rule: **no privilege escalation** — `sudo` and `doas` (Alpine's sudo-equivalent) are denied as shell patterns; everything else is allowed. V2 merges configuration layers and the **last matching rule wins** — a project-level allow overrides a global deny. That makes plain `permissions` the WRONG place for security invariants: the invariant lives in **`policies`** (hard-deny, evaluated AFTER every rule and saved approval — it turns allow/ask into deny and never grants access).
+
+Enforced invariant (global `opencode.json`):
 
 ```jsonc
-"permissions": [
-  { "action": "shell", "resource": "*", "effect": "allow" },
-  { "action": "*", "resource": "*", "effect": "allow" },
-  { "action": "shell", "resource": "sudo", "effect": "deny" },
-  { "action": "shell", "resource": "sudo *", "effect": "deny" },
-  { "action": "shell", "resource": "doas", "effect": "deny" },
-  { "action": "shell", "resource": "doas *", "effect": "deny" }
+"policies": [
+  { "action": "tool.use", "resource": "shell:sudo *", "effect": "deny" },
+  { "action": "tool.use", "resource": "shell:doas *", "effect": "deny" }
 ]
 ```
 
-Note: this blocks the AGENT's shell calls only — the user still runs `doas apk ...` in their own terminal.
+Live-verified 2026-11-14: `sudo` from an agent session in a project whose config allows everything → `permission.rejected: Blocked by configuration policy`. Note: this blocks the AGENT's shell calls only — the user still runs `doas apk ...` in their own terminal. Per-project configs mirror the same shape and may add project-specific restrictions.
+
+Per-project `permissions` mirror the same shape (allows; project-specific restrictions as needed). Project-level allows override global permission denies — which is exactly why the escalation invariant is a `policies` entry, not a permission rule.
 
 ## 9. Parked / evaluated (not installed)
 
