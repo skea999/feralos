@@ -2,7 +2,7 @@
 
 **Status**: Active Development
 **Distribution**: FeralOS (based on Alpine Linux)
-**Updated**: 2026-10-18
+**Updated**: 2026-11-14
 
 ## Phases
 
@@ -53,6 +53,15 @@ and custom repositories.
 | v3.1 | — | In progress | Custom FeralOS repository — **LIVE**: [feralos-aports](https://github.com/skea999/feralos-aports) (signed repo on GitHub Pages, CI client-verified; rule 0: Alpine packages first) |
 | v3.0 | — | In progress | Dinit init system — boot suite (`dinit-chimera`) + full `-dinit` service suite packaged; installer `enableDinit` toggle shipped (OpenRC co-installed as fallback) |
 | v3.2 | — | Planned | Full FeralOS distribution release (Dinit default) |
+
+## Future Goals (declared — see `docs/intent/goals.md#Future work`)
+
+- **Smart TV desktop** — TV is a first-class target alongside desktop/VM/hypervisor.
+- **Memory-safe aports replacement** — same APKBUILD format, distro bootstrap, isolated builds, LLVM max-static (cports approach); per-package independent tests + published-CVE integration. Blocked on donations → infra + maintainers.
+- **apk ported to Go** — remove one of the last critical non-memory-safe system components.
+- **Desktop**: GTK removal (not memory safe); eliminate cross-DE heavy-dependency software.
+- **Chroot installation like Arch Linux** — documented in the wiki, standard configuration moved into aports packages.
+- **Security**: formal standards conformance + enterprise observability out of the box (open TODO — hardening already shipped).
 
 See `docs/dinit/` (installer-side) and [feralos-aports](https://github.com/skea999/feralos-aports) `PLAN.md`/`STATUS.md` for the step-by-step Dinit plan.
 

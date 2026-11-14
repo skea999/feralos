@@ -7,6 +7,7 @@
 
 - **Tooling**: OpenCode V2 (2.2.6, nix unstable) with the skea-store base template aligned — pack `agents-opencode` 4.3.5 (V2), caveman/context-mode/ast-grep global env, `opencode-rules` verified V2-native. Last V1 session imported (parent + 58 subagents). Maintenance recipe after every pack update: `docs/update.md`.
 - **Docs model**: `docs/` = canonical detail source; `AGENTS.md` = lean index (work history + known issues live in `CHANGELOG.md`).
+- **Goals**: `docs/intent/goals.md` — complete memory-safe distro, actually secure (standards conformance + enterprise observability OOTB = open TODOs), perceived-fast (dinit/TPM/greetd/niri), minimal-but-full (no full DEs, remove-without-breaking, flatpak+nix), targets = desktop/VM/hypervisor/TV (never containers). Future: Smart TV desktop, memory-safe aports builder (cports-like), apk→Go port, GTK removal. Spec: `docs/intent/spec-distro.md`.
 - **State**: this handoff + `state/session-state.json` (installer write-once-protected; git-tracked).
 - **Installer**: all four DEs green (niri 115, niriWayle 118 flagship, kde 78, cosmic 78); ADR-010 supervision audit shipped and invoked TWICE at install; Phase 2 dinit + custom repo live.
 

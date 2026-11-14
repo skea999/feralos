@@ -105,6 +105,12 @@ All notable changes to FeralOS will be documented in this file.
 - Nix package manager integration
 - Full distribution release
 
+## 2026-11-14 — the goal declared: goals/spec/README rewritten around the real mission
+- The project goal was never formally declared. Declared now and compiled everywhere: **complete, refined, maximally memory-safe distro based on Alpine — actually secure (standards conformance + enterprise observability out of the box, open TODOs), perceived-fast (dinit / TPM unlock / greetd / niri — not kernel tuning), minimal-but-full (no full DEs; remove-without-breaking; flatpak + nix for full coverage), targets = desktop / VM / hypervisor / TV, containers excluded (Alpine wins there)**. Future declared: Smart TV desktop, memory-safe aports builder (APKBUILD-compatible, bootstrap, isolated builds, LLVM max-static — cports approach; per-package tests + CVE integration, blocked on donations), apk ported to Go, desktop GTK removal, chroot-install-like-Arch wiki.
+- `docs/intent/goals.md` rewritten as the single source of objectives; **`docs/intent/spec-distro.md`** is the distribution specification (installer / package policy / desktop / security+observability / targets / future — replaces the removed toolchain-round file, which carried no real spec); `docs/intent/vision.md` refreshed (dinit + feralos-aports shipped, security TODOs, perceived-speed principle).
+- README integrated: new sections "Actually Secure, Not Just Claiming", "Fast You Can Feel", "Minimal Core, Full System"; Project Status updated (refined, harness-verified 118-check, open goals named).
+- ROADMAP.md: new "Future Goals" section; AGENTS.md header carries the Goal + pointer; handoff/state aligned (goal TODOs in next_actions). Open TODOs tracked, never claimed as done: security-standards conformance, enterprise observability OOTB.
+
 ## 2026-11-14 — workflow compile round: full 13-step pass, reviews, docs_check gates
 - **Workflow**: all 13 skill-chain steps executed and tracked (spec + plan + requirements ledger + workflow execution log → `docs/intent/spec-2026-11-13-opencode-v2-toolchain.md`).
 - **Reviews** (`@review` + `@code-reviewer` on the tooling round and on the installer two-pass diff `06de0be^..68b2873`): installer = APPROVE WITH NITS — applied the nits (edge-step error wrapped with `%w`, stale `step 8b` comment in `features/edgerepos.go` corrected to step 17); tracked-not-blocking finding F2 = @edge world residue vs `feralos-secureboot`'s bare `apk add sbctl` (state next_actions).

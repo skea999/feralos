@@ -49,6 +49,18 @@ sudo bash setup.sh -config variables.yaml
 
 ## What Makes FeralOS Different
 
+### Actually Secure, Not Just Claiming
+
+Every distribution claims security. FeralOS enforces it by construction: memory-safe replacements for the most attack-exposed components, hardening by default, supervised services with deliberate restart semantics, a D-Bus policy where every activation starts a supervised unit, signed UKI + LUKS2 + Secure Boot tooling. Two things are still **open TODOs** and tracked as such (never claimed as done): formal **security-standards conformance** and **enterprise observability out of the box**.
+
+### Fast You Can Feel
+
+Not kernel tuning, not FPS chasing — micro-gains are pointless work for minimal benefit. In FeralOS the **software is fast and never hangs**, and that is what the user feels: **dinit** boots the system in parallel with correct dependencies, **TPM auto-unlock** removes the password step even on full-disk encryption, **greetd + niri** start a real desktop in seconds on Rust foundations.
+
+### Minimal Core, Full System
+
+Base = Alpine repositories (audited, stripped packages). **apk guarantees the system keeps working forever** — no package-manager rot over the life of an install. Full desktop environments are deliberately not shipped: they take away control over what gets installed and bundle worse-than-best-of-breed software. FeralOS ships a coherent custom desktop (below) **plus the complete software set working out of the box** — remove anything you don't need, and the configuration keeps working if you ever re-add it. **Flatpak** (proprietary software) and **Nix** (the widest repository) close the coverage gap: nothing available for Linux is out of reach, without sacrificing the memory-safe musl core.
+
 ### Memory Safety First
 
 Traditional Linux distributions ship thousands of lines of C code in core utilities. C is the root cause of entire classes of vulnerabilities: buffer overflows, use-after-free, format string attacks. FeralOS replaces the most attack-exposed components with memory-safe alternatives written in Rust and Go.
@@ -174,7 +186,7 @@ Stack: **k3s** + **LINSTOR/Pirateus** as distributed storage backend for **Incus
 
 ## Project Status
 
-**Experimental.** FeralOS is in active development. The installer works and passes all automated tests (up to 113 checks per fixture via the QEMU harness; the flagship niriWayle fixture runs 109/109), but expect rough edges on real hardware. Everything needs more testing on real hardware before production use.
+**Refined, actively developed.** The installer works and is harness-verified (up to 118 checks per fixture via the QEMU harness — all four desktop environments green; the flagship niriWayle fixture is the reference). Remaining: real-hardware validation and the open goals in `docs/intent/goals.md` (security-standards conformance + enterprise observability OOTB, Smart TV desktop, memory-safe aports builder, apk→Go port).
 
 ### Installer Status
 

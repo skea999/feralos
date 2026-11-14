@@ -83,3 +83,12 @@ Transform installer output into complete FeralOS distribution.
 - `CONTEXT.md#Memory-Safe Alternatives` (alternatives table)
 - `docs/PROJECT.md#Roadmap`
 - `CHANGELOG.md` (history)
+
+## Declared future goals (2026-11-14 — from `docs/intent/goals.md#Future work`)
+
+- Memory-safe aports replacement: APKBUILD-compatible, distro bootstrap, isolated builds, LLVM max-static (cports approach) + per-package independent tests + CVE integration. Blocked on donations → infra + maintainers.
+- apk ported to Go (remove one of the last critical non-memory-safe system components).
+- Smart TV desktop (TV = first-class target).
+- Desktop: GTK removal; cross-DE heavy-dependency elimination.
+- Chroot installation like Arch Linux, documented in the wiki; standard configuration moved into aports packages.
+- Security standards conformance + enterprise observability out of the box (open TODO — hardening already shipped).

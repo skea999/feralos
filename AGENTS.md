@@ -3,6 +3,7 @@
 **Stack**: Go 1.22 (installer) + Shell (legacy reference) + YAML config
 **Project**: FeralOS — Alpine-based distribution, memory safety + security, Nix for glibc, Dinit selectable (OpenRC fallback), custom repo
 **Status**: Phase 1 refining · Phase 2 shipping (niriWayle flagship desktop, Dinit selectable)
+**Goal**: complete memory-safe, actually-secure (standards conformance + enterprise observability OOTB — open TODO), perceived-fast, minimal-but-full distro for desktop/VM/hypervisor/TV — everything except containers. Single source: `docs/intent/goals.md`; spec: `docs/intent/spec-distro.md`; future: Smart TV desktop, memory-safe aports builder (cports-like), apk→Go port, GTK removal.
 
 > **Primary context for AI agents.** This file is the lean index: context, rules of engagement, pointers. Full detail lives in `docs/` (canonical per topic). Read this file first, then follow the `→` pointers.
 ## Work history
@@ -204,7 +205,7 @@ Full tree → `docs/INSTALLER.md#project-structure` and `docs/architecture/overv
 - **ADRs**: `docs/adr/README.md` → ADR-001 Go installer, 002 isolation, 003 internal rule, 004 ExecuteCmd, 005 LUKS+Btrfs+booster+UKI, 006 no compat, 007 dinit shutdown ordering, 008 dinit config files, 009 dinit service conventions, ADR-010 dbus activation→dinit, 011 docs canonical model
 - **Guides** (user guides only): `docs/guides/README.md` (index) → `getting_started.md` (real hardware), `first_boot.md` (secureboot/tpm post-install), `variables.md` (variables.yaml compilation), `niriwayle.md` (flagship niriWayle desktop — Wayle/Veila/Raffi/oo7 + PAM unlock), `niri.md` (niri + NetworkManager + wayvnc), `podman.md` (btrfs driver), `development.md` (how to code / separation)
 - **Harness**: `docs/harness/README.md` (index) → `overview.md` (what it does), `workflow.md` (3-phase + 3-boot), `artifacts.md` (where generated, gitignored), `building.md` (where compiled binary goes), `development.md` (how to code), `commands.md` (CLI+MCP), `debug_run.md` (`tests/debug_run/` boot existing run, LUKS inject). `tests/harness/README.md` is pointer only.
-- **Intent / Ideas**: `docs/intent/vision.md`, `docs/intent/goals.md`, `docs/intent/vocabulary.md`, `docs/ideas/backlog.md` ← `CONTEXT.md` / `ROADMAP.md`; specs: `docs/intent/spec-2026-11-13-opencode-v2-toolchain.md` (V2 toolchain spec + plan + workflow execution log)
+- **Intent / Ideas**: `docs/intent/goals.md` (**mission + objectives — read first**), `docs/intent/spec-distro.md` (the distribution specification), `docs/intent/vision.md` (vision + memory-safe replacement table), `docs/intent/vocabulary.md`, `docs/ideas/backlog.md` ← `CONTEXT.md` / `ROADMAP.md`
 - **Project context / inventory**: `docs/memory_safe_alternatives.md` (detailed per-package memory-safety inventory; condensed table → root `CONTEXT.md`), `docs/FERALOS_NAME.md` (name rationale), `docs/aports-pinning.md` (feralos-side copy of the aports source-pinning policy — canonical + full: `feralos-aports` `README.md` "Source pinning policy")
 - **AI tooling environment** (how this repo's agents/opencode setup is installed and updated — not FeralOS product docs): `docs/agents-guide.md` (agent roster + daily workflow), `docs/global-setup.md` (global opencode/caveman/cavecrew bootstrap — canonical copy from the base template), `docs/update.md` (update procedures)
 
@@ -212,7 +213,7 @@ Full tree → `docs/INSTALLER.md#project-structure` and `docs/architecture/overv
 
 ## Roadmap
 
-Full pipeline + priorities → `ROADMAP.md`. Memory-safe alternatives table → `CONTEXT.md`. Backlog → `docs/ideas/backlog.md`. Status snapshot: Phase 1 completed (layouts, generator, harness, niri, niriWayle flagship); Phase 1 refining in progress; Phase 2 dinit + custom repo live, full release planned.
+Full pipeline + priorities + Future Goals → `ROADMAP.md`. Goals → `docs/intent/goals.md` (single source). Memory-safe alternatives table → `CONTEXT.md`. Backlog → `docs/ideas/backlog.md`. Status snapshot: Phase 1 completed (layouts, generator, harness, niri, niriWayle flagship); Phase 1 refining in progress; Phase 2 dinit + custom repo live, full release planned.
 
 ## Known Issues
 
