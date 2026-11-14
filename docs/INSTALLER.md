@@ -46,13 +46,14 @@ feralos_installer/
 │   │   ├── secureboot/main.go
 │   │   └── tpm/main.go
 │   └── chrootPhase/
-│       ├── chroot_phase.go           # 14-step orchestrator
+│       ├── chroot_phase.go           # 17-step orchestrator (see flow below)
 │       ├── internal/
 │       │   ├── packages.go, firmware.go, network.go, boot.go, storage.go
 │       │   ├── logging.go, misc.go, services.go, users.go, uki.go
+│       │   ├── dbus_audit.go, dbus_audit_helpers.go
 │       │   └── ...
 │       ├── features/ (hardening.go, zswap.go, zswap_server.go, nix.go, podman.go, edgerepos.go)
-│       └── desktops/ (niri.go, niri_wayle.go, desktops.go)
+│       └── desktops/ (niri.go, niri_wayle.go, desktops.go, branding.go)
 ├── tests/
 │   ├── fixtures/variables/ (30 fixtures, full template mirror + README — all scenarios)
 │   ├── harness/ (cmd/skea_harness, internal/, variables-*.yaml deprecated shims)
@@ -88,6 +89,34 @@ main.go (installer entry, no host deps)
        firstboot.SetupTpm            // compile + copy feralos-tpm
        cleanup.Cleanup(conf)         // final unmount before reboot
 ```
+
+### Chroot Phase — 17-step orchestrator (`chrootPhase/chroot_phase.go`)
+
+| Step | Call | What |
+|------|------|------|
+| 1 | `internal.SetupPackages` | All packages: base, rules-driven, features, DE |
+| 2 | `internal.SetupLogging` | vector + klogd setup |
+| 3 | `internal.SetupNetwork` | interfaces, NetworkManager config |
+| 4 | `internal.SetupMisc` | keymap, ursine log dir, misc seeds |
+| 5 | `internal.SetupUsers` | users, groups, login shell |
+| 6 | `internal.SetupServices` | services + runlevels + dinit/OpenRC enablement |
+| 7 | `features.SetupNix` | nix + channels + registry pins |
+| 8 | `features.SetupFlatpak` | flathub + flatpak packages |
+| 9 | `internal.SetupDbusAudit` | **ADR-010 audit — INSTALL pass** (`--no-fail`): discovers every D-Bus activation target, `apk add`s the supervision packages so the desktop boot.d linking loop finds them |
+| 10 | `features.SetupZswapServer` | zswap helper service |
+| 11 | `features.SetupZswap` | zswap feature |
+| 12 | `internal.SetupStorage` | trim cron, snapshots, scrub schedules |
+| 13 | `features.SetupHardening` | hardening (+ debug flag) |
+| 14 | `features.SetupPodman` | podman + iptables + cgroups |
+| 15 | `internal.SetupBoot` | booster, UKI, boot hooks |
+| 16 | `internal.SetupDbusAudit` | **ADR-010 audit — REPORT pass** (strict): boot.d section = FINAL state, any WARN = genuine regression |
+| 17 | `features.SetupEdgeRepos` | @edge repos appended → edge packages installed → repos commented out (LAST chroot step; only firstboot compile + unmount follow) |
+
+Why the audit runs twice: the desktop boot.d linking loop (step 6's service wiring
+materializes at login) needs the audit-installed supervision packages on disk —
+a single tail invocation is circular (harness run `2026-11-11T01-18-59Z` caught
+it: linking died, 109/114). Details: `docs/architecture/dbus-activation.md`.
+
 
 **Isolation contract:**
 - `main` collects/generates config then delegates to five entry points.

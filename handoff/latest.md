@@ -225,7 +225,7 @@ Phase 1: Go installer complete + fixtures library + AGENTS compress + githooks v
 | `tests/harness/` | QEMU-based test harness |
 | `tests/debug_run/` | Debug tool for existing runs |
 | `docs/INSTALLER.md` | Installer architecture documentation |
-| `docs/USAGE.md` | Usage guide and configuration |
+| `docs/guides/` | User guides (getting started, first boot, DE guides, variables) |
 | `CONTEXT.md` | Domain vocabulary |
 
 ## Decisions Made

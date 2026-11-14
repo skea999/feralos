@@ -152,7 +152,7 @@ func Run(conf *config.Config) error {
 	// apk fallback always resolves against stable-only repos. Hard failure
 	// by design.
 	if err := features.SetupEdgeRepos(conf); err != nil {
-		return err
+		return fmt.Errorf("edge repositories setup failed: %w", err)
 	}
 
 	fmt.Println("[INFO] ChrootPhase.Run completed successfully.")

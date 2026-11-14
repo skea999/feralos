@@ -640,7 +640,8 @@
     "Pages race hardening (structural): harness installs feralos repo packages from CI artifact, not live Pages URL",
     "Test with partial features (Secure Boot only, TPM only)",
     "Add more unit tests for verify checks",
-    "D-Bus→dinit (ADR-010) CLOSED 2026-10-18: shim + system/session units + overrides + installer/harness wiring + docs all done; validated 106/106 (dinit niriWayle) + 90/90 (OpenRC niriWayle). NEXT: real-hw validation (DMS/Wayle widgets trigger activation on real boots); retire the shim if Chimera ships native dinit-dbus routing"
+    "D-Bus→dinit (ADR-010) CLOSED 2026-10-18: shim + system/session units + overrides + installer/harness wiring + docs all done; validated 106/106 (dinit niriWayle) + 90/90 (OpenRC niriWayle). NEXT: real-hw validation (DMS/Wayle widgets trigger activation on real boots); retire the shim if Chimera ships native dinit-dbus routing",
+    "Edge world residue (review F2, track-don't-block): after the edge install the apk world keeps @edge-tagged entries; feralos-secureboot's bare 'apk add sbctl' at first boot runs against that world (tpm path self-mitigates — it re-adds edge repos itself). Candidate fix: strip @edge world entries post-install (removeFromWorld pattern) or install edge pkgs untagged+pinned; verify 'apk add sbctl' behavior in the harness first."
   ],
-  "last_updated": "2026-11-13"
+  "last_updated": "2026-11-14"
 }

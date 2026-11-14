@@ -106,12 +106,12 @@ v1/v2 key invariant and blocks installer merges):
   "$schema": "https://opencode.ai/config.json",
   "compaction": { "auto": true },
   "permissions": [
+    { "action": "shell", "resource": "*", "effect": "allow" },
+    { "action": "*", "resource": "*", "effect": "allow" },
     { "action": "shell", "resource": "sudo", "effect": "deny" },
     { "action": "shell", "resource": "sudo *", "effect": "deny" },
     { "action": "shell", "resource": "doas", "effect": "deny" },
-    { "action": "shell", "resource": "doas *", "effect": "deny" },
-    { "action": "shell", "resource": "*", "effect": "allow" },
-    { "action": "*", "resource": "*", "effect": "allow" }
+    { "action": "shell", "resource": "doas *", "effect": "deny" }
   ],
   "providers": {
     "ollama": {
@@ -255,16 +255,17 @@ Configured in the global `mcp.servers.context7` section (section 2). Requires a 
 
 ## 8. Permission Configuration
 
-Global config carries one hard rule: **no privilege escalation** — `sudo` and `doas` (Alpine's sudo-equivalent) are denied as shell patterns; everything else is allowed. V2 uses one ordered `permissions` array; per the official V2 permissions doc the last matching rule wins, and any matched `deny` hard-blocks the operation — so the sudo/doas deny patterns stay first and the general allow rules follow. Per-project configs mirror the same shape and may add project-specific restrictions.
+Global config carries one hard rule: **no privilege escalation** — `sudo` and `doas` (Alpine's sudo-equivalent) are denied as shell patterns; everything else is allowed. V2 uses one ordered `permissions` array; the official V2 rule is **last matching rule wins**, so the broad
+allow rules come FIRST and the sudo/doas deny patterns LAST — the deny wins for the commands it names. Any other matching `deny` also blocks. Per-project configs mirror the same shape and may add project-specific restrictions.
 
 ```jsonc
 "permissions": [
+  { "action": "shell", "resource": "*", "effect": "allow" },
+  { "action": "*", "resource": "*", "effect": "allow" },
   { "action": "shell", "resource": "sudo", "effect": "deny" },
   { "action": "shell", "resource": "sudo *", "effect": "deny" },
   { "action": "shell", "resource": "doas", "effect": "deny" },
-  { "action": "shell", "resource": "doas *", "effect": "deny" },
-  { "action": "shell", "resource": "*", "effect": "allow" },
-  { "action": "*", "resource": "*", "effect": "allow" }
+  { "action": "shell", "resource": "doas *", "effect": "deny" }
 ]
 ```
 

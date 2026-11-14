@@ -104,5 +104,46 @@ SECTION_FB=$(awk '/^## FirstBoot Architecture$/{f=1; next} /^## /{f=0} f' AGENTS
 [ -n "$SECTION_FB" ] || fail "AGENTS.md section 'FirstBoot Architecture' not found"
 echo "✓ AGENTS.md drift spot check passed (D-Bus R1 + FirstBoot)"
 
+# --- toolchain docs gates (2026-11-13 round) ---------------------------------
+echo "=== Docs: toolchain docs gates ==="
+
+# ADR-011 (docs canonical model) exists and is indexed
+[ -f docs/adr/ADR-011-docs-canonical-model.md ] ||
+  fail "ADR-011-docs-canonical-model.md missing"
+grep -q "ADR-011-docs-canonical-model.md" docs/adr/README.md AGENTS.md ||
+  fail "ADR-011 not indexed (docs/adr/README.md + AGENTS.md Docs Index)"
+
+# CHANGELOG shape: single H1, [Unreleased] before the first dated entry,
+# 'Session work log' present at ## level
+[ "$(grep -c '^# ' CHANGELOG.md)" -eq 1 ] || fail "CHANGELOG.md must have exactly one H1"
+FIRST_DATED=$(awk '/^## 2026-/{print NR; exit}' CHANGELOG.md)
+UNREL=$(awk '/^## \[Unreleased\]/{print NR; exit}' CHANGELOG.md)
+[ -n "$FIRST_DATED" ] && [ -n "$UNREL" ] && [ "$UNREL" -lt "$FIRST_DATED" ] ||
+  fail "CHANGELOG.md: '## [Unreleased]' must precede the first dated '## 2026-' entry"
+grep -q '^## Session work log' CHANGELOG.md ||
+  fail "CHANGELOG.md: '## Session work log' section missing"
+
+# permission semantics: no first-match claims; denies documented AFTER the
+# broad allows (last-match-wins order) in the global-setup examples
+if grep -rqnE 'first[- ]match[- ]wins|first match wins' docs/global-setup.md docs/update.md AGENTS.md; then
+  fail "stale first-match-wins claim in the toolchain docs (V2 = last-match-wins)"
+fi
+ORDER_BLOCK=$(awk '/```jsonc/{f=1;next} /^```/{f=0} f' docs/global-setup.md | grep -E '"(action|effect)"')
+FIRST_ALLOW=$(awk '/"effect": "allow"/{print NR; exit}' <<<"$ORDER_BLOCK")
+LAST_DENY=$(awk '/"effect": "deny"/{n=NR} END{print n}' <<<"$ORDER_BLOCK")
+{ [ -n "$FIRST_ALLOW" ] && [ -n "$LAST_DENY" ] && [ "$FIRST_ALLOW" -lt "$LAST_DENY" ]; } ||
+  fail "docs/global-setup.md example: deny rules must come AFTER the broad allows (last-match-wins)"
+
+# no stale per-agent model overrides in live config (prose mentions in
+# AGENTS.md/spec = corrective history, allowed)
+if grep -rqn "deepseek-v4-flash" opencode.json .opencode/agents/ .opencode/rules/ 2>/dev/null; then
+  fail "stale per-agent model override reference (agents follow the session model)"
+fi
+
+# state file parses and carries the primary flag contract
+python3 -c "import json;json.load(open('state/session-state.json'))" ||
+  fail "state/session-state.json is not valid JSON"
+echo "✓ toolchain docs gates passed (ADR-011, CHANGELOG shape, last-match-wins order, no stale overrides, state JSON)"
+
 echo "=== Docs check complete ==="
 exit 0
