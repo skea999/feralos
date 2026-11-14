@@ -640,9 +640,13 @@ func checkCoreBootd(rep *reporter) {
 	}
 }
 
-// linkExists checks both boot.d dirs for the unit link.
+// linkExists checks both boot.d dirs for the unit link. The installer's
+// linking loop creates links WITH the .user suffix (rules userServices carry
+// verbatim `.user` unit names → boot.d/dbus.user), so probe the suffixed
+// name.
 func linkExists(name string) bool {
-	return fileExists(filepath.Join(bootdLibDir, name)) || fileExists(filepath.Join(bootdEtcDir, name))
+	link := name + ".user"
+	return fileExists(filepath.Join(bootdLibDir, link)) || fileExists(filepath.Join(bootdEtcDir, link))
 }
 
 // reportSessionOverrides reports the user's materialized session activation
