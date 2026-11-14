@@ -645,7 +645,7 @@
     "GOAL TODO: formal security-standards conformance + enterprise observability out of the box (the distro is actually secure, not security-claiming — this piece is still missing)",
     "GOAL: chroot installation like Arch Linux, documented in the wiki; move most standard configuration into aports packages",
     "GOAL future: Smart TV desktop (TV = first-class target)",
-    "GOAL future (blocked on donations): memory-safe aports replacement — APKBUILD-compatible, bootstrap, isolated builds, LLVM max-static (cports-like), per-package tests + CVE integration",
+    "GOAL future (blocked on donations): memory-safe aports replacement — APKBUILD-compatible, BOOTSTRAPS THE DISTRO FROM NOTHING (self-host from zero like Chimera's cports; Alpine lacks this, as do most distros), isolated builds, LLVM max-static, per-package tests + CVE integration",
     "GOAL future: apk ported to Go; desktop GTK removal; cross-DE heavy-dependency elimination"
   ],
   "last_updated": "2026-11-14"

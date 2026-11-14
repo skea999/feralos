@@ -58,7 +58,7 @@ feralos_installer/
 │   ├── fixtures/variables/ (30 fixtures, full template mirror)
 │   ├── harness/ (cmd/skea_harness, internal/)
 │   └── artifacts/ (gitignored)
-├── docs/ (PROJECT.md, INSTALLER.md, guides/, architecture/, adr/, harness/, intent/, ideas/)
+├── docs/ (INSTALLER.md, intent/ goals+spec+vision, guides/, architecture/, adr/, harness/, ideas/)
 ├── state/session-state.json
 └── handoff/latest.md
 ```

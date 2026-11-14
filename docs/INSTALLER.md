@@ -58,7 +58,7 @@ feralos_installer/
 │   ├── fixtures/variables/ (30 fixtures, full template mirror + README — all scenarios)
 │   ├── harness/ (cmd/skea_harness, internal/, variables-*.yaml deprecated shims)
 │   └── artifacts/ (gitignored: cache, prepare, runs, state)
-├── docs/ (PROJECT.md, INSTALLER.md, guides/, architecture/, adr/, harness/)
+├── docs/ (INSTALLER.md, goals/spec/vision under intent/, guides/, architecture/, adr/, harness/)
 ├── state/session-state.json
 └── handoff/latest.md
 ```
@@ -418,7 +418,7 @@ nothing dbus-activatable may run unsupervised:
 - **Harness**: QEMU-based testing with virtual machines
 - **Artifacts**: Test outputs in tests/artifacts/ (gitignored)
 - **Modes**: Install, boot, shell access for manual testing
-- **Checks**: per-DE verification suites, init-aware (dinit vs OpenRC) — up to 113 checks on the flagship niri desktop; includes `fstab_vs_mount`, `vector_*`, `apk_packages` dumps, dinit runtime/user-session checks
+- **Checks**: per-DE verification suites, init-aware (dinit vs OpenRC) — up to 118 checks on the flagship niriWayle desktop; includes `fstab_vs_mount`, `vector_*`, `apk_packages` dumps, dinit runtime/user-session checks
 - **Log hygiene**: `log_errors` fails on any non-allowlisted ERROR/WARNING in installer.log + serial; QEMU-only noise is allowlisted (`smartd`/`fsck`, netns mount/umount early chain, udevd `/bin/false` module installs)
 - **debug-run**: `tests/debug_run/` boots an existing run without reinstalling (auto-detects latest run dir)
 

@@ -55,7 +55,7 @@ Desktop · VM (unencrypted layout) · hypervisor (incus) · Smart TV (future). *
 
 ## 7. Future specification (declared, not started)
 
-1. **Memory-safe aports replacement** — same APKBUILD format, distribution bootstrap, isolated builds, LLVM with maximum static code (the Chimera cports approach), **independent per-package tests** (know the weaknesses of what we ship) + **published-CVE integration**. Blocked on donations → infrastructure + maintainers.
+1. **Memory-safe aports replacement** — same APKBUILD format, **bootstraps the distribution FROM NOTHING** (self-host from zero, like Chimera's cports: no host distro needed — Alpine lacks this, as do most distributions), isolated builds, LLVM with maximum static code. **Independent per-package tests** (know the weaknesses of what we ship) + **published-CVE integration**. Blocked on donations → infrastructure + maintainers.
 2. **apk ported to Go** — remove one of the last critical non-memory-safe system components.
 3. **Chroot installation like Arch Linux** — documented in the wiki, with most standard configuration moved into aports packages.
 4. GTK removal; cross-DE heavy-dependency elimination.

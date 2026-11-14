@@ -81,12 +81,12 @@ Transform installer output into complete FeralOS distribution.
 - `ROADMAP.md` (source — Phases, Milestones, Pipelines, Timeline)
 - `AGENTS.md#Roadmap` (compressed roadmap, status Completed vs Planned)
 - `CONTEXT.md#Memory-Safe Alternatives` (alternatives table)
-- `docs/PROJECT.md#Roadmap`
+- `ROADMAP.md`
 - `CHANGELOG.md` (history)
 
 ## Declared future goals (2026-11-14 — from `docs/intent/goals.md#Future work`)
 
-- Memory-safe aports replacement: APKBUILD-compatible, distro bootstrap, isolated builds, LLVM max-static (cports approach) + per-package independent tests + CVE integration. Blocked on donations → infra + maintainers.
+- Memory-safe aports replacement: APKBUILD-compatible, **bootstraps the distro FROM NOTHING** (self-host from zero like Chimera's cports — Alpine lacks this, as do most distros), isolated builds, LLVM max-static + per-package independent tests + CVE integration. Blocked on donations → infra + maintainers.
 - apk ported to Go (remove one of the last critical non-memory-safe system components).
 - Smart TV desktop (TV = first-class target).
 - Desktop: GTK removal; cross-DE heavy-dependency elimination.

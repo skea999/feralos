@@ -6,7 +6,7 @@
 
 ## Context
 
-Installer must partition disks, bootstrap Alpine, configure system reliably across RAID layouts. Shell reference exists in `internal/` but lacks type safety, testability, module isolation. Need cross-compiled firstBoot binaries, declarative user config, data-driven package rules. Sources: `CONTEXT.md#File Locations`, `docs/PROJECT.md#Stack`, `AGENTS.md#Stack`, `docs/architecture/overview.md`.
+Installer must partition disks, bootstrap Alpine, configure system reliably across RAID layouts. Shell reference exists in `internal/` but lacks type safety, testability, module isolation. Need cross-compiled firstBoot binaries, declarative user config, data-driven package rules. Sources: `CONTEXT.md#File Locations`, `AGENTS.md#Stack`, `docs/architecture/overview.md`.
 
 ## Decision
 
@@ -27,4 +27,4 @@ Installer must partition disks, bootstrap Alpine, configure system reliably acro
 
 ## References
 
-- `AGENTS.md#Stack`, `CONTEXT.md`, `docs/PROJECT.md#Stack`, `docs/INSTALLER.md#Project Structure`, `src/go.mod`
+- `AGENTS.md#Stack`, `CONTEXT.md`, `docs/INSTALLER.md#Project Structure`, `src/go.mod`

@@ -151,6 +151,6 @@ Compressed swap in RAM via `zram-init`. For low-memory self-hosted envs. *Avoid*
 ## References
 
 - `CONTEXT.md` (canonical)
-- `PROJECT.md#Package Architecture` + `#Storage Layouts`
+- `docs/architecture/storage.md` (layout inventory) + `AGENTS.md#Architecture Principle`
 - `AGENTS.md#Architecture Principle` + `#Naming Conventions`
 - `docs/architecture/overview.md`

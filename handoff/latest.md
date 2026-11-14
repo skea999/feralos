@@ -289,4 +289,4 @@ Phase 1: Go installer complete + fixtures library + AGENTS compress + githooks v
 
 *See `state/session-state.json` for current goals, decisions, risks, and next actions.*
 *See `AGENTS.md` for project context and milestone history.*
-*See `docs/PROJECT.md` for full distribution vision.*
+*Full distribution vision: `docs/intent/goals.md` + `docs/intent/spec-distro.md`.*

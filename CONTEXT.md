@@ -59,7 +59,7 @@ _Avoid_: local repo, private repo
 ## Disk Layout
 
 **Disk Layout**
-Go package that implements a specific partitioning scheme. Selected by user in `variables.yaml`. Each layout is a separate package under `installer/hostPhase/disks/`.
+Go package that implements a specific partitioning scheme. Selected by user in `variables.yaml`. Each layout is a separate package under `hostPhase/disks/`.
 _Avoid_: scheme, partitioning config
 
 **Layout — btrfsStandard**
@@ -158,9 +158,9 @@ _Note: Some C components remain when no memory-safe alternative exists or when t
 | `src/variables/variables.yaml` | Template with defaults |
 | `src/variables/internal_rules.yaml` | Dynamic rules |
 | `src/utils/` | Config, exec, files, logic |
-| `src/installer/hostPhase/` | Host operations |
-| `src/installer/hostPhase/disks/` | Storage layouts (Go packages) |
-| `src/installer/chrootPhase/` | Chroot configuration |
+| `src/hostPhase/` | Host operations |
+| `src/hostPhase/disks/` | Storage layouts (Go packages) |
+| `src/chrootPhase/` | Chroot configuration |
 | `internal/` | Legacy shell scripts (reference) |
 
 ## Conventions

@@ -27,7 +27,7 @@ FeralOS is a **complete, refined, production-quality Linux distribution** based 
 ## Future work (declared goals — not yet started)
 
 - **Chroot installation like Arch Linux**, documented in the wiki, moving most of the standard configuration into aports packages.
-- **Memory-safe aports replacement**: supports the **same APKBUILD format**, can **bootstrap the distribution**, **isolated builds**, **LLVM with maximum static linking** — the cports approach (Chimera). Includes **independent per-package code tests** (know the weaknesses of every shipped package) and **published-CVE integration**. Blocked on: donations → infrastructure + maintainers.
+- **Memory-safe aports replacement**: supports the **same APKBUILD format**, **bootstraps the distribution FROM NOTHING** (self-host from zero, like Chimera's cports — something Alpine Linux lacks, as do most distributions), **isolated builds**, **LLVM with maximum static linking**. Includes **independent per-package code tests** (know the weaknesses of every shipped package) and **published-CVE integration**. Blocked on: donations → infrastructure + maintainers.
 - **apk ported to Go**: eliminate one of the last critical non-memory-safe components of the system.
 - **Desktop**: remove **GTK** (not memory safe) from the stack; eliminate every piece of software that drags **heavy dependencies from other desktop environments**.
 - **Smart TV desktop**: a FeralOS desktop for smart TVs.

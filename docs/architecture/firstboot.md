@@ -1,6 +1,6 @@
 # FirstBoot Architecture
 
-Source: `AGENTS.md#FirstBoot Architecture` + `docs/FIRST_BOOT.md` (double docs — AGENTS.md is source of truth).
+Source: `AGENTS.md#FirstBoot Architecture` (lean index) — this file is the canonical detail.
 
 ## Standalone Binaries
 
@@ -43,7 +43,7 @@ User runs manually after first boot:
 /opt/feralos/bin/feralos-tpm          # binds LUKS; SKEA_LUKS_PASSWORD env avoids prompt
 ```
 
-See `docs/FIRST_BOOT.md#Usage on Real Hardware` for BIOS steps, env `SKEA_LUKS_PASSWORD`, troubleshooting.
+See `docs/guides/first_boot.md` for real-hardware steps, env `SKEA_LUKS_PASSWORD`, troubleshooting. (`docs/FIRST_BOOT.md` is deprecated.)
 
 ## swtpm Always Present
 
@@ -57,7 +57,7 @@ Simplifies harness — no conditional QEMU args. All runs include swtpm device.
 ## References
 
 - `AGENTS.md#FirstBoot Architecture`
-- `docs/FIRST_BOOT.md`
+- `docs/guides/first_boot.md`
 - `docs/INSTALLER.md#Phase 1.5: FirstBoot Setup`
 - `src/firstBoot/secureboot/main.go:1`, `src/firstBoot/tpm/main.go:1`
 - `src/utils/firstboot/secureboot.go`, `src/utils/firstboot/tpm.go`

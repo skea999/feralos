@@ -57,7 +57,7 @@ and custom repositories.
 ## Future Goals (declared — see `docs/intent/goals.md#Future work`)
 
 - **Smart TV desktop** — TV is a first-class target alongside desktop/VM/hypervisor.
-- **Memory-safe aports replacement** — same APKBUILD format, distro bootstrap, isolated builds, LLVM max-static (cports approach); per-package independent tests + published-CVE integration. Blocked on donations → infra + maintainers.
+- **Memory-safe aports replacement** — same APKBUILD format, **bootstraps the distro FROM NOTHING** (self-host from zero like Chimera's cports — Alpine lacks this, as do most distros), isolated builds, LLVM max-static; per-package independent tests + published-CVE integration. Blocked on donations → infra + maintainers.
 - **apk ported to Go** — remove one of the last critical non-memory-safe system components.
 - **Desktop**: GTK removal (not memory safe); eliminate cross-DE heavy-dependency software.
 - **Chroot installation like Arch Linux** — documented in the wiki, standard configuration moved into aports packages.
@@ -81,7 +81,7 @@ See `docs/dinit/` (installer-side) and [feralos-aports](https://github.com/skea9
 | Nix integration | P1 | Done | nix.go, subvolumes, daemon config |
 | Podman | P1 | Done | btrfs driver, rootless containers |
 | Incus | P1 | Done | incus-feature chain (containers + VMs) |
-| Test suite | P2 | Done | harness (QEMU) up to 113 checks/fixture + debug_run |
+| Test suite | P2 | Done | harness (QEMU) up to 118 checks/fixture (flagship niriWayle) + debug_run |
 | Real-hardware refining | P2 | In progress | rough edges blocking bare-metal installs |
 
 ## Phase 2 Pipeline
