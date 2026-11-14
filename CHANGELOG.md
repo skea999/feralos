@@ -10,6 +10,7 @@ All notable changes to FeralOS will be documented in this file.
 
 ## [Unreleased]
 ### Added
+- `tests/vm-desktop/novnc`: browser view of the vm-desktop VM — noVNC 1.7.0 served by a Go WebSocket bridge (same-origin only), no Python websockify
 - `tests/vm-desktop/`: FeralOS desktop as a full VM inside a container on a GPU-less host (boxd `--kvm`), over VNC, with agent screenshot and input tools; harness + debug_run `SKEA_QEMU_DISPLAY` / `SKEA_QEMU_EXTRA_ARGS` (docs/harness/vm-desktop.md)
 - Go installer with btrfsStandardServer layout (2-disk RAID1)
 - Go installer with btrfsStandard layout (single disk, swapfile)

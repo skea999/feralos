@@ -70,6 +70,23 @@ socat TCP-LISTEN:5901,bind=127.0.0.1,fork,reuseaddr \
 vncviewer localhost:5901
 ```
 
+## Watch it in a browser (noVNC)
+
+The image carries the noVNC web client (v1.7.0, pinned by sha256) and
+`tests/vm-desktop/novnc`, a small Go server that serves it on
+`127.0.0.1:6080` in the container and bridges its WebSocket to x11vnc (Go
+stand-in for the Python websockify). It accepts same-origin WebSockets only,
+so another page open in the browser cannot drive the desktop. Forward the
+port and open the page:
+
+```sh
+socat TCP-LISTEN:6080,bind=127.0.0.1,fork,reuseaddr \
+  EXEC:"box --host medion --pod feralos-vm --kvm --no-sync --ps-after 0 socat - TCP\:127.0.0.1\:6080"
+xdg-open "http://localhost:6080/vnc.html?autoconnect=1&resize=scale"
+```
+
+`box forward` (boxd 0.4.0) replaces the socat line.
+
 ## Drive it from an agent
 
 - `tests/vm-desktop/shot.sh [out.png]`: PNG of the screen (`xwd` of Xvfb).

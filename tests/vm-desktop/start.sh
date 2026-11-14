@@ -7,7 +7,8 @@
 #   FERALOS_CPUS / FERALOS_MEMORY   virtual machine size (MiB)
 #   FERALOS_DISK       target disk size (the full niriWayle app set overflows 16G)
 set -eu
-repo=$(cd "$(dirname "$0")/../.." && pwd)
+here=$(cd "$(dirname "$0")" && pwd)
+repo=$(cd "$here/../.." && pwd)
 fixture=$repo/${FERALOS_FIXTURE:-tests/fixtures/variables/btrfs_standard_niriwayle_test.yaml}
 cpus=${FERALOS_CPUS:-8}
 memory=${FERALOS_MEMORY:-6144}
@@ -44,9 +45,14 @@ layout() {
   log "keyboard layout ${kb:-us}"
 }
 
-log "building harness and debug_run"
+log "building harness, debug_run and the noVNC bridge"
 (cd "$repo/tests/harness" && go build -o skea_harness ./cmd/skea_harness)
 (cd "$repo/tests/debug_run" && go build -o debug_run .)
+(cd "$here/novnc" && go build -o novnc .)
+# Browser view: box forward 6080 6080, then http://localhost:6080/vnc.html
+pgrep -x novnc >/dev/null \
+  || { setsid "$here/novnc/novnc" >/tmp/novnc.log 2>&1 & }
+log "noVNC on 127.0.0.1:6080"
 
 last=; for d in "$artifacts"/runs/*/; do [ -d "$d" ] && last=$d; done  # glob order = timestamp order
 if [ -z "${FERALOS_REINSTALL:-}" ] && [ -n "$last" ] && [ -f "$last/verify.md" ]; then

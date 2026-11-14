@@ -13,3 +13,11 @@ RUN apt-get update \
       xvfb x11vnc matchbox-window-manager xdotool x11-xkb-utils x11-apps netpbm \
       libgl1-mesa-dri libegl-mesa0 socat procps \
  && rm -rf /var/lib/apt/lists/*
+
+# noVNC web client (JavaScript), pinned and checked; tests/vm-desktop/novnc
+# (Go) serves it and bridges its WebSocket to x11vnc.
+ADD https://github.com/novnc/noVNC/archive/refs/tags/v1.7.0.tar.gz /tmp/novnc.tgz
+RUN echo "b1003a11b6e6e8d8f7f5e5586daae7f8ca651d8aee0aa155ff9ac841c48f52c6  /tmp/novnc.tgz" | sha256sum -c - \
+ && mkdir -p /usr/share/novnc \
+ && tar -xzf /tmp/novnc.tgz -C /usr/share/novnc --strip-components=1 \
+ && rm /tmp/novnc.tgz
