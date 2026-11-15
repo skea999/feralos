@@ -94,7 +94,10 @@ func runClamavSnapshot(chroot string) {
 	}
 	// Outcome via ls OUTPUT, not exit code — best-effort runs swallow
 	// command failures, an exit-based check would log a false success (run9).
-	out, _ := shell.ExecuteCmd(chroot, "ls /var/lib/clamav/main.cvd /var/lib/clamav/main.cld /var/lib/clamav/daily.cvd /var/lib/clamav/daily.cld 2>/dev/null")
+	// List the DIRECTORY (always exists, exit 0 — a 4-file ls exits 2 on
+	// missing operands and its [ERROR][IGNORED] marker trips log_errors,
+	// run11): output carries .cvd/.cld only when signatures are present.
+	out, _ := shell.ExecuteCmd(chroot, "ls /var/lib/clamav/ 2>/dev/null")
 	if !strings.Contains(out, ".cvd") && !strings.Contains(out, ".cld") {
 		fmt.Printf("[WARNING] clamav signature DB MISSING (clamd stays down until freshclam succeeds on a network)\n")
 		return
