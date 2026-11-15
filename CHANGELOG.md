@@ -2,6 +2,11 @@
 
 All notable changes to FeralOS will be documented in this file.
 
+## 2026-11-15 — feralos-dbus-audit 0.1.1: boot.d probe uses the .user suffix (false WARNs fixed)
+- `src/firstBoot/dbus-audit` `linkExists()`: probed `boot.d/<name>` BARE, but the installer's linking loop creates links with the verbatim `.user` unit name (rules `userServices` carry `dbus.user`, `pipewire.user`, ... → `boot.d/dbus.user`) → every core-infra link was a false WARN despite existing (report-only, exit 0; harness `2026-11-11T01-47-00Z` still showed 10 WARNs in the step-16 REPORT pass). Fix: probe `<name>.user` in both boot.d dirs (`b683818`).
+- Released as aports `feralos-dbus-audit-0.1.1-r0` (source tag `dbus-audit-0.1.1` per tag-per-state policy, `pkgrel` reset; CI `43655883755` green, Pages published).
+- Validated: harness `2026-11-15T00-10-41Z` **114/114** — step-16 REPORT pass "Core session infra (boot.d links)" = ALL OK (12/12: 10 linked + polkit-agent/wayvnc session-scoped by design), ZERO "NOT linked" WARNs; pass 1 (8a INSTALL) keeps its 10 honest pre-link WARNs by design (runs before the desktop linking); apk pulled `0.1.1-r0` live; dinit conversion `34 installed, 0 failed`.
+
 ## Known issues (living list — 2026-11-13 snapshot)
 
 `log_errors` shows QEMU-only noise (`smartd`/`fsck` whitelisted; netns `mount/umount /run/netns ... Invalid argument` QEMU early-chain noise allowlisted; udevd `/bin/false` module install errors — parport/psmouse/intel_gtt/input_leds/intel_pmc_bxt — from OpenRC udev path, harmless in QEMU, nix pivot fix landed). Resolved 2026-09-30: dinit shutdown ordering — `turnstiled` pam_elogind bus error at shutdown (dinit releases dependencies at dependent stop-start, not exit) fixed via feralos-aports `stop-command` guards on `dbus`/`elogind` (ADR-007, commit `75c566a`; harness 63/63 run 2026-09-30T00-08-04Z).
@@ -130,7 +135,7 @@ All notable changes to FeralOS will be documented in this file.
 - Why two passes: the boot.d linking NEEDS the audit-installed packages (circular with a single tail invocation — harness run `2026-11-11T01-18-59Z` caught it: linking loop died exit 1, secrets/oo7/portals never started at login, 109/114). The binary is untouched — two invocations of the same packaged `feralos-dbus-audit`.
 - Edge stays a hard-failure step; audit stays `--no-fail`. Known trade-off (accepted): an `@edge` package shipping D-Bus activation files would only be caught by the boot-time oneshot — the edge lists are GPU/mesa only today.
 - Validated: harness `2026-11-11T01-47-00Z` **114/114** — pass 2 = 32/32 covered, 0 installed, 0 missing; dinit conversion `34 installed, 0 failed` (hyprsunset-dinit now converts).
-- Known cosmetic finding (backlog): the audit's `linkExists()` checks `boot.d/<name>` without the `.user` suffix → false boot.d WARNs even when linked (report-only; 1-line fix in `src/firstBoot/dbus-audit`).
+- Known cosmetic finding (backlog): the audit's `linkExists()` checks `boot.d/<name>` without the `.user` suffix → false boot.d WARNs even when linked (report-only; 1-line fix in `src/firstBoot/dbus-audit`). **FIXED 2026-11-15 — see that entry.**
 
 ## 2026-11-10 — niriWayle daily-driver completion + ursine 0.27 (no D-Bus) + gnome-portal shadow dummy
 - **aports**: NEW `hyprsunset` 0.4.0-r0 (ported from Alpine edge testing, upstream-tag pinned; dropped `-doc`/`-openrc` — Wayle's night-light module execs it directly) + `wayle` r1 `depends += hyprsunset`; NEW `xdg-desktop-portal-gnome` **999.0.0-r0 empty shadow-dummy** — Alpine's `niri-portalsconf` depends on the real package (nautilus + mutter backend); 999 beats every Alpine version so the chain dies at the empty shadow. Coverage stays gtk+wlr (interfaces verified from the `.portal` files; only RemoteDesktop/GlobalShortcuts lost). NEW `file-roller-user-dinit` (two activation names, one unit) + `evince-user-dinit`; RETIRED `xdg-desktop-portal-gnome-user-dinit`. `ursine` → **0.27.0-r0**, `depends="parted shadow util-linux"` — the no-D-Bus release (users via useradd/chpasswd, disks via mount/blkid, zbus dropped).
@@ -705,6 +710,14 @@ All notable changes to FeralOS will be documented in this file.
 Moved verbatim from AGENTS.md "Recent Rounds" on 2026-11-13. Detailed per-round agent summaries, latest first. The curated entries above cover the same rounds in condensed form.
 
 ## Recent Rounds (latest first)
+
+### 2026-11-15 - dbus-audit 0.1.1 — boot.d .user-suffix fix, false WARNs eliminated — harness 114/114
+**Agent:** codebase
+**Summary:** user surfaced the step-16 REPORT pass still showing 10 boot.d WARNs (run `2026-11-11T01-47-00Z`) and approved unfreezing the audit binary for the 1-line fix.
+- **Root cause proven**: audit `linkExists()` probed `boot.d/<name>` BARE; the installer linking loop (`niri_wayle.go`/`niri.go` step 13) creates links with the verbatim `.user` unit name (rules `userServices` carry `dbus.user`, ... → `boot.d/dbus.user`) — every probe missed. Links were real (harness `user_services_enabled` green); WARNs were false positives (report-only, exit 0).
+- **Fix** (`b683818`): `linkExists()` probes `name + ".user"` in both boot.d dirs (lib + etc). Released as aports `feralos-dbus-audit-0.1.1-r0` — new source tag `dbus-audit-0.1.1` (tag-per-state policy), `pkgrel` reset to 0, sha512 refreshed, APKBUILD header comment updated to the two-pass reality (8a INSTALL + 16 REPORT); CI `43655883755` green, Pages published.
+- **Validated** (harness `2026-11-15T00-10-41Z`, 32G disk, niriWayle fixture, ~11 min): **114/114** — step-16 REPORT pass "Core session infra (boot.d links)" = **ALL OK** (10 linked + polkit-agent/wayvnc session-scoped by design), ZERO "NOT linked" WARNs; pass 1 (8a) keeps its 10 honest pre-link WARNs by design; apk pulled `0.1.1-r0` live (`Installing feralos-dbus-audit (0.1.1-r0)`); both passes `32 targets, 0 missing, exit=0`; conversion `34 installed, 0 failed`; live boot green.
+- **Note**: pass-1 WARNs are CORRECT output — that pass runs before the desktop linking; only pass-2 WARNs signal a genuine regression.
 
 ### 2026-11-13 - OpenCode V1→V2 migration + base structure re-alignment + docs restructure
 **Agent:** codebase
