@@ -26,17 +26,17 @@ func ApplyRules(conf *config.Config) {
 
 	if layout, ok := i.DiskLayouts[u.DiskLayout]; ok {
 		fmt.Printf("[DEBUG] Applying Disk Layout: %s\n", u.DiskLayout)
-		applyRule(u, &layout)
+		ApplyRule(u, &layout)
 	}
 
 	if de, ok := i.DesktopEnvironments[u.DesktopEnvironment]; ok {
 		fmt.Printf("[DEBUG] Applying Desktop: %s\n", u.DesktopEnvironment)
-		applyRule(u, &de)
+		ApplyRule(u, &de)
 	}
 
 	if gpu, ok := i.VideoDrivers[u.VideoDriver]; ok {
 		fmt.Printf("[DEBUG] Applying Driver: %s\n", u.VideoDriver)
-		applyRule(u, &gpu)
+		ApplyRule(u, &gpu)
 	}
 
 	u.AllPackages = AppendUnique(u.AllPackages, i.StandardPackages...)
@@ -49,7 +49,7 @@ func ApplyRules(conf *config.Config) {
 			if !processed[pkg] {
 				if rule, found := i.PackageLogic[pkg]; found {
 					fmt.Printf("[DEBUG] Applying logic for package: %s\n", pkg)
-					applyRule(u, &rule)
+					ApplyRule(u, &rule)
 					added = true
 				}
 				processed[pkg] = true
@@ -61,7 +61,11 @@ func ApplyRules(conf *config.Config) {
 	}
 }
 
-func applyRule(u *config.UserVariables, rule *config.DynamicPackageRules) {
+// ApplyRule applies one PackageLogic entry to the user variables (exported:
+// the chrootPhase feature packages — HardeningPackages et al. — are appended
+// AFTER ApplyRules iterated AllPackages, so their rules entries must be
+// applied by the caller; see chrootPhase/internal/packages.go).
+func ApplyRule(u *config.UserVariables, rule *config.DynamicPackageRules) {
 	u.AllPackages = AppendUnique(u.AllPackages, rule.Packages...)
 	u.NixPackages = AppendUnique(u.NixPackages, rule.NixPackages...)
 	u.FlatpakPackages = AppendUnique(u.FlatpakPackages, rule.FlatpakPackages...)

@@ -170,6 +170,17 @@ func SetupPackages(conf *config.Config) error {
 	// Hardening packages (owned by features/hardening.go)
 	allPkgs = append(allPkgs, features.HardeningPackages(conf)...)
 
+	// Feature-gated appends BYPASS logic.ApplyRules (it already iterated
+	// AllPackages in main before these existed): re-apply the rules entries
+	// for the late-added names so their services/groups/modules fire —
+	// without this, clamav-daemon's clamd/freshclam enablement never happens
+	// (harness 2026-11-15T16-07-11Z: zero boot.d links, jail-less daemons).
+	for _, pkg := range features.HardeningPackages(conf) {
+		if rule, ok := conf.Internal.PackageLogic[pkg]; ok {
+			logic.ApplyRule(&u, &rule)
+		}
+	}
+
 	// Zswap modules (owned by features/zswap.go)
 	u.Modules = logic.AppendUnique(u.Modules, features.ZswapModules(conf)...)
 

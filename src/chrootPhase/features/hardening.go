@@ -55,9 +55,28 @@ func SetupHardening(conf *config.Config) error {
 	}
 	restrictFilePermissions(chroot)
 	writeClamdConfig(chroot)
+	runClamavSnapshot(chroot)
 
 	fmt.Println("[INFO] Hardening complete.")
 	return nil
+}
+
+// runClamavSnapshot pulls the signature DB ONCE at install time (the
+// installer machine has network; the installed target may never). Alpine
+// clamav-db 1.4.6 ships NO signatures — without this, clamd cannot start on
+// the target (freshclam keeps retrying there, but only ever succeeds with a
+// network). Best-effort: outcome verified by db-file existence, not exit
+// (best-effort runs swallow command failures); freshclam chowns the files to
+// the DatabaseOwner (clamav) per its config, so the clamd user can read them.
+func runClamavSnapshot(chroot string) {
+	if _, err := shell.ExecuteCmd(chroot, "freshclam"); err != nil {
+		fmt.Printf("[WARNING] freshclam failed: %v\n", err)
+	}
+	if _, err := shell.ExecuteCmd(chroot, "test -s /var/lib/clamav/main.cvd -o -s /var/lib/clamav/main.cld -o -s /var/lib/clamav/daily.cld -o -s /var/lib/clamav/daily.cvd"); err != nil {
+		fmt.Printf("[WARNING] clamav signature DB MISSING (clamd stays down until freshclam succeeds on a network)\n")
+		return
+	}
+	fmt.Println("[INFO] clamav signature DB snapshot present.")
 }
 
 // writeClamdConfig writes the FeralOS clamd configuration over the package

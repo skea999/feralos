@@ -105,7 +105,7 @@ func TestApplyRule(t *testing.T) {
 			Modules:         []string{"mod-base"},
 			KernelCmdline:   []string{"quiet"},
 		}
-		applyRule(u, &config.DynamicPackageRules{
+		ApplyRule(u, &config.DynamicPackageRules{
 			Packages:        []string{"base", "pkg-new"},
 			NixPackages:     []string{"nix-base", "nix-new"},
 			FlatpakPackages: []string{"flat-base", "flat-new"},
@@ -135,7 +135,7 @@ func TestApplyRule(t *testing.T) {
 			Runlevels:      map[string][]string{},
 			RunlevelsDinit: map[string][]string{},
 		}
-		applyRule(u, &config.DynamicPackageRules{
+		ApplyRule(u, &config.DynamicPackageRules{
 			Services: map[string]string{"sshd": "default"},
 		})
 		if got, want := u.Runlevels["default"], []string{"sshd"}; !reflect.DeepEqual(got, want) {
@@ -150,7 +150,7 @@ func TestApplyRule(t *testing.T) {
 		u := &config.UserVariables{
 			Runlevels: map[string][]string{"default": {"existing"}},
 		}
-		applyRule(u, &config.DynamicPackageRules{
+		ApplyRule(u, &config.DynamicPackageRules{
 			Services: map[string]string{"sshd": "default", "duplicate": "default"},
 		})
 		svc := u.Runlevels["default"]
@@ -165,10 +165,10 @@ func TestApplyRule(t *testing.T) {
 			Runlevels:      map[string][]string{},
 			RunlevelsDinit: map[string][]string{},
 		}
-		applyRule(u, &config.DynamicPackageRules{
+		ApplyRule(u, &config.DynamicPackageRules{
 			Services: map[string]string{"sshd": "default"},
 		})
-		applyRule(u, &config.DynamicPackageRules{
+		ApplyRule(u, &config.DynamicPackageRules{
 			Services: map[string]string{"sshd": "default"},
 		})
 		if got, want := u.Runlevels["default"], []string{"sshd"}; !reflect.DeepEqual(got, want) {
@@ -180,7 +180,7 @@ func TestApplyRule(t *testing.T) {
 		u := &config.UserVariables{
 			RunlevelsDinit: map[string][]string{},
 		}
-		applyRule(u, &config.DynamicPackageRules{
+		ApplyRule(u, &config.DynamicPackageRules{
 			DinitServices: map[string]string{"org.freedesktop.UDisks2": "default"},
 		})
 		if got, want := u.RunlevelsDinit["default"], []string{"org.freedesktop.UDisks2"}; !reflect.DeepEqual(got, want) {
@@ -193,7 +193,7 @@ func TestApplyRule(t *testing.T) {
 			Runlevels:      map[string][]string{},
 			RunlevelsDinit: map[string][]string{},
 		}
-		applyRule(u, &config.DynamicPackageRules{
+		ApplyRule(u, &config.DynamicPackageRules{
 			Services:      map[string]string{"sshd": "default"},
 			DinitServices: map[string]string{"org.freedesktop.UDisks2": "default"},
 		})

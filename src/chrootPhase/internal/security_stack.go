@@ -52,21 +52,20 @@ func SetupSecurityStack(conf *config.Config, pkgList string) error {
 // of ChrootPhase.Run (step 18, after the edge install — the last step that
 // can touch watched paths): the baseline must capture the FINAL filesystem
 // state or every install-time change would surface as first-boot drift.
-// Non-fatal by design (a WARNING keeps the install alive; the harness check
-// on /var/lib/aide/aide.db is the strict signal — same audit-vs-install
-// trade-off as SetupDbusAudit).
+// Outcome is verified by DB-FILE EXISTENCE, not by the command exit: in
+// best-effort runs ExecuteCmd swallows failures (error=nil) — the harness
+// check on /var/lib/aide/aide.db is the strict signal, this log is honest.
 func BaselineAide(conf *config.Config, pkgList string) {
 	if !installed(pkgList, "aide") {
 		fmt.Println("[INFO] aide not installed, skipping baseline database")
 		return
 	}
 	chroot := conf.Internal.ChrootDir
-	if _, err := shell.ExecuteCmd(chroot, "aide --init"); err != nil {
+	if _, err := shell.ExecuteCmd(chroot, "aide --init && test -f /var/lib/aide/aide.db.new && mv /var/lib/aide/aide.db.new /var/lib/aide/aide.db"); err != nil {
 		fmt.Printf("[WARNING] AIDE baseline generation failed: %v\n", err)
-		return
 	}
-	if _, err := shell.ExecuteCmd(chroot, "test -f /var/lib/aide/aide.db.new && mv /var/lib/aide/aide.db.new /var/lib/aide/aide.db"); err != nil {
-		fmt.Printf("[WARNING] AIDE baseline move failed: %v\n", err)
+	if _, err := shell.ExecuteCmd(chroot, "test -f /var/lib/aide/aide.db"); err != nil {
+		fmt.Printf("[WARNING] AIDE baseline database MISSING (integrity monitoring inactive until the daily check writes one)\n")
 		return
 	}
 	fmt.Println("[INFO] AIDE baseline database generated.")
@@ -118,20 +117,30 @@ func writeAuditRules(chroot string) error {
 `
 
 	// Existence-filtered extras (sudo-rs/sudo or doas layouts differ; sshd
-	// only when the openssh stack is installed)
-	sudoPaths := []string{}
-	for _, p := range []string{"/etc/sudoers", "/etc/sudoers.d/", "/etc/doas.d/", "/etc/ssh/"} {
-		if _, err := shell.ExecuteCmd(chroot, "test -e "+p); err == nil {
-			sudoPaths = append(sudoPaths, p)
-		}
-	}
+	// only when the openssh stack is installed). ONE always-successful
+	// command (per-path `test -e` probes would each log [ERROR][IGNORED] on
+	// missing paths — pure log noise in best-effort runs). Trailing slash =
+	// dir watch, no slash = file watch (auditctl semantics).
+	probe := "for p in /etc/sudoers /etc/sudoers.d /etc/doas.d /etc/ssh; do [ -e \"$p\" ] && echo \"$p\"; done"
 	extras := ""
-	for _, p := range sudoPaths {
-		key := "sudoers"
-		if strings.HasPrefix(p, "/etc/ssh") {
-			key = "sshd_config"
+	if out, err := shell.ExecuteCmd(chroot, probe); err == nil {
+		for _, p := range strings.Split(strings.TrimSpace(out), "\n") {
+			p = strings.TrimSpace(p)
+			if p == "" {
+				continue
+			}
+			watch := p
+			key := "sudoers"
+			switch p {
+			case "/etc/sudoers":
+				watch = "/etc/sudoers"
+			case "/etc/ssh":
+				watch, key = "/etc/ssh/", "sshd_config"
+			case "/etc/sudoers.d", "/etc/doas.d":
+				watch = p + "/"
+			}
+			extras += fmt.Sprintf("-w %s -p wa -k %s\n", watch, key)
 		}
-		extras += fmt.Sprintf("-w %s -p wa -k %s\n", p, key)
 	}
 	if extras != "" {
 		rules = strings.Replace(rules,
@@ -188,7 +197,7 @@ database_in=file:/var/lib/aide/aide.db
 database_out=file:/var/lib/aide/aide.db.new
 database_new=file:/var/lib/aide/aide.db.new
 report_url=file:/var/log/aide/aide.log
-report_level=5
+report_level=4
 gzip_dbout=no
 
 # Attribute set: permissions, inode, links, user, group, size, block count,

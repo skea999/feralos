@@ -112,19 +112,22 @@ func buildLogChecks(checks map[string]string) {
 // (registered only when cfg.EnableHardening). Both inits covered per check.
 func buildSecurityStackChecks(cfg *VerifyConfig, checks map[string]string) {
 	checks["auditd_service"] = "if [ -S /run/dinitctl ]; then dinitctl list 2>/dev/null | grep -w auditd || test -e /etc/dinit.d/boot.d/auditd && echo 'auditd (boot.d)' || test -e /lib/dinit.d/auditd && echo 'auditd (service file)'; else rc-update show 2>/dev/null | grep -w auditd; fi"
-	checks["auditd_rules"] = "auditctl -l 2>/dev/null | grep -q ' -w ' && echo 'audit rules loaded' || echo 'audit rules NOT loaded'"
+	checks["auditd_rules"] = "auditctl -l 2>/dev/null | grep -qE '(^|[[:space:]])-w ' && echo 'audit rules loaded' || echo 'audit rules NOT loaded'"
 	checks["auditd_immutable"] = "grep -q '^-e 2$' /etc/audit/audit.rules && auditctl -l >/dev/null 2>&1 && echo 'rules file present, kernel accepted the load' || echo 'rules file/kernel load BROKEN'"
-	checks["fail2ban_service"] = "pgrep -f fail2ban-server >/dev/null && echo 'fail2ban-server running' || echo 'fail2ban-server NOT running'"
-	checks["fail2ban_sshd"] = "fail2ban-client status sshd 2>/dev/null | grep -q 'Jail list.*sshd' && echo 'sshd jail active' || echo 'sshd jail MISSING'"
-	checks["tracee_running"] = "pgrep -f '/usr/libexec/tracee/tracee' >/dev/null && echo 'tracee running' || echo 'tracee NOT running'"
+	// pgrep -f self-match guard: the [x] bracket trick keeps the check's own
+	// `sh -c` cmdline (which contains the literal pattern) from matching
+	// itself (freshclam_service PASSed wrongly in run 2026-11-15T16-07-11Z).
+	checks["fail2ban_service"] = "pgrep -f '[f]ail2ban-server' >/dev/null && echo 'fail2ban-server running' || echo 'fail2ban-server NOT running'"
+	checks["fail2ban_sshd"] = "fail2ban-client status sshd 2>/dev/null | grep -q 'Jail list.*sshd' && echo 'sshd jail active' || echo 'sshd jail MISSING'; fail2ban-client status 2>&1 | head -3; ls -la /var/log/auth.log 2>&1"
+	checks["tracee_running"] = "pgrep -f '[/]usr/libexec/tracee/tracee' >/dev/null && echo 'tracee running' || echo 'tracee NOT running'"
 	checks["tracee_log"] = "for f in /var/log/dinit/tracee.log /var/log/tracee.log; do [ -s \"$f\" ] && echo \"$f has events\" && exit 0; done; echo 'tracee log MISSING or empty'"
 	checks["aide_baseline"] = "test -f /var/lib/aide/aide.db && echo 'aide baseline db present' || echo 'aide baseline db MISSING'"
 	checks["aide_cron"] = "test -x /etc/periodic/daily/aide-check && echo 'aide daily check installed' || echo 'aide daily check MISSING'"
 	checks["lynis_present"] = "test -x /usr/sbin/lynis && test -e /etc/periodic/daily/lynis && echo 'lynis + daily cron installed' || echo 'lynis MISSING'"
 	if cfg.EnableHardening {
 		checks["clamd_service"] = "pgrep -x clamd >/dev/null && echo 'clamd running' || echo 'clamd NOT running'"
-		checks["freshclam_service"] = "pgrep -f 'freshclam --daemon' >/dev/null && echo 'freshclam running' || echo 'freshclam NOT running'"
-		checks["clamav_db_snapshot"] = "test -s /var/lib/clamav/main.cvd || test -s /var/lib/clamav/main.cld && echo 'clamav db snapshot present' || echo 'clamav db snapshot MISSING'"
+		checks["freshclam_service"] = "pgrep -f '[f]reshclam --daemon' >/dev/null && echo 'freshclam running' || echo 'freshclam NOT running'"
+		checks["clamav_db_snapshot"] = "test -s /var/lib/clamav/main.cvd || test -s /var/lib/clamav/main.cld || test -s /var/lib/clamav/daily.cvd || test -s /var/lib/clamav/daily.cld && echo 'clamav db snapshot present' || echo 'clamav db snapshot MISSING'"
 	}
 }
 
