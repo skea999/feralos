@@ -133,7 +133,7 @@ func buildSecurityStackChecks(cfg *VerifyConfig, checks map[string]string) {
 		// run7: `pgrep -x clamd` reported NOT running while dinitctl had pid).
 		checks["clamd_service"] = "pgrep clamd >/dev/null && echo 'clamd running' || echo 'clamd NOT running'"
 		checks["freshclam_service"] = "pgrep -f '[f]reshclam --daemon' >/dev/null && echo 'freshclam running' || echo 'freshclam NOT running'"
-		checks["clamav_db_snapshot"] = "test -s /var/lib/clamav/main.cvd || test -s /var/lib/clamav/main.cld || test -s /var/lib/clamav/daily.cvd || test -s /var/lib/clamav/daily.cld && echo 'clamav db snapshot present' || echo 'clamav db snapshot MISSING'"
+		checks["clamav_db_snapshot"] = "(test -s /var/lib/clamav/main.cvd || test -s /var/lib/clamav/main.cld || test -s /var/lib/clamav/daily.cvd || test -s /var/lib/clamav/daily.cld) && echo 'clamav db snapshot present' || echo 'clamav db snapshot MISSING'"
 	}
 }
 

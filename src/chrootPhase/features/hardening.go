@@ -4,6 +4,7 @@ import (
 	"feralos/src/utils/config"
 	"feralos/src/utils/shell"
 	"fmt"
+	"strings"
 )
 
 // HardeningPackages returns the APK packages needed for security hardening.
@@ -72,12 +73,14 @@ func SetupHardening(conf *config.Config) error {
 // (best-effort runs swallow command failures); freshclam chowns the files to
 // the DatabaseOwner (clamav) per its config, so the clamd user can read them.
 func runClamavSnapshot(chroot string) {
-	// Minimal config override: DaemonNotify no — there is NO clamd in the
-	// install chroot, the post-update notify attempt always fails ("Clamd
-	// was NOT notified") and trips the harness log_errors sweep (run8,
-	// installer.log:4838). On the TARGET the packaged freshclam.conf keeps
-	// the default notify (live-reload on daemon updates).
-	cfg := "# installer-time freshclam (no clamd in chroot — notify off)\nDatabaseDirectory /var/lib/clamav\nDatabaseOwner clamav\nDaemonNotify no\n"
+	// Minimal config: DatabaseDirectory/DatabaseOwner are the only relevant
+	// overrides (both valid 1.x options). NOTE: the old DaemonNotify option
+	// was REMOVED from freshclam 1.x — any occurrence is a parse error
+	// (run9: freshclam exit 2, DB never populated). The chroot run therefore
+	// emits the benign "Clamd was NOT notified" post-update warning (no clamd
+	// here) — allowlisted in the harness log_errors sweep. On the TARGET the
+	// packaged freshclam.conf applies and a running clamd accepts the notify.
+	cfg := "# installer-time freshclam (no clamd in chroot)\nDatabaseDirectory /var/lib/clamav\nDatabaseOwner clamav\n"
 	if err := shell.WriteFile(chroot, "/tmp/freshclam-install.conf", []byte(cfg), 0644); err != nil {
 		fmt.Printf("[WARNING] failed to write freshclam install config: %v\n", err)
 	}
@@ -87,7 +90,10 @@ func runClamavSnapshot(chroot string) {
 	if _, err := shell.ExecuteCmd(chroot, "rm -f /tmp/freshclam-install.conf"); err != nil {
 		fmt.Printf("[WARNING] failed to remove freshclam install config: %v\n", err)
 	}
-	if _, err := shell.ExecuteCmd(chroot, "test -s /var/lib/clamav/main.cvd -o -s /var/lib/clamav/main.cld -o -s /var/lib/clamav/daily.cld -o -s /var/lib/clamav/daily.cvd"); err != nil {
+	// Outcome via ls OUTPUT, not exit code — best-effort runs swallow
+	// command failures, an exit-based check would log a false success (run9).
+	out, _ := shell.ExecuteCmd(chroot, "ls /var/lib/clamav/main.cvd /var/lib/clamav/main.cld /var/lib/clamav/daily.cvd /var/lib/clamav/daily.cld 2>/dev/null")
+	if !strings.Contains(out, ".cvd") && !strings.Contains(out, ".cld") {
 		fmt.Printf("[WARNING] clamav signature DB MISSING (clamd stays down until freshclam succeeds on a network)\n")
 		return
 	}
