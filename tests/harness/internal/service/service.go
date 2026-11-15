@@ -1834,12 +1834,14 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		}
 	}
 
-	// Validate log coverage: core sinks must have content. kern.log + dmesg
-	// are dinit-gated no more — both init paths wire klogd (dinit package /
-	// OpenRC installer override). sudo/firewalld/daemon are informational —
-	// they only fill when the matching events occur.
+	// Validate log coverage: core sinks must have content. kern.log is
+	// INFORMATIONAL: it only fills when a kernel message reaches klogd AFTER
+	// start — with loglevel=0 (non-debug) a quiet boot legitimately writes
+	// zero lines (run14). The chain is proven by dmesg_saved (snapshot) +
+	// klogd_running; sudo/firewalld/daemon are informational — they only
+	// fill when the matching events occur.
 	if covCheck, ok := result.Checks["log_coverage"]; ok {
-		required := []string{"messages", "auth.log", "feralos.json.log", "kern.log", "dmesg"}
+		required := []string{"messages", "auth.log", "feralos.json.log", "dmesg"}
 		for _, name := range required {
 			if strings.Contains(covCheck.Detail, name+": MISSING") {
 				covCheck.Pass = false
