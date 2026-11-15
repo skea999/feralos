@@ -12,12 +12,15 @@ func HardeningPackages(conf *config.Config) []string {
 		return nil
 	}
 	// clamav: malware scanning (user decision — hardening-gated). clamav-db
-	// ships the signature snapshot (offline-first); freshclam (enabled by the
-	// services map when the package lands) updates it whenever a network is
-	// up. Enablement: rules services map keys clamav-daemon/freshclam; the
-	// clamd/freshclam dinit units come from clamav-daemon-dinit/freshclam-dinit
-	// (the installer conversion loop installs them — one daemon, one package).
-	return []string{"bubblewrap", "apparmor", "apparmor-profiles", "libapparmor", "apparmor-utils", "clamav-daemon", "clamav-scanner", "clamav-db"}
+	// ships NO signatures in 1.4.6 (installer pulls a snapshot once at install
+	// time — runClamavSnapshot); freshclam listed here so the PackageLogic
+	// re-apply (packages.go) fires its services map entry: boot.d/initd
+	// enablement satisfies clamd's dependency (the vendor rc_need="freshclam"
+	// semantic — without it the OpenRC fallback blocks clamd) and keeps DB
+	// updates flowing whenever a network is up. The clamd/freshclam dinit
+	// units come from clamav-daemon-dinit/freshclam-dinit (installer
+	// conversion loop — one daemon, one package).
+	return []string{"bubblewrap", "apparmor", "apparmor-profiles", "libapparmor", "apparmor-utils", "clamav-daemon", "clamav-scanner", "clamav-db", "freshclam"}
 }
 
 // DebugOverrides returns sysctl/kernel overrides when EnableDebug is true.

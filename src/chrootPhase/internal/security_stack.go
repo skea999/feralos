@@ -64,7 +64,11 @@ func BaselineAide(conf *config.Config, pkgList string) {
 	if _, err := shell.ExecuteCmd(chroot, "aide --init && test -f /var/lib/aide/aide.db.new && mv /var/lib/aide/aide.db.new /var/lib/aide/aide.db"); err != nil {
 		fmt.Printf("[WARNING] AIDE baseline generation failed: %v\n", err)
 	}
-	if _, err := shell.ExecuteCmd(chroot, "test -f /var/lib/aide/aide.db"); err != nil {
+	// Outcome via ls OUTPUT, not exit code: best-effort runs (harness) swallow
+	// command failures — even a `test -f` reports error=nil there, and an
+	// exit-based check would print a false success (run7, line 5074).
+	out, _ := shell.ExecuteCmd(chroot, "ls /var/lib/aide/aide.db 2>/dev/null")
+	if !strings.Contains(out, "aide.db") {
 		fmt.Printf("[WARNING] AIDE baseline database MISSING (integrity monitoring inactive until the daily check writes one)\n")
 		return
 	}
@@ -197,7 +201,6 @@ database_in=file:/var/lib/aide/aide.db
 database_out=file:/var/lib/aide/aide.db.new
 database_new=file:/var/lib/aide/aide.db.new
 report_url=file:/var/log/aide/aide.log
-report_level=4
 gzip_dbout=no
 
 # Attribute set: permissions, inode, links, user, group, size, block count,
