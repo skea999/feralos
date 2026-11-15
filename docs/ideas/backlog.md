@@ -86,7 +86,7 @@ Transform installer output into complete FeralOS distribution.
 
 ## Declared future goals (2026-11-14 — from `docs/intent/goals.md#Future work`)
 
-- Memory-safe aports replacement: APKBUILD-compatible, **bootstraps the distro FROM NOTHING** (self-host from zero like Chimera's cports — Alpine lacks this, as do most distros), isolated builds, LLVM max-static + per-package independent tests + CVE integration. Blocked on donations → infra + maintainers.
+- Memory-safe aports replacement: APKBUILD-compatible, **bootstraps the distro FROM NOTHING** (self-host from zero like Chimera's cports — Alpine lacks this, as do most distros), isolated builds, LLVM max-static + per-package independent tests + CVE integration. Blocked on donations → infra + maintainers. When we own the kernel build: switch module compression to `CONFIG_MODULE_COMPRESS_ZSTD=y` + enable `CONFIG_MODULE_DECOMPRESS=y` (Alpine lts ships gzip, decompression disabled — 2026-11-15 modprobe/sig_enforce noise diagnosis; kmod userspace decompression already handles either format).
 - apk ported to Go (remove one of the last critical non-memory-safe system components).
 - Smart TV desktop (TV = first-class target).
 - Desktop: GTK removal; cross-DE heavy-dependency elimination.
