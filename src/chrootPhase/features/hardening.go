@@ -73,14 +73,16 @@ func SetupHardening(conf *config.Config) error {
 // (best-effort runs swallow command failures); freshclam chowns the files to
 // the DatabaseOwner (clamav) per its config, so the clamd user can read them.
 func runClamavSnapshot(chroot string) {
-	// Minimal config: DatabaseDirectory/DatabaseOwner are the only relevant
-	// overrides (both valid 1.x options). NOTE: the old DaemonNotify option
-	// was REMOVED from freshclam 1.x — any occurrence is a parse error
-	// (run9: freshclam exit 2, DB never populated). The chroot run therefore
-	// emits the benign "Clamd was NOT notified" post-update warning (no clamd
-	// here) — allowlisted in the harness log_errors sweep. On the TARGET the
-	// packaged freshclam.conf applies and a running clamd accepts the notify.
-	cfg := "# installer-time freshclam (no clamd in chroot)\nDatabaseDirectory /var/lib/clamav\nDatabaseOwner clamav\n"
+	// Minimal config: DatabaseMirror is HARD-REQUIRED by freshclam 1.x (no
+	// default — without it: "No DatabaseMirror or PrivateMirror servers set",
+	// exit 9 — run10); DatabaseDirectory/DatabaseOwner are the relevant
+	// overrides. NOTE: the old DaemonNotify option was REMOVED from freshclam
+	// 1.x — any occurrence is a parse error (run9: exit 2, DB never
+	// populated). The chroot run therefore emits the benign "Clamd was NOT
+	// notified" post-update warning (no clamd here) — allowlisted in the
+	// harness log_errors sweep. On the TARGET the packaged freshclam.conf
+	// applies and a running clamd accepts the notify.
+	cfg := "# installer-time freshclam (no clamd in chroot)\nDatabaseMirror database.clamav.net\nDatabaseDirectory /var/lib/clamav\nDatabaseOwner clamav\n"
 	if err := shell.WriteFile(chroot, "/tmp/freshclam-install.conf", []byte(cfg), 0644); err != nil {
 		fmt.Printf("[WARNING] failed to write freshclam install config: %v\n", err)
 	}
