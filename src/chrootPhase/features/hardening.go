@@ -277,9 +277,12 @@ install ksmbd /bin/false
 install gfs2 /bin/false
 
 # Disable unnecessary hardware drivers
+# NOTE (kmod, 2026-11-15): install-rules are HONORED now — busybox modprobe
+# ignored them, real kmod does not. Lines that contradict shipped desktop
+# features were removed: bluetooth (bluez + bluetooth service ship in the DE
+# stacks; golden services expect it started) and uvcvideo (webcam capture —
+# obs-studio ships). Everything below stays: genuine attack surface.
 install vivid /bin/false
-install bluetooth /bin/false
-install uvcvideo /bin/false
 install thunderbolt /bin/false
 install firewire-core /bin/false
 install firewire-ohci /bin/false
