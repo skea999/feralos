@@ -298,7 +298,13 @@ type VerifyConfig struct {
 	// "greetd", direct PAM chain over exec SSH) with it. The run flow
 	// populates it from RunConfig; standalone `verify` resolves it from
 	// the run dir's variables.yaml copy (see resolveInstalledPassword).
-	InstalledPassword  string
+	InstalledPassword string
+	// QMPPath — the TARGET VM's QMP unix socket (target-qmp.sock). The
+	// login_readiness runtime proof types credentials through it (QMP
+	// input-send-event). Empty (standalone `verify`) falls back to
+	// <RunDir>/target-qmp.sock, and when neither exists the check reports
+	// "QMP socket unavailable, login flow skipped" informationally.
+	QMPPath            string
 	DesktopEnvironment string
 	VideoDriver        string
 	EnableSwap         bool
@@ -1269,6 +1275,7 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg *RunConfig,
 		PrivateKey:         keyPair.PrivateKeyPath,
 		InstalledUser:      cfg.InstalledUser,
 		InstalledPassword:  cfg.InstalledPassword,
+		QMPPath:            targetQMPPath,
 		DesktopEnvironment: cfg.DesktopEnvironment,
 		VideoDriver:        cfg.VideoDriver,
 		EnableSwap:         cfg.EnableSwap,
@@ -1367,6 +1374,7 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 	buildStorageChecks(checks)
 	buildBootChecks(cfg, checks)
 	buildLogChecks(checks)
+	buildRestUsageChecks(checks)
 	buildGreeterChecks(cfg, checks)
 	buildSecurityStackChecks(cfg, checks)
 	buildFeatureChecks(cfg, checks)
@@ -1376,17 +1384,45 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 	buildDBusActivationChecks(cfg, checks)
 
 	result := VerifyResult{RunDir: cfg.RunDir, Success: true, Checks: map[string]CheckResult{}}
+
+	// At-rest footprint: GUARANTEED-FIRST pre-pass (Go map iteration order is
+	// random — these two must measure the pristine post-boot state before any
+	// other check touches the system). Absolute values, informational.
+	for _, name := range []string{"rest_disk_usage", "rest_ram_usage"} {
+		if command, ok := checks[name]; ok {
+			delete(checks, name)
+			output, err := guest.Output(verifyCtx, guestOpts, command)
+			check := CheckResult{Pass: err == nil, Detail: strings.TrimSpace(string(output))}
+			if err != nil {
+				check.Detail = err.Error()
+			}
+			result.Checks[name] = check
+		}
+	}
+
 	for name, command := range checks {
 		var output []byte
 		var err error
-		if name == "oo7_pam_unlock" {
+		switch name {
+		case "oo7_pam_unlock":
 			// Special case: statics (registered command) + a direct
 			// PAM-chain login over exec SSH (python3+ctypes libpam,
 			// service greetd) as the runtime proof — the autologin boot
 			// can never exercise pam_oo7 (greetd does not authenticate
 			// initial_session). See oo7_pam_unlock.go.
 			output, err = verifyOO7PamUnlock(verifyCtx, guestOpts, cfg, command)
-		} else {
+		case "login_readiness":
+			// Special case: real-login timing flow — greetd restart,
+			// regreet poll, QMP keyboard typing, desktop-up poll. The
+			// registered command is a placeholder, never executed. See
+			// login_readiness.go.
+			detail, loginErr := verifyLoginReadiness(verifyCtx, guestOpts, cfg)
+			result.Checks[name] = CheckResult{Pass: loginErr == nil, Detail: detail}
+			if loginErr != nil {
+				result.Success = false
+			}
+			continue
+		default:
 			output, err = guest.Output(verifyCtx, guestOpts, command)
 		}
 		check := CheckResult{Pass: err == nil, Detail: strings.TrimSpace(string(output))}
@@ -1809,8 +1845,9 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 
 	// Security stack (base: auditd/fail2ban/tracee/aide/lynis; clamd/freshclam
 	// only registered under EnableHardening) + greeter (niri family) — every
-	// NOT/MISSING/BROKEN/INVALID/SLOW marker is a genuine failure of the
-	// stack the installer just configured.
+	// NOT/MISSING/BROKEN/INVALID/SLOW/TIMEOUT marker is a genuine failure of
+	// the stack the installer just configured. TIMEOUT covers the
+	// login_readiness real-login flow (desktop never came up).
 	for _, name := range []string{
 		"auditd_rules", "auditd_immutable", "fail2ban_service", "fail2ban_sshd",
 		"tracee_running", "tracee_log", "aide_baseline", "aide_cron",
@@ -1818,7 +1855,7 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		"greeter_config", "login_readiness",
 	} {
 		if chk, ok := result.Checks[name]; ok {
-			if strings.Contains(chk.Detail, "NOT ") || strings.Contains(chk.Detail, "MISSING") || strings.Contains(chk.Detail, "BROKEN") || strings.Contains(chk.Detail, "INVALID") || strings.Contains(chk.Detail, "SLOW") {
+			if strings.Contains(chk.Detail, "NOT ") || strings.Contains(chk.Detail, "MISSING") || strings.Contains(chk.Detail, "BROKEN") || strings.Contains(chk.Detail, "INVALID") || strings.Contains(chk.Detail, "SLOW") || strings.Contains(chk.Detail, "TIMEOUT") {
 				chk.Pass = false
 				chk.Detail += "\n" + name + " did not reach the expected state"
 				result.Checks[name] = chk

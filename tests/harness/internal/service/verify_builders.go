@@ -106,29 +106,37 @@ func buildLogChecks(checks map[string]string) {
 	checks["log_coverage"] = "for f in messages auth.log daemon.log kern.log sudo.log firewalld.log feralos.json.log vector.log dmesg; do if [ -s /var/log/$f ]; then echo \"$f: $(wc -l < /var/log/$f) lines\"; else echo \"$f: MISSING\"; fi; done"
 }
 
+// buildRestUsageChecks — at-rest footprint probes, executed FIRST (pre-pass
+// in service.go before the randomized main loop) so they measure the pristine
+// post-boot state before any other check touches the system. Absolute values
+// only (GiB/MiB) — pure measurement, no thresholds: these numbers are the
+// baseline the security stack (tracee/clamd RAM, install footprint) is
+// judged against.
+func buildRestUsageChecks(checks map[string]string) {
+	checks["rest_disk_usage"] = `for m in / /home; do set -- $(df -k "$m" | awk 'NR==2{print $3, $4}'); awk -v u="$1" -v a="$2" -v m="$m" 'BEGIN{printf "%s: %.2f GiB used, %.2f GiB free\n", m, u/1048576, a/1048576}'; done`
+	checks["rest_ram_usage"] = `awk '/MemTotal/{t=$2} /MemAvailable/{a=$2} END{printf "ram: %d MiB used of %d MiB total\n", (t-a)/1024, t/1024}' /proc/meminfo`
+}
+
 // buildGreeterChecks — greetd + regreet login stack, registered ONLY for the
 // niri family (the only DEs greetd serves). Two checks:
 //   - greeter_config: structural validation of the installer-seeded files
 //     (config.toml keys, greeter.sh executable + contents, regreet.toml,
 //     binaries present, greeter user exists).
-//   - login_readiness: HOW LONG the login path takes — seconds between PID1
-//     start and the greetd control socket appearing (kernel-boot-relative,
-//     uptime-vs-mtime math; busybox-safe). >= 60s = SLOW (fail), socket
-//     absent = MISSING (fail). The measured value is always in the detail.
+//   - login_readiness: HOW LONG a REAL login takes — greetd (re)start ->
+//     regreet up -> credentials typed (QMP keyboard) -> desktop up. The
+//     registered value is a placeholder: Verify special-cases the check
+//     and runs verifyLoginReadiness (multi-step SSH + QMP + polling;
+//     see login_readiness.go) instead of a single shell line.
 func buildGreeterChecks(cfg *VerifyConfig, checks map[string]string) {
 	if cfg.DesktopEnvironment != desktopNiri && cfg.DesktopEnvironment != desktopNiriWayle {
 		return
 	}
 	checks["greeter_config"] = `test -f /etc/greetd/config.toml && grep -q '^vt = 7' /etc/greetd/config.toml && grep -q 'command = "/etc/greetd/greeter.sh"' /etc/greetd/config.toml && grep -q 'user = "greeter"' /etc/greetd/config.toml && test -x /etc/greetd/greeter.sh && grep -q regreet /etc/greetd/greeter.sh && grep -q niri /etc/greetd/greeter.sh && test -f /etc/greetd/regreet.toml && grep -q font_name /etc/greetd/regreet.toml && command -v regreet >/dev/null && command -v niri >/dev/null && id greeter >/dev/null 2>&1 && echo 'greetd+regreet config valid' || echo 'greeter config INVALID'`
-	// Login timing: greetd SERVICE start -> greeter login screen actually up
-	// (regreet process running). Both start times from /proc/<pid>/stat field
-	// 22 (starttime, clock ticks since boot — kernel-precise, no wall-clock
-	// math). The delta covers greeter.sh + XDG_RUNTIME_DIR fallback + niri
-	// spawn + regreet GTK cold start (the original slow-greetd complaint).
-	// < 30s pass with the value printed; >= 30s SLOW (fail); missing
-	// processes MISSING (fail). NOTE: this measures login-SCREEN readiness —
-	// a real GUI login through regreet is not automatable here.
-	checks["login_readiness"] = `gpid=$(pgrep greetd | head -1); rpid=$(pgrep regreet | head -1); if [ -n "$gpid" ] && [ -n "$rpid" ]; then g=$(awk '{print int($22/100)}' /proc/$gpid/stat); r=$(awk '{print int($22/100)}' /proc/$rpid/stat); d=$((r - g)); if [ "$d" -ge 30 ]; then echo "greeter SLOW (${d}s after greetd start)"; else echo "greeter up ${d}s after greetd start"; fi; else echo 'greetd/regreet process MISSING'; fi`
+	// Real-login timing: measured by the special-cased verifyLoginReadiness
+	// (login_readiness.go) — a real greetd->regreet->Wayle login with QMP
+	// keyboard input. This string is a placeholder (never executed as a
+	// shell command; Verify intercepts it before guest.Output).
+	checks["login_readiness"] = "special-case: verifyLoginReadiness"
 }
 
 // buildSecurityStackChecks — base security stack domain
