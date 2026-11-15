@@ -72,8 +72,20 @@ func SetupHardening(conf *config.Config) error {
 // (best-effort runs swallow command failures); freshclam chowns the files to
 // the DatabaseOwner (clamav) per its config, so the clamd user can read them.
 func runClamavSnapshot(chroot string) {
-	if _, err := shell.ExecuteCmd(chroot, "freshclam"); err != nil {
+	// Minimal config override: DaemonNotify no — there is NO clamd in the
+	// install chroot, the post-update notify attempt always fails ("Clamd
+	// was NOT notified") and trips the harness log_errors sweep (run8,
+	// installer.log:4838). On the TARGET the packaged freshclam.conf keeps
+	// the default notify (live-reload on daemon updates).
+	cfg := "# installer-time freshclam (no clamd in chroot — notify off)\nDatabaseDirectory /var/lib/clamav\nDatabaseOwner clamav\nDaemonNotify no\n"
+	if err := shell.WriteFile(chroot, "/tmp/freshclam-install.conf", []byte(cfg), 0644); err != nil {
+		fmt.Printf("[WARNING] failed to write freshclam install config: %v\n", err)
+	}
+	if _, err := shell.ExecuteCmd(chroot, "freshclam --config-file=/tmp/freshclam-install.conf"); err != nil {
 		fmt.Printf("[WARNING] freshclam failed: %v\n", err)
+	}
+	if _, err := shell.ExecuteCmd(chroot, "rm -f /tmp/freshclam-install.conf"); err != nil {
+		fmt.Printf("[WARNING] failed to remove freshclam install config: %v\n", err)
 	}
 	if _, err := shell.ExecuteCmd(chroot, "test -s /var/lib/clamav/main.cvd -o -s /var/lib/clamav/main.cld -o -s /var/lib/clamav/daily.cld -o -s /var/lib/clamav/daily.cvd"); err != nil {
 		fmt.Printf("[WARNING] clamav signature DB MISSING (clamd stays down until freshclam succeeds on a network)\n")
