@@ -106,6 +106,23 @@ func buildLogChecks(checks map[string]string) {
 	checks["log_coverage"] = "for f in messages auth.log daemon.log kern.log sudo.log firewalld.log feralos.json.log vector.log dmesg; do if [ -s /var/log/$f ]; then echo \"$f: $(wc -l < /var/log/$f) lines\"; else echo \"$f: MISSING\"; fi; done"
 }
 
+// buildGreeterChecks — greetd + regreet login stack, registered ONLY for the
+// niri family (the only DEs greetd serves). Two checks:
+//   - greeter_config: structural validation of the installer-seeded files
+//     (config.toml keys, greeter.sh executable + contents, regreet.toml,
+//     binaries present, greeter user exists).
+//   - login_readiness: HOW LONG the login path takes — seconds between PID1
+//     start and the greetd control socket appearing (kernel-boot-relative,
+//     uptime-vs-mtime math; busybox-safe). >= 60s = SLOW (fail), socket
+//     absent = MISSING (fail). The measured value is always in the detail.
+func buildGreeterChecks(cfg *VerifyConfig, checks map[string]string) {
+	if cfg.DesktopEnvironment != desktopNiri && cfg.DesktopEnvironment != desktopNiriWayle {
+		return
+	}
+	checks["greeter_config"] = `test -f /etc/greetd/config.toml && grep -q '^vt = 7' /etc/greetd/config.toml && grep -q 'command = "/etc/greetd/greeter.sh"' /etc/greetd/config.toml && grep -q 'user = "greeter"' /etc/greetd/config.toml && test -x /etc/greetd/greeter.sh && grep -q regreet /etc/greetd/greeter.sh && grep -q niri /etc/greetd/greeter.sh && test -f /etc/greetd/regreet.toml && grep -q font_name /etc/greetd/regreet.toml && command -v regreet >/dev/null && command -v niri >/dev/null && id greeter >/dev/null 2>&1 && echo 'greetd+regreet config valid' || echo 'greeter config INVALID'`
+	checks["login_readiness"] = `if [ -S /run/greetd.sock ]; then now=$(date +%s); age=$((now - $(stat -c %Y /run/greetd.sock))); up=$(cut -d. -f1 /proc/uptime); delay=$((up - age)); if [ "$delay" -ge 60 ]; then echo "greetd SLOW (${delay}s after PID1)"; else echo "greetd ready ${delay}s after PID1"; fi; else echo 'greetd socket MISSING'; fi`
+}
+
 // buildSecurityStackChecks — base security stack domain
 // (docs/architecture/security_stack.md): auditd, fail2ban, Tracee, AIDE are
 // ALWAYS installed (base installer); clamd/freshclam are hardening-gated

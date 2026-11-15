@@ -157,15 +157,6 @@ hotkey-overlay {
 		return fmt.Errorf("fix greeter/regreet ownership: %w", err)
 	}
 
-	// 4b. Pre-build fontconfig cache for the greeter user — GTK4's first
-	// text render with a cold cache scans every system font (noto-cjk +
-	// noto-extra = thousands of files), causing a multi-second regreet
-	// cold-start that the rest of boot doesn't have. One fc-cache run at
-	// install time eliminates it.
-	if _, err := shell.ExecuteCmd(chroot, "su -s /bin/sh greeter -c 'fc-cache -f'"); err != nil {
-		fmt.Printf("[WARNING] fontconfig cache pre-build for greeter failed (non-fatal): %v\n", err)
-	}
-
 	// 4b. Login-shell trick (moved from users.go — desktop-owned now, runs
 	// AFTER user creation: chrootPhase step 5 users < step 9 desktops).
 	// wayle-session depends on niri-user-dinit, so the login-shell binary
