@@ -220,6 +220,17 @@ standardPackages:
   - fish-tools
   # Initramfs (booster replaces mkinitfs)
   - booster
+  # kmod: real modprobe/depmod at /sbin (replaces the busybox applet link —
+  # untracked file, standard Alpine `apk add kmod` flow). WHY: busybox
+  # modprobe calls finit_module(flags=MODULE_INIT_COMPRESSED_FILE) on the
+  # gzipped .ko, but the Alpine kernel has CONFIG_MODULE_COMPRESS_GZIP=y
+  # WITHOUT CONFIG_MODULE_DECOMPRESS → EOPNOTSUPP → busybox retries the raw
+  # gzip stream → kernel prints "Loading of unsigned module is rejected"
+  # under module.sig_enforce=1 (73 rejections ↔ 73 loads — every module DID
+  # load via the init_module fallback). kmod decompresses in userspace:
+  # clean boot log, no signature noise (run12 serial 11.5-14.4s; ADR-012
+  # stack runs sig_enforce=1 by design).
+  - kmod
   # Firmware
   - fwupd
   - fwupd-efi
