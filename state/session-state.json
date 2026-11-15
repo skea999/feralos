@@ -155,7 +155,8 @@
     "FHS stage 1 (Go side): /usr/share/dinit + /usr/libexec/dinit locations, /etc/periodic/weekly/btrfs-trim, /opt/feralos/bin, login-shell path — byte-identical outputs (2026-11-08)",
     "niriWayle daily-driver completion: dconf, evince, file-roller, thunderbird, gnome-maps/firmware, obs-studio, gst-libav, noto-emoji, xdg-desktop-portal-gtk; ursine 0.27 (no D-Bus — accountsservice/udisks2 leave); gnome portal shadow-dummy 999; Key Rack flatpak (2026-11-10; aports 6 packages abuild green)",
     "niriWayle harness regression + portal-gtk gap found by dinit_user_services (2026-11-10; 113/114 → sizing lesson ≥32G)",
-    "installer tail reorder: TWO-PASS dbus-audit (step 8a INSTALL before desktop linking loop + step 16 REPORT at chroot tail) — circular dependency caught by harness (2026-11-11; 114/114)"
+    "installer tail reorder: TWO-PASS dbus-audit (step 8a INSTALL before desktop linking loop + step 16 REPORT at chroot tail) — circular dependency caught by harness (2026-11-11; 114/114)",
+    "security stack BASE landed (ADR-012): auditd+AIDE+fail2ban+Tracee(shared musl first packaging)+lynis base-installer, ClamAV under hardening; aports 7 packages published (audit-dinit, aide, fail2ban-dinit r2 both-init override, tracee, lynis, clamav-daemon-dinit, freshclam-dinit); vector conf.d drop-ins (manual shipping); lockdown=integrity; harness run12 2026-11-15T18-07-37Z 128/128 ALL GREEN; TODOs: CrowdSec offline port (replaces fail2ban), firewalld replacement (owner to define) (2026-11-15)"
   ],
   "decisions": [
     {
@@ -648,5 +649,5 @@
     "GOAL future (blocked on donations): memory-safe aports replacement — APKBUILD-compatible, BOOTSTRAPS THE DISTRO FROM NOTHING (self-host from zero like Chimera's cports; Alpine lacks this, as do most distros), isolated builds, LLVM max-static, per-package tests + CVE integration",
     "GOAL future: apk ported to Go; desktop GTK removal; cross-DE heavy-dependency elimination"
   ],
-  "last_updated": "2026-11-14"
+  "last_updated": "2026-11-15"
 }
