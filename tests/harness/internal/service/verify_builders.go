@@ -120,7 +120,15 @@ func buildGreeterChecks(cfg *VerifyConfig, checks map[string]string) {
 		return
 	}
 	checks["greeter_config"] = `test -f /etc/greetd/config.toml && grep -q '^vt = 7' /etc/greetd/config.toml && grep -q 'command = "/etc/greetd/greeter.sh"' /etc/greetd/config.toml && grep -q 'user = "greeter"' /etc/greetd/config.toml && test -x /etc/greetd/greeter.sh && grep -q regreet /etc/greetd/greeter.sh && grep -q niri /etc/greetd/greeter.sh && test -f /etc/greetd/regreet.toml && grep -q font_name /etc/greetd/regreet.toml && command -v regreet >/dev/null && command -v niri >/dev/null && id greeter >/dev/null 2>&1 && echo 'greetd+regreet config valid' || echo 'greeter config INVALID'`
-	checks["login_readiness"] = `if [ -S /run/greetd.sock ]; then now=$(date +%s); age=$((now - $(stat -c %Y /run/greetd.sock))); up=$(cut -d. -f1 /proc/uptime); delay=$((up - age)); if [ "$delay" -ge 60 ]; then echo "greetd SLOW (${delay}s after PID1)"; else echo "greetd ready ${delay}s after PID1"; fi; else echo 'greetd socket MISSING'; fi`
+	// Login timing: greetd SERVICE start -> greeter login screen actually up
+	// (regreet process running). Both start times from /proc/<pid>/stat field
+	// 22 (starttime, clock ticks since boot — kernel-precise, no wall-clock
+	// math). The delta covers greeter.sh + XDG_RUNTIME_DIR fallback + niri
+	// spawn + regreet GTK cold start (the original slow-greetd complaint).
+	// < 30s pass with the value printed; >= 30s SLOW (fail); missing
+	// processes MISSING (fail). NOTE: this measures login-SCREEN readiness —
+	// a real GUI login through regreet is not automatable here.
+	checks["login_readiness"] = `gpid=$(pgrep greetd | head -1); rpid=$(pgrep regreet | head -1); if [ -n "$gpid" ] && [ -n "$rpid" ]; then g=$(awk '{print int($22/100)}' /proc/$gpid/stat); r=$(awk '{print int($22/100)}' /proc/$rpid/stat); d=$((r - g)); if [ "$d" -ge 30 ]; then echo "greeter SLOW (${d}s after greetd start)"; else echo "greeter up ${d}s after greetd start"; fi; else echo 'greetd/regreet process MISSING'; fi`
 }
 
 // buildSecurityStackChecks — base security stack domain
