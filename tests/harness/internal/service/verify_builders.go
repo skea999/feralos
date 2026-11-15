@@ -106,6 +106,28 @@ func buildLogChecks(checks map[string]string) {
 	checks["log_coverage"] = "for f in messages auth.log daemon.log kern.log sudo.log firewalld.log feralos.json.log vector.log dmesg; do if [ -s /var/log/$f ]; then echo \"$f: $(wc -l < /var/log/$f) lines\"; else echo \"$f: MISSING\"; fi; done"
 }
 
+// buildSecurityStackChecks — base security stack domain
+// (docs/architecture/security_stack.md): auditd, fail2ban, Tracee, AIDE are
+// ALWAYS installed (base installer); clamd/freshclam are hardening-gated
+// (registered only when cfg.EnableHardening). Both inits covered per check.
+func buildSecurityStackChecks(cfg *VerifyConfig, checks map[string]string) {
+	checks["auditd_service"] = "if [ -S /run/dinitctl ]; then dinitctl list 2>/dev/null | grep -w auditd || test -e /etc/dinit.d/boot.d/auditd && echo 'auditd (boot.d)' || test -e /lib/dinit.d/auditd && echo 'auditd (service file)'; else rc-update show 2>/dev/null | grep -w auditd; fi"
+	checks["auditd_rules"] = "auditctl -l 2>/dev/null | grep -q ' -w ' && echo 'audit rules loaded' || echo 'audit rules NOT loaded'"
+	checks["auditd_immutable"] = "grep -q '^-e 2$' /etc/audit/audit.rules && auditctl -l >/dev/null 2>&1 && echo 'rules file present, kernel accepted the load' || echo 'rules file/kernel load BROKEN'"
+	checks["fail2ban_service"] = "pgrep -f fail2ban-server >/dev/null && echo 'fail2ban-server running' || echo 'fail2ban-server NOT running'"
+	checks["fail2ban_sshd"] = "fail2ban-client status sshd 2>/dev/null | grep -q 'Jail list.*sshd' && echo 'sshd jail active' || echo 'sshd jail MISSING'"
+	checks["tracee_running"] = "pgrep -f '/usr/libexec/tracee/tracee' >/dev/null && echo 'tracee running' || echo 'tracee NOT running'"
+	checks["tracee_log"] = "for f in /var/log/dinit/tracee.log /var/log/tracee.log; do [ -s \"$f\" ] && echo \"$f has events\" && exit 0; done; echo 'tracee log MISSING or empty'"
+	checks["aide_baseline"] = "test -f /var/lib/aide/aide.db && echo 'aide baseline db present' || echo 'aide baseline db MISSING'"
+	checks["aide_cron"] = "test -x /etc/periodic/daily/aide-check && echo 'aide daily check installed' || echo 'aide daily check MISSING'"
+	checks["lynis_present"] = "test -x /usr/sbin/lynis && test -e /etc/periodic/daily/lynis && echo 'lynis + daily cron installed' || echo 'lynis MISSING'"
+	if cfg.EnableHardening {
+		checks["clamd_service"] = "pgrep -x clamd >/dev/null && echo 'clamd running' || echo 'clamd NOT running'"
+		checks["freshclam_service"] = "pgrep -f 'freshclam --daemon' >/dev/null && echo 'freshclam running' || echo 'freshclam NOT running'"
+		checks["clamav_db_snapshot"] = "test -s /var/lib/clamav/main.cvd || test -s /var/lib/clamav/main.cld && echo 'clamav db snapshot present' || echo 'clamav db snapshot MISSING'"
+	}
+}
+
 // buildFeatureChecks — nix/podman/secureboot/flatpak feature checks plus
 // the always-registered nix config markers (feature domain).
 func buildFeatureChecks(cfg *VerifyConfig, checks map[string]string) {

@@ -201,6 +201,8 @@ var dinitExpectedServicesBase = []string{
 	// — never boot-enabled, so not expected here)
 	"networking", "incusd", "vector", "cronie", "chronyd", "dbus",
 	"sshd", "acpid", "irqbalance", "earlyoom",
+	// security stack (base — 2026-11-15): auditd/fail2ban/tracee always
+	"auditd", "fail2ban", "tracee",
 }
 
 // dinitExpectedServicesNiriFamily — the niri-family desktop services
@@ -219,6 +221,8 @@ var openrcExpectedServicesBase = []string{
 	// default
 	"cgroups", "networking", "cronie", "chronyd", "dbus", "sshd",
 	"acpid", "irqbalance", "earlyoom", "incusd", "udev-postmount",
+	// security stack (base — 2026-11-15): auditd/fail2ban/tracee always
+	"auditd", "fail2ban", "tracee",
 	// fwupd NOT expected: dbus-activated on demand (ADR-010 R1
 	// amendment) — never in a runlevel on either init
 }

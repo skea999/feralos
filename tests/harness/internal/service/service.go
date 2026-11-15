@@ -308,6 +308,7 @@ type VerifyConfig struct {
 	EnableDinit        bool
 	EnableDebug        bool
 	EnableNix          bool
+	EnableHardening    bool
 	SwapSize           string
 	DiskLayout         string
 	NixPackages        []string
@@ -1277,6 +1278,7 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg *RunConfig,
 		EnableDinit:        cfg.EnableDinit,
 		EnableDebug:        cfg.EnableDebug,
 		EnableNix:          cfg.EnableNix,
+		EnableHardening:    cfg.EnableHardening,
 		SwapSize:           cfg.SwapSize,
 		DiskLayout:         cfg.DiskLayout,
 		NixPackages:        cfg.NixPackages,
@@ -1365,6 +1367,7 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 	buildStorageChecks(checks)
 	buildBootChecks(cfg, checks)
 	buildLogChecks(checks)
+	buildSecurityStackChecks(cfg, checks)
 	buildFeatureChecks(cfg, checks)
 	buildDinitChecks(cfg, checks)
 	buildDesktopChecks(cfg, checks)
@@ -1800,6 +1803,24 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 			confdCheck.Detail += "\nExpected /etc/vector/conf.d (dir + README) and the wrapper conf.d merge"
 			result.Checks["vector_conf_d"] = confdCheck
 			result.Success = false
+		}
+	}
+
+	// Security stack (base: auditd/fail2ban/tracee/aide/lynis; clamd/freshclam
+	// only registered under EnableHardening) — every NOT/MISSING/BROKEN
+	// marker is a genuine failure of the stack the installer just configured.
+	for _, name := range []string{
+		"auditd_rules", "auditd_immutable", "fail2ban_service", "fail2ban_sshd",
+		"tracee_running", "tracee_log", "aide_baseline", "aide_cron",
+		"lynis_present", "clamd_service", "freshclam_service", "clamav_db_snapshot",
+	} {
+		if chk, ok := result.Checks[name]; ok {
+			if strings.Contains(chk.Detail, "NOT ") || strings.Contains(chk.Detail, "MISSING") || strings.Contains(chk.Detail, "BROKEN") {
+				chk.Pass = false
+				chk.Detail += "\nsecurity stack: " + name + " did not reach the expected state"
+				result.Checks[name] = chk
+				result.Success = false
+			}
 		}
 	}
 	if cfg.EnableDebug {

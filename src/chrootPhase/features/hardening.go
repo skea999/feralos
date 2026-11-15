@@ -11,7 +11,13 @@ func HardeningPackages(conf *config.Config) []string {
 	if !conf.User.EnableHardening {
 		return nil
 	}
-	return []string{"bubblewrap", "apparmor", "apparmor-profiles", "libapparmor", "apparmor-utils"}
+	// clamav: malware scanning (user decision — hardening-gated). clamav-db
+	// ships the signature snapshot (offline-first); freshclam (enabled by the
+	// services map when the package lands) updates it whenever a network is
+	// up. Enablement: rules services map keys clamav-daemon/freshclam; the
+	// clamd/freshclam dinit units come from clamav-daemon-dinit/freshclam-dinit
+	// (the installer conversion loop installs them — one daemon, one package).
+	return []string{"bubblewrap", "apparmor", "apparmor-profiles", "libapparmor", "apparmor-utils", "clamav-daemon", "clamav-scanner", "clamav-db"}
 }
 
 // DebugOverrides returns sysctl/kernel overrides when EnableDebug is true.
@@ -48,9 +54,35 @@ func SetupHardening(conf *config.Config) error {
 		return err
 	}
 	restrictFilePermissions(chroot)
+	writeClamdConfig(chroot)
 
 	fmt.Println("[INFO] Hardening complete.")
 	return nil
+}
+
+// writeClamdConfig writes the FeralOS clamd configuration over the package
+// sample (best-effort: the sample's commented defaults are already sane, so
+// a write failure is a WARNING — the daemon still runs). Explicit LogFile so
+// the vector clamav_logs source + logrotate have a stable path; Foreground
+// stays default-off — both service units pass the CLI flag, which overrides
+// the config file (clamd.c: argv scan beats optget). freshclam updates the
+// DB whenever a network is up (offline it just logs failed attempts).
+func writeClamdConfig(chroot string) {
+	clamdConf := `# FeralOS clamd configuration (installer-written over the package sample)
+LogFile /var/log/clamav/clamd.log
+LogTime yes
+PidFile /run/clamav/clamd.pid
+LocalSocket /run/clamav/clamd.sock
+DatabaseDirectory /var/lib/clamav
+User clamav
+Foreground no
+`
+	if err := shell.WriteFile(chroot, "/etc/clamav/clamd.conf", []byte(clamdConf), 0644); err != nil {
+		fmt.Printf("[WARNING] Failed to write clamd config: %v\n", err)
+	}
+	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /var/log/clamav /run/clamav && chown clamav:clamav /var/log/clamav /run/clamav"); err != nil {
+		fmt.Printf("[WARNING] Failed to create clamav dirs: %v\n", err)
+	}
 }
 
 // enableApparmor wires the apparmor boot enablement: dinit gets the
@@ -72,10 +104,15 @@ func enableApparmor(chroot string, enableDinit bool) {
 
 // applyHardeningCmdline appends the hardening kernel cmdline fragment to the
 // runtime KernelCmdline list (rendered later into /etc/kernel/cmdline by
-// internal.SetupBoot).
+// internal.SetupBoot). lockdown=integrity (NOT confidentiality — 2026-11-15
+// security-stack decision): LOCKDOWN_BPF_READ_KERNEL is confidentiality-only
+// but makes the BPF verifier reject every kernel-memory-read program
+// (bpf_trace.c) — Tracee (base security stack) cannot load its eBPF under
+// confidentiality. integrity still blocks unsigned module loading, kexec and
+// /dev/mem, and cannot be lowered at runtime.
 func applyHardeningCmdline(u *config.UserVariables, loglevelArg, dmesgRestrictArg string) {
 	hardeningCmdline := fmt.Sprintf(
-		"sysctl.kernel.kptr_restrict=2 %s sysctl.kernel.unprivileged_bpf_disabled=1 sysctl.net.core.bpf_jit_harden=2 sysctl.dev.tty.ldisc_autoload=0 sysctl.kernel.kexec_load_disabled=1 sysctl.kernel.perf_event_paranoid=3 sysctl.kernel.yama.ptrace_scope=2 sysctl.fs.protected_symlinks=1 sysctl.fs.protected_hardlinks=1 sysctl.fs.protected_fifos=2 sysctl.fs.protected_regular=2 slab_nomerge init_on_alloc=1 init_on_free=1 page_alloc.shuffle=1 pti=on randomize_kstack_offset=on vsyscall=none module.sig_enforce=1 lockdown=confidentiality %s apparmor=1 security=apparmor random.trust_cpu=off intel_iommu=on efi=disable_early_pci_dma sysctl.kernel.sysrq=4 random.trust_bootloader=off iommu.passthrough=0 iommu.strict=1 ipv6.disable=1",
+		"sysctl.kernel.kptr_restrict=2 %s sysctl.kernel.unprivileged_bpf_disabled=1 sysctl.net.core.bpf_jit_harden=2 sysctl.dev.tty.ldisc_autoload=0 sysctl.kernel.kexec_load_disabled=1 sysctl.kernel.perf_event_paranoid=3 sysctl.kernel.yama.ptrace_scope=2 sysctl.fs.protected_symlinks=1 sysctl.fs.protected_hardlinks=1 sysctl.fs.protected_fifos=2 sysctl.fs.protected_regular=2 slab_nomerge init_on_alloc=1 init_on_free=1 page_alloc.shuffle=1 pti=on randomize_kstack_offset=on vsyscall=none module.sig_enforce=1 lockdown=integrity %s apparmor=1 security=apparmor random.trust_cpu=off intel_iommu=on efi=disable_early_pci_dma sysctl.kernel.sysrq=4 random.trust_bootloader=off iommu.passthrough=0 iommu.strict=1 ipv6.disable=1",
 		dmesgRestrictArg, loglevelArg,
 	)
 	u.KernelCmdline = append(u.KernelCmdline, hardeningCmdline)

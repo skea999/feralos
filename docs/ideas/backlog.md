@@ -91,4 +91,6 @@ Transform installer output into complete FeralOS distribution.
 - Smart TV desktop (TV = first-class target).
 - Desktop: GTK removal; cross-DE heavy-dependency elimination.
 - Chroot installation like Arch Linux, documented in the wiki; standard configuration moved into aports packages.
-- Security standards conformance + enterprise observability out of the box (open TODO — hardening already shipped).
+- Security standards conformance + enterprise observability out of the box (open TODO — hardening already shipped; **2026-11-15: base security stack landed** — auditd + AIDE + fail2ban + Tracee + lynis, ADR-012; the two items below are the remaining follow-ups).
+- **CrowdSec offline port** (replaces fail2ban): port engine (Alpine testing 1.8.2) + `cs-firewall-bouncer` 0.0.38 (Go, nftables via netlink, absent from Alpine) + hub baked into the package (collections linux/sshd/auditd, versions pinned; offline = hub content + symlinks shipped, CAPI/console disabled — research done 2026-11-15, ADR-012 references). Owner decision pending on timing.
+- **firewalld replacement** (nftables already the backend): approach to be defined by the owner (consumer analysis pending: NetworkManager / plasma-firewall / libvirt / incus / podman — who talks FirewallD1 D-Bus and what breaks).

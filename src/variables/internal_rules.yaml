@@ -196,6 +196,25 @@ standardPackages:
   # counterpart (klogd-dinit) ships in the dinit init bundle (packages.go,
   # EnableDinit-gated — init plumbing, not distro content).
   - klogd-openrc
+  # Security stack (BASE — docs/architecture/security_stack.md): auditd
+  # (kernel audit framework; userspace C, the framework itself is in-kernel),
+  # AIDE (file integrity; C — no credible memory-safe FIM exists, batch
+  # offline tool; no daemon → no -openrc/-dinit counterpart needed), fail2ban
+  # (brute-force, nftables banaction), Tracee (eBPF runtime detection; Go,
+  # first musl packaging, shared build — static cannot load Go-signature
+  # plugins), lynis (conformance report, shell). Enablement: services map
+  # (audit/fail2ban/tracee keys). The -openrc subpackages ride their base
+  # packages (abuild install_if) and the conversion loop (packages.go)
+  # installs the -dinit counterparts automatically — audit-dinit and
+  # fail2ban-dinit are NEVER listed here. fail2ban-dinit ALSO overrides
+  # /etc/init.d/fail2ban (`replaces` retires the vendor fail2ban-openrc —
+  # its initd needs the `logger` service vector replaced). clamav is
+  # EnableHardening-gated (features/hardening.go), NOT here.
+  - audit
+  - aide
+  - fail2ban
+  - tracee
+  - lynis
   # Shell
   - fish
   - fish-tools
@@ -584,6 +603,21 @@ packageLogic:
   # parses as null and carries no data).
   earlyoom:
     services: {"earlyoom": "default"}
+  # Security stack service enablement (docs/architecture/security_stack.md):
+  # unit names = the OpenRC initd names (audit-openrc / fail2ban-dinit's
+  # override / tracee's own initd), so `services` alone drives both inits.
+  # clamd/freshclam are clamav-daemon/freshclam keys (hardening-gated — the
+  # packages arrive only via features/hardening.go).
+  audit:
+    services: {"auditd": "default"}
+  fail2ban:
+    services: {"fail2ban": "default"}
+  tracee:
+    services: {"tracee": "default"}
+  clamav-daemon:
+    services: {"clamd": "default"}
+  freshclam:
+    services: {"freshclam": "default"}
   vlan:
     modules: ["8021q"]
   bridge:

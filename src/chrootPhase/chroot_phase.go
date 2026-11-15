@@ -49,6 +49,13 @@ func Run(conf *config.Config) error {
 		fmt.Printf("[WARNING] Vector config failed: %v\n", err)
 	}
 
+	// 2b. Security stack configs (audit rules, fail2ban jail, aide config —
+	// docs/architecture/security_stack.md; packages + service enablement are
+	// rules-driven)
+	if err := internal.SetupSecurityStack(conf, pkgList); err != nil {
+		return fmt.Errorf("security stack setup failed: %w", err)
+	}
+
 	// 3. Setup network
 	if err := internal.SetupNetwork(conf); err != nil {
 		return fmt.Errorf("network setup failed: %w", err)
@@ -154,6 +161,13 @@ func Run(conf *config.Config) error {
 	if err := features.SetupEdgeRepos(conf); err != nil {
 		return fmt.Errorf("edge repositories setup failed: %w", err)
 	}
+
+	// 18. AIDE baseline database (security stack) — AFTER the edge install
+	// (the last step that can touch watched paths): the baseline must capture
+	// the FINAL filesystem state or every install-time change would surface
+	// as first-boot drift. Non-fatal (WARNING) — the harness check on
+	// /var/lib/aide/aide.db is the strict signal.
+	internal.BaselineAide(conf, pkgList)
 
 	fmt.Println("[INFO] ChrootPhase.Run completed successfully.")
 	return nil
