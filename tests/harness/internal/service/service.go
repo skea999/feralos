@@ -1794,6 +1794,14 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 			result.Success = false
 		}
 	}
+	if confdCheck, ok := result.Checks["vector_conf_d"]; ok {
+		if strings.Contains(confdCheck.Detail, "INCOMPLETE") {
+			confdCheck.Pass = false
+			confdCheck.Detail += "\nExpected /etc/vector/conf.d (dir + README) and the wrapper conf.d merge"
+			result.Checks["vector_conf_d"] = confdCheck
+			result.Success = false
+		}
+	}
 	if cfg.EnableDebug {
 		if apiCheck, ok := result.Checks["vector_api"]; ok {
 			if strings.Contains(apiCheck.Detail, "unreachable") {

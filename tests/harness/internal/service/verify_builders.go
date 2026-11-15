@@ -102,6 +102,7 @@ func buildLogChecks(checks map[string]string) {
 	checks["json_log"] = "grep -q '\"timestamp\"' /var/log/feralos.json.log 2>/dev/null && echo \"json log OK ($(wc -l < /var/log/feralos.json.log) lines)\" || echo 'json log missing'"
 	checks["vector_api"] = "wget -qO- --timeout=3 http://127.0.0.1:8686/health 2>/dev/null || echo 'api unreachable'"
 	checks["vector_validate"] = "vector validate --skip-healthchecks /etc/vector/vector.yaml >/dev/null 2>&1 && echo 'vector config valid' || echo 'vector config INVALID'"
+	checks["vector_conf_d"] = "test -d /etc/vector/conf.d && test -f /etc/vector/conf.d/README.md && grep -q 'conf.d' /usr/lib/dinit/vector && echo 'conf.d ready (dir + README + wrapper merge)' || echo 'conf.d INCOMPLETE'"
 	checks["log_coverage"] = "for f in messages auth.log daemon.log kern.log sudo.log firewalld.log feralos.json.log vector.log dmesg; do if [ -s /var/log/$f ]; then echo \"$f: $(wc -l < /var/log/$f) lines\"; else echo \"$f: MISSING\"; fi; done"
 }
 

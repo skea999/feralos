@@ -84,6 +84,74 @@ func writeVectorConfig(chroot string, conf *config.Config, pkgList string) error
 		incusJSONInput = "\n      - incus_logs"
 	}
 
+	// Security-stack file sources (docs/architecture/security_stack.md):
+	// every security tool's log lands in /var/log so (a) it is readable
+	// locally and (b) manual Vector shipping later only needs a sink drop-in
+	// in /etc/vector/conf.d. Tracee is NOT listed here: it runs supervised
+	// by dinit (log-type=file -> /var/log/dinit/tracee.log) and is already
+	// covered by the dinit_services source. auditd rotates its own log
+	// (auditd.conf), fail2ban/clamav ship their own logrotate — this config
+	// never double-rotates.
+	auditInstalled := strings.Contains(pkgList, "\naudit\n")
+	aideInstalled := strings.Contains(pkgList, "\naide\n")
+	fail2banInstalled := strings.Contains(pkgList, "\nfail2ban\n")
+	lynisInstalled := strings.Contains(pkgList, "\nlynis\n")
+	clamavInstalled := strings.Contains(pkgList, "\nclamav-daemon\n")
+
+	secStackSources := ""
+	secStackJSONInputs := ""
+	if auditInstalled {
+		secStackSources += `
+  audit_logs:
+    type: file
+    include:
+      - "/var/log/audit/*.log"
+    ignore_not_found: true
+`
+		secStackJSONInputs += "\n      - audit_logs"
+	}
+	if aideInstalled {
+		secStackSources += `
+  aide_logs:
+    type: file
+    include:
+      - "/var/log/aide/*.log"
+    ignore_not_found: true
+`
+		secStackJSONInputs += "\n      - aide_logs"
+	}
+	if fail2banInstalled {
+		secStackSources += `
+  fail2ban_logs:
+    type: file
+    include:
+      - "/var/log/fail2ban.log"
+    ignore_not_found: true
+`
+		secStackJSONInputs += "\n      - fail2ban_logs"
+	}
+	if lynisInstalled {
+		secStackSources += `
+  lynis_logs:
+    type: file
+    include:
+      - "/var/log/lynis.log"
+      - "/var/log/lynis/*.log"
+    ignore_not_found: true
+`
+		secStackJSONInputs += "\n      - lynis_logs"
+	}
+	if clamavInstalled {
+		secStackSources += `
+  clamav_logs:
+    type: file
+    include:
+      - "/var/log/clamav/*.log"
+    ignore_not_found: true
+`
+		secStackJSONInputs += "\n      - clamav_logs"
+	}
+
 	// Debug-only local Vector API (vector top / tap). enableDebug is the
 	// test-only flag — production configs never expose the API.
 	apiBlock := ""
@@ -111,7 +179,7 @@ data_dir: "/var/lib/vector"
 
   internal_logs:
     type: internal_logs
-` + dinitSource + incusSource + `
+` + dinitSource + incusSource + secStackSources + `
 transforms:
   auth_logs:
     type: filter
@@ -150,7 +218,7 @@ transforms:
     type: remap
     inputs:
       - syslog
-      - internal_logs` + dinitJSONInput + incusJSONInput + `
+      - internal_logs` + dinitJSONInput + incusJSONInput + secStackJSONInputs + `
     source: |
       if exists(.file) {
         .service = to_string(.file) ?? ""
@@ -244,6 +312,48 @@ sinks:
 		fmt.Printf("[WARNING] Failed to create vector data directory: %v\n", err)
 	}
 
+	// conf.d drop-in dir: the manual log shipping mechanism (docs/architecture/
+	// security_stack.md) — the dinit wrapper merges /etc/vector/conf.d/*.yaml on
+	// top of the base config, so enabling a remote sink later is ONE admin file,
+	// zero installer changes. The dir is also created by vector-dinit's tmpfiles
+	// (dinit) and vector-setup (OpenRC) at boot; creating it here makes the
+	// install-time `vector validate` and a first boot before any of those see a
+	// consistent state.
+	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /etc/vector/conf.d && chown vector:vector /etc/vector/conf.d"); err != nil {
+		fmt.Printf("[WARNING] Failed to create vector conf.d directory: %v\n", err)
+	} else {
+		confdReadme := `# /etc/vector/conf.d — manual Vector drop-ins
+#
+# Any *.yaml here is merged ON TOP of /etc/vector/vector.yaml by the vector
+# service (vector multi-config: later files win). This is the supported way
+# to add sinks (e.g. a remote log endpoint) WITHOUT touching the installer-
+# managed base config.
+#
+# Rules:
+#   - component IDs must not collide with the base config (sources: syslog,
+#     internal_logs, dinit_services, incus_logs, audit_logs, aide_logs,
+#     fail2ban_logs, lynis_logs, clamav_logs; sinks: messages, auth_log,
+#     daemon_log, kernel_log, sudo_log, firewalld_log, feralos_json_log)
+#   - reference the sources above as inputs; never re-declare them
+#   - validate before restarting: vector validate --no-environment
+# Full guide: docs/architecture/security_stack.md (repo) / security-stack(7)
+`
+		if err := shell.WriteFile(chroot, "/etc/vector/conf.d/README.md", []byte(confdReadme), 0644); err != nil {
+			fmt.Printf("[WARNING] Failed to write vector conf.d README: %v\n", err)
+		}
+		if _, err := shell.ExecuteCmd(chroot, "chown vector:vector /etc/vector/conf.d/README.md"); err != nil {
+			fmt.Printf("[WARNING] Failed to chown vector conf.d README: %v\n", err)
+		}
+	}
+
+	// Validate the rendered config at install time (non-fatal: a WARN keeps the
+	// install alive; the boot-time oneshot + harness checks are the strict
+	// signal). --skip-healthchecks: sink endpoints (none remote today) must
+	// not be probed inside the chroot.
+	if _, err := shell.ExecuteCmd(chroot, "vector validate --skip-healthchecks /etc/vector/vector.yaml"); err != nil {
+		fmt.Printf("[WARNING] Vector config validation failed: %v\n", err)
+	}
+
 	return nil
 }
 
@@ -268,6 +378,10 @@ start() {
     ln -sf /run/vector/syslog.sock /dev/log
     chown vector:vector /var/log
     chown btrbk:btrbk /btrbk 2>/dev/null || true
+    # conf.d drop-ins (manual shipping mechanism — see vector.script);
+    # under dinit the same dir is created by vector-dinit tmpfiles
+    mkdir -p /etc/vector/conf.d
+    chown vector:vector /etc/vector/conf.d
     eend $?
 }
 `
@@ -326,6 +440,18 @@ func writeLogrotateConfig(chroot string, conf *config.Config) error {
 /var/log/vector.log /var/log/firewalld.log /var/log/feralos.json.log /var/log/btrfs-scrub.log /var/log/btrfs-trim.log /var/log/btrbk/*.log {
     daily
     rotate 7
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+}
+
+# Security stack reports (auditd rotates its own log via auditd.conf;
+# fail2ban + clamav ship their own logrotate files — never double-rotate)
+/var/log/aide/*.log /var/log/lynis.log /var/log/lynis/*.log {
+    weekly
+    rotate 8
     compress
     delaycompress
     missingok
