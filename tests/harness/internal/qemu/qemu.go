@@ -450,6 +450,77 @@ func PressEnter(socketPath string) error {
 	return SendKeys(socketPath, []string{"ret"})
 }
 
+// TextQCodes maps text to input-send-event batches: each inner slice holds
+// the qcodes pressed (down) together in one event batch, then released
+// (up). Letters/digits map direct, space → spc, newline → ret, uppercase
+// → shift held around the letter. Any other character fails LOUD with the
+// full list — no guessing.
+func TextQCodes(text string) ([][]string, error) {
+	var unsupported []rune
+	batches := make([][]string, 0, len(text))
+	for _, character := range text {
+		switch {
+		case character >= 'a' && character <= 'z':
+			batches = append(batches, []string{string(character)})
+		case character >= 'A' && character <= 'Z':
+			batches = append(batches, []string{"shift", strings.ToLower(string(character))})
+		case character >= '0' && character <= '9':
+			batches = append(batches, []string{string(character)})
+		case character == ' ':
+			batches = append(batches, []string{"spc"})
+		case character == '\n' || character == '\r':
+			batches = append(batches, []string{"ret"})
+		default:
+			unsupported = append(unsupported, character)
+		}
+	}
+	if len(unsupported) > 0 {
+		return nil, fmt.Errorf("unsupported character(s) %q — no qcode mapping, refusing to guess", string(unsupported))
+	}
+	return batches, nil
+}
+
+// SendText types text into the guest via QMP input-send-event: one
+// down+up event pair per qcode (~30ms between keys). The whole text is
+// validated first, so nothing is typed when any character is unmapped.
+func SendText(socketPath, text string) error {
+	batches, err := TextQCodes(text)
+	if err != nil {
+		return err
+	}
+
+	for _, batch := range batches {
+		events := make([]map[string]any, 0, len(batch)*2)
+		for _, qcode := range batch {
+			events = append(events, qcodeKeyEvent(qcode, true))
+		}
+		for _, qcode := range batch {
+			events = append(events, qcodeKeyEvent(qcode, false))
+		}
+
+		request := map[string]any{
+			"execute":   "input-send-event",
+			"arguments": map[string]any{"events": events},
+		}
+		if err := executeQMP(socketPath, request, nil); err != nil {
+			return err
+		}
+		time.Sleep(30 * time.Millisecond)
+	}
+
+	return nil
+}
+
+func qcodeKeyEvent(qcode string, down bool) map[string]any {
+	return map[string]any{
+		"type": "key",
+		"data": map[string]any{
+			"down": down,
+			"key":  map[string]any{"type": "qcode", "data": qcode},
+		},
+	}
+}
+
 func WriteSerial(socketPath, text string) error {
 	conn, err := net.DialTimeout("unix", socketPath, 5*time.Second)
 	if err != nil {
