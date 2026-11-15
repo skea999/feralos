@@ -7,7 +7,7 @@ permissions:
     effect: deny
   - action: shell
     resource: "*"
-    effect: ask
+    effect: allow
   - action: read
     resource: "*"
     effect: allow

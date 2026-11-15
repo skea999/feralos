@@ -12,7 +12,7 @@ permissions:
   effect: allow
 - action: shell
   resource: '*'
-  effect: ask
+  effect: allow
 - action: shell
   resource: git status *
   effect: allow
@@ -87,13 +87,13 @@ permissions:
   effect: allow
 - action: shell
   resource: git *--output*
-  effect: ask
+  effect: allow
 - action: shell
   resource: '* >*'
-  effect: ask
+  effect: allow
 - action: shell
   resource: '*>>*'
-  effect: ask
+  effect: allow
 - action: shell
   resource: rm -rf *
   effect: deny

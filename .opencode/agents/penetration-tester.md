@@ -10,10 +10,10 @@ permissions:
   effect: allow
 - action: edit
   resource: '*'
-  effect: ask
+  effect: allow
 - action: shell
   resource: '*'
-  effect: ask
+  effect: allow
 - action: shell
   resource: python *
   effect: allow
@@ -25,10 +25,10 @@ permissions:
   effect: allow
 - action: shell
   resource: curl *
-  effect: ask
+  effect: allow
 - action: shell
   resource: nmap *
-  effect: ask
+  effect: allow
 - action: shell
   resource: ls*
   effect: allow
