@@ -22,10 +22,11 @@ package service
 // stops login.target and the FULL dependent chain (sshd, cupsd, ...),
 // which killed sshd and stranded 28 checks with "context deadline
 // exceeded". greetd is therefore NEVER stopped/started via dinitctl
-// anywhere in this flow: it is killed with `pkill -x greetd` and its
-// dinit unit's smooth-recovery respawns it IN-PLACE — no login.target
-// cascade, no sshd kill. The [initial_session] stanza (stripped or
-// restored per flow state) is re-read by the NEW greetd on respawn.
+// anywhere in this flow: it is killed by pid (`/bin/busybox kill`, see
+// killGreetdProc) and its dinit unit's smooth-recovery respawns it
+// IN-PLACE — no login.target cascade, no sshd kill. The [initial_session]
+// stanza (stripped or restored per flow state) is re-read by the NEW
+// greetd on respawn.
 //
 // AUTOLOGIN INTERACTION: the harness target boots with the TEST-ONLY
 // greetd [initial_session] autologin (enableNiriTestAutologin), so the
@@ -299,30 +300,98 @@ echo 'test-only greetd autologin stanza restored'
 	return nil
 }
 
-// killGreetdRestart kills greetd with pkill and waits for smooth-recovery
-// (greetd's dinit unit) to spawn a NEW greetd in place. NEVER use dinitctl
-// stop/start here: greetd is `before = login.target`, so dinitctl stop
-// greetd stops login.target and its FULL dependent chain (sshd, cupsd,
-// ...) — run20 lost sshd and 28 checks this way. A pure process kill does
-// not touch login.target; the new greetd re-reads /etc/greetd/config.toml
-// on respawn (stripped or restored stanza per flow state).
+// killGreetdRestart kills greetd and waits for smooth-recovery (greetd's
+// dinit unit) to spawn a NEW greetd in place. NEVER use dinitctl stop/start
+// here: greetd is `before = login.target`, so dinitctl stop greetd stops
+// login.target and its FULL dependent chain (sshd, cupsd, ...) — run20
+// lost sshd and 28 checks this way. A pure process kill does not touch
+// login.target; the new greetd re-reads /etc/greetd/config.toml on respawn
+// (stripped or restored stanza per flow state).
+//
+// KILL MECHANISM (run21 ground truth): a bare `sudo -n kill <pid>` over
+// SSH returned exit 1 with NO error text (sudoers is NOPASSWD:ALL — not a
+// sudo-password failure; likely PATH resolution of `kill` in the non-login
+// SSH shell, a stale pid, or busybox-vs-procps ambiguity). The kill uses
+// the explicit `/bin/busybox kill` binary (always present on Alpine base;
+// procps is not), each attempt captures its rc via `echo "kill_rc=$?"`,
+// and total failure returns an error carrying captured outputs + probes
+// (id, sudo-ok, pgrep, which kill) so the next run diagnoses in one shot.
 func killGreetdRestart(ctx context.Context, opts guest.Options) error {
 	oldPID := ""
 	if out, err := guest.OutputOK(ctx, opts, "pgrep greetd | head -1"); err == nil {
 		oldPID = strings.TrimSpace(out)
 	}
 
-	kill := "sudo -n pkill -x greetd"
-	if _, err := guest.OutputOK(ctx, opts, kill); err != nil {
-		if _, fallbackErr := guest.OutputOK(ctx, opts, "pkill -x greetd"); fallbackErr != nil {
-			return fmt.Errorf("kill greetd (sudo -n: %w, plain: %w)", err, fallbackErr)
-		}
+	if err := killGreetdProc(ctx, opts, oldPID); err != nil {
+		return err
 	}
 
 	if _, err := waitProcPID(ctx, opts, "pgrep greetd | head -1", 10*time.Second, 200*time.Millisecond, oldPID); err != nil {
-		return fmt.Errorf("greetd respawn after pkill: %w", err)
+		return fmt.Errorf("greetd respawn after kill: %w", err)
 	}
 	return nil
+}
+
+// killGreetdProc kills the greetd process gpid (empty = not running —
+// nothing to kill; the respawn wait in killGreetdRestart reports if no
+// greetd appears). Sanity-checks the pid against /proc/<pid>/comm first
+// (a stale pid would fail the kill with a bare exit 1), then walks
+// busybox kill → /bin/kill -TERM → /bin/kill -KILL, each rc captured.
+func killGreetdProc(ctx context.Context, opts guest.Options, gpid string) error {
+	if gpid == "" {
+		return nil
+	}
+	if _, err := strconv.Atoi(gpid); err != nil {
+		return fmt.Errorf("greetd pid %q is not numeric — refusing to kill", gpid)
+	}
+
+	// Stale-pid guard: the pid must still BE greetd.
+	commOut, commErr := guest.OutputOK(ctx, opts, fmt.Sprintf("cat /proc/%s/comm", gpid))
+	comm := strings.TrimSpace(commOut)
+	if commErr != nil {
+		return fmt.Errorf("stale greetd pid %s: read /proc/%s/comm: %w", gpid, gpid, commErr)
+	}
+	if comm != "greetd" {
+		return fmt.Errorf("stale greetd pid %s: /proc/%s/comm = %q, want greetd", gpid, gpid, comm)
+	}
+
+	// kill_rc is embedded in the output because OutputOK collapses the
+	// remote exit code; every command ends in `echo`, so the ssh exit is
+	// 0 either way — the captured kill_rc=N line is the real verdict.
+	attempts := []string{
+		fmt.Sprintf(`sudo -n /bin/busybox kill %q 2>&1; echo "kill_rc=$?"`, gpid),
+		fmt.Sprintf(`sudo -n /bin/kill -TERM %q 2>&1; echo "kill_rc=$?"`, gpid),
+		fmt.Sprintf(`sudo -n /bin/kill -KILL %q 2>&1; echo "kill_rc=$?"`, gpid),
+	}
+	captured := make([]string, 0, len(attempts))
+	for _, cmd := range attempts {
+		out, err := guest.OutputOK(ctx, opts, cmd)
+		out = strings.TrimSpace(out)
+		if err == nil && strings.Contains(out, "kill_rc=0") {
+			return nil
+		}
+		entry := cmd + " -> " + out
+		if err != nil {
+			entry += " (ssh: " + err.Error() + ")"
+		}
+		captured = append(captured, entry)
+	}
+
+	// Total failure: one-shot diagnostic payload for the run artifacts.
+	diag := append([]string{}, captured...)
+	for _, probe := range []string{
+		"id -u",
+		"sudo -n true && echo sudo-ok",
+		"pgrep greetd",
+		"which kill",
+	} {
+		if out, err := guest.OutputOK(ctx, opts, probe); err == nil {
+			diag = append(diag, probe+" -> "+strings.TrimSpace(out))
+		} else {
+			diag = append(diag, probe+" -> ssh error: "+err.Error())
+		}
+	}
+	return fmt.Errorf("kill greetd failed (pid %s), all %d attempts:\n%s", gpid, len(attempts), strings.Join(diag, "\n"))
 }
 
 // waitProcPID polls `cmd` over SSH until it yields a pid different from
