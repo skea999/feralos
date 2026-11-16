@@ -10,6 +10,13 @@ FeralOS is not another clone. It's a different approach: take Alpine's solid fou
 
 ## Getting Started
 
+**Requirements** (measured baseline, full niriWayle desktop + security stack: harness run `2026-11-15T23-58-34Z`):
+
+- **Disk**: ≥32 GB for a desktop install (14.14 GiB used at rest; 16 GB disks hit ENOSPC). Minimal server layouts run on 2×8 GB.
+- **RAM**: ≥4 GB (957 MiB used at rest with the desktop + full security stack running).
+- **CPU**: x86_64, UEFI boot.
+- **USB stick**: ≥2 GB live ISO. Network required.
+
 1. Download a Linux Mint live ISO
 2. Write to USB and boot
 3. Open a terminal and run:

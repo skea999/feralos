@@ -6,10 +6,11 @@ FeralOS installer — Go 1.22 + YAML, Alpine-based, LUKS2 + Btrfs + booster + UK
 
 ## Prerequisites
 
-- **Disks**: `btrfsStandardServer` → 2× ≥8 GB disks (RAID1, dual EFI, LUKS swap); `btrfsStandard` / `btrfsRaid0` / `btrfsUnencrypted` → 1× or 2× disks respectively. All data on target disks erased.
+- **Disks**: `btrfsStandardServer` → 2× ≥8 GB disks (RAID1, dual EFI, LUKS swap); `btrfsStandard` / `btrfsRaid0` / `btrfsUnencrypted` → 1× or 2× disks respectively. All data on target disks erased. Desktop installs (niri/niriWayle + security stack) need **≥32 GB** — measured 14.14 GiB used at rest (harness baseline 2026-11-15); 16 GB disks hit ENOSPC.
+- **RAM**: **≥4 GB** — measured 957 MiB used at rest with the desktop + full security stack (tracee/clamd/freshclam/auditd/AIDE/fail2ban) running (harness baseline 2026-11-15). 2 GB works only without the desktop stack.
 - **USB stick**: ≥2 GB for live ISO.
 - **Live env**: Alpine (recommended) or Void. Must boot UEFI, not Legacy BIOS. Network required (APK + apk-tools-static download).
-- **CPU**: x86_64 (AMD/Intel). RAM ≥2 GB.
+- **CPU**: x86_64 (AMD/Intel).
 
 ## Quick Start
 
