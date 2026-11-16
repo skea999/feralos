@@ -1417,6 +1417,12 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 			// registered command is a placeholder, never executed. See
 			// login_readiness.go.
 			detail, loginErr := verifyLoginReadiness(verifyCtx, guestOpts, cfg)
+			if loginErr != nil {
+				// Observability: the error text IS the diagnosis (which
+				// pre-measurement stage failed) — never discard it (run17:
+				// empty detail made the failure undiagnosable from artifacts).
+				detail = strings.TrimSpace(detail + "\nlogin flow error: " + loginErr.Error())
+			}
 			result.Checks[name] = CheckResult{Pass: loginErr == nil, Detail: detail}
 			if loginErr != nil {
 				result.Success = false

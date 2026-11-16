@@ -160,16 +160,15 @@ hotkey-overlay {
 	// 4b. Pre-build fontconfig cache for the greeter user — GTK4's first
 	// text render with a cold cache scans every system font (noto-cjk +
 	// noto-extra = thousands of files): the consistent 30-60s gray screen
-	// before the regreet login (real-install report 2026-11-15). Root-run
-	// with HOME pointed at the greeter data dir (running as the greeter
-	// user failed permission-denied on the system cache), then hand the
-	// cache to greeter. Non-fatal WARNING: the login_readiness harness
-	// check measures whether it actually helps.
+	// before the regreet login (real-install report 2026-11-15). Root-run:
+	// fontconfig writes the SYSTEM caches (/var/cache/fontconfig) when run
+	// as root — every user (greeter included) reads them, so the scan never
+	// happens at login. No per-user .cache/chown needed (the chown attempt
+	// produced only "No such file" noise — root never writes $HOME/.cache).
+	// Non-fatal WARNING: the login_readiness harness check measures whether
+	// it actually helps.
 	if _, err := shell.ExecuteCmd(chroot, "env HOME=/var/lib/greetd fc-cache -f"); err != nil {
 		fmt.Printf("[WARNING] fontconfig cache pre-build for greeter failed (non-fatal): %v\n", err)
-	}
-	if _, err := shell.ExecuteCmd(chroot, "chown -R greeter:greeter /var/lib/greetd/.cache"); err != nil {
-		fmt.Printf("[WARNING] failed to chown greeter fontconfig cache: %v\n", err)
 	}
 
 	// 4c. Login-shell trick (moved from users.go — desktop-owned now, runs
