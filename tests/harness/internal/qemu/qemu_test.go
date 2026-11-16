@@ -39,14 +39,13 @@ func TestTextQCodesMapping(t *testing.T) {
 }
 
 func TestTextQCodesUnsupportedChar(t *testing.T) {
-	got, err := TextQCodes("ab#!")
+	// § is genuinely unmapped (non-ASCII); # and ! ARE mapped (shift 3/1)
+	got, err := TextQCodes("ab§")
 	if err == nil {
-		t.Fatalf("TextQCodes(\"ab#!\") expected error, got batches %v", got)
+		t.Fatalf(`TextQCodes("ab§") expected error, got batches %v`, got)
 	}
-	for _, character := range []string{"#", "!"} {
-		if !strings.Contains(err.Error(), character) {
-			t.Errorf("error %q must list unsupported char %q (fail loud, no guessing)", err.Error(), character)
-		}
+	if !strings.Contains(err.Error(), "§") {
+		t.Errorf("error %q must list the unsupported char (fail loud, no guessing)", err.Error())
 	}
 	if got != nil {
 		t.Errorf("TextQCodes must return no batches on unsupported chars, got %v", got)
@@ -55,12 +54,38 @@ func TestTextQCodesUnsupportedChar(t *testing.T) {
 
 func TestSendTextRejectsUnsupportedBeforeDialing(t *testing.T) {
 	// Missing socket: SendText must fail on validation BEFORE dialing, so
-	// the error is the mapping error, not a dial error.
-	err := SendText("/nonexistent/qmp.sock", "pa$$")
+	// the error is the mapping error, not a dial error. § is unmapped.
+	err := SendText("/nonexistent/qmp.sock", "pa§§")
 	if err == nil {
 		t.Fatal("SendText expected error for unsupported chars")
 	}
 	if !strings.Contains(err.Error(), "unsupported character") {
 		t.Errorf("SendText error = %q, want the unsupported-character validation error", err.Error())
+	}
+}
+
+func TestTextQCodesPunctuation(t *testing.T) {
+	batches, err := TextQCodes(".-_")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := [][]string{{"dot"}, {"minus"}, {"shift", "minus"}}
+	if len(batches) != len(want) {
+		t.Fatalf("got %d batches, want %d", len(batches), len(want))
+	}
+	for i, b := range want {
+		if strings.Join(b, "+") != strings.Join(batches[i], "+") {
+			t.Errorf("batch %d: got %v, want %v", i, batches[i], b)
+		}
+	}
+	shifted, err := TextQCodes("@_")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(shifted) != 2 || !strings.Contains(strings.Join(shifted[0], "+"), "shift+2") || !strings.Contains(strings.Join(shifted[1], "+"), "shift+minus") {
+		t.Errorf("shifted mapping wrong: %v", shifted)
+	}
+	if _, err := TextQCodes("\u00e8"); err == nil {
+		t.Error("non-ASCII should fail loud")
 	}
 }

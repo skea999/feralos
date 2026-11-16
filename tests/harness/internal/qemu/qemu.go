@@ -452,8 +452,9 @@ func PressEnter(socketPath string) error {
 
 // TextQCodes maps text to input-send-event batches: each inner slice holds
 // the qcodes pressed (down) together in one event batch, then released
-// (up). Letters/digits map direct, space → spc, newline → ret, uppercase
-// → shift held around the letter. Any other character fails LOUD with the
+// (up). Letters/digits map direct, space → spc, newline → ret, uppercase →
+// shift held around the letter; punctuation maps to its US-layout qcode
+// (shift held for shifted keys). Any other character fails LOUD with the
 // full list — no guessing.
 func TextQCodes(text string) ([][]string, error) {
 	var unsupported []rune
@@ -471,13 +472,95 @@ func TextQCodes(text string) ([][]string, error) {
 		case character == '\n' || character == '\r':
 			batches = append(batches, []string{"ret"})
 		default:
-			unsupported = append(unsupported, character)
+			qcode, shifted, ok := punctQCode(character)
+			if !ok {
+				unsupported = append(unsupported, character)
+				continue
+			}
+			if shifted {
+				batches = append(batches, []string{"shift", qcode})
+			} else {
+				batches = append(batches, []string{qcode})
+			}
 		}
 	}
 	if len(unsupported) > 0 {
 		return nil, fmt.Errorf("unsupported character(s) %q — no qcode mapping, refusing to guess", string(unsupported))
 	}
 	return batches, nil
+}
+
+// punctQCode maps US-layout punctuation to its qcode + whether the key
+// requires shift. Covers every printable ASCII non-alphanumeric.
+func punctQCode(character rune) (string, bool, bool) {
+	switch character {
+	case '.':
+		return "dot", false, true
+	case ',':
+		return "comma", false, true
+	case '-':
+		return "minus", false, true
+	case '/':
+		return "slash", false, true
+	case ';':
+		return "semicolon", false, true
+	case '\'':
+		return "apostrophe", false, true
+	case '`':
+		return "grave_accent", false, true
+	case '\\':
+		return "backslash", false, true
+	case '=':
+		return "equal", false, true
+	case '[':
+		return "bracket_left", false, true
+	case ']':
+		return "bracket_right", false, true
+	case '!':
+		return "1", true, true
+	case '@':
+		return "2", true, true
+	case '#':
+		return "3", true, true
+	case '$':
+		return "4", true, true
+	case '%':
+		return "5", true, true
+	case '^':
+		return "6", true, true
+	case '&':
+		return "7", true, true
+	case '*':
+		return "8", true, true
+	case '(':
+		return "9", true, true
+	case ')':
+		return "0", true, true
+	case '_':
+		return "minus", true, true
+	case '+':
+		return "equal", true, true
+	case ':':
+		return "semicolon", true, true
+	case '"':
+		return "apostrophe", true, true
+	case '~':
+		return "grave_accent", true, true
+	case '|':
+		return "backslash", true, true
+	case '<':
+		return "comma", true, true
+	case '>':
+		return "dot", true, true
+	case '?':
+		return "slash", true, true
+	case '{':
+		return "bracket_left", true, true
+	case '}':
+		return "bracket_right", true, true
+	default:
+		return "", false, false
+	}
 }
 
 // SendText types text into the guest via QMP input-send-event: one
