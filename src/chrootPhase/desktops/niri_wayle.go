@@ -64,7 +64,11 @@ if [ ! -d "/run/user/$(id -u greeter)" ]; then
 else
     export XDG_RUNTIME_DIR="/run/user/$(id -u greeter)"
 fi
-exec niri -- regreet
+# niri+regreet stdout/stderr -> /var/lib/greetd/session.log: greetd does NOT
+# capture greeter session output by itself — without this redirect a broken
+# greeter is undiagnosable (the harness login_readiness check tails this
+# file into its failure detail).
+exec niri -- regreet >> /var/lib/greetd/session.log 2>&1
 `
 	if err := writeFile(chroot, "/etc/greetd/greeter.sh", greeterSh); err != nil {
 		return fmt.Errorf("write greeter.sh: %w", err)

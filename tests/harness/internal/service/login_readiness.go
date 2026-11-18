@@ -268,6 +268,15 @@ func verifyLoginReadiness(ctx context.Context, opts guest.Options, cfg *VerifyCo
 		}
 		if time.Now().After(desktopDeadline) {
 			detail += fmt.Sprintf("desktop TIMEOUT (login failed) after %s (%d password sends)\n", loginDesktopTimeout, passwordSends)
+			// Freeze-frame the greeter screen (PPM in the run dir) — visual
+			// ground truth of what the login attempt left on screen.
+			if qmpPath != "" {
+				if dumpErr := qemu.Screendump(qmpPath, filepath.Join(cfg.RunDir, "greeter-timeout.ppm")); dumpErr != nil {
+					detail += fmt.Sprintf("screendump failed: %v\n", dumpErr)
+				} else {
+					detail += "greeter screenshot: greeter-timeout.ppm (run dir)\n"
+				}
+			}
 			detail = captureGreeterEvidence(detail)
 			return detail, nil
 		}
