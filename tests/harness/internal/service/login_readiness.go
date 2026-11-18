@@ -168,8 +168,8 @@ func verifyLoginReadiness(ctx context.Context, opts guest.Options, cfg *VerifyCo
 			"find /usr/share/fonts -type f 2>/dev/null | wc -l",
 			"ls -la /var/cache/fontconfig 2>/dev/null | head -6",
 		}
-		// The user-session log lives in the runtime dir (uid known only here).
-		probes = append([]string{fmt.Sprintf("tail -20 /run/user/%s/wayle-session.log 2>/dev/null", uid)}, probes...)
+		// The session milestone log (installer-created, /var/log).
+		probes = append([]string{"tail -20 /var/log/wayle-session.log 2>/dev/null"}, probes...)
 		for _, probe := range probes {
 			if out, err := guest.OutputOK(ctx, opts, probe); err == nil && strings.TrimSpace(out) != "" {
 				d += "\n--- " + probe + " ---\n" + strings.TrimSpace(out)
