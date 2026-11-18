@@ -93,7 +93,9 @@ func verifyLoginReadiness(ctx context.Context, opts guest.Options, cfg *VerifyCo
 		return "QMP socket unavailable, login flow skipped", nil
 	}
 	if _, err := os.Stat(qmpPath); err != nil {
-		return "QMP socket unavailable, login flow skipped", nil
+		// Intentional informational skip (nilerr): no QMP socket = standalone
+		// verify without a run dir — the flow cannot run, nothing failed.
+		return "QMP socket unavailable, login flow skipped", nil //nolint:nilerr
 	}
 
 	password, flowErr := resolveInstalledPassword(cfg)
@@ -115,57 +117,11 @@ func verifyLoginReadiness(ctx context.Context, opts guest.Options, cfg *VerifyCo
 	}
 	uid := strings.TrimSpace(uidOut)
 
-	// DE-aware session command for the [initial_session] stanza — mirrors
-	// the RunConfig switch (service.go enableNiriTestAutologin call site):
-	// niriWayle → "wayle-session", niri → "niri-session".
-	sessionCmd := "niri-session"
-	if cfg.DesktopEnvironment == desktopNiriWayle {
-		sessionCmd = "wayle-session"
-	}
-
-	// Baseline BEFORE the strip (provenance only — never skips): with the
-	// test autologin the session is active here; the greetd kill-restart
-	// below kills it and the strip prevents the re-autologin, giving a
-	// fresh greeter either way.
-	baselineOut, err := guest.OutputOK(ctx, opts, fmt.Sprintf("test -e /run/user/%s && echo active || echo free", uid))
-	if err != nil {
-		return "", fmt.Errorf("probe existing user session: %w", err)
-	}
-	preStrip := "absent"
-	if strings.Contains(baselineOut, "active") {
-		preStrip = "active"
-	}
-
-	// Strip + restart + restore lifecycle. The stripped flag gates the
-	// deferred restore so an early error (before any mutation) touches
-	// nothing.
-	stripped := false
-	defer func() {
-		if !stripped {
-			return
-		}
-		if restoreErr := restoreAutologinStanza(ctx, opts, sessionCmd, cfg.InstalledUser); restoreErr != nil {
-			detail += "\nautologin stanza restore failed: " + restoreErr.Error()
-			return
-		}
-		flowSucceeded := flowErr == nil && strings.Contains(detail, loginMeasuredMarker)
-		if !flowSucceeded {
-			// Failure path: bring the autologin session back for the
-			// later checks (kill-restart reads the restored stanza).
-			if restartErr := killGreetdRestart(ctx, opts); restartErr != nil {
-				detail += "\nautologin greetd restart failed: " + restartErr.Error()
-			}
-		}
-	}()
-
-	if err := stripAutologinStanza(ctx, opts); err != nil {
-		return "", err
-	}
-	stripped = true
-
 	// Restart the greeter cycle — t0 = greetd kill + smooth-recovery
-	// respawn (NEVER dinitctl: login.target cascade, see header). This
-	// also kills the pre-strip autologin session.
+	// respawn (NEVER dinitctl: login.target cascade, see header). With the
+	// harness autologin REMOVED for the niri family (2026-11-18), the boot
+	// greeter waits indefinitely and this kill starts a FRESH greeter
+	// cycle the timing can be measured from.
 	if err := killGreetdRestart(ctx, opts); err != nil {
 		return "", err
 	}
@@ -180,10 +136,11 @@ func verifyLoginReadiness(ctx context.Context, opts guest.Options, cfg *VerifyCo
 	// starttime ticks — kernel-precise, no wall-clock math.
 	regreetPID, flowErr := waitProcPID(ctx, opts, "pgrep regreet | head -1", loginRegreetTimeout, loginRegreetInterval, "")
 	if flowErr != nil {
-		detail = fmt.Sprintf("pre-strip user session: %s\n", preStrip) +
-			fmt.Sprintf("greetd->regreet: greetd up (pid %s) but regreet process MISSING %.0fs after restart\n"+
-				"greetd/regreet process MISSING", greetdPID, time.Since(t0Wall).Seconds())
-		return detail, nil
+		detail = fmt.Sprintf("greetd->regreet: greetd up (pid %s) but regreet process MISSING %.0fs after restart\n"+
+			"greetd/regreet process MISSING", greetdPID, time.Since(t0Wall).Seconds())
+		// Intentional informational outcome (nilerr): the measured FAILURE is
+		// the result — the detail carries it, the marker loop flags it.
+		return detail, nil //nolint:nilerr
 	}
 	t1Wall := time.Now()
 	t1Ticks, flowErr := procStartTicks(ctx, opts, regreetPID)
@@ -198,7 +155,7 @@ func verifyLoginReadiness(ctx context.Context, opts guest.Options, cfg *VerifyCo
 	// access, groups, compositor alive) + FONTCONFIG state (the prime
 	// slow-login suspect: greeter cache ownership/size vs the font corpus).
 	captureGreeterEvidence := func(d string) string {
-		for _, probe := range []string{
+		probes := []string{
 			"cat /var/lib/greetd/session.log 2>/dev/null",
 			"cat /etc/greetd/config.toml",
 			"ls /usr/share/wayland-sessions/ 2>/dev/null",
@@ -210,7 +167,10 @@ func verifyLoginReadiness(ctx context.Context, opts guest.Options, cfg *VerifyCo
 			"du -sh /var/lib/greetd/.cache 2>/dev/null",
 			"find /usr/share/fonts -type f 2>/dev/null | wc -l",
 			"ls -la /var/cache/fontconfig 2>/dev/null | head -6",
-		} {
+		}
+		// The user-session log lives in the runtime dir (uid known only here).
+		probes = append([]string{fmt.Sprintf("tail -20 /run/user/%s/wayle-session.log 2>/dev/null", uid)}, probes...)
+		for _, probe := range probes {
 			if out, err := guest.OutputOK(ctx, opts, probe); err == nil && strings.TrimSpace(out) != "" {
 				d += "\n--- " + probe + " ---\n" + strings.TrimSpace(out)
 			}
@@ -219,7 +179,7 @@ func verifyLoginReadiness(ctx context.Context, opts guest.Options, cfg *VerifyCo
 	}
 	greetdToRegreet := ticksToSeconds(t1Ticks - t0Ticks)
 
-	detail = fmt.Sprintf("pre-strip user session: %s\ngreetd->regreet: %.2fs\n", preStrip, greetdToRegreet)
+	detail = fmt.Sprintf("greetd->regreet: %.2fs\n", greetdToRegreet)
 
 	// Settle: let the greeter UI draw its input fields before typing.
 	if err := sleepCtx(ctx, 2*time.Second); err != nil {
@@ -305,36 +265,6 @@ func sendPasswordEnter(qmpPath, password string) error {
 		return err
 	}
 	return qemu.SendText(qmpPath, "\n")
-}
-
-// stripAutologinStanza deletes the test-only [initial_session] stanza
-// (header + command + user lines) from /etc/greetd/config.toml and fails
-// unless the marker is really gone.
-func stripAutologinStanza(ctx context.Context, opts guest.Options) error {
-	cmd := `sed -i '/^\[initial_session\]$/,/^user = /d' /etc/greetd/config.toml && ! grep -q initial_session /etc/greetd/config.toml`
-	if _, err := guest.OutputOK(ctx, opts, cmd); err != nil {
-		return fmt.Errorf("strip [initial_session] from /etc/greetd/config.toml: %w", err)
-	}
-	return nil
-}
-
-// restoreAutologinStanza re-appends the [initial_session] stanza EXACTLY
-// like enableNiriTestAutologin writes it (Go-built stanza, printf '%b',
-// duplicate guard), so the next greetd respawn re-autologins the user.
-func restoreAutologinStanza(ctx context.Context, opts guest.Options, sessionCommand, installedUser string) error {
-	stanza := fmt.Sprintf("\n[initial_session]\ncommand = %q\nuser = %q\n", sessionCommand, installedUser)
-	script := fmt.Sprintf(`set -eu
-f=/etc/greetd/config.toml
-if ! grep -q 'initial_session' "$f"; then
-	printf '%%b' %s >> "$f"
-fi
-grep -q 'initial_session' "$f" || { echo 'initial_session marker missing after restore'; exit 1; }
-echo 'test-only greetd autologin stanza restored'
-`, shellQuote(stanza))
-	if _, err := guest.OutputOK(ctx, opts, script); err != nil {
-		return fmt.Errorf("restore [initial_session] stanza: %w", err)
-	}
-	return nil
 }
 
 // killGreetdRestart kills greetd and waits for smooth-recovery (greetd's
