@@ -190,6 +190,22 @@ func verifyLoginReadiness(ctx context.Context, opts guest.Options, cfg *VerifyCo
 	if flowErr != nil {
 		return "", fmt.Errorf("regreet starttime (pid %s): %w", regreetPID, flowErr)
 	}
+
+	// Desktop TIMEOUT path: capture greetd session evidence into the detail
+	// (session log = greetd's capture of the greeter session stdout/stderr —
+	// regreet's own error text; config after strip; available sessions).
+	captureGreeterEvidence := func(d string) string {
+		for _, probe := range []string{
+			"cat /var/lib/greetd/session.log 2>/dev/null | tail -20",
+			"cat /etc/greetd/config.toml",
+			"ls /usr/share/wayland-sessions/ 2>/dev/null",
+		} {
+			if out, err := guest.OutputOK(ctx, opts, probe); err == nil && strings.TrimSpace(out) != "" {
+				d += "\n--- " + probe + " ---\n" + strings.TrimSpace(out)
+			}
+		}
+		return d
+	}
 	greetdToRegreet := ticksToSeconds(t1Ticks - t0Ticks)
 
 	detail = fmt.Sprintf("pre-strip user session: %s\ngreetd->regreet: %.2fs\n", preStrip, greetdToRegreet)
@@ -252,6 +268,7 @@ func verifyLoginReadiness(ctx context.Context, opts guest.Options, cfg *VerifyCo
 		}
 		if time.Now().After(desktopDeadline) {
 			detail += fmt.Sprintf("desktop TIMEOUT (login failed) after %s (%d password sends)\n", loginDesktopTimeout, passwordSends)
+			detail = captureGreeterEvidence(detail)
 			return detail, nil
 		}
 		if err := sleepCtx(ctx, loginDesktopInterval); err != nil {

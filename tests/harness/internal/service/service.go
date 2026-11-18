@@ -1400,6 +1400,16 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		}
 	}
 
+	// login_readiness runs as a GUARANTEED-LAST post-pass (removed from the
+	// map below): the flow restarts greetd and tears down the autologin
+	// session — session-dependent checks must not race it, and its greeter
+	// state must not be disturbed by later checks.
+	hasLoginFlow := false
+	if _, ok := checks["login_readiness"]; ok {
+		hasLoginFlow = true
+		delete(checks, "login_readiness")
+	}
+
 	for name, command := range checks {
 		var output []byte
 		var err error
@@ -1411,23 +1421,6 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 			// can never exercise pam_oo7 (greetd does not authenticate
 			// initial_session). See oo7_pam_unlock.go.
 			output, err = verifyOO7PamUnlock(verifyCtx, guestOpts, cfg, command)
-		case "login_readiness":
-			// Special case: real-login timing flow — greetd restart,
-			// regreet poll, QMP keyboard typing, desktop-up poll. The
-			// registered command is a placeholder, never executed. See
-			// login_readiness.go.
-			detail, loginErr := verifyLoginReadiness(verifyCtx, guestOpts, cfg)
-			if loginErr != nil {
-				// Observability: the error text IS the diagnosis (which
-				// pre-measurement stage failed) — never discard it (run17:
-				// empty detail made the failure undiagnosable from artifacts).
-				detail = strings.TrimSpace(detail + "\nlogin flow error: " + loginErr.Error())
-			}
-			result.Checks[name] = CheckResult{Pass: loginErr == nil, Detail: detail}
-			if loginErr != nil {
-				result.Success = false
-			}
-			continue
 		default:
 			output, err = guest.Output(verifyCtx, guestOpts, command)
 		}
@@ -1438,6 +1431,22 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		}
 
 		result.Checks[name] = check
+	}
+
+	// login_readiness post-pass (guaranteed-last): see the pre-pass note
+	// above. The greeter cycle it drives must not race any other check.
+	if hasLoginFlow {
+		detail, loginErr := verifyLoginReadiness(verifyCtx, guestOpts, cfg)
+		if loginErr != nil {
+			// Observability: the error text IS the diagnosis (which
+			// pre-measurement stage failed) — never discard it (run17:
+			// empty detail made the failure undiagnosable from artifacts).
+			detail = strings.TrimSpace(detail + "\nlogin flow error: " + loginErr.Error())
+		}
+		result.Checks["login_readiness"] = CheckResult{Pass: loginErr == nil, Detail: detail}
+		if loginErr != nil {
+			result.Success = false
+		}
 	}
 
 	if storageCheck, ok := result.Checks["storage_layout"]; ok {
