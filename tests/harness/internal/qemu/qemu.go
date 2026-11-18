@@ -811,16 +811,3 @@ func startupError(logPath string, err error) error {
 
 	return fmt.Errorf("qemu startup failed: %w: %s", err, string(logData))
 }
-
-// Screendump captures the guest's ACTIVE console to a PPM image via the
-// QMP `screendump` command. The file is written by the QEMU process on the
-// QEMU host side — the path must be writable there (for the verify flow:
-// the run dir). Used by login_readiness to freeze-frame the greeter screen
-// when the login flow times out.
-func Screendump(socketPath, filename string) error {
-	request := map[string]any{
-		"execute":   "screendump",
-		"arguments": map[string]any{"filename": filename},
-	}
-	return executeQMP(socketPath, request, nil)
-}

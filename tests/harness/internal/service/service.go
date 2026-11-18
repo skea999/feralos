@@ -1346,14 +1346,17 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 	if cfg.Timeout <= 0 {
 		cfg.Timeout = 2 * time.Minute
 	}
-	// niri-family runtime checks (test-only greetd autologin session) poll
-	// up to 90s each for the session to come up; six of them in the worst
-	// case (session never starts) far exceed the 2min default verify budget.
+	// niri-family runtime checks (real typed login + session polls) and the
+	// sequential check count far exceed the 2min default verify budget.
 	// kde/cosmic run 77 sequential checks too — run 2026-11-05T21-47-39Z
 	// died at check 37 with the 2min budget (verifyCtx expired, VM healthy).
+	// 15 min: the login flow (kill-restart + typed login, desktop budget
+	// 600s) runs as the second pre-pass; on a failing login it consumes up
+	// to its own sub-budget (capped inside verifyLoginReadiness) and the
+	// remaining checks still get room (run27: 10 min starved at 80/132).
 	if (cfg.DesktopEnvironment == desktopNiri || cfg.DesktopEnvironment == desktopNiriWayle ||
-		cfg.DesktopEnvironment == desktopKDE || cfg.DesktopEnvironment == desktopCosmic) && cfg.Timeout < 10*time.Minute {
-		cfg.Timeout = 10 * time.Minute
+		cfg.DesktopEnvironment == desktopKDE || cfg.DesktopEnvironment == desktopCosmic) && cfg.Timeout < 15*time.Minute {
+		cfg.Timeout = 15 * time.Minute
 	}
 
 	verifyCtx, cancel := context.WithTimeout(ctx, cfg.Timeout)
@@ -1818,8 +1821,12 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 	// writes zero lines. The durable kernel-ring evidence is dmesg_saved
 	// (snapshot); the chain is proven by klogd_running + vector sinks.
 	if kernCheck, ok := result.Checks["kern_log"]; ok {
-		kernCheck.Pass = true
-		result.Checks["kern_log"] = kernCheck
+		// Informational demotion applies ONLY to a probe that ran: an SSH
+		// failure (run28 deadline artifact) stays a failure.
+		if !strings.Contains(kernCheck.Detail, "context deadline") {
+			kernCheck.Pass = true
+			result.Checks["kern_log"] = kernCheck
+		}
 	}
 
 	// Validate Logging Round 2 checks (vector-side, both inits)

@@ -24,26 +24,20 @@ package service
 // exceeded". greetd is therefore NEVER stopped/started via dinitctl
 // anywhere in this flow: it is killed by pid (`/bin/busybox kill`, see
 // killGreetdProc) and its dinit unit's smooth-recovery respawns it
-// IN-PLACE — no login.target cascade, no sshd kill. The [initial_session]
-// stanza (stripped or restored per flow state) is re-read by the NEW
-// greetd on respawn.
+// IN-PLACE — no login.target cascade, no sshd kill.
 //
-// AUTOLOGIN INTERACTION: the harness target boots with the TEST-ONLY
-// greetd [initial_session] autologin (enableNiriTestAutologin), so the
-// user session is already active at verify time and regreet never
-// spawns. This flow therefore:
-//  1. records the pre-strip baseline (active/absent — NEVER skips),
-//  2. strips the [initial_session] stanza from /etc/greetd/config.toml,
-//  3. kill-restarts greetd → a REAL greeter cycle with regreet,
-//  4. measures the real login (password+Enter re-sent up to 3 sends
-//     total, 15s after the first send then 10s apart, inside the 60s
-//     desktop budget — fresh regreet GTK may reject early input),
-//  5. RESTORES the stanza on EVERY path (defer-style, matching
-//     enableNiriTestAutologin's exact format + duplicate guard):
-//     success leaves the logged-in session running (a running greetd does
-//     not re-autologin, so the restore is config-only); failure restores
-//     the stanza AND kill-restarts greetd so the autologin session comes
-//     back for the later DE runtime checks.
+// BOOT-STORM INPUT WINDOW (run28 ground truth, measured on the run disk
+// with debug_run): a greeter cycle spawned during the early-boot load
+// storm (auditd+tracee+clamd+nix still loading) does NOT accept keyboard
+// input for ~30-75s — the QMP events reach QEMU but nothing arrives at
+// regreet (zero PAM events in auth.log), so password-only re-sends can
+// never fix lost typing (the fields stay EMPTY). The typing therefore
+// retries the FULL SEQUENCE (username+Enter, password+Enter) at ~20s
+// spacing across the whole desktop budget — measured: a send landing
+// past the storm window logs in within 30s, and a settled greeter logs
+// in within 13s. QMP screendump is NOT usable as evidence on the harness
+// QEMU config (egl-headless + virtio-vga-gl: `no surface` — GL surfaces
+// cannot be captured) and was removed.
 //
 // Degenerate case: QMP socket unavailable (standalone `verify` without a
 // run dir) reports informationally with PASS before touching anything.
@@ -68,23 +62,32 @@ const (
 	loginDesktopInterval  = time.Second
 	loginSlowTotalSeconds = 60.0
 	loginProcTicksPerSec  = 100 // /proc starttime ticks per second (USER_HZ)
+	// loginFlowBudget — the flow's OWN context budget (run27/28): a failing
+	// login must degrade ONE check, not the whole verify. 9 min covers the
+	// 600s desktop budget + waits; the shared verify budget is 15 min.
+	loginFlowBudget = 9 * time.Minute
 	// loginMeasuredMarker — present in the detail ONLY when the desktop
 	// actually came up; distinguishes success (session left running,
 	// config-only restore) from marker failures (restore + kill-restart
 	// so autologin comes back).
 	loginMeasuredMarker = "login flow measured (session left running)"
-	// Password retry: first full typing, then password+Enter re-sends at
-	// +15s and +25s (max 3 sends total) — regreet GTK init can ignore
-	// early keyboard input.
-	loginMaxPasswordSends = 3
-	loginRetryFirstAfter  = 15 * time.Second
-	loginRetrySpacing     = 10 * time.Second
+	// Password retry: FULL-SEQUENCE re-sends every 20s (max 8 = spans the
+	// ~30-75s boot-storm input window measured in run28 and lands well
+	// inside the 600s desktop budget).
+	loginMaxSequenceSends = 8
+	loginRetrySpacing     = 20 * time.Second
 )
 
 // verifyLoginReadiness drives one REAL login through greetd/regreet into
 // the installed user's desktop and reports the greetd->regreet,
 // regreet->typing, credentials->desktop and total timings.
 func verifyLoginReadiness(ctx context.Context, opts guest.Options, cfg *VerifyConfig) (detail string, flowErr error) {
+	// Own budget (see loginFlowBudget): a failing/slow login degrades ONE
+	// check — the shared verify ctx keeps room for the remaining checks.
+	var cancelFlow context.CancelFunc
+	ctx, cancelFlow = context.WithTimeout(ctx, loginFlowBudget)
+	defer cancelFlow()
+
 	qmpPath := cfg.QMPPath
 	if qmpPath == "" && cfg.RunDir != "" {
 		qmpPath = filepath.Join(cfg.RunDir, "target-qmp.sock")
@@ -188,31 +191,40 @@ func verifyLoginReadiness(ctx context.Context, opts guest.Options, cfg *VerifyCo
 
 	// t2: credentials typed via the QMP keyboard into the graphical VT:
 	// username + Enter, 1s for the password field, password + Enter.
-	if err := qemu.SendText(qmpPath, cfg.InstalledUser); err != nil {
-		return detail, fmt.Errorf("type username: %w", err)
+	// FULL-SEQUENCE typing (run28): the re-sends must repeat the WHOLE
+	// username+password sequence — a send landing inside the boot-storm
+	// input window is lost ENTIRELY (fields stay empty), so password-only
+	// re-sends can never recover it. Sends at ~+3s, then every 20s across
+	// the desktop budget; the first send landing past the storm window
+	// (~30-75s after respawn) logs in within 30s.
+	typeFullSequence := func() error {
+		if err := qemu.SendText(qmpPath, cfg.InstalledUser); err != nil {
+			return fmt.Errorf("type username: %w", err)
+		}
+		if err := qemu.SendText(qmpPath, "\n"); err != nil {
+			return fmt.Errorf("send Enter after username: %w", err)
+		}
+		if err := sleepCtx(ctx, time.Second); err != nil {
+			return err
+		}
+		return sendPasswordEnter(qmpPath, password)
 	}
-	if err := qemu.SendText(qmpPath, "\n"); err != nil {
-		return detail, fmt.Errorf("send Enter after username: %w", err)
-	}
-	if err := sleepCtx(ctx, time.Second); err != nil {
-		return detail, err
-	}
-	if err := sendPasswordEnter(qmpPath, password); err != nil {
-		return detail, fmt.Errorf("type password: %w", err)
+	if err := typeFullSequence(); err != nil {
+		return detail, fmt.Errorf("type credentials: %w", err)
 	}
 	t2Wall := time.Now()
 	detail += fmt.Sprintf("typing sent at: +%.2fs after regreet\n", t2Wall.Sub(t1Wall).Seconds())
 
 	// t3: desktop up = user runtime dir (created by elogind PAM at login)
 	// + wayle session processes. The [w]ayle pattern stops pgrep from
-	// matching the probe's own command line. Password+Enter is re-sent up
-	// to loginMaxPasswordSends total (first at t2, retries at +15s then
-	// +10s apart) — a freshly spawned regreet may not accept input yet
-	// (GTK init), and a re-send over the still-focused password field is
-	// idempotent-safe.
+	// matching the probe's own command line. FULL-SEQUENCE re-sends every
+	// loginRetrySpacing seconds (loginMaxSequenceSends total) — sends
+	// landing inside the boot-storm input window are lost wholesale
+	// (run28: zero PAM events for 3 sends in 25s; a send at +75s logged
+	// in within 30s).
 	desktopCmd := fmt.Sprintf("test -d /run/user/%s && pgrep -f '[w]ayle' >/dev/null", uid)
 	passwordSends := 1
-	nextRetry := t2Wall.Add(loginRetryFirstAfter)
+	nextRetry := t2Wall.Add(loginRetrySpacing)
 	desktopDeadline := time.Now().Add(loginDesktopTimeout)
 	for {
 		if out, err := guest.OutputOK(ctx, opts, desktopCmd); err == nil && strings.TrimSpace(out) == "" {
@@ -222,7 +234,7 @@ func verifyLoginReadiness(ctx context.Context, opts guest.Options, cfg *VerifyCo
 			detail += fmt.Sprintf("credentials->desktop: %.2fs\n", credentialsToDesktop)
 			detail += fmt.Sprintf("total greetd->desktop: %.2fs\n", total)
 			if passwordSends > 1 {
-				detail += fmt.Sprintf("password re-sends: %d\n", passwordSends-1)
+				detail += fmt.Sprintf("sequence re-sends: %d\n", passwordSends-1)
 			}
 			detail += loginMeasuredMarker + "\n"
 			if total >= loginSlowTotalSeconds {
@@ -230,24 +242,16 @@ func verifyLoginReadiness(ctx context.Context, opts guest.Options, cfg *VerifyCo
 			}
 			return detail, nil
 		}
-		if time.Now().After(nextRetry) && passwordSends < loginMaxPasswordSends {
-			if sendErr := sendPasswordEnter(qmpPath, password); sendErr != nil {
-				return detail, fmt.Errorf("resend password: %w", sendErr)
+		if time.Now().After(nextRetry) && passwordSends < loginMaxSequenceSends {
+			if sendErr := typeFullSequence(); sendErr != nil {
+				return detail, fmt.Errorf("re-send credentials: %w", sendErr)
 			}
 			passwordSends++
+			detail += fmt.Sprintf("sequence re-send #%d at +%.0fs after regreet\n", passwordSends, time.Since(t1Wall).Seconds())
 			nextRetry = time.Now().Add(loginRetrySpacing)
 		}
 		if time.Now().After(desktopDeadline) {
-			detail += fmt.Sprintf("desktop TIMEOUT (login failed) after %s (%d password sends)\n", loginDesktopTimeout, passwordSends)
-			// Freeze-frame the greeter screen (PPM in the run dir) — visual
-			// ground truth of what the login attempt left on screen.
-			if qmpPath != "" {
-				if dumpErr := qemu.Screendump(qmpPath, filepath.Join(cfg.RunDir, "greeter-timeout.ppm")); dumpErr != nil {
-					detail += fmt.Sprintf("screendump failed: %v\n", dumpErr)
-				} else {
-					detail += "greeter screenshot: greeter-timeout.ppm (run dir)\n"
-				}
-			}
+			detail += fmt.Sprintf("desktop TIMEOUT (login failed) after %s (%d sequence sends)\n", loginDesktopTimeout, passwordSends)
 			detail = captureGreeterEvidence(detail)
 			return detail, nil
 		}
