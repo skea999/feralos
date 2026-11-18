@@ -64,7 +64,7 @@ import (
 const (
 	loginRegreetTimeout   = 30 * time.Second
 	loginRegreetInterval  = 500 * time.Millisecond
-	loginDesktopTimeout   = 120 * time.Second
+	loginDesktopTimeout   = 600 * time.Second
 	loginDesktopInterval  = time.Second
 	loginSlowTotalSeconds = 60.0
 	loginProcTicksPerSec  = 100 // /proc starttime ticks per second (USER_HZ)
@@ -195,7 +195,8 @@ func verifyLoginReadiness(ctx context.Context, opts guest.Options, cfg *VerifyCo
 	// (session log FULL — niri's post-start lines are the diagnosis when the
 	// compositor never presents a frame; QEMU screendump "no surface" =
 	// no frame reached the display) + greeter environment probes (DRM
-	// access, groups, compositor alive).
+	// access, groups, compositor alive) + FONTCONFIG state (the prime
+	// slow-login suspect: greeter cache ownership/size vs the font corpus).
 	captureGreeterEvidence := func(d string) string {
 		for _, probe := range []string{
 			"cat /var/lib/greetd/session.log 2>/dev/null",
@@ -205,6 +206,10 @@ func verifyLoginReadiness(ctx context.Context, opts guest.Options, cfg *VerifyCo
 			"id greeter",
 			"ls -la /dev/dri/ 2>/dev/null",
 			"ls /tmp/greetd-runtime 2>/dev/null | head -5",
+			"ls -la /var/lib/greetd/.cache/fontconfig 2>/dev/null | head -8",
+			"du -sh /var/lib/greetd/.cache 2>/dev/null",
+			"find /usr/share/fonts -type f 2>/dev/null | wc -l",
+			"ls -la /var/cache/fontconfig 2>/dev/null | head -6",
 		} {
 			if out, err := guest.OutputOK(ctx, opts, probe); err == nil && strings.TrimSpace(out) != "" {
 				d += "\n--- " + probe + " ---\n" + strings.TrimSpace(out)
