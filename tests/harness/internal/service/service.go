@@ -1395,14 +1395,25 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		}
 	}
 
-	// login_readiness runs as a GUARANTEED-LAST post-pass (removed from the
-	// map below): the flow restarts greetd and tears down the autologin
-	// session — session-dependent checks must not race it, and its greeter
-	// state must not be disturbed by later checks.
-	hasLoginFlow := false
+	// login_readiness: SECOND pre-pass, BEFORE the main loop (run27: with
+	// no niri-family autologin the boot waits at the GREETER — session-
+	// dependent checks in the main loop would each burn their SSH timeout
+	// on a session that does not exist yet and starve the verify context).
+	// The flow performs the REAL login (greetd kill-restart -> regreet ->
+	// QMP-typed credentials -> wayle desktop); the session-dependent checks
+	// in the main loop then verify the desktop this login just produced.
 	if _, ok := checks["login_readiness"]; ok {
-		hasLoginFlow = true
 		delete(checks, "login_readiness")
+		detail, loginErr := verifyLoginReadiness(verifyCtx, guestOpts, cfg)
+		if loginErr != nil {
+			// Observability: the error text IS the diagnosis (which
+			// pre-measurement stage failed) — never discard it (run17).
+			detail = strings.TrimSpace(detail + "\nlogin flow error: " + loginErr.Error())
+		}
+		result.Checks["login_readiness"] = CheckResult{Pass: loginErr == nil, Detail: detail}
+		if loginErr != nil {
+			result.Success = false
+		}
 	}
 
 	for name, command := range checks {
@@ -1426,22 +1437,6 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		}
 
 		result.Checks[name] = check
-	}
-
-	// login_readiness post-pass (guaranteed-last): see the pre-pass note
-	// above. The greeter cycle it drives must not race any other check.
-	if hasLoginFlow {
-		detail, loginErr := verifyLoginReadiness(verifyCtx, guestOpts, cfg)
-		if loginErr != nil {
-			// Observability: the error text IS the diagnosis (which
-			// pre-measurement stage failed) — never discard it (run17:
-			// empty detail made the failure undiagnosable from artifacts).
-			detail = strings.TrimSpace(detail + "\nlogin flow error: " + loginErr.Error())
-		}
-		result.Checks["login_readiness"] = CheckResult{Pass: loginErr == nil, Detail: detail}
-		if loginErr != nil {
-			result.Success = false
-		}
 	}
 
 	if storageCheck, ok := result.Checks["storage_layout"]; ok {
