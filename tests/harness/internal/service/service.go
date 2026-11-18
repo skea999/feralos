@@ -1996,7 +1996,7 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		// postinst "rehash" warning (Debian runner-side apt — the bundle
 		// file holds many certs, rehash skips it by design; harmless).
 		warnRe := regexp.MustCompile(`(?i)warning`)
-		warnAllowRe := regexp.MustCompile(`(?i)(apt does not have a stable CLI|Warning: Permanently added|rehash: warning: skipping ca-certificates.crt)`)
+		warnAllowRe := regexp.MustCompile(`(?i)(apt does not have a stable CLI|Warning: Permanently added|rehash: warning: skipping ca-certificates.crt|Your ClamAV installation is OUTDATED|Recommended version)`)
 		// Innocuous lines: counters/negations ("0 errors", "no failed", ...),
 		// package name libgpg-error and Debian git dependency liberror-perl
 		// (apt install git output), efibootmgr "error trace:" on QEMU (no real

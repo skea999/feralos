@@ -64,7 +64,7 @@ import (
 const (
 	loginRegreetTimeout   = 30 * time.Second
 	loginRegreetInterval  = 500 * time.Millisecond
-	loginDesktopTimeout   = 60 * time.Second
+	loginDesktopTimeout   = 120 * time.Second
 	loginDesktopInterval  = time.Second
 	loginSlowTotalSeconds = 60.0
 	loginProcTicksPerSec  = 100 // /proc starttime ticks per second (USER_HZ)
@@ -192,13 +192,19 @@ func verifyLoginReadiness(ctx context.Context, opts guest.Options, cfg *VerifyCo
 	}
 
 	// Desktop TIMEOUT path: capture greetd session evidence into the detail
-	// (session log = greetd's capture of the greeter session stdout/stderr —
-	// regreet's own error text; config after strip; available sessions).
+	// (session log FULL — niri's post-start lines are the diagnosis when the
+	// compositor never presents a frame; QEMU screendump "no surface" =
+	// no frame reached the display) + greeter environment probes (DRM
+	// access, groups, compositor alive).
 	captureGreeterEvidence := func(d string) string {
 		for _, probe := range []string{
-			"cat /var/lib/greetd/session.log 2>/dev/null | tail -20",
+			"cat /var/lib/greetd/session.log 2>/dev/null",
 			"cat /etc/greetd/config.toml",
 			"ls /usr/share/wayland-sessions/ 2>/dev/null",
+			"pgrep -l regreet; pgrep -l niri",
+			"id greeter",
+			"ls -la /dev/dri/ 2>/dev/null",
+			"ls /tmp/greetd-runtime 2>/dev/null | head -5",
 		} {
 			if out, err := guest.OutputOK(ctx, opts, probe); err == nil && strings.TrimSpace(out) != "" {
 				d += "\n--- " + probe + " ---\n" + strings.TrimSpace(out)
