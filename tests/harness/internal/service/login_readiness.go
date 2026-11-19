@@ -62,10 +62,6 @@ const (
 	loginDesktopInterval  = time.Second
 	loginSlowTotalSeconds = 60.0
 	loginProcTicksPerSec  = 100 // /proc starttime ticks per second (USER_HZ)
-	// loginFlowBudget — the flow's OWN context budget (run27/28): a failing
-	// login must degrade ONE check, not the whole verify. 9 min covers the
-	// 600s desktop budget + waits; the shared verify budget is 15 min.
-	loginFlowBudget = 9 * time.Minute
 	// loginMeasuredMarker — present in the detail ONLY when the desktop
 	// actually came up; distinguishes success (session left running,
 	// config-only restore) from marker failures (restore + kill-restart
@@ -85,7 +81,7 @@ func verifyLoginReadiness(ctx context.Context, opts guest.Options, cfg *VerifyCo
 	// Own budget (see loginFlowBudget): a failing/slow login degrades ONE
 	// check — the shared verify ctx keeps room for the remaining checks.
 	var cancelFlow context.CancelFunc
-	ctx, cancelFlow = context.WithTimeout(ctx, loginFlowBudget)
+	ctx, cancelFlow = context.WithTimeout(ctx, loginDesktopTimeout+90*time.Second)
 	defer cancelFlow()
 
 	qmpPath := cfg.QMPPath
@@ -222,6 +218,13 @@ func verifyLoginReadiness(ctx context.Context, opts guest.Options, cfg *VerifyCo
 	// landing inside the boot-storm input window are lost wholesale
 	// (run28: zero PAM events for 3 sends in 25s; a send at +75s logged
 	// in within 30s).
+	//
+	// FALLBACK DETECTION (run 2026-11-18T23-48-04Z): the typed credentials
+	// ARE accepted (regreet exits = greetd took the session) but the wayle
+	// SESSION then fails to start — greetd falls back to a NEW greeter. A
+	// respawning regreet (pid changes) = the login was rejected → capture
+	// the evidence IMMEDIATELY (the wayle-session.log written by the failed
+	// session script is the diagnosis) instead of polling blind for 600s.
 	desktopCmd := fmt.Sprintf("test -d /run/user/%s && pgrep -f '[w]ayle' >/dev/null", uid)
 	passwordSends := 1
 	nextRetry := t2Wall.Add(loginRetrySpacing)
@@ -241,6 +244,14 @@ func verifyLoginReadiness(ctx context.Context, opts guest.Options, cfg *VerifyCo
 				detail += fmt.Sprintf("login SLOW (total >= %.0fs)\n", loginSlowTotalSeconds)
 			}
 			return detail, nil
+		}
+		if currentRegreet, err := guest.OutputOK(ctx, opts, "pgrep regreet | head -1"); err == nil {
+			currentRegreet = strings.TrimSpace(currentRegreet)
+			if currentRegreet != "" && currentRegreet != regreetPID {
+				detail += fmt.Sprintf("login REJECTED: regreet respawned (%s -> %s) — greetd accepted the credentials but the session failed to start; evidence follows\n", regreetPID, currentRegreet)
+				detail = captureGreeterEvidence(detail)
+				return detail, nil
+			}
 		}
 		if time.Now().After(nextRetry) && passwordSends < loginMaxSequenceSends {
 			if sendErr := typeFullSequence(); sendErr != nil {

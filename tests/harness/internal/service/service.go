@@ -1877,7 +1877,7 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		"greeter_config", "login_readiness",
 	} {
 		if chk, ok := result.Checks[name]; ok {
-			if strings.Contains(chk.Detail, "NOT ") || strings.Contains(chk.Detail, "MISSING") || strings.Contains(chk.Detail, "BROKEN") || strings.Contains(chk.Detail, "INVALID") || strings.Contains(chk.Detail, "SLOW") || strings.Contains(chk.Detail, "TIMEOUT") {
+			if strings.Contains(chk.Detail, "NOT ") || strings.Contains(chk.Detail, "MISSING") || strings.Contains(chk.Detail, "BROKEN") || strings.Contains(chk.Detail, "INVALID") || strings.Contains(chk.Detail, "SLOW") || strings.Contains(chk.Detail, "TIMEOUT") || strings.Contains(chk.Detail, "REJECTED") {
 				chk.Pass = false
 				chk.Detail += "\n" + name + " did not reach the expected state"
 				result.Checks[name] = chk
