@@ -7,7 +7,9 @@ import (
 	"strings"
 )
 
-// SetupLogging writes Vector config and vector-setup boot service.
+// SetupLogging writes the vector-setup OpenRC boot service (the Vector
+// CONFIGURATION is package-shipped — vector-config, see the aports
+// package). No-op when vector is not in the package list.
 func SetupLogging(conf *config.Config, pkgList string) error {
 	chroot := conf.Internal.ChrootDir
 
@@ -17,9 +19,6 @@ func SetupLogging(conf *config.Config, pkgList string) error {
 		return nil
 	}
 
-	if err := writeVectorConfig(chroot, conf, pkgList); err != nil {
-		return err
-	}
 	if err := writeVectorSetupService(chroot); err != nil {
 		return err
 	}
@@ -39,324 +38,13 @@ func SetupLogging(conf *config.Config, pkgList string) error {
 	// (feralos-aports) ships the tmpfiles (/var/log/dinit), the mirror
 	// service and /usr/libexec/dinit-boot-log.
 
-	return writeLogrotateConfig(chroot, conf)
+	return writeLogrotateConfig(chroot)
 }
 
-// writeVectorConfig renders and writes /etc/vector/vector.yaml (sources,
-// transforms, sinks) and creates the vector data directory. The dinit and
-// incus fragments are configured ONLY when the owning feature is present.
-func writeVectorConfig(chroot string, conf *config.Config, pkgList string) error {
-	// Dinit-only vector plumbing (service logs + PID1 boot trail): present
-	// only when enableDinit, so the config stays valid on OpenRC installs.
-	dinitSource := ""
-	dinitMsgInput := ""
-	dinitJSONInput := ""
-	if conf.User.EnableDinit {
-		// NOTE: live files only — no "*.log.1". logrotate uses copytruncate,
-		// so the rotated copy is a NEW file for vector's file source and would
-		// be re-read from the beginning → duplicate entries (fixed 2026-09-30).
-		dinitSource = `
-  dinit_services:
-    type: file
-    include:
-      - "/var/log/dinit/*.log"
-    ignore_not_found: true
-`
-		dinitMsgInput = "\n      - dinit_services"
-		dinitJSONInput = "\n      - dinit_services"
-	}
-
-	// Extra file sources: configured ONLY when the owning package/feature is
-	// present (never configure sources for software that is not installed).
-	// Incus writes its own structured daemon log in addition to the
-	// supervised incusd -> /var/log/dinit/incusd.log stream.
-	incusInstalled := strings.Contains(pkgList, "\nincus\n") || strings.Contains(pkgList, "\nincus-feature\n")
-	incusSource := ""
-	incusJSONInput := ""
-	if incusInstalled {
-		incusSource = `
-  incus_logs:
-    type: file
-    include:
-      - "/var/log/incus/*.log"
-    ignore_not_found: true
-`
-		incusJSONInput = "\n      - incus_logs"
-	}
-
-	// Security-stack file sources (docs/architecture/security_stack.md):
-	// every security tool's log lands in /var/log so (a) it is readable
-	// locally and (b) manual Vector shipping later only needs a sink drop-in
-	// in /etc/vector/conf.d. Tracee is NOT listed here: it runs supervised
-	// by dinit (log-type=file -> /var/log/dinit/tracee.log) and is already
-	// covered by the dinit_services source. auditd rotates its own log
-	// (auditd.conf), fail2ban/clamav ship their own logrotate — this config
-	// never double-rotates.
-	auditInstalled := strings.Contains(pkgList, "\naudit\n")
-	aideInstalled := strings.Contains(pkgList, "\naide\n")
-	fail2banInstalled := strings.Contains(pkgList, "\nfail2ban\n")
-	lynisInstalled := strings.Contains(pkgList, "\nlynis\n")
-	clamavInstalled := strings.Contains(pkgList, "\nclamav-daemon\n")
-
-	secStackSources := ""
-	secStackJSONInputs := ""
-	if auditInstalled {
-		secStackSources += `
-  audit_logs:
-    type: file
-    include:
-      - "/var/log/audit/*.log"
-    ignore_not_found: true
-`
-		secStackJSONInputs += "\n      - audit_logs"
-	}
-	if aideInstalled {
-		secStackSources += `
-  aide_logs:
-    type: file
-    include:
-      - "/var/log/aide/*.log"
-    ignore_not_found: true
-`
-		secStackJSONInputs += "\n      - aide_logs"
-	}
-	if fail2banInstalled {
-		secStackSources += `
-  fail2ban_logs:
-    type: file
-    include:
-      - "/var/log/fail2ban.log"
-    ignore_not_found: true
-`
-		secStackJSONInputs += "\n      - fail2ban_logs"
-	}
-	if lynisInstalled {
-		secStackSources += `
-  lynis_logs:
-    type: file
-    include:
-      - "/var/log/lynis.log"
-      - "/var/log/lynis/*.log"
-    ignore_not_found: true
-`
-		secStackJSONInputs += "\n      - lynis_logs"
-	}
-	if clamavInstalled {
-		secStackSources += `
-  clamav_logs:
-    type: file
-    include:
-      - "/var/log/clamav/*.log"
-    ignore_not_found: true
-`
-		secStackJSONInputs += "\n      - clamav_logs"
-	}
-
-	// Debug-only local Vector API (vector top / tap). enableDebug is the
-	// test-only flag — production configs never expose the API.
-	apiBlock := ""
-	if conf.User.EnableDebug {
-		apiBlock = `api:
-  enabled: true
-  address: "127.0.0.1:8686"
-
-`
-	}
-
-	// Sinks use disk buffers (data_dir=/var/lib/vector) so a vector crash or
-	// restart cannot lose the last unflushed log lines (2026-09-30).
-	fmt.Println("[INFO] Writing Vector logging configuration...")
-	vectorConfig := `# Vector configuration for FeralOS
-data_dir: "/var/lib/vector"
-
-` + apiBlock + `sources:
-  syslog:
-    type: socket
-    mode: unix_datagram
-    path: /run/vector/syslog.sock
-    decoding:
-      codec: syslog
-
-  internal_logs:
-    type: internal_logs
-` + dinitSource + incusSource + secStackSources + `
-transforms:
-  auth_logs:
-    type: filter
-    inputs:
-      - syslog
-    condition: '.facility == "auth" || .facility == "authpriv"'
-
-  daemon_logs:
-    type: filter
-    inputs:
-      - syslog
-    condition: '.facility == "daemon"'
-
-  kernel_logs:
-    type: filter
-    inputs:
-      - syslog
-    condition: '.facility == "kern"'
-
-  sudo_logs:
-    type: filter
-    inputs:
-      - syslog
-    condition: '.facility == "authpriv" && contains(to_string(.message) ?? "", "sudo")'
-
-  firewalld_logs:
-    type: filter
-    inputs:
-      - syslog
-    condition: 'contains(to_string(.message) ?? "", "firewalld")'
-
-  # JSON view of everything (syslog + vector internal logs + dinit service
-  # logs [+ incus when installed]) — the dinit service name is extracted from
-  # the file path; query with jq. Sinks added 2026-09-30 (Logging Round 2).
-  feralos_json:
-    type: remap
-    inputs:
-      - syslog
-      - internal_logs` + dinitJSONInput + incusJSONInput + secStackJSONInputs + `
-    source: |
-      if exists(.file) {
-        .service = to_string(.file) ?? ""
-      }
-      .collector = "feralos-vector"
-
-sinks:
-  messages:
-    type: file
-    inputs:
-      - syslog` + dinitMsgInput + `
-      - internal_logs
-    path: "/var/log/messages"
-    buffer:
-      type: disk
-      max_size: 268435488
-    encoding:
-      codec: text
-
-  auth_log:
-    type: file
-    inputs:
-      - auth_logs
-    path: "/var/log/auth.log"
-    buffer:
-      type: disk
-      max_size: 268435488
-    encoding:
-      codec: text
-
-  daemon_log:
-    type: file
-    inputs:
-      - daemon_logs
-    path: "/var/log/daemon.log"
-    buffer:
-      type: disk
-      max_size: 268435488
-    encoding:
-      codec: text
-
-  kernel_log:
-    type: file
-    inputs:
-      - kernel_logs
-    path: "/var/log/kern.log"
-    buffer:
-      type: disk
-      max_size: 268435488
-    encoding:
-      codec: text
-
-  sudo_log:
-    type: file
-    inputs:
-      - sudo_logs
-    path: "/var/log/sudo.log"
-    buffer:
-      type: disk
-      max_size: 268435488
-    encoding:
-      codec: text
-
-  firewalld_log:
-    type: file
-    inputs:
-      - firewalld_logs
-    path: "/var/log/firewalld.log"
-    buffer:
-      type: disk
-      max_size: 268435488
-    encoding:
-      codec: text
-
-  feralos_json_log:
-    type: file
-    inputs:
-      - feralos_json
-    path: "/var/log/feralos.json.log"
-    buffer:
-      type: disk
-      max_size: 268435488
-    encoding:
-      codec: json
-`
-	if err := shell.WriteFile(chroot, "/etc/vector/vector.yaml", []byte(vectorConfig+"\n"), 0644); err != nil {
-		return fmt.Errorf("failed to write vector config: %w", err)
-	}
-
-	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /var/lib/vector && chown vector:vector /var/lib/vector"); err != nil {
-		fmt.Printf("[WARNING] Failed to create vector data directory: %v\n", err)
-	}
-
-	// conf.d drop-in dir: the manual log shipping mechanism (docs/architecture/
-	// security_stack.md) — the dinit wrapper merges /etc/vector/conf.d/*.yaml on
-	// top of the base config, so enabling a remote sink later is ONE admin file,
-	// zero installer changes. The dir is also created by vector-dinit's tmpfiles
-	// (dinit) and vector-setup (OpenRC) at boot; creating it here makes the
-	// install-time `vector validate` and a first boot before any of those see a
-	// consistent state.
-	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /etc/vector/conf.d && chown vector:vector /etc/vector/conf.d"); err != nil {
-		fmt.Printf("[WARNING] Failed to create vector conf.d directory: %v\n", err)
-	} else {
-		confdReadme := `# /etc/vector/conf.d — manual Vector drop-ins
-#
-# Any *.yaml here is merged ON TOP of /etc/vector/vector.yaml by the vector
-# service (vector multi-config: later files win). This is the supported way
-# to add sinks (e.g. a remote log endpoint) WITHOUT touching the installer-
-# managed base config.
-#
-# Rules:
-#   - component IDs must not collide with the base config (sources: syslog,
-#     internal_logs, dinit_services, incus_logs, audit_logs, aide_logs,
-#     fail2ban_logs, lynis_logs, clamav_logs; sinks: messages, auth_log,
-#     daemon_log, kernel_log, sudo_log, firewalld_log, feralos_json_log)
-#   - reference the sources above as inputs; never re-declare them
-#   - validate before restarting: vector validate --no-environment
-# Full guide: docs/architecture/security_stack.md (repo) / security-stack(7)
-`
-		if err := shell.WriteFile(chroot, "/etc/vector/conf.d/README.md", []byte(confdReadme), 0644); err != nil {
-			fmt.Printf("[WARNING] Failed to write vector conf.d README: %v\n", err)
-		}
-		if _, err := shell.ExecuteCmd(chroot, "chown vector:vector /etc/vector/conf.d/README.md"); err != nil {
-			fmt.Printf("[WARNING] Failed to chown vector conf.d README: %v\n", err)
-		}
-	}
-
-	// Validate the rendered config at install time (non-fatal: a WARN keeps the
-	// install alive; the boot-time oneshot + harness checks are the strict
-	// signal). --skip-healthchecks: sink endpoints (none remote today) must
-	// not be probed inside the chroot.
-	if _, err := shell.ExecuteCmd(chroot, "vector validate --skip-healthchecks /etc/vector/vector.yaml"); err != nil {
-		fmt.Printf("[WARNING] Vector config validation failed: %v\n", err)
-	}
-
-	return nil
-}
-
+// The Vector CONFIGURATION is package-shipped (vector-config,
+// /etc/vector/vector.yaml — replaces the Alpine demo). The installer
+// writes only the OpenRC-specific glue (vector-setup dirs/socket
+// script — dinit uses the vector-dinit tmpfiles instead).
 // writeVectorSetupService writes the vector-setup boot service (OpenRC init
 // script; under dinit it is inert and the dinit tmpfiles cover the same
 // paths) and makes it executable.
@@ -395,29 +83,17 @@ start() {
 	return nil
 }
 
-// writeLogrotateConfig writes the FeralOS logrotate configuration covering
-// the vector sinks AND the dinit service logs (works for OpenRC and dinit).
-func writeLogrotateConfig(chroot string, conf *config.Config) error {
-	// Logrotate: vector does NOT rotate files — it only tails rotated ones
-	// (copytruncate + delaycompress recommended by vector docs). Retention
-	// split (2026-09-30): auth/sudo 30d (security), general logs 14d, tool
-	// logs 7d.
+// writeLogrotateConfig writes the FeralOS logrotate configuration:
+// GENERIC — every *.log in /var/log (top level + one dir level), one
+// uniform rule. copytruncate is universal-safe for every log holder
+// (vector, auditd, fail2ban — fds stay valid, no reload/restart needed);
+// auditd also self-rotates via auditd.conf (harmless overlap). Binary
+// wtmp/btmp are excluded by the *.log glob. New logs are covered
+// automatically — nothing to maintain per file.
+func writeLogrotateConfig(chroot string) error {
 	fmt.Println("[INFO] Writing logrotate configuration...")
-	dinitLogrotate := ""
-	if conf.User.EnableDinit {
-		dinitLogrotate = `
-/var/log/dinit/*.log {
-    daily
-    rotate 7
-    compress
-    delaycompress
-    missingok
-    notifempty
-    copytruncate
-}
-`
-	}
-	logrotateConf := `/var/log/messages /var/log/daemon.log /var/log/kern.log {
+	logrotateConf := `# FeralOS generic rotation (2026-11-19): every log under /var/log.
+/var/log/*.log /var/log/*/*.log {
     daily
     rotate 14
     compress
@@ -426,43 +102,7 @@ func writeLogrotateConfig(chroot string, conf *config.Config) error {
     notifempty
     copytruncate
 }
-
-/var/log/auth.log /var/log/sudo.log {
-    daily
-    rotate 30
-    compress
-    delaycompress
-    missingok
-    notifempty
-    copytruncate
-}
-
-/var/log/vector.log /var/log/firewalld.log /var/log/feralos.json.log /var/log/btrfs-scrub.log /var/log/btrfs-trim.log /var/log/btrbk/*.log {
-    daily
-    rotate 7
-    compress
-    delaycompress
-    missingok
-    notifempty
-    copytruncate
-}
-
-# Security stack reports (auditd rotates its own log via auditd.conf;
-# fail2ban + clamav ship their own logrotate files — never double-rotate).
-# greetd session.log: the greeter session stdout/stderr (niri+regreet) —
-# the file the login_readiness harness check tails on failure. The
-# wayle-session milestones log to /run/user/<uid>/wayle-session.log
-# (session tmpfs — cleaned per boot, no rotation needed).
-/var/log/aide/*.log /var/log/lynis.log /var/log/lynis/*.log /var/lib/greetd/session.log {
-    weekly
-    rotate 8
-    compress
-    delaycompress
-    missingok
-    notifempty
-    copytruncate
-}
-` + dinitLogrotate
+`
 	if err := shell.WriteFile(chroot, "/etc/logrotate.d/feralos", []byte(logrotateConf+"\n"), 0644); err != nil {
 		fmt.Printf("[WARNING] Failed to write logrotate config: %v\n", err)
 	}

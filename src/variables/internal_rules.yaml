@@ -189,6 +189,16 @@ standardPackages:
   # dinit service logs; runs via /etc/periodic/daily (cronie).
   - logrotate
   - vector
+  # vector-config: the FeralOS Vector configuration as an APK package
+  # (static, GENERIC 1:1 source->file pattern — one glob source, one
+  # dedicated /var/log file per source; sources without their files are
+  # inert via ignore_not_found). replaces="vector": file-level takeover of
+  # the Alpine demo /etc/vector/vector.yaml (klogd precedent). The
+  # /etc/vector/conf.d drop-in dir = the manual log shipping mechanism.
+  - vector-config
+  # musl-locales: locale DATA for musl libc (setlocale support for the
+  # session apps; the 00locale.sh MUSL_LOCPATH export ships with it).
+  - musl-locales
   # klogd-openrc: our klogd (989 series) replaces the vendor busybox-openrc
   # script, which can never start here (`depend() need logger` — busybox
   # syslogd was replaced by vector). ALWAYS installed (both inits): inert

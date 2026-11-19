@@ -1836,14 +1836,6 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 	}
 
 	// Validate Logging Round 2 checks (vector-side, both inits)
-	if jsonCheck, ok := result.Checks["json_log"]; ok {
-		if strings.Contains(jsonCheck.Detail, "missing") {
-			jsonCheck.Pass = false
-			jsonCheck.Detail += "\nExpected /var/log/feralos.json.log with events"
-			result.Checks["json_log"] = jsonCheck
-			result.Success = false
-		}
-	}
 	if validateCheck, ok := result.Checks["vector_validate"]; ok {
 		if strings.Contains(validateCheck.Detail, "INVALID") {
 			validateCheck.Pass = false
@@ -1881,17 +1873,6 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 			}
 		}
 	}
-	if cfg.EnableDebug {
-		if apiCheck, ok := result.Checks["vector_api"]; ok {
-			if strings.Contains(apiCheck.Detail, "unreachable") {
-				apiCheck.Pass = false
-				apiCheck.Detail += "\nExpected debug-only Vector API on 127.0.0.1:8686"
-				result.Checks["vector_api"] = apiCheck
-				result.Success = false
-			}
-		}
-	}
-
 	// Validate log coverage: core sinks must have content. kern.log is
 	// INFORMATIONAL: it only fills when a kernel message reaches klogd AFTER
 	// start — with loglevel=0 (non-debug) a quiet boot legitimately writes
@@ -1899,7 +1880,7 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 	// klogd_running; sudo/firewalld/daemon are informational — they only
 	// fill when the matching events occur.
 	if covCheck, ok := result.Checks["log_coverage"]; ok {
-		required := []string{"messages", "auth.log", "feralos.json.log", "dmesg"}
+		required := []string{"messages", "auth.log", "dmesg"}
 		for _, name := range required {
 			if strings.Contains(covCheck.Detail, name+": MISSING") {
 				covCheck.Pass = false

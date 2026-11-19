@@ -99,11 +99,9 @@ func buildLogChecks(checks map[string]string) {
 	checks["klogd_running"] = "pidof klogd >/dev/null 2>&1 && echo 'klogd running' || echo 'klogd not running'"
 	checks["dmesg_saved"] = "test -s /var/log/dmesg && grep -q 'Linux version' /var/log/dmesg && echo 'dmesg saved' || echo 'dmesg dump missing'"
 	checks["kern_log"] = "test -s /var/log/kern.log && echo \"kern.log $(wc -l < /var/log/kern.log) lines\" || echo 'kern.log empty'"
-	checks["json_log"] = "grep -q '\"timestamp\"' /var/log/feralos.json.log 2>/dev/null && echo \"json log OK ($(wc -l < /var/log/feralos.json.log) lines)\" || echo 'json log missing'"
-	checks["vector_api"] = "wget -qO- --timeout=3 http://127.0.0.1:8686/health 2>/dev/null || echo 'api unreachable'"
 	checks["vector_validate"] = "vector validate --skip-healthchecks /etc/vector/vector.yaml >/dev/null 2>&1 && echo 'vector config valid' || echo 'vector config INVALID'"
 	checks["vector_conf_d"] = "test -d /etc/vector/conf.d && test -f /etc/vector/conf.d/README.md && grep -q 'conf.d' /usr/lib/dinit/vector && echo 'conf.d ready (dir + README + wrapper merge)' || echo 'conf.d INCOMPLETE'"
-	checks["log_coverage"] = "for f in messages auth.log daemon.log kern.log sudo.log firewalld.log feralos.json.log vector.log dmesg; do if [ -s /var/log/$f ]; then echo \"$f: $(wc -l < /var/log/$f) lines\"; else echo \"$f: MISSING\"; fi; done"
+	checks["log_coverage"] = "for f in messages auth.log daemon.log kern.log sudo.log firewalld.log wayle-session.log vector.log dmesg; do if [ -s /var/log/$f ]; then echo \"$f: $(wc -l < /var/log/$f) lines\"; else echo \"$f: MISSING\"; fi; done"
 }
 
 // buildRestUsageChecks — at-rest footprint probes, executed FIRST (pre-pass
