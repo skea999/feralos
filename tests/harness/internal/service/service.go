@@ -1192,7 +1192,17 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg *RunConfig,
 		_ = stateStore.Save(active)
 		return RunResult{}, autoLoginErr
 	}
-	logHarness("harness: test-only autologin enabled for %s runtime verification (VM discarded after run)\n", cfg.DesktopEnvironment)
+	// LOG LINE CORRECTED (2026-11-19): with the niri-family login flow the
+	// autologin is NOT enabled for niri/niriWayle — the verify boot waits at
+	// the GREETER and login_readiness performs a real typed login.
+	switch cfg.DesktopEnvironment {
+	case desktopKDE:
+		logHarness("harness: test-only autologin enabled for %s runtime verification (VM discarded after run)\n", cfg.DesktopEnvironment)
+	case desktopCosmic:
+		logHarness("harness: test-only autologin enabled for %s runtime verification (VM discarded after run)\n", cfg.DesktopEnvironment)
+	default:
+		logHarness("harness: NO autologin for %s — login_readiness performs the real typed login (VM discarded after run)\n", cfg.DesktopEnvironment)
+	}
 
 	// Power off and restart swtpm for verification boot
 	phase(7, "reboot (target)")
