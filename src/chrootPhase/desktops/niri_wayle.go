@@ -183,6 +183,16 @@ hotkey-overlay {
 		fmt.Printf("[WARNING] failed to chown greeter fontconfig cache: %v\n", err)
 	}
 
+	// wayle-session log (the session script writes its milestones here —
+	// /var/log is root:root 755 (hardening perms), so the session user
+	// CANNOT create the file itself (debug-waysession-log.md): the
+	// installer pre-creates it owned by the primary user. The aports
+	// script skips logging gracefully when the file is missing/unwritable.
+	// Logrotated in internal.SetupLogging.
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("touch /var/log/wayle-session.log && chown %s:%s /var/log/wayle-session.log && chmod 644 /var/log/wayle-session.log", u.UserName, u.UserName)); err != nil {
+		fmt.Printf("[WARNING] failed to create the wayle-session log: %v\n", err)
+	}
+
 	// 4c. Login-shell trick (moved from users.go — desktop-owned now, runs
 	// AFTER user creation: chrootPhase step 5 users < step 9 desktops).
 	// wayle-session depends on niri-user-dinit, so the login-shell binary
