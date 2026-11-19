@@ -450,9 +450,10 @@ func writeLogrotateConfig(chroot string, conf *config.Config) error {
 # Security stack reports (auditd rotates its own log via auditd.conf;
 # fail2ban + clamav ship their own logrotate files — never double-rotate).
 # greetd session.log: the greeter session stdout/stderr (niri+regreet) —
-# the file the login_readiness harness check tails on failure.
-# wayle-session.log: the session script's timestamped milestones.
-/var/log/aide/*.log /var/log/lynis.log /var/log/lynis/*.log /var/lib/greetd/session.log /var/log/wayle-session.log {
+# the file the login_readiness harness check tails on failure. The
+# wayle-session milestones log to /run/user/<uid>/wayle-session.log
+# (session tmpfs — cleaned per boot, no rotation needed).
+/var/log/aide/*.log /var/log/lynis.log /var/log/lynis/*.log /var/lib/greetd/session.log {
     weekly
     rotate 8
     compress

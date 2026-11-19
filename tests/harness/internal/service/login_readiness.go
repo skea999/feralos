@@ -19,7 +19,7 @@
 // Reported deltas: greetd->runtime-dir (PAM handoff), greetd->session
 // script, greetd->niri compositor, greetd->wayle shell (TOTAL desktop).
 // A slow stage localizes the delay; the total >= 60s flags SLOW.
-// /var/log/wayle-session.log (the session script's own milestones, r9+)
+// /run/user/<uid>/wayle-session.log (the session script's own milestones, r9+)
 // is appended to the detail for the intra-session breakdown.
 //
 // All probes run in ONE SSH exec (atomic snapshot). Everything is
@@ -143,8 +143,8 @@ pgrep -f '[w]ayle$' >/dev/null && echo "wayle_up=1" || echo "wayle_up=0"`, uid, 
 		}
 	}
 	// Intra-session breakdown from the session script's own milestones.
-	if out, err := guest.OutputOK(ctx, opts, "tail -10 /var/log/wayle-session.log 2>/dev/null"); err == nil && strings.TrimSpace(out) != "" {
-		detail += "--- /var/log/wayle-session.log ---\n" + strings.TrimSpace(out)
+	if out, err := guest.OutputOK(ctx, opts, fmt.Sprintf("tail -20 /run/user/%s/wayle-session.log 2>/dev/null", uid)); err == nil && strings.TrimSpace(out) != "" {
+		detail += "--- /run/user/<uid>/wayle-session.log ---\n" + strings.TrimSpace(out)
 	}
 	return detail, nil
 }
