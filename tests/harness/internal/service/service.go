@@ -1180,6 +1180,12 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg *RunConfig,
 	//           config (start-cosmic)
 	var autoLoginErr error
 	switch cfg.DesktopEnvironment {
+	case desktopNiri, desktopNiriWayle:
+		sessionCmd := "niri-session"
+		if cfg.DesktopEnvironment == desktopNiriWayle {
+			sessionCmd = "wayle-session"
+		}
+		autoLoginErr = enableNiriTestAutologin(ctx, targetGuest, cfg.InstalledUser, sessionCmd)
 	case desktopKDE:
 		autoLoginErr = enableSddmTestAutologin(ctx, targetGuest, cfg.InstalledUser)
 	case desktopCosmic:
@@ -1192,17 +1198,7 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg *RunConfig,
 		_ = stateStore.Save(active)
 		return RunResult{}, autoLoginErr
 	}
-	// LOG LINE CORRECTED (2026-11-19): with the niri-family login flow the
-	// autologin is NOT enabled for niri/niriWayle — the verify boot waits at
-	// the GREETER and login_readiness performs a real typed login.
-	switch cfg.DesktopEnvironment {
-	case desktopKDE:
-		logHarness("harness: test-only autologin enabled for %s runtime verification (VM discarded after run)\n", cfg.DesktopEnvironment)
-	case desktopCosmic:
-		logHarness("harness: test-only autologin enabled for %s runtime verification (VM discarded after run)\n", cfg.DesktopEnvironment)
-	default:
-		logHarness("harness: NO autologin for %s — login_readiness performs the real typed login (VM discarded after run)\n", cfg.DesktopEnvironment)
-	}
+	logHarness("harness: test-only autologin enabled for %s runtime verification (VM discarded after run)\n", cfg.DesktopEnvironment)
 
 	// Power off and restart swtpm for verification boot
 	phase(7, "reboot (target)")
@@ -3287,6 +3283,59 @@ for cryptroot in $cryptroots; do
 done
 `
 	return runScriptOnTarget(ctx, targetGuest, script)
+}
+
+// enableNiriTestAutologin appends a greetd [initial_session] stanza so the
+// verification boot logs straight into the user session — the runtime
+// checks (niri_session_user, niri_wayland_socket, niri_ipc, ...) need a real
+// session and nobody is present to log in. sessionCommand is DE-aware:
+// "niri-session" for niri, "wayle-session" for niriWayle.
+//
+// GREETD FACT (0.10.3-r11, source + live-verified run 2026-10-17T17-29-10Z):
+// [initial_session] carries ONLY command/user/service — there is NO password
+// key and greetd NEVER runs pam_authenticate for the initial session
+// (start_unauthenticated_session). Consequence: the PAM conversation has no
+// authtok, so PAM-based unlock proofs (pam_oo7 stash) can NEVER fire on the
+// autologin boot — the oo7_pam_unlock check proves it with an authenticated
+// greetd-IPC login instead.
+//
+// POLICY: harness = test + autologin config only; if the session command does
+// not hold the greetd initial_session (async user-dinit spawn, dinitctl start
+// returns early), the fix belongs in the installer or aports, never here.
+//
+// TEST-ONLY: the target disk is discarded after the harness run; the
+// installer itself never writes this stanza (the stock greetd config from
+// hostPhase stays untouched).
+func enableNiriTestAutologin(ctx context.Context, targetGuest guest.Options, installedUser, sessionCommand string) error {
+	// The [initial_session] stanza is built Go-side (no shell-printf format
+	// verbs — the command is parameterized, so printf '%b' gets the whole
+	// stanza as ONE pre-rendered argument).
+	stanza := fmt.Sprintf("\n[initial_session]\ncommand = %q\nuser = %q\n", sessionCommand, installedUser)
+	script := fmt.Sprintf(`set -eu
+f=/etc/greetd/config.toml
+if ! grep -q 'initial_session' "$f"; then
+	printf '%%b' %s >> "$f"
+fi
+grep -q 'initial_session' "$f" || { echo 'initial_session marker missing after append'; exit 1; }
+if ! grep -Fq %s "$f"; then
+	echo 'autologin user missing after append'
+	exit 1
+fi
+# niri saves screenshots under $HOME/Pictures/Screenshots (default
+# screenshot-path) and does NOT create the directory — the IPC action then
+# returns success but silently writes nothing. Create BOTH levels owned by
+# the test user (root mkdir -p leaves the parent root-owned mode 2700 —
+# setgid home inheritance + root umask — and the user then cannot write).
+install -d -o %s -g %s -m 2700 /home/%s/Pictures
+install -d -o %s -g %s -m 2700 /home/%s/Pictures/Screenshots
+echo 'test-only greetd autologin enabled'
+`, shellQuote(stanza), shellQuote(`user = "`+installedUser+`"`), installedUser, installedUser, installedUser, installedUser, installedUser, installedUser)
+	diag, err := runScriptOnTarget(ctx, targetGuest, script)
+	if err != nil {
+		return fmt.Errorf("niri test autologin: %w", err)
+	}
+	logHarness("harness: niri test autologin: %s\n", strings.TrimSpace(diag))
+	return nil
 }
 
 // enableSddmTestAutologin writes a drop-in sddm autologin config so the
