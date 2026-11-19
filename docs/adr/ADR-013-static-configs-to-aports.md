@@ -1,0 +1,20 @@
+# ADR-013: Static Package Configs Move to aports `*-config` Packages
+
+- **Status**: Accepted (2026-11-19)
+- **Context**: The installer writes dozens of config files into the chroot. Many are STATIC — they take nothing from `variables.yaml`, never change per install, and are owned conceptually by the package whose service consumes them. Installer-written static configs: (a) mix package content into installer code, (b) are not upgradable independently, (c) blur the ownership line (the config belongs to the service's package, not to the installer).
+- **Decision**: **EVERY static config moves to aports as a `<pkgname>-config` package.** The rule:
+  - **Takes input from `variables.yaml` or is dynamic per install** → the config STAYS installer-written (the installer is the only component that knows the user, the locale, the layout, ...).
+  - **Static** (no input, no per-install variation) → moves to an aports `*-config` package; the installer stops writing it.
+- **Package conventions** (established by the first exemplar, `vector-config`):
+  - ONE package per service family — config and service are SEPARATE packages (`vector-config` = the configuration; `vector-dinit` = the service). No bundling.
+  - Vendor-owned demo configs are taken over with **`replaces="vector"`** (file-level takeover, klogd-openrc precedent: future vendor updates leave our file as `.apk-new`, ours stays).
+  - The config is **static and complete**: sources/consumers that may be absent are handled with `ignore_not_found`-style tolerance (vector file sources) or inert blocks — NO conditional blocks, NO per-install variation: the same config is valid on every install.
+  - Files the service must find at boot (e.g. a pre-created log sink) are pre-created by the service's OWN tmpfiles (the service user has the permissions), never by the installer.
+- **Exemplar**: `vector-config 0.1.0-r0` — the Vector configuration moved from `internal/logging.go writeVectorConfig` to the aports package (static YAML, `replaces="vector"` demo takeover, `conf.d` drop-in dir + README shipped, generic 1:1 source→file pattern).
+- **Consequences**:
+  - The installer's `logging.go` lost `writeVectorConfig` entirely; `writeVectorSetupService` (OpenRC dirs/socket glue) stays — init-specific, references nothing user-specific.
+  - Conditional sources disappear: a config source without its file is inert (`ignore_not_found: true`) — the static config is valid on every install.
+  - The debug-only Vector API is gone (no consumer — `vector top` works from the CLI ad hoc).
+  - Each migration = the config moves + the installer write is deleted + the harness checks keep working (files land the same way via apk).
+- **Migration criterion** (for each installer-written config): does it consume `variables.yaml` or runtime state? NO → `*-config` package. YES → stays. Borderline (semi-static, existence-filtered): decide per case, prefer staying until the content is fully input-free.
+- **References**: `docs/architecture/package-configs.md` (the living migration inventory), ADR-006 (no backward compatibility), ADR-008 (dinit config files pattern), ADR-011 (docs canonical model).
