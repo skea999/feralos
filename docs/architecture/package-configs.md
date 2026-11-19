@@ -2,6 +2,10 @@
 
 **Rule** (ADR-013): static configs (no `variables.yaml` input, no per-install variation) move to aports `<pkgname>-config` packages; input-dependent/dynamic configs stay installer-written. This file is the LIVING migration inventory — update it per migration.
 
+**Two strategic connections**:
+1. **internal_rules-driven configs** (values from the rules engine, not user input) stay for now — but each is a REDESIGN CANDIDATE: make it input-free/generic and it becomes migratable. Going generic simplifies the installer (less config code).
+2. **Propedeutic to the Arch-style chroot installation** (spec-distro §7 item 3): the chroot install path has no installer writing configs — every static config must already be an aports package. This migration builds that prerequisite.
+
 ## Done
 
 | Config | Package | Notes |

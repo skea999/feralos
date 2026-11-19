@@ -5,6 +5,8 @@
 - **Decision**: **EVERY static config moves to aports as a `<pkgname>-config` package.** The rule:
   - **Takes input from `variables.yaml` or is dynamic per install** → the config STAYS installer-written (the installer is the only component that knows the user, the locale, the layout, ...).
   - **Static** (no input, no per-install variation) → moves to an aports `*-config` package; the installer stops writing it.
+  - **internal_rules-driven configs**: a config whose dynamic values come from `internal_rules` (not from user input) STAYS — unless it can be REDESIGNED to be input-free/generic, in which case it becomes migratable. Making configs generic is therefore also an **installer-simplification driver**: every config that goes generic leaves the installer codebase.
+  - **Propedeutic to the Arch-style chroot installation** (spec-distro §7 item 3 — the wiki page documenting an Arch-like chroot install of FeralOS): that install path has NO installer writing configs — every static config must already live in aports packages for the chroot procedure to be self-sufficient. This migration IS that prerequisite.
 - **Package conventions** (established by the first exemplar, `vector-config`):
   - ONE package per service family — config and service are SEPARATE packages (`vector-config` = the configuration; `vector-dinit` = the service). No bundling.
   - Vendor-owned demo configs are taken over with **`replaces="vector"`** (file-level takeover, klogd-openrc precedent: future vendor updates leave our file as `.apk-new`, ours stays).
