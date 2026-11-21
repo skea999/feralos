@@ -12,7 +12,7 @@ FeralOS is not another clone. It's a different approach: take Alpine's solid fou
 
 **Requirements** (measured baseline, full niriWayle desktop + security stack: harness run `2026-11-15T23-58-34Z`):
 
-- **Disk**: ≥32 GB for a desktop install (14.14 GiB used at rest; 16 GB disks hit ENOSPC). Minimal server layouts run on 2×8 GB.
+- **Disk**: **16 GB without swap**; with swap enabled, **16 GB + 2× RAM** (the default `swapSize: auto` = 2× RAM, so 8 GB RAM → 32 GB disk). Flatpak runtimes land on the same disk — budget ~2 GB extra for a desktop with flatpak apps. Minimal server layouts run on 2×8 GB.
 - **RAM**: ≥4 GB (957 MiB used at rest with the desktop + full security stack running).
 - **CPU**: x86_64, UEFI boot.
 - **USB stick**: ≥2 GB live ISO. Network required.
