@@ -286,11 +286,14 @@ func auditActivationTargets(rep *reporter) int {
 	return 0
 }
 
-// dinitRunning reports whether dinit is the active init (its control socket
-// exists). Absent socket = OpenRC boot (or a non-dinit fallback).
+// dinitRunning reports whether dinit is the ACTIVE init. The control socket
+// /run/dinitctl is NOT proof: the dinit package can be installed (dependency
+// of greetd/DE packages) with OpenRC as PID1 — run 2026-11-21T19-35-46Z
+// OpenRC still saw the socket path and mis-failed. PID1's comm is the
+// authoritative signal.
 func dinitRunning() bool {
-	_, err := os.Stat("/run/dinitctl")
-	return err == nil
+	b, err := os.ReadFile("/proc/1/comm")
+	return err == nil && strings.Contains(strings.ToLower(string(b)), "dinit")
 }
 
 // scanTargets parses every activation file of one scope, skipping
