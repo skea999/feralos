@@ -106,6 +106,16 @@ All notable changes to FeralOS will be documented in this file.
 - Full distribution release
 
 
+## 2026-11-21 — greetd split: greetd-config (common) + dms-config / wayle-config (per DE) + cosmic-greeter-config
+
+- **Correction of the earlier plan**: a single `greetd-config` is wrong — the greeter configuration differs per desktop. Final split:
+  - **`greetd-config 0.1.0-r0`** — ONLY the common part: `/etc/greetd/config.toml` (vt 7, `command=/etc/greetd/greeter.sh`, `user=greeter`). Shared by niri and niriWayle.
+  - **`dms-config 0.1.0-r0`** (niri) and **`wayle-config 0.1.0-r0`** (niriWayle) — the DE-specific half, `/etc/greetd/greeter.sh` 0755: niri runs `exec niri -- regreet`; niriWayle adds `>> /var/lib/greetd/session.log 2>&1` (greetd does not capture session output; `login_readiness` tails it). Mutually exclusive by DE choice.
+  - **`cosmic-greeter-config 0.1.0-r0`** — `/etc/greetd/feralos-cosmic-greeter.toml` + `/etc/pam.d/cosmic-greeter` MOVED OUT of `cosmic-greeter-dinit` (now r10, depends on the config package). Config does not live in a service package.
+- Installer: the four greetd writes in `desktops/niri.go` and `desktops/niri_wayle.go` are deleted (config.toml + greeter.sh + chmod); `regreet.toml` stays (timezone). `niri`/`niriWayle` package lists carry `greetd-config` + their DE config package.
+- Harness: `greeter_config` now also asserts the package ownership (`apk info -e greetd-config` and one of `dms-config`/`wayle-config`) — a DE list missing the config package fails even if stale files linger.
+- Validated: `abuild checksum` + `abuild -d` ×5 (alpine:3.24), contents inspected (greeter.sh 0755; cosmic-greeter-dinit r10 ships no config files), `src` build/vet/gofmt green. Harness runs (niri + niriWayle) after the aports deploy.
+
 ## 2026-11-21 — ADR-013 wave A: hardening-config, profile-config, smartd-config, polkit-power-config
 
 - **`hardening-config 0.1.0-r0`** (hardening-gated, `HardeningPackages`): `/etc/sysctl.d/{93-ipv4Configs,95-randomizeAddresses,96-disableSuidDumps,97-disableCoreDumps,bridging}.conf` + `/etc/modprobe.d/disabledModules.conf`. `writeHardeningSysctls` keeps only the debug-dependent 94/98/99; `writeModprobeBlacklist` deleted; the bridging write leaves `storage.go`.

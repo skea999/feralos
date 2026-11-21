@@ -18,13 +18,14 @@
 | `/etc/profile.d/{editor.sh,console.sh,pager.sh}` + `/etc/fish/conf.d/pager.fish` | `profile-config 0.1.0-r0` | static shell defaults; the old `sed` on the vendor `/etc/profile` (PAGER=less→moor) is replaced by the `pager.sh` drop-in |
 | `/etc/smartd.conf` | `smartd-config 0.1.0-r0` | static DEVICESCAN + self-test schedule; no collision (Alpine's smartmontools ships `/etc/conf.d/smartd`) |
 | `/etc/polkit-1/rules.d/49-feralos-power.rules` | `polkit-power-config 0.1.0-r0` | static wheel rule (login1 power + PPD switch/hold); `depends=""` on purpose — inert without polkit, which preserves the old behaviour (file always present, polkit only where a DE pulls it) |
+| `/etc/greetd/config.toml` | `greetd-config 0.1.0-r0` | COMMON part only (vt 7, `command=/etc/greetd/greeter.sh`, `user=greeter`) — shared by niri and niriWayle; COSMIC does not use this file |
+| `/etc/greetd/greeter.sh` | `dms-config 0.1.0-r0` (niri) / `wayle-config 0.1.0-r0` (niriWayle) | the DE-specific half: what the greeter session runs. niri = `exec niri -- regreet`; niriWayle adds `>> /var/lib/greetd/session.log 2>&1` (diagnosability, `login_readiness` tails it). Mutually exclusive packages — one DE per install, same path |
+| `/etc/greetd/feralos-cosmic-greeter.toml` + `/etc/pam.d/cosmic-greeter` | `cosmic-greeter-config 0.1.0-r0` | moved OUT of `cosmic-greeter-dinit` (r10 now depends on it) — config belongs to a `*-config` package, not the service package |
 
 ## Candidates (static — migrate when picked up)
 
 | Installer write | Where | Notes |
 |---|---|---|
-| `/etc/greetd/config.toml` | niri/niriWayle setup | content fully static (vt 7, greeter.sh, user greeter) — shared by both DEs → `greetd-config` |
-| `/etc/greetd/greeter.sh` | niri/niriWayle setup | static (XDG fallback + exec niri -- regreet + session.log redirect) → same `greetd-config` |
 | `/etc/audit/audit.rules` | `internal/security_stack.go` | NEAR-static: existence-filtered watches (sudoers/ssh paths) — migrate only with the paths settled |
 | `/etc/aide.conf` + daily cron | `internal/security_stack.go` | static (watch roots, report paths) → with the audit.rules decision |
 

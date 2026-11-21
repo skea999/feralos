@@ -41,41 +41,8 @@ func SetupNiriWayle(conf *config.Config) error {
 
 	fmt.Println("[INFO] Configuring niriWayle desktop environment...")
 
-	// 1. greetd config — vt 7, greeter session via greeter.sh (shared with niri)
-	greetdConf := `[terminal]
-vt = 7
-
-[default_session]
-command = "/etc/greetd/greeter.sh"
-user = "greeter"
-`
-	if err := writeFile(chroot, "/etc/greetd/config.toml", greetdConf); err != nil {
-		return fmt.Errorf("write greetd config: %w", err)
-	}
-
-	// 2. greeter.sh — XDG_RUNTIME_DIR fallback (greetd starts before elogind
-	// creates /run/user/<uid>), then niri + regreet. Real hardware: system
-	// mesa + real GPU, no software-rendering env vars.
-	greeterSh := `#!/bin/sh
-if [ ! -d "/run/user/$(id -u greeter)" ]; then
-    mkdir -p /tmp/greetd-runtime
-    chmod 700 /tmp/greetd-runtime
-    export XDG_RUNTIME_DIR=/tmp/greetd-runtime
-else
-    export XDG_RUNTIME_DIR="/run/user/$(id -u greeter)"
-fi
-# niri+regreet stdout/stderr -> /var/lib/greetd/session.log: greetd does NOT
-# capture greeter session output by itself — without this redirect a broken
-# greeter is undiagnosable (the harness login_readiness check tails this
-# file into its failure detail).
-exec niri -- regreet >> /var/lib/greetd/session.log 2>&1
-`
-	if err := writeFile(chroot, "/etc/greetd/greeter.sh", greeterSh); err != nil {
-		return fmt.Errorf("write greeter.sh: %w", err)
-	}
-	if _, err := shell.ExecuteCmd(chroot, "chmod +x /etc/greetd/greeter.sh"); err != nil {
-		return fmt.Errorf("chmod greeter.sh: %w", err)
-	}
+	// greetd config.toml + greeter.sh are package-shipped (ADR-013):
+	// greetd-config (common) + dms-config/wayle-config (DE-specific script).
 
 	// 3. regreet config — timezone from user variables
 	// Font: DejaVu Sans (font-dejavu installed) — Cantarell is NOT in the

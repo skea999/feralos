@@ -136,7 +136,8 @@ func buildRestUsageChecks(checks map[string]string) {
 
 // buildGreeterChecks — greetd + regreet login stack, registered ONLY for the
 // niri family (the only DEs greetd serves). Two checks:
-//   - greeter_config: structural validation of the installer-seeded files
+//   - greeter_config: structural validation of the PACKAGE-shipped files
+//     (ADR-013: greetd-config + dms-config/wayle-config own them)
 //     (config.toml keys, greeter.sh executable + contents, regreet.toml,
 //     binaries present, greeter user exists).
 //   - login_readiness: HOW LONG a REAL login takes — greetd (re)start ->
@@ -148,7 +149,7 @@ func buildGreeterChecks(cfg *VerifyConfig, checks map[string]string) {
 	if cfg.DesktopEnvironment != desktopNiri && cfg.DesktopEnvironment != desktopNiriWayle {
 		return
 	}
-	checks["greeter_config"] = `test -f /etc/greetd/config.toml && grep -q '^vt = 7' /etc/greetd/config.toml && grep -q 'command = "/etc/greetd/greeter.sh"' /etc/greetd/config.toml && grep -q 'user = "greeter"' /etc/greetd/config.toml && test -x /etc/greetd/greeter.sh && grep -q regreet /etc/greetd/greeter.sh && grep -q niri /etc/greetd/greeter.sh && test -f /etc/greetd/regreet.toml && grep -q font_name /etc/greetd/regreet.toml && command -v regreet >/dev/null && command -v niri >/dev/null && id greeter >/dev/null 2>&1 && echo 'greetd+regreet config valid' || echo 'greeter config INVALID'`
+	checks["greeter_config"] = `test -f /etc/greetd/config.toml && grep -q '^vt = 7' /etc/greetd/config.toml && grep -q 'command = "/etc/greetd/greeter.sh"' /etc/greetd/config.toml && grep -q 'user = "greeter"' /etc/greetd/config.toml && test -x /etc/greetd/greeter.sh && grep -q regreet /etc/greetd/greeter.sh && grep -q niri /etc/greetd/greeter.sh && test -f /etc/greetd/regreet.toml && grep -q font_name /etc/greetd/regreet.toml && command -v regreet >/dev/null && command -v niri >/dev/null && id greeter >/dev/null 2>&1 && apk info -e greetd-config >/dev/null && { apk info -e dms-config >/dev/null || apk info -e wayle-config >/dev/null; } && echo 'greetd+regreet config valid' || echo 'greeter config INVALID'`
 	// Real-login timing: measured by the special-cased verifyLoginReadiness
 	// (login_readiness.go) — a real greetd->regreet->Wayle login with QMP
 	// keyboard input. This string is a placeholder (never executed as a
