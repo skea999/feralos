@@ -106,6 +106,14 @@ All notable changes to FeralOS will be documented in this file.
 - Full distribution release
 
 
+## 2026-11-21 — remote-shipping README for vector conf.d + clean 131/131 harness run
+
+- **`vector-config 0.1.0-r3`**: `/etc/vector/conf.d/README.md` now documents remote shipping (instructions only, nothing implemented): merge points (dinit wrapper merges conf.d automatically; OpenRC needs `command_args="--config …"` in `/etc/conf.d/vector`), file placement/permissions, socket+TLS and HTTP-bearer sink examples referencing the base sources, secret handling (`${VAR}` interpolated in raw text INCLUDING comments; unset = exit 78; pass values via the dinit env-file `/etc/dinit.d/config/vector.conf` or `/etc/conf.d/vector`, `chmod 0600` once a secret lives there), disk buffering under `/var/lib/vector`, validate/restart/verify, removal. aports `main` `9d7a980`, CI `44904805198` green, Pages 200.
+- **`log_errors` made retry-aware** (`retriedAttempt`): a `[RESULT] FAIL` directly followed by a `[RETRY]` marker is an intermediate attempt and no longer fails the run — the retried attempt carries the outcome, and a permanent failure still surfaces as `[ERROR][IGNORED]` or a final FAIL with no retry. Companion allowlist for apk's transient-DNS noise (`DNS: transient error …`, `N error; … MiB in … packages`). Unit test `TestRetriedAttempt` (5 cases).
+- **Runs**: `2026-11-21T12-31-50Z` 130/131 (only the retried apk FAIL line) → `2026-11-21T12-46-57Z` **131/131 ALL GREEN**, `vector-config 0.1.0-r3` installed live, `log_errors` PASS, `logging_config_packages` PASS (sinks vector-owned, generic logrotate rule, fail2ban stub, wrapper config-free), fail2ban sshd jail active.
+- **Docs**: README + `docs/guides/getting_started.md` disk requirement (16 GB without swap / 16 GB + 2× RAM with swap); harness disk default 32G documented.
+
+
 ## 2026-11-21 — aports working copy in-repo + 32G harness default + first validation run of the config packages
 
 - **`aports/` working copy at the repo root**: the feralos-aports clone moved out of `references/` into a first-class, gitignored working copy (`aports/.git` tracks `origin/main`). Pull, build, commit and push from there — no external-directory access needed. `references/*` stays read-only snapshots. `docs/dinit/PLAN.md` pointer updated.
