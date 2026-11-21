@@ -136,6 +136,14 @@ Two real bugs were found by the matrix and fixed (not test noise): `login_readin
 - **niri `2026-11-21T15-32-59Z`: 128/129** — the only failure was `login_readiness`: the passive autologin check demanded the wayle shell, which does not exist on a plain niri install (no wayle, no wayle-session script). Fixed: the check is now DE-aware — end marker = wayle shell on niriWayle, compositor on niri; the wayle-session milestone line is only reported for niriWayle. `greeter_config` on niri PASS (dispatcher + `greeter-niri.sh`).
 - Cosmetic: the aports smoke-install also caught that two config packages cannot own the same path — split into the dispatcher + `greeter-niri.sh`/`greeter-wayle.sh` (see the greetd entry).
 
+## 2026-11-21 — CLOSED: OpenRC 107/107 ALL GREEN (vector survives, audit clean) + dinit 133/133
+
+- **OpenRC `2026-11-21T20-51-39Z`: 107/107** — `vector [ started ]` for the whole session, `log_coverage` PASS (messages 358, auth.log 66, daemon.log 204, kern.log 26 …), `log_errors` PASS, `vector-setup-openrc` started, audit silent on the expected OpenRC gap (`OpenRC boot: missing dinit units are expected — not a gap`).
+- **dinit `2026-11-21T19-23-16Z`: 133/133** with the same package set (`vector-config r5`, `vector-dinit r11`, `feralos-dbus-audit 0.1.2`).
+- Two more harness allowlist corrections, both found by the OpenRC shutdown sequence: `in use but fuser finds nothing` was in the DETECTOR regex but never in the allowlist (claimed by an old CHANGELOG entry, actually absent — failed every OpenRC run since); and the paired `[ !! ]` line after an allowlisted line is now skipped (one event, two lines).
+- Product follow-up (track, not this round): under OpenRC `turnstiled` survives past the dbus stop and its PAM session close logs `pam_elogind(...): Failed to connect to system bus` during `/var/log` unmount — same ADR-007 class the dinit stop-command guards fixed; needs a `turnstiled` initd stop-order fix. Allowlisted for now (benign shutdown noise).
+- Release-flow note: `feralos-dbus-audit` builds from a feralos GIT TAG — every `src/firstBoot/dbus-audit` change needs a new `dbus-audit-x.y.z` tag (+ the slashed tag pair) before the aports bump; 0.1.2 cut from `72ff0ea`.
+
 ## 2026-11-21 — OpenRC proof run: vector LIVES under OpenRC (106/107 → paired [ !! ] allowlist)
 
 - Proof run `2026-11-21T20-19-06Z` (niriWayle OpenRC, `vector-config r5` + `feralos-dbus-audit 0.1.2-r0`): **106/107**, and the OpenRC product fixes hold live:
