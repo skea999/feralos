@@ -176,6 +176,18 @@ func buildSecurityStackChecks(cfg *VerifyConfig, checks map[string]string) {
 	checks["tracee_log"] = "for f in /var/log/dinit/tracee.log /var/log/tracee.log; do [ -s \"$f\" ] && echo \"$f has events\" && exit 0; done; echo 'tracee log MISSING or empty'"
 	checks["aide_baseline"] = "test -f /var/lib/aide/aide.db && echo 'aide baseline db present' || echo 'aide baseline db MISSING'"
 	checks["aide_cron"] = "test -x /etc/periodic/daily/aide-check && echo 'aide daily check installed' || echo 'aide daily check MISSING'"
+	// ADR-013 wave A: the static configs are apk-owned now — assert the
+	// representative files still land (a package dropped from the rules would
+	// silently take the file with it).
+	checks["config_packages_static"] = `fail=0
+grep -q tcp_syncookies /etc/sysctl.d/93-ipv4Configs.conf 2>/dev/null || { echo 'FAIL: 93-ipv4Configs.conf missing'; fail=1; }
+test -f /etc/sysctl.d/bridging.conf || { echo 'FAIL: bridging.conf missing'; fail=1; }
+grep -q 'install dccp /bin/false' /etc/modprobe.d/disabledModules.conf 2>/dev/null || { echo 'FAIL: disabledModules.conf missing'; fail=1; }
+grep -q 'PAGER=moor' /etc/profile.d/pager.sh 2>/dev/null || { echo 'FAIL: pager.sh missing'; fail=1; }
+grep -q 'EDITOR=micro' /etc/profile.d/editor.sh 2>/dev/null || { echo 'FAIL: editor.sh missing'; fail=1; }
+grep -q DEVICESCAN /etc/smartd.conf 2>/dev/null || { echo 'FAIL: smartd.conf missing'; fail=1; }
+[ $fail -eq 0 ] && echo 'static config packages OK (hardening sysctl+modprobe, profile, smartd)'
+exit $fail`
 	checks["lynis_present"] = "test -x /usr/sbin/lynis && test -e /etc/periodic/daily/lynis && echo 'lynis + daily cron installed' || echo 'lynis MISSING'"
 	if cfg.EnableHardening {
 		// pgrep WITHOUT -x: busybox pgrep may not honor -x, and comm matching

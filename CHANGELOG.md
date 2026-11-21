@@ -113,7 +113,8 @@ All notable changes to FeralOS will be documented in this file.
 - **`smartd-config 0.1.0-r0`** (standardPackages): `/etc/smartd.conf` (DEVICESCAN, nightly short test 02:00, long Saturday 03:00, temps 4/40/45 °C). No collision: Alpine's smartmontools ships `/etc/conf.d/smartd`.
 - **`polkit-power-config 0.1.0-r0`** (standardPackages): `/etc/polkit-1/rules.d/49-feralos-power.rules`. `depends=""` on purpose — the rule is inert without polkit, so the previous behaviour is preserved (file always present, polkit only where a desktop pulls it). `writePowerPolkitRule` deleted.
 - **Not migrated** (deliberate): `94-limitLogs` (printk), `98-hardening` (io_uring/memfd), `99-cmdline-hardening` (dmesg_restrict) and `zswap.conf` (`vm.min_free_kbytes`) still depend on `enableDebug`/RAM → split first, then a second hardening-config round. `lxc-config` skipped by owner decision.
-- **Validated**: `abuild checksum` + `abuild -d` ×4 (alpine:3.24), contents verified; `src` gofmt/build/vet/`go test -count=1 ./...` green. Harness run follows the aports deploy.
+- **Validated**: `abuild checksum` + `abuild -d` ×4 (alpine:3.24), contents verified; `src` gofmt/build/vet/`go test -count=1 ./...` green. **Harness `2026-11-21T13-25-38Z`: 131/131 ALL GREEN** — all four packages installed (`Installing hardening-config/profile-config/smartd-config/polkit-power-config`), `power_polkit_rule` PASS, `log_errors` PASS. New guard `config_packages_static` (sysctl/bridging/modprobe/pager/editor/smartd representative asserts; verified standalone, exercised from the next run).
+- **CI catch**: `smartd-config` first build FAILED the aports smoke-install — `smartmontools` owns `/etc/smartd.conf` (my APKBUILD grep missed it). Fixed with `replaces="smartmontools"`; verified locally with a real `apk add` over the vendor package. Lesson: prove vendor-path conflicts with an install, not a grep.
 
 ## 2026-11-21 — remote-shipping README for vector conf.d + clean 131/131 harness run
 
