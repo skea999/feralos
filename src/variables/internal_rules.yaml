@@ -41,7 +41,8 @@ defaultRunlevelsDinit:
 #   - loadkmap: provided dinit-natively (busybox-loadkmap-dinit) and enabled
 #     via defaultRunlevelsDinit — skipping here prevents a duplicate boot.d
 #     link from the OpenRC boot list (same service name, both lists)
-#   - vector-setup: replaced under dinit by vector-dinit's tmpfiles file
+#   - vector-setup: the OpenRC-only workaround ships in vector-setup-openrc;
+#     under dinit vector-dinit's tmpfiles do the same job (package skipped here)
 #   (ADR-010 R1 amendment 2026-10-25: explicitly-activated system units carry
 #   the OpenRC initd name — elogind/polkit/bluetooth — so `services` enables
 #   them directly on both inits and NO skip entries are needed anymore; the
@@ -210,6 +211,10 @@ standardPackages:
   # the Alpine demo /etc/vector/vector.yaml (klogd precedent). The
   # /etc/vector/conf.d drop-in dir = the manual log shipping mechanism.
   - vector-config
+  # vector-setup-openrc: OpenRC-only bug workaround (Alpine has no tmpfiles
+  # processor; vector-openrc does not create /run/vector + /dev/log). Not
+  # enabled under dinit (dinitSkipServices). EN, see the package header.
+  - vector-setup-openrc
   # musl-locales: locale DATA for musl libc (setlocale support for the
   # session apps; the 00locale.sh MUSL_LOCPATH export ships with it).
   - musl-locales

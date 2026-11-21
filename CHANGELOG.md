@@ -111,6 +111,14 @@ All notable changes to FeralOS will be documented in this file.
 - **KDE `2026-11-21T15-46-04Z`: 89/90** — the only failure was `log_errors` on the dinit-conversion loop: it ran `apk add alsa-utils-dinit` (no such package) three times. `alsa-utils` was documented in the `dinitSkipSessionManaged` comment but missing from the LIST (same for `pulseaudio`, `openconnect`, `vpnc`). `kde_session`, `config_packages_static` PASS.
 - Fix: the four entries added to `dinitSkipSessionManaged`; the conversion loop probes availability first (`apk search -x <pkg>`) and records the package as missing WITHOUT attempting the add — no retries, no FAIL lines for a condition the "missing" summary already reports.
 
+## 2026-11-21 — vector config/service split corrected: all paths in vector-config, no btrbk, no extra service
+
+- **ADR-013 R2** (owner directive, written into the ADR + inventory): a `<pkg>-config` package ships EVERY configuration artifact the app needs — including config-shaped init glue. Only the config/service split survives. Acceptance: `apk add <pkg>-config` makes the app work.
+- **`vector-config 0.1.0-r4`**: now also ships the paths `vector.yaml` names — `/usr/lib/tmpfiles.d/vector-config.conf` (`d /run/vector`, `L /dev/log → /run/vector/syslog.sock`) for dinit, and `/etc/init.d/vector-setup` for OpenRC (no tmpfiles processor there; two commands only: `install -d -o vector /run/vector`, `ln -sf … /dev/log`; `dinitSkipServices` under dinit, enabled via the existing `services` map).
+- **`vector-dinit 0.1.0-r11`**: tmpfiles reduced to the service's OWN state — one line, `d /var/lib/vector`. Removed: `/btrbk` (btrbk is not vector and the dir is unused), `/var/log`, `/run/vector`, `/dev/log`. Wrapper unchanged (exec only).
+- **Installer**: `internal/logging.go` deleted entirely (`SetupLogging` + `writeVectorSetupService`), call removed from the chroot tail; the `btrbk` chown is gone with it.
+- **Validated**: `abuild checksum` + `abuild -d` ×2; real `apk add` over Alpine `vector` + `vector-openrc` in a container — no conflict, vendor `/etc/init.d/vector` untouched, `vector-setup` 0755 installed, sinks `vector:vector`, both tmpfiles fragments present; `src` build/vet/tests green. Harness: dinit + OpenRC runs follow.
+
 ## 2026-11-21 — full desktop matrix green: niriWayle 132/132, niri 129/129, KDE 90/90, COSMIC 90/90
 
 | Desktop | Run | Result |
@@ -127,6 +135,15 @@ Two real bugs were found by the matrix and fixed (not test noise): `login_readin
 - **niriWayle `2026-11-21T15-21-40Z`: 132/132 ALL GREEN** — `greeter_config`, `config_packages_static`, `logging_config_packages`, `niri_greeter` all PASS.
 - **niri `2026-11-21T15-32-59Z`: 128/129** — the only failure was `login_readiness`: the passive autologin check demanded the wayle shell, which does not exist on a plain niri install (no wayle, no wayle-session script). Fixed: the check is now DE-aware — end marker = wayle shell on niriWayle, compositor on niri; the wayle-session milestone line is only reported for niriWayle. `greeter_config` on niri PASS (dispatcher + `greeter-niri.sh`).
 - Cosmetic: the aports smoke-install also caught that two config packages cannot own the same path — split into the dispatcher + `greeter-niri.sh`/`greeter-wayle.sh` (see the greetd entry).
+
+## 2026-11-21 — vector split corrected (R2): vector-setup-openrc is the only OpenRC workaround; btrbk out of vector
+
+- **ADR-013 R2** (owner directive): a `<pkg>-config` package ships EVERY configuration artifact the app needs — config, drop-ins, takeovers, materialization AND config-shaped init glue. No `<pkg>-config-openrc`/`-setup-openrc` fragmentation; the ONLY split left is config vs service.
+- **`vector-config 0.1.0-r3` unchanged** (an r4 attempt was reverted before publish): configurations only — `vector.yaml`, `conf.d/README.md`, the 7 sinks via `post-install`.
+- **`vector-setup-openrc 0.1.0-r0`** (new): the OpenRC-only workaround for an Alpine bug — OpenRC has no tmpfiles processor and `vector-openrc` does not create the paths `vector.yaml` names (`/run/vector`, `/dev/log`), so vector cannot bind its syslog source under OpenRC. Two commands (`install -d -o vector /run/vector`, `ln -sf … /dev/log`); not enabled under dinit (`dinitSkipServices`), enabled via the existing `services` map.
+- **`vector-dinit 0.1.0-r11`**: tmpfiles reduced to the service's OWN state — `d /var/lib/vector`, `d /run/vector`, `L /dev/log`. `/btrbk` removed (btrbk is not vector; the dir stays in the distro, owned by btrbk: `@btrbk` subvolume + `snapshot_dir /btrbk/snapshots`), `/var/log` line removed.
+- **Installer**: `internal/logging.go` deleted (`SetupLogging` + `writeVectorSetupService`, including the `/btrbk` chown); call removed from the chroot tail. `standardPackages` += `vector-setup-openrc`.
+- **Validated**: `abuild checksum` + `abuild -d` ×2; real `apk add` over Alpine `vector` + `vector-openrc` in a container — no conflict, vendor initd untouched, `vector-setup` 0755, sinks `vector:vector`, both tmpfiles fragments present; zero `btrbk` references in all three vector packages; `src` build/vet/tests green. Harness dinit + OpenRC runs follow this entry.
 
 ## 2026-11-21 — greetd split: greetd-config (common) + dms-config / wayle-config (per DE) + cosmic-greeter-config
 

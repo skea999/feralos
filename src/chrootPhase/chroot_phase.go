@@ -44,10 +44,7 @@ func Run(conf *config.Config) error {
 		fmt.Printf("[WARNING] Failed to list packages: %v\n", err)
 	}
 
-	// 2. Setup logging (vector config — AFTER package install)
-	if err := internal.SetupLogging(conf, pkgList); err != nil {
-		fmt.Printf("[WARNING] Vector config failed: %v\n", err)
-	}
+	// 2. Logging: package-shipped (vector-config + vector-dinit, ADR-013).
 
 	// 2b. Security stack configs (audit rules, fail2ban jail, aide config —
 	// docs/architecture/security_stack.md; packages + service enablement are

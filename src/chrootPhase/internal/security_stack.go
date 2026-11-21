@@ -15,8 +15,8 @@ import (
 // file writes only the config files those services consume. clamav is
 // EnableHardening-gated and owned by features/hardening.go — never here.
 //
-// Called as chroot_phase step 2b (right after SetupLogging — both need the
-// packages from step 1 already installed).
+// Called as chroot_phase step 2b (the packages from step 1 are already
+// installed; vector logging is package-shipped, see internal/logging.go).
 func SetupSecurityStack(conf *config.Config, pkgList string) error {
 	chroot := conf.Internal.ChrootDir
 
@@ -75,7 +75,7 @@ func BaselineAide(conf *config.Config, pkgList string) {
 }
 
 // installed reports whether pkg appears in the `apk info` listing (the
-// SetupLogging gate pattern — line-delimited names).
+// installed() gate pattern — line-delimited names).
 func installed(pkgList, pkg string) bool {
 	return strings.Contains(pkgList, "\n"+pkg+"\n") ||
 		strings.HasPrefix(pkgList, pkg+"\n") ||
