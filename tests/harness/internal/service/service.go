@@ -2015,8 +2015,16 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 				problems = append(problems, fmt.Sprintf("%s: read error: %v", logName, err))
 				continue
 			}
-			for i, line := range strings.Split(string(data), "\n") {
+			lines := strings.Split(string(data), "\n")
+			for i, line := range lines {
 				if logErrRe.MatchString(line) && !allowRe.MatchString(line) && !allowSkip.MatchString(line) {
+					// A [RESULT] FAIL that the installer retried right away
+					// is an intermediate attempt, not the outcome: the retry
+					// block resolves it (and a permanent failure still shows
+					// up as [ERROR][IGNORED] or a final FAIL without [RETRY]).
+					if strings.Contains(line, "[RESULT] FAIL") && retriedAttempt(lines, i) {
+						continue
+					}
 					problems = append(problems, fmt.Sprintf("%s:%d: %s", logName, i+1, strings.TrimSpace(line)))
 					continue
 				}
@@ -3769,4 +3777,23 @@ func sortedKeys(m map[string]CheckResult) []string {
 	}
 	sort.Strings(keys)
 	return keys
+}
+
+// retriedAttempt reports whether the [RESULT] FAIL line at index i is followed
+// by a [RETRY] marker before the next real log line — i.e. the installer
+// retried the command and a later attempt carries the true outcome. The scan
+// is short and bounded: blank lines and further [RESULT] lines are skipped.
+func retriedAttempt(lines []string, i int) bool {
+	for j := i + 1; j < len(lines) && j <= i+3; j++ {
+		line := lines[j]
+		if strings.Contains(line, "[RETRY]") {
+			return true
+		}
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.Contains(trimmed, "[RESULT]") {
+			continue
+		}
+		return false
+	}
+	return false
 }
