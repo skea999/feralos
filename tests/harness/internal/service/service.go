@@ -1413,7 +1413,12 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 	// in the main loop then verify the desktop this login just produced.
 	if _, ok := checks["login_readiness"]; ok {
 		delete(checks, "login_readiness")
-		detail, loginErr := verifyLoginReadiness(verifyCtx, guestOpts, cfg)
+		// Own budget (run27/28): a failing/slow login must degrade ONE
+		// check, not the whole verify — the flow gets a sub-ctx so its
+		// 600s desktop poll can never starve the shared verify budget.
+		flowCtx, cancelFlow := context.WithTimeout(verifyCtx, 9*time.Minute)
+		defer cancelFlow()
+		detail, loginErr := verifyLoginReadiness(flowCtx, guestOpts, cfg)
 		if loginErr != nil {
 			// Observability: the error text IS the diagnosis (which
 			// pre-measurement stage failed) — never discard it (run17).
