@@ -1377,7 +1377,7 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 	checks := make(map[string]string, 96)
 	buildStorageChecks(checks)
 	buildBootChecks(cfg, checks)
-	buildLogChecks(checks)
+	buildLogChecks(cfg, checks)
 	buildRestUsageChecks(checks)
 	buildGreeterChecks(cfg, checks)
 	buildSecurityStackChecks(cfg, checks)

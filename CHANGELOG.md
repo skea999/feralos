@@ -136,6 +136,17 @@ Two real bugs were found by the matrix and fixed (not test noise): `login_readin
 - **niri `2026-11-21T15-32-59Z`: 128/129** — the only failure was `login_readiness`: the passive autologin check demanded the wayle shell, which does not exist on a plain niri install (no wayle, no wayle-session script). Fixed: the check is now DE-aware — end marker = wayle shell on niriWayle, compositor on niri; the wayle-session milestone line is only reported for niriWayle. `greeter_config` on niri PASS (dispatcher + `greeter-niri.sh`).
 - Cosmetic: the aports smoke-install also caught that two config packages cannot own the same path — split into the dispatcher + `greeter-niri.sh`/`greeter-wayle.sh` (see the greetd entry).
 
+## 2026-11-21 — ROOT CAUSE: busybox syslogd killed vector under OpenRC (fail2ban `need logger`) + harness gating
+
+- **OpenRC run `2026-11-21T17-56-19Z` 104/109 — debugged live via `debug_run`**: `vector [failed]`, `log_coverage` sinks missing. Root cause chain, proven on the live VM:
+  1. `fail2ban` initd declares `need logger`; base-stack fail2ban is enabled on every install → OpenRC resolves the `logger` token to **busybox-openrc's `syslog`** (which `provide logger`s) even with `syslog` in no runlevel.
+  2. busybox syslogd (`/sbin/syslogd -t -n`, group wheel) starts and **binds `/dev/log` — which is our symlink to `/run/vector/syslog.sock`, vector's ingress**.
+  3. vector panics: `Failed to bind to datagram socket: AddrInUse` (unix_datagram.rs:42) → ABORT → `vector [failed]`, sinks unwritten; busybox syslogd happily writes `/var/log/messages` (246 lines) — which `log_coverage` dutifully reported while the vector sinks were MISSING.
+  `vector-setup-openrc` worked exactly as designed: "Preparing Vector runtime paths … [ ok ]" both boots.
+- **Fix — `vector-config 0.1.0-r4`**: ships a **neutered takeover of `/etc/init.d/syslog`** (`replaces="busybox-openrc"`, klogd-openrc precedent): same path, `provide logger`, `start() { eend 0 }` — the token resolves, busybox syslogd never runs, vector owns /dev/log. Loud header explains the chain; upgrade-safe (vendor updates land as `.apk-new`).
+- **Harness gating fixed** (my unconditional checks assumed dinit + hardening): `config_packages_static` split — profile/smartd unconditional, the new `config_packages_hardening` (sysctl drop-ins + module blacklist) gated `EnableHardening`; `vector_conf_d` + `vector_logs` gated `EnableDinit` (dinit wrapper/logfile absent under OpenRC by design).
+- **dinit side untouched and already green**: run `2026-11-21T17-44-49Z` 132/132 with the full vector split + clean conversion loop.
+
 ## 2026-11-21 — dinit conversion noise: vector-setup skipped + probe normalized
 
 - niriWayle run `2026-11-21T17-31-08Z` 131/132: everything vector green (`vector-config r3` + `vector-setup-openrc` + `vector-dinit r11` installed, sinks owned, `greeter_config`, `logging_config_packages`, `vector_conf_d` PASS); the only failure was `log_errors` on MY probe: the dinit-conversion loop saw `vector-setup-openrc` installed and probed `vector-setup-dinit` — `apk search -x` exits 1 on absence, tripping the retry machinery the probe was added to avoid.

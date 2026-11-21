@@ -90,9 +90,11 @@ echo 'fish history clean (no clap error)'`
 }
 
 // buildLogChecks — vector/klogd logging chain (logging domain).
-func buildLogChecks(checks map[string]string) {
+func buildLogChecks(cfg *VerifyConfig, checks map[string]string) {
 	checks["vector_service"] = "if [ -S /run/dinitctl ]; then dinitctl list 2>/dev/null | grep vector || test -e /etc/dinit.d/boot.d/vector && echo \"vector (boot.d)\" || test -e /lib/dinit.d/vector && echo \"vector (service file)\"; else rc-status boot 2>/dev/null | grep vector || rc-update show 2>/dev/null | grep vector || true; fi"
-	checks["vector_logs"] = "ls -la /var/log/vector*.log 2>/dev/null || echo 'no vector log files'"
+	if cfg.EnableDinit {
+		checks["vector_logs"] = "ls -la /var/log/vector*.log 2>/dev/null || echo 'no vector log files'"
+	}
 	checks["vector_running"] = "pgrep -f '/usr/bin/vector' 2>/dev/null && echo 'running' || echo 'vector not running'"
 	checks["vector_diag"] = "rc-status boot 2>/dev/null | grep vector; pgrep -la vector 2>/dev/null; ls -la /var/log/vector* 2>/dev/null; echo '===vector.log==='; cat /var/log/vector.log 2>/dev/null | tail -30; echo '===end==='; vector --version 2>&1 || true"
 	checks["klogd_service"] = "if [ -S /run/dinitctl ]; then dinitctl list 2>/dev/null | grep klogd || test -e /etc/dinit.d/boot.d/klogd && echo 'klogd (boot.d)'; else rc-status boot 2>/dev/null | grep klogd || rc-update show 2>/dev/null | grep klogd || echo 'klogd not wired'; grep -q 'klogd (vector)' /etc/init.d/klogd && echo 'klogd vector override file' || echo 'klogd override file MISSING'; fi"
@@ -100,7 +102,11 @@ func buildLogChecks(checks map[string]string) {
 	checks["dmesg_saved"] = "test -s /var/log/dmesg && grep -q 'Linux version' /var/log/dmesg && echo 'dmesg saved' || echo 'dmesg dump missing'"
 	checks["kern_log"] = "test -s /var/log/kern.log && echo \"kern.log $(wc -l < /var/log/kern.log) lines\" || echo 'kern.log empty'"
 	checks["vector_validate"] = "vector validate --skip-healthchecks /etc/vector/vector.yaml >/dev/null 2>&1 && echo 'vector config valid' || echo 'vector config INVALID'"
-	checks["vector_conf_d"] = "test -d /etc/vector/conf.d && test -f /etc/vector/conf.d/README.md && grep -q 'conf.d' /usr/lib/dinit/vector && echo 'conf.d ready (dir + README + wrapper merge)' || echo 'conf.d INCOMPLETE'"
+	// conf.d merge proof greps the DINIT wrapper — absent under OpenRC
+	// (vector-dinit is not installed there); the dir+README still are.
+	if cfg.EnableDinit {
+		checks["vector_conf_d"] = "test -d /etc/vector/conf.d && test -f /etc/vector/conf.d/README.md && grep -q 'conf.d' /usr/lib/dinit/vector && echo 'conf.d ready (dir + README + wrapper merge)' || echo 'conf.d INCOMPLETE'"
+	}
 	checks["log_coverage"] = "for f in messages auth.log daemon.log kern.log sudo.log firewalld.log wayle-session.log vector.log dmesg; do if [ -s /var/log/$f ]; then echo \"$f: $(wc -l < /var/log/$f) lines\"; else echo \"$f: MISSING\"; fi; done"
 	// ADR-013 R1 regression guard: the sink FILES are configuration (shipped +
 	// owned by vector-config's post-install), the service wrapper creates
@@ -177,17 +183,25 @@ func buildSecurityStackChecks(cfg *VerifyConfig, checks map[string]string) {
 	checks["tracee_log"] = "for f in /var/log/dinit/tracee.log /var/log/tracee.log; do [ -s \"$f\" ] && echo \"$f has events\" && exit 0; done; echo 'tracee log MISSING or empty'"
 	checks["aide_baseline"] = "test -f /var/lib/aide/aide.db && echo 'aide baseline db present' || echo 'aide baseline db MISSING'"
 	checks["aide_cron"] = "test -x /etc/periodic/daily/aide-check && echo 'aide daily check installed' || echo 'aide daily check MISSING'"
+	if cfg.EnableHardening {
+		// hardening-config (ADR-013 wave A) is hardening-gated like its
+		// service family: sysctl drop-ins + module blacklist.
+		checks["config_packages_hardening"] = `fail=0
+grep -q tcp_syncookies /etc/sysctl.d/93-ipv4Configs.conf 2>/dev/null || { echo "FAIL: 93-ipv4Configs.conf missing"; fail=1; }
+test -f /etc/sysctl.d/bridging.conf || { echo "FAIL: bridging.conf missing"; fail=1; }
+grep -q 'install dccp /bin/false' /etc/modprobe.d/disabledModules.conf 2>/dev/null || { echo "FAIL: disabledModules.conf missing"; fail=1; }
+[ $fail -eq 0 ] && echo 'hardening config packages OK (sysctl drop-ins + module blacklist)'
+exit $fail`
+	}
+
 	// ADR-013 wave A: the static configs are apk-owned now — assert the
 	// representative files still land (a package dropped from the rules would
 	// silently take the file with it).
 	checks["config_packages_static"] = `fail=0
-grep -q tcp_syncookies /etc/sysctl.d/93-ipv4Configs.conf 2>/dev/null || { echo 'FAIL: 93-ipv4Configs.conf missing'; fail=1; }
-test -f /etc/sysctl.d/bridging.conf || { echo 'FAIL: bridging.conf missing'; fail=1; }
-grep -q 'install dccp /bin/false' /etc/modprobe.d/disabledModules.conf 2>/dev/null || { echo 'FAIL: disabledModules.conf missing'; fail=1; }
-grep -q 'PAGER=moor' /etc/profile.d/pager.sh 2>/dev/null || { echo 'FAIL: pager.sh missing'; fail=1; }
-grep -q 'EDITOR=micro' /etc/profile.d/editor.sh 2>/dev/null || { echo 'FAIL: editor.sh missing'; fail=1; }
-grep -q DEVICESCAN /etc/smartd.conf 2>/dev/null || { echo 'FAIL: smartd.conf missing'; fail=1; }
-[ $fail -eq 0 ] && echo 'static config packages OK (hardening sysctl+modprobe, profile, smartd)'
+grep -q 'PAGER=moor' /etc/profile.d/pager.sh 2>/dev/null || { echo "FAIL: pager.sh missing"; fail=1; }
+grep -q 'EDITOR=micro' /etc/profile.d/editor.sh 2>/dev/null || { echo "FAIL: editor.sh missing"; fail=1; }
+grep -q DEVICESCAN /etc/smartd.conf 2>/dev/null || { echo "FAIL: smartd.conf missing"; fail=1; }
+[ $fail -eq 0 ] && echo 'static config packages OK (profile, smartd)'
 exit $fail`
 	checks["lynis_present"] = "test -x /usr/sbin/lynis && test -e /etc/periodic/daily/lynis && echo 'lynis + daily cron installed' || echo 'lynis MISSING'"
 	if cfg.EnableHardening {
