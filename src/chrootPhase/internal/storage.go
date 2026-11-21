@@ -16,18 +16,20 @@ func SetupStorage(conf *config.Config) error {
 		fmt.Printf("[WARNING] Failed to create /etc/btrbk: %v\n", err)
 	}
 	btrbkConfig := `# btrbk configuration for FeralOS
-snapshot_dir  /btrbk/snapshots
-subvolume     /
-incremental   yes
-compact       yes
-keep_daily    7
-keep_weekly   4
-keep_monthly  3
-run_as        root
-timestamp_format long
-compare       path
-stream_buffer none
-logdir        /var/log/btrbk`
+# btrbk >= 0.32 syntax (Alpine's btrbk 0.32.6): run_as/compact/logdir/compare
+# and keep_* were removed upstream — the old config failed at parse, so cron
+# never created a snapshot. Runs as ROOT via root's crontab (upstream: btrbk
+# needs root for btrfs subvolume snapshot; the deprecated run_as is gone).
+snapshot_dir         /btrbk/snapshots
+subvolume            /
+incremental          yes
+timestamp_format     long
+# matches the cron schedule (maintenanceCron.snapshots = 02:00): a snapshot
+# counts as "daily" when taken at 02:00
+preserve_hour_of_day 2
+snapshot_preserve    7d 4w 3m
+snapshot_preserve_min latest
+`
 	if err := shell.WriteFile(chroot, "/etc/btrbk/btrbk.conf", []byte(btrbkConfig+"\n"), 0644); err != nil {
 		return fmt.Errorf("failed to write btrbk config: %w", err)
 	}

@@ -189,6 +189,14 @@ Two real bugs were found by the matrix and fixed (not test noise): `login_readin
 - **Installer**: `internal/logging.go` deleted (`SetupLogging` + `writeVectorSetupService`, including the `/btrbk` chown); call removed from the chroot tail. `standardPackages` += `vector-setup-openrc`.
 - **Validated**: `abuild checksum` + `abuild -d` ×2; real `apk add` over Alpine `vector` + `vector-openrc` in a container — no conflict, vendor initd untouched, `vector-setup` 0755, sinks `vector:vector`, both tmpfiles fragments present; zero `btrbk` references in all three vector packages; `src` build/vet/tests green. Harness dinit + OpenRC runs follow this entry.
 
+## 2026-11-22 — btrbk config was invalid since day one: fixed to 0.32 syntax + two harness checks
+
+- **Latent product bug found by research**: our `/etc/btrbk/btrbk.conf` used pre-0.32 options — `run_as` (removed upstream in 0.32.0), `compact`, `logdir`, `compare` (never btrbk options) and the old `keep_daily/keep_weekly/keep_monthly` names. btrbk 0.32 (Alpine) refuses unknown options at parse → the daily 02:00 cron `btrbk run` **never created a single snapshot**, on every install, silently. Empirically proven in a container: `ERROR: Unknown option "compact" …` (line 5, first of several).
+- **Fix**: `storage.go` ships the validated 0.32 config — `snapshot_dir`, `subvolume /`, `incremental yes`, `timestamp_format long`, `snapshot_preserve 7d 4w 3m` (the 0.32 preserve matrix replacing keep_*), `snapshot_preserve_min latest`, `preserve_hour_of_day 2` (matches the 02:00 cron). No `run_as`: btrbk runs as **root** via root's crontab (upstream: btrbk needs root for btrfs subvolume snapshot; the deprecated `run_as` was dropped in 0.32). No `btrbk` user exists or is needed (Alpine's package creates none; upstream mentions a dedicated user only for the SSH-remote pull scenario).
+- **Harness**: `btrbk_config` (parse gate: `btrbk … dryrun` as root) and `btrbk_snapshot` (REAL end-to-end: `btrbk snapshot` → assert a new directory exists in `/btrbk/snapshots` and `btrfs subvolume show` proves it is a snapshot).
+- The `/btrbk` chown/dir lines removed from vector were dead weight twice over: btrbk runs as root, and the `btrbk:btrbk` owner they referenced never existed.
+- Validated: container `dryrun` with the OLD config = parse error (reproduced); with the NEW config = parse OK (reaches the btrfs stage; container `/` is overlay, so the btrfs-stage message differs — on the target it completes); `src` + harness build/vet/tests green. Harness run follows.
+
 ## 2026-11-21 — greetd split: greetd-config (common) + dms-config / wayle-config (per DE) + cosmic-greeter-config
 
 - **Correction of the earlier plan**: a single `greetd-config` is wrong — the greeter configuration differs per desktop. Final split:

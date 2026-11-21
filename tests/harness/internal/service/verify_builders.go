@@ -18,6 +18,21 @@ func buildStorageChecks(checks map[string]string) {
 	checks["swap_status"] = "swapon -s 2>/dev/null || cat /proc/swaps 2>/dev/null || echo 'no swap active'"
 	checks["apk_packages"] = "apk info | sort"
 	checks["lsattr_nocow"] = "echo '=== NoCoW subvolume attributes ==='; for dir in /swap /srv /var/lib/ex /var/log /var/spool /var/tmp /nix/var/log; do echo \"=== $dir ===\"; lsattr -d \"$dir\" 2>&1; f=$(find \"$dir\" -type f 2>/dev/null | head -1); if [ -n \"$f\" ]; then lsattr \"$f\" 2>&1; else echo 'no files in dir'; fi; done; echo '=== Compressed subvolume attributes ==='; for dir in / /home /opt /root /tmp /var /var/lib/libvirt /var/lib/incus /var/lib/containerd /var/lib/docker /var/lib/containers /var/lib/vector /var/cache /var/opt /usr/local /boot /nix/store /nix/var/nix /nix/var/nix/build /btrbk; do echo \"=== $dir ===\"; lsattr -d \"$dir\" 2>&1; done"
+	// ADR-013 R2 / btrbk 0.32 syntax: the config must PARSE (the old one had
+	// pre-0.32 options — run_as/compact/logdir/compare/keep_* — and btrbk
+	// refused it, so cron never created a single snapshot). dryrun performs
+	// the full flow minus write actions, as root, on the live btrfs.
+	checks["btrbk_config"] = "btrbk -c /etc/btrbk/btrbk.conf dryrun >/dev/null 2>&1 && echo 'btrbk config valid (dryrun passed)' || echo 'btrbk config INVALID'"
+	// The real thing: create a snapshot with OUR config (btrbk snapshot
+	// applies snapshot_preserve retention), then prove a new btrfs snapshot
+	// dir exists under /btrbk/snapshots on the @btrbk mount.
+	checks["btrbk_snapshot"] = `before=$(ls -1 /btrbk/snapshots 2>/dev/null | wc -l)
+btrbk -c /etc/btrbk/btrbk.conf snapshot >/dev/null 2>&1 || { echo 'FAIL: btrbk snapshot command failed'; exit 1; }
+after=$(ls -1 /btrbk/snapshots 2>/dev/null | wc -l)
+if [ "$after" -le "$before" ]; then echo "FAIL: no new snapshot (before=$before after=$after)"; exit 1; fi
+new=$(ls -1t /btrbk/snapshots | head -1)
+btrfs subvolume show "/btrbk/snapshots/$new" >/dev/null 2>&1 || { echo "FAIL: $new is not a btrfs snapshot"; exit 1; }
+echo "btrbk snapshot OK: new btrfs snapshot '$new' (before=$before after=$after)"`
 }
 
 // buildBootChecks — kernel cmdline, booster/UKI artifacts, installer
