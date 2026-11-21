@@ -156,7 +156,7 @@ func (server *Server) handleToolCall(ctx context.Context, req *request) *respons
 			CPUs:                intArg(params.Arguments, "cpus", 2),
 			EnableKVM:           boolArg(params.Arguments, "enableKvm", true),
 			EnableTPM:           boolArg(params.Arguments, "enableTpm", false),
-			DiskSize:            stringArg(params.Arguments, "diskSize", "16G"),
+			DiskSize:            stringArg(params.Arguments, "diskSize", "32G"),
 			AlpineMirror:        stringArg(params.Arguments, "alpineMirror", ""),
 			InstalledUser:       stringArg(params.Arguments, "installedUser", "skea"),
 			InstalledPassword:   stringArg(params.Arguments, "installedPassword", "Alpine.1"),

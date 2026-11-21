@@ -183,6 +183,8 @@ Standard core, pluggable data — installer logic never changes, storage layouts
 
 → Full policy + workflow + inventory: `docs/aports-pinning.md` (canonical: `feralos-aports` `README.md` "Source pinning policy")
 
+**Working copy: `aports/` at the repo root** (own git repo, gitignored by the parent). Pull, build (`abuild` in a container), commit and push FROM HERE — it tracks `origin/main` directly, so no external directory access is needed. `references/*` are read-only snapshots (Alpine aports/openrc trees, logos); never edit them.
+
 ## Compatibility
 
 No backward compat. Breaking changes allowed without fallback (e.g., breaking changes to `internal_rules.yaml` without deprecated path). Installer is single-run.

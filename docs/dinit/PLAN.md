@@ -1,6 +1,6 @@
 # Dinit Plan — Installer Side
 
-> Packaging phases (1-2) live in `references/feralos-aports/PLAN.md` (aports repo).
+> Packaging phases (1-2) live in `aports/PLAN.md` (aports repo).
 > This file owns what touches the **installer codebase and the installed system**.
 > Updated: 2026-10-18
 

@@ -2537,7 +2537,7 @@ func ensureRunDefaults(cfg *RunConfig) error {
 		cfg.EnableTPM = true
 	}
 	if cfg.DiskSize == "" {
-		cfg.DiskSize = "16G"
+		cfg.DiskSize = "32G"
 	}
 	if cfg.InstalledUser == "" {
 		cfg.InstalledUser = sshUserSkea

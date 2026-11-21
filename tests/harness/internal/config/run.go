@@ -38,7 +38,7 @@ func ParseRunArgs(args []string) (RunConfig, error) {
 		QemuBinary:    "qemu-system-x86_64",
 		QemuImgBinary: "qemu-img",
 		ArtifactsRoot: filepath.Join(repoRoot, "tests", "artifacts", "harness"),
-		DiskSize:      "16G",
+		DiskSize:      "32G",
 		SSHPort:       2222,
 		MemoryMiB:     4096,
 		CPUs:          2,

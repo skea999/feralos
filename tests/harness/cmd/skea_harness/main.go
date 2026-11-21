@@ -225,7 +225,7 @@ func parseRunArgs(args []string, repoRoot, artifactsRoot string) (service.RunCon
 		MemoryMiB:           4096,
 		TargetMemoryMiB:     4096,
 		CPUs:                2,
-		DiskSize:            "16G",
+		DiskSize:            "32G",
 		DiskLayout:          "btrfsStandardServer",
 		InstalledUser:       "skea",
 		InstalledPassword:   "Alpine.1",

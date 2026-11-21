@@ -106,6 +106,14 @@ All notable changes to FeralOS will be documented in this file.
 - Full distribution release
 
 
+## 2026-11-21 — aports working copy in-repo + 32G harness default + first validation run of the config packages
+
+- **`aports/` working copy at the repo root**: the feralos-aports clone moved out of `references/` into a first-class, gitignored working copy (`aports/.git` tracks `origin/main`). Pull, build, commit and push from there — no external-directory access needed. `references/*` stays read-only snapshots. `docs/dinit/PLAN.md` pointer updated.
+- **Harness disk default 16G → 32G** (`DiskSize` in `internal/config/run.go`, CLI, service fallback, MCP; docs `commands.md`/`workflow.md`/`artifacts.md`/`development.md`). Rationale: the niriWayle flatpak runtime fills a 16G root, btrfs remounts read-only and the boot chain degrades silently (missing `/etc/kernel/cmdline` → UKI refused → UEFI shell). No resize step anywhere.
+- **Run `2026-11-21T12-16-45Z` (32G, btrfsStandard, niriWayle, all features): 129/130.** `logging_config_packages` PASS (sinks vector-owned, generic logrotate rule, fail2ban stub, wrapper config-free). The single FAIL is `log_errors` on an infra flake: `apk add chrony-dinit` hit `ERROR: DNS: transient error (try again later)`, the harness retried, the package installed OK — the check still counts the retried line. Product-side unaffected.
+- **New issue (track)**: `log_errors` should tolerate a `[RETRY]` that ends in `[RESULT] OK` (or whitelist apk transient-DNS lines). Not changed this round.
+
+
 ## 2026-11-21 — ADR-013 R1 (boot files are configuration) + logrotate-config / fail2ban-config / clamav-config
 
 - **ADR-013 R1 amendment** (owner directive): files a service must find at boot (log sinks) are **configuration, not service code** — they belong to the service's `<pkg>-config` package; a `*-dinit` package may declare only its own runtime state (runtime dir, socket, pidfile) and only declaratively (tmpfiles). Imperative setup inside a service wrapper is forbidden. The original sentence ("pre-created by the service's OWN tmpfiles") is superseded.

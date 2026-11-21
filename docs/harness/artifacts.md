@@ -18,7 +18,7 @@ tests/artifacts/harness/
 │   ├── seed.iso, user-data, meta-data
 │   └── qmp.sock
 ├── runs/<timestamp>/       # one per run (keep last 2, cleanOldRuns)
-│   ├── install-disk-1.qcow2 [, install-disk-2.qcow2]  # 16G default (qemu.CreateDisk)
+│   ├── install-disk-1.qcow2 [, install-disk-2.qcow2]  # 32G default (qemu.CreateDisk)
 │   ├── runner-serial.log, runner-qemu.log, runner-qmp.sock
 │   ├── installer.log, post-install.log, harness.log (phase log + run summary), sbctl.log, tpm-post-install.log
 │   ├── target-serial.log, target-qemu.log, target-firmware.log, tser.sock, target-qmp.sock

@@ -67,3 +67,6 @@ references/*
 references/skeaSimpleServer
 
 .gate/
+
+# aports working copy (its own git repo, pulled/pushed independently)
+aports/

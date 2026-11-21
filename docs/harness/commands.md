@@ -33,7 +33,9 @@ go run ./cmd/skea_harness -- run -f <path-to-variables.yaml>
   [--enable-kvm=true|false] [--keep-target-running]
 ```
 
-Defaults: `runnerPort=2222`/`targetPort=2223`, `memory=4096`/`targetMemory=4096`, `diskSize=16G`, `bootTimeout=5m`/`verifyTimeout=2m`. `-f` loads `variables.yaml` via `service.LoadVariablesFile` (diskLayout, enable* flags, desktopEnvironment, mirror). Cleans stale VMs unless `KeepTargetRunning`. Impl: `service.RunInstall`.
+Defaults: `runnerPort=2222`/`targetPort=2223`, `memory=4096`/`targetMemory=4096`, `diskSize=32G`, `bootTimeout=5m`/`verifyTimeout=2m`. `-f` loads `variables.yaml` via `service.LoadVariablesFile` (diskLayout, enable* flags, desktopEnvironment, mirror). Cleans stale VMs unless `KeepTargetRunning`. Impl: `service.RunInstall`.
+
+**Sizing**: every target disk is **32G by default** (was 16G). The niriWayle flatpak runtime (`org.gnome.Platform`) fills a 16G root mid-install; btrfs then remounts read-only and the boot chain silently degrades (no `/etc/kernel/cmdline` → UKI refused → the target drops to the UEFI shell). 32G covers desktop + all features with headroom; no resize step is needed anywhere. `--disk-size` still exists for special cases.
 
 ### `verify`
 
