@@ -38,7 +38,7 @@ func SetupLogging(conf *config.Config, pkgList string) error {
 	// (feralos-aports) ships the tmpfiles (/var/log/dinit), the mirror
 	// service and /usr/libexec/dinit-boot-log.
 
-	return writeLogrotateConfig(chroot)
+	return nil
 }
 
 // The Vector CONFIGURATION is package-shipped (vector-config,
@@ -78,33 +78,6 @@ start() {
 	}
 	if _, err := shell.ExecuteCmd(chroot, "chmod +x /etc/init.d/vector-setup"); err != nil {
 		fmt.Printf("[WARNING] Failed to make vector-setup executable: %v\n", err)
-	}
-
-	return nil
-}
-
-// writeLogrotateConfig writes the FeralOS logrotate configuration:
-// GENERIC — every *.log in /var/log (top level + one dir level), one
-// uniform rule. copytruncate is universal-safe for every log holder
-// (vector, auditd, fail2ban — fds stay valid, no reload/restart needed);
-// auditd also self-rotates via auditd.conf (harmless overlap). Binary
-// wtmp/btmp are excluded by the *.log glob. New logs are covered
-// automatically — nothing to maintain per file.
-func writeLogrotateConfig(chroot string) error {
-	fmt.Println("[INFO] Writing logrotate configuration...")
-	logrotateConf := `# FeralOS generic rotation (2026-11-19): every log under /var/log.
-/var/log/*.log /var/log/*/*.log {
-    daily
-    rotate 14
-    compress
-    delaycompress
-    missingok
-    notifempty
-    copytruncate
-}
-`
-	if err := shell.WriteFile(chroot, "/etc/logrotate.d/feralos", []byte(logrotateConf+"\n"), 0644); err != nil {
-		fmt.Printf("[WARNING] Failed to write logrotate config: %v\n", err)
 	}
 
 	return nil
