@@ -2018,6 +2018,13 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 			lines := strings.Split(string(data), "\n")
 			for i, line := range lines {
 				if logErrRe.MatchString(line) && !allowRe.MatchString(line) && !allowSkip.MatchString(line) {
+					// A bare [ !! ] that directly follows an allowlisted line
+					// is the SECOND line of the same benign event (OpenRC
+					// localmount: "in use but fuser finds nothing" then
+					// [ !! ]) — fail-once semantics, not two findings.
+					if strings.TrimSpace(line) == "[ !! ]" && i > 0 && allowRe.MatchString(lines[i-1]) {
+						continue
+					}
 					// A [RESULT] FAIL that the installer retried right away
 					// is an intermediate attempt, not the outcome: the retry
 					// block resolves it (and a permanent failure still shows

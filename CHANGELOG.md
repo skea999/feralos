@@ -136,6 +136,14 @@ Two real bugs were found by the matrix and fixed (not test noise): `login_readin
 - **niri `2026-11-21T15-32-59Z`: 128/129** — the only failure was `login_readiness`: the passive autologin check demanded the wayle shell, which does not exist on a plain niri install (no wayle, no wayle-session script). Fixed: the check is now DE-aware — end marker = wayle shell on niriWayle, compositor on niri; the wayle-session milestone line is only reported for niriWayle. `greeter_config` on niri PASS (dispatcher + `greeter-niri.sh`).
 - Cosmetic: the aports smoke-install also caught that two config packages cannot own the same path — split into the dispatcher + `greeter-niri.sh`/`greeter-wayle.sh` (see the greetd entry).
 
+## 2026-11-21 — OpenRC proof run: vector LIVES under OpenRC (106/107 → paired [ !! ] allowlist)
+
+- Proof run `2026-11-21T20-19-06Z` (niriWayle OpenRC, `vector-config r5` + `feralos-dbus-audit 0.1.2-r0`): **106/107**, and the OpenRC product fixes hold live:
+  - `vector [ started 00:01:21 ]` — vector SURVIVES the whole session (was: AddrInUse panic from busybox syslogd; now neutered + `vector.log` pre-created).
+  - `log_coverage` PASS — ALL sinks written (messages 771, auth.log 382, daemon.log 225, kern.log 26, sudo.log 2 …).
+  - The audit prints `OpenRC boot: missing dinit units are expected — not a gap` and the boot service starts clean (`feralos-dbus-audit failed to start` GONE).
+- Last fail: `log_errors` flagged the paired `[ !! ]` line of the allowlisted `in use but fuser finds nothing` (OpenRC localmount, greeter `/run/user/110` held open at shutdown). Harness refined: a bare `[ !! ]` directly following an allowlisted line is the same event, skipped once.
+
 ## 2026-11-21 — second OpenRC root cause: vendor initd logfile under root-owned /var/log (+ dbus-audit OpenRC exit fix)
 
 - Proof run 1/2: niriWayle dinit `2026-11-21T18-33-28Z` **133/133 ALL GREEN** with `vector-config r4` live.
