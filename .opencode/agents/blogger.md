@@ -2,7 +2,7 @@
 description: Concise blogging agent for tech, finance, and leadership content with fact validation and
   multimedia creation
 mode: primary
-steps: 30
+steps: 1000
 permissions:
 - action: '*'
   resource: '*'

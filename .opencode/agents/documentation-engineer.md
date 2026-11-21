@@ -3,6 +3,7 @@ description: 'Documentation systems engineer architecting doc infrastructure, se
   Use for docs-as-code, multi-version docs, or doc platform optimization.
 
   '
+steps: 1000
 mode: subagent
 permissions:
 - action: edit

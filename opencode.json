@@ -38,6 +38,9 @@
     }
   ],
   "agents": {
+    "build": {
+      "steps": 1000
+    },
     "planner": {},
     "review": {},
     "code-reviewer": {},

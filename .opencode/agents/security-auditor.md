@@ -3,6 +3,7 @@ description: 'Security auditor for comprehensive security assessments, complianc
   Use for vulnerability analysis, compliance gap identification, and evidence-based security findings.
 
   '
+steps: 1000
 mode: subagent
 permissions:
 - action: edit

@@ -1,7 +1,7 @@
 ---
 description: Read-only planning agent for analyzing and creating implementation plans without code edits
 mode: all
-steps: 30
+steps: 1000
 permissions:
 - action: '*'
   resource: '*'

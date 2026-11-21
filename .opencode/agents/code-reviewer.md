@@ -1,7 +1,7 @@
 ---
 description: "Code review: correctness, readability, architecture. Security/perf/quality → @review."
 mode: subagent
-steps: 10
+steps: 1000
 permissions:
   - action: edit
     resource: "*"

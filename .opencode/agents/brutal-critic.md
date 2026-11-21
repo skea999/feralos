@@ -2,7 +2,7 @@
 description: Ruthless content reviewer that grades drafts against a rubric and returns line-cited fixes
 mode: subagent
 hidden: true
-steps: 10
+steps: 1000
 permissions:
 - action: '*'
   resource: '*'

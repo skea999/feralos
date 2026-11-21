@@ -1,7 +1,7 @@
 ---
 description: Engineering Manager advisor for leadership decisions, team dynamics, and technical strategy
 mode: primary
-steps: 30
+steps: 1000
 permissions:
 - action: '*'
   resource: '*'

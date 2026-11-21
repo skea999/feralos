@@ -2,7 +2,7 @@
 description: Read-only research subagent that grounds high-stakes decisions in primary
   sources before implementation
 mode: subagent
-steps: 20
+steps: 1000
 permissions:
   - action: read
     resource: "*.env"

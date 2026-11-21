@@ -3,6 +3,7 @@ description: 'Root-cause-analysis debugger — reproduces, diagnoses, and applie
   Use when diagnosing bugs, analyzing error logs, tracing unexpected behavior, or fixing failing tests.
 
   '
+steps: 1000
 mode: subagent
 permissions:
 - action: edit

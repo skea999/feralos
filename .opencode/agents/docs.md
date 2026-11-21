@@ -1,7 +1,7 @@
 ---
 description: Documentation and wiki generation specialist for creating comprehensive project documentation
 mode: subagent
-steps: 30
+steps: 1000
 permissions:
 - action: '*'
   resource: '*'

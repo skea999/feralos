@@ -2,7 +2,7 @@
 description: Legal research advisor for jurisdiction-aware analysis across case law, statutes, regulations,
   contracts, employment, corporate governance, and compliance frameworks
 mode: all
-steps: 20
+steps: 1000
 permissions:
 - action: '*'
   resource: '*'

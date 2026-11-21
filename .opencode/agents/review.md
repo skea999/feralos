@@ -1,7 +1,7 @@
 ---
 description: Code review specialist focusing on security, performance, and best practices
 mode: subagent
-steps: 60
+steps: 1000
 permissions:
 - action: '*'
   resource: '*'

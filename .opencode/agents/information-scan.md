@@ -1,5 +1,6 @@
 ---
 description: Pre-commit secrets/PII scan. Block commit if found.
+steps: 1000
 mode: subagent
 permissions:
 - action: edit

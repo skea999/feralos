@@ -2,7 +2,7 @@
 description: Multi-language development agent with profile auto-detection for implementing features across
   .NET, Python, TypeScript, Flutter, Go, Java, Node.js, React, Ruby, and Rust projects
 mode: all
-steps: 60
+steps: 1000
 permissions:
 - action: '*'
   resource: '*'

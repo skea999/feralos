@@ -1,5 +1,6 @@
 ---
 description: "Research lib/framework/API via Context7 docs, cross-ref ≥2 sources. Never guess."
+steps: 1000
 mode: all
 permissions:
   - action: edit

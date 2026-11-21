@@ -3,6 +3,7 @@ description: 'Test automation engineer — builds fast, deterministic test suite
   framework setup, coverage gap analysis, or CI test integration.
 
   '
+steps: 1000
 mode: subagent
 permissions:
 - action: edit

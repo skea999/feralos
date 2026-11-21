@@ -3,6 +3,7 @@ description: 'Penetration testing specialist for identifying vulnerabilities thr
   Use for web application testing, API security assessment, and attack surface analysis.
 
   '
+steps: 1000
 mode: subagent
 permissions:
 - action: edit

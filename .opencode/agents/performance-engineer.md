@@ -3,6 +3,7 @@ description: 'Performance engineer — profiling, bottleneck analysis, and optim
   Use when identifying performance bottlenecks, establishing baselines, or improving latency/throughput.
 
   '
+steps: 1000
 mode: subagent
 permissions:
 - action: edit

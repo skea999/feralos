@@ -3,6 +3,7 @@ description: 'Refactoring specialist — transforms messy code into clean, maint
   safe, incremental changes while preserving all existing behavior.
 
   '
+steps: 1000
 mode: subagent
 permissions:
 - action: edit

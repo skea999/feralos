@@ -2,7 +2,7 @@
 description: Strategic coordinator for planning and orchestrating complex multi-phase workflows with execution
   options
 mode: primary
-steps: 100
+steps: 1000
 permissions:
 - action: '*'
   resource: '*'
