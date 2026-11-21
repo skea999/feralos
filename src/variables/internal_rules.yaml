@@ -102,6 +102,9 @@ dinitSkipSessionManaged:
   - wireguard-tools
   - turnstile
   - oo7-portal
+  # vector-setup: the OpenRC-only Alpine-bug workaround (vector-setup-openrc)
+  # — no -dinit counterpart exists or ever will
+  - vector-setup
   # xdg-desktop-portal family: SESSION-scoped daemons (frontend/wlr backend/
   # document portal) — supervision is the *-user-dinit packages
   # (xdg-desktop-portal-user-dinit + xdg-desktop-portal-wlr-user-dinit),

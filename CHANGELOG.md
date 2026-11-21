@@ -136,6 +136,12 @@ Two real bugs were found by the matrix and fixed (not test noise): `login_readin
 - **niri `2026-11-21T15-32-59Z`: 128/129** — the only failure was `login_readiness`: the passive autologin check demanded the wayle shell, which does not exist on a plain niri install (no wayle, no wayle-session script). Fixed: the check is now DE-aware — end marker = wayle shell on niriWayle, compositor on niri; the wayle-session milestone line is only reported for niriWayle. `greeter_config` on niri PASS (dispatcher + `greeter-niri.sh`).
 - Cosmetic: the aports smoke-install also caught that two config packages cannot own the same path — split into the dispatcher + `greeter-niri.sh`/`greeter-wayle.sh` (see the greetd entry).
 
+## 2026-11-21 — dinit conversion noise: vector-setup skipped + probe normalized
+
+- niriWayle run `2026-11-21T17-31-08Z` 131/132: everything vector green (`vector-config r3` + `vector-setup-openrc` + `vector-dinit r11` installed, sinks owned, `greeter_config`, `logging_config_packages`, `vector_conf_d` PASS); the only failure was `log_errors` on MY probe: the dinit-conversion loop saw `vector-setup-openrc` installed and probed `vector-setup-dinit` — `apk search -x` exits 1 on absence, tripping the retry machinery the probe was added to avoid.
+- Fix: `dinitSkipSessionManaged` += `vector-setup` (no `-dinit` counterpart exists or ever will — it IS the OpenRC workaround); the probe normalizes to exit 0 (`|| true`) so an absent counterpart goes straight to the missing summary.
+- A pages race also bit the first attempt (`17-07-34Z`): the installer ran at 17:08 while the aports deploy finished 17:16 → old APKINDEX → `vector-setup-openrc (no such package)` → whole `apk add` aborted (the known queued "Pages race hardening" item).
+
 ## 2026-11-21 — vector split corrected (R2): vector-setup-openrc is the only OpenRC workaround; btrbk out of vector
 
 - **ADR-013 R2** (owner directive): a `<pkg>-config` package ships EVERY configuration artifact the app needs — config, drop-ins, takeovers, materialization AND config-shaped init glue. No `<pkg>-config-openrc`/`-setup-openrc` fragmentation; the ONLY split left is config vs service.

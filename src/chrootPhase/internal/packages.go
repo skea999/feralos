@@ -320,7 +320,10 @@ func installDinitPackages(conf *config.Config) error {
 		// -dinit counterpart (alsa-utils on KDE, run 2026-11-21T15-46-04Z)
 		// burns three retries and leaves a [RESULT] FAIL in the log for a
 		// condition the "missing" list already reports.
-		if searchOut, _ := shell.ExecuteCmdArgs(chroot, "apk", "search", "-x", dinitPkg); strings.TrimSpace(searchOut) == "" {
+		// "apk search -x" exits 1 (with no output) when the package is
+		// absent — normalize to exit 0 so a missing counterpart does not
+		// trip the retry machinery for a condition the missing list reports.
+		if searchOut, _ := shell.ExecuteCmd(chroot, "apk search -x "+dinitPkg+" || true"); strings.TrimSpace(searchOut) == "" {
 			missing = append(missing, dinitPkg)
 			continue
 		}
