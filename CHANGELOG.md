@@ -2,18 +2,6 @@
 
 All notable changes to FeralOS will be documented in this file.
 
-## 2026-11-21 — Vector logging redesign: vector-config package, generic 1:1 source->file, passive login measurement
-
-- **`vector-config 0.1.0-r0` (new aports package, standardPackages)**: the Vector configuration moves from the installer (`logging.go writeVectorConfig` DELETED) to an APK package. Static config, `replaces="vector"` file takeover of the Alpine demo (klogd precedent — both inits read the same file). GENERIC 1:1 source->file pattern: one glob source, one dedicated /var/log file per source. All sources inert via `ignore_not_found` when their files are absent (dinit absent on OpenRC, incus not installed, no session runtime logs) — no conditional blocks, one config valid on every install.
-- **`user_session_logs`**: glob `/run/user/*/*.log` (ANY session tool's runtime log, sockets excluded by suffix) → `/var/log/user-session.log` — vector CREATES the sink (vector owns /var/log at boot; no tmpfiles, no installer touch). The wayle-session r11 script writes its milestones to `$XDG_RUNTIME_DIR/wayle-session.log`; vector tails the glob and persists them.
-- **REMOVED**: `feralos.json.log` (the merged JSON view — owner decision, per-source files only), the debug-only Vector API (`enableDebug` apiBlock — no consumer; the harness vector_api check removed), the security-stack vector sources (audit/aide/fail2ban/lynis/clamav — their logs are native persistent files; shipping later = conf.d drop-ins per file).
-- **`vector-dinit 0.1.0-r9`**: the wrapper ENSURES the sink files (messages/auth.log/daemon.log/kern.log/sudo.log/firewalld.log/user-session.log, vector:vector 0644) before exec — a fresh install starts with /var/log flipping root:root 755 via hardening right after boot, so the vector user can never CREATE new sink files (run 2026-11-19T01-35-55Z: fail2ban died on the missing auth.log, 28 checks starved).
-- **fail2ban**: the sshd jail's auth.log now exists from install (vector wrapper pre-create) — the boot-storm race (fail2ban before vector's first write) is gone (run31/32: jail active ✓).
-- **login_readiness REDESIGNED** (owner decision — the typed-credentials approach was technically dead: a greeter cycle spawned during the boot storm does not accept keyboard input for ~30-75s, measured run28): the harness test autologin is RESTORED for the niri family and the check measures the autologin PASSIVELY via kernel timestamps (greetd /proc starttime → /run/user/<uid> mtime → wayle-session script + niri starttimes → wayle up). Run32 baseline: **autologin total 4.00s** (greetd 4s after boot, PAM +3s, niri +1s, wayle up) — the real-machine 5-min slowdown is now measurable against this baseline.
-- **logrotate GENERIC**: `/var/log/*.log /var/log/*/*.log` one uniform rule (daily, rotate 14, copytruncate — universal-safe for every holder) — every new log auto-covered, nothing to maintain per file.
-- **Run32 ground truth**: 130/130 ALL GREEN; user-session.log milestones populated via vector; fail2ban sshd jail active; autologin total 4.00s.
-
-
 ## Known issues (living list — 2026-11-13 snapshot)
 
 `log_errors` shows QEMU-only noise (`smartd`/`fsck` whitelisted; netns `mount/umount /run/netns ... Invalid argument` QEMU early-chain noise allowlisted; udevd `/bin/false` module install errors — parport/psmouse/intel_gtt/input_leds/intel_pmc_bxt — from OpenRC udev path, harmless in QEMU, nix pivot fix landed). Resolved 2026-09-30: dinit shutdown ordering — `turnstiled` pam_elogind bus error at shutdown (dinit releases dependencies at dependent stop-start, not exit) fixed via feralos-aports `stop-command` guards on `dbus`/`elogind` (ADR-007, commit `75c566a`; harness 63/63 run 2026-09-30T00-08-04Z).
@@ -116,6 +104,20 @@ All notable changes to FeralOS will be documented in this file.
 - Custom FeralOS repository
 - Nix package manager integration
 - Full distribution release
+
+
+## 2026-11-21 — Vector logging redesign: vector-config package, generic 1:1 source->file, passive login measurement
+
+- **`vector-config 0.1.0-r0` (new aports package, standardPackages)**: the Vector configuration moves from the installer (`logging.go writeVectorConfig` DELETED) to an APK package. Static config, `replaces="vector"` file takeover of the Alpine demo (klogd precedent — both inits read the same file). GENERIC 1:1 source->file pattern: one glob source, one dedicated /var/log file per source. All sources inert via `ignore_not_found` when their files are absent (dinit absent on OpenRC, incus not installed, no session runtime logs) — no conditional blocks, one config valid on every install.
+- **`user_session_logs`**: glob `/run/user/*/*.log` (ANY session tool's runtime log, sockets excluded by suffix) → `/var/log/user-session.log` — vector CREATES the sink (vector owns /var/log at boot; no tmpfiles, no installer touch). The wayle-session r11 script writes its milestones to `$XDG_RUNTIME_DIR/wayle-session.log`; vector tails the glob and persists them.
+- **REMOVED**: `feralos.json.log` (the merged JSON view — owner decision, per-source files only), the debug-only Vector API (`enableDebug` apiBlock — no consumer; the harness vector_api check removed), the security-stack vector sources (audit/aide/fail2ban/lynis/clamav — their logs are native persistent files; shipping later = conf.d drop-ins per file).
+- **`vector-dinit 0.1.0-r9`**: the wrapper ENSURES the sink files (messages/auth.log/daemon.log/kern.log/sudo.log/firewalld.log/user-session.log, vector:vector 0644) before exec — a fresh install starts with /var/log flipping root:root 755 via hardening right after boot, so the vector user can never CREATE new sink files (run 2026-11-19T01-35-55Z: fail2ban died on the missing auth.log, 28 checks starved).
+- **fail2ban**: the sshd jail's auth.log now exists from install (vector wrapper pre-create) — the boot-storm race (fail2ban before vector's first write) is gone (run31/32: jail active ✓).
+- **login_readiness REDESIGNED** (owner decision — the typed-credentials approach was technically dead: a greeter cycle spawned during the boot storm does not accept keyboard input for ~30-75s, measured run28): the harness test autologin is RESTORED for the niri family and the check measures the autologin PASSIVELY via kernel timestamps (greetd /proc starttime → /run/user/<uid> mtime → wayle-session script + niri starttimes → wayle up). Run32 baseline: **autologin total 4.00s** (greetd 4s after boot, PAM +3s, niri +1s, wayle up) — the real-machine 5-min slowdown is now measurable against this baseline.
+- **logrotate GENERIC**: `/var/log/*.log /var/log/*/*.log` one uniform rule (daily, rotate 14, copytruncate — universal-safe for every holder) — every new log auto-covered, nothing to maintain per file.
+- **Run32 ground truth**: 130/130 ALL GREEN; user-session.log milestones populated via vector; fail2ban sshd jail active; autologin total 4.00s.
+
+
 
 ## 2026-11-15 — base security stack: auditd + AIDE + fail2ban + Tracee + lynis (+ ClamAV under hardening)
 - **Base installer stack (ADR-012)**: local-only, minimum tools — auditd (kernel audit, lean ruleset with `-e 2` immutable), AIDE 0.19.5 (FIM; baseline db generated in-chroot at step 18, AFTER the edge install), fail2ban 1.1.1 (sshd jail, nftables banaction on vector's auth.log), Tracee 0.24.1 (eBPF runtime detection; **first musl packaging anywhere, SHARED build** — static cannot load Go-signature plugins; libbpf 1.5.1 vendored pinned), lynis 3.1.6 (conformance report). ClamAV (clamd + freshclam + db snapshot) gated behind `enableHardening`.
