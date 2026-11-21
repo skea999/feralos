@@ -42,9 +42,12 @@ func SetupLogging(conf *config.Config, pkgList string) error {
 }
 
 // The Vector CONFIGURATION is package-shipped (vector-config,
-// /etc/vector/vector.yaml — replaces the Alpine demo). The installer
-// writes only the OpenRC-specific glue (vector-setup dirs/socket
-// script — dinit uses the vector-dinit tmpfiles instead).
+// /etc/vector/vector.yaml — replaces the Alpine demo), and so are the LOG
+// SINKS it names (/var/log/{messages,auth.log,...}, materialized by the
+// package's post-install with the vector owner — ADR-013 R1: files the
+// service must find are configuration). The installer writes only the
+// OpenRC-specific glue (vector-setup dirs/socket script — dinit uses the
+// vector-dinit tmpfiles instead); /var/log itself stays root-owned 0755.
 // writeVectorSetupService writes the vector-setup boot service (OpenRC init
 // script; under dinit it is inert and the dinit tmpfiles cover the same
 // paths) and makes it executable.
@@ -64,12 +67,7 @@ start() {
     chown vector:vector /run/vector
     chmod 755 /run/vector
     ln -sf /run/vector/syslog.sock /dev/log
-    chown vector:vector /var/log
     chown btrbk:btrbk /btrbk 2>/dev/null || true
-    # conf.d drop-ins (manual shipping mechanism — see vector.script);
-    # under dinit the same dir is created by vector-dinit tmpfiles
-    mkdir -p /etc/vector/conf.d
-    chown vector:vector /etc/vector/conf.d
     eend $?
 }
 `

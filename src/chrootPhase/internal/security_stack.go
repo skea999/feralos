@@ -29,9 +29,8 @@ func SetupSecurityStack(conf *config.Config, pkgList string) error {
 	}
 
 	if installed(pkgList, "fail2ban") {
-		if err := writeFail2banJail(chroot); err != nil {
-			return err
-		}
+		// The jail is package-shipped (fail2ban-config, ADR-013).
+		fmt.Println("[INFO] fail2ban jail config is package-shipped (fail2ban-config)")
 	} else {
 		fmt.Println("[INFO] fail2ban not installed, skipping jail config")
 	}
@@ -155,38 +154,6 @@ func writeAuditRules(chroot string) error {
 
 	if err := shell.WriteFile(chroot, "/etc/audit/audit.rules", []byte(rules), 0640); err != nil {
 		return fmt.Errorf("failed to write audit rules: %w", err)
-	}
-	return nil
-}
-
-// writeFail2banJail drops the FeralOS jail config into /etc/fail2ban/jail.d/
-// (drop-in dir — the package jail.d files stay intact). nftables-native
-// banaction: the base install has NO iptables (firewalld is nftables-only and
-// fail2ban's f2b nftables table is independent of firewalld's tables — the
-// coexistence is validated by the harness). backend=polling: the log file is
-// vector's sink (/var/log/auth.log); sshd logs facility auth → auth.log.
-// On the very first boot fail2ban may start before vector created auth.log —
-// smooth-recovery + restart=on-failure self-heal that race.
-func writeFail2banJail(chroot string) error {
-	jail := `# FeralOS fail2ban jail (written by the installer — security stack).
-[DEFAULT]
-banaction = nftables-multiport
-banaction_allports = nftables-allports
-usedns = no
-bantime = 1h
-findtime = 10m
-maxretry = 5
-ignoreip = 127.0.0.1/8 ::1
-
-[sshd]
-enabled = true
-port = ssh
-logpath = /var/log/auth.log
-backend = polling
-maxretry = 5
-`
-	if err := shell.WriteFile(chroot, "/etc/fail2ban/jail.d/50-feralos.conf", []byte(jail), 0644); err != nil {
-		return fmt.Errorf("failed to write fail2ban jail: %w", err)
 	}
 	return nil
 }

@@ -10,7 +10,10 @@
 
 | Config | Package | Notes |
 |---|---|---|
-| `/etc/vector/vector.yaml` | `vector-config 0.1.0-r0` | `replaces="vector"` demo takeover; GENERIC 1:1 source→file pattern; all sources inert via `ignore_not_found` (no conditional blocks); `conf.d` drop-in dir + README shipped; no API, no feralos.json.log, no security-stack vector sources (native persistent files — shipping later via conf.d per file) |
+| `/etc/vector/vector.yaml` | `vector-config 0.1.0-r2` | `replaces="vector"` demo takeover; GENERIC 1:1 source→file pattern; all sources inert via `ignore_not_found` (no conditional blocks); `conf.d` drop-in dir + README shipped; no API, no feralos.json.log, no security-stack vector sources (native persistent files — shipping later via conf.d per file); **the sinks it names ship here too** (ADR-013 R1): `post-install` materializes `/var/log/{messages,auth.log,daemon.log,kern.log,sudo.log,firewalld.log,user-session.log}` as `vector:vector 0644` (dynamic uid → install-time chown), idempotent + repairs a wrong owner |
+| `/etc/logrotate.d/feralos` | `logrotate-config 0.1.0-r0` | GENERIC rule `/var/log/*.log` + `/var/log/*/*.log` (daily, rotate 14, compress, copytruncate); `depends="logrotate"` (execution via `/etc/periodic/daily/logrotate`, cronie — init-agnostic); also takes over the vendor `/etc/logrotate.d/fail2ban` (`replaces="fail2ban"`) with a comment-only stub — the generic rule matches the same file and a second entry makes every run fail with `duplicate log entry` |
+| `/etc/fail2ban/jail.d/50-feralos.conf` | `fail2ban-config 0.1.0-r0` | static jail (nftables banaction, sshd on vector's `/var/log/auth.log`, polling backend); sorts after the vendor `alpine-ssh.conf` so its `[DEFAULT]`/`[sshd]` values win; installer `writeFail2banJail` DELETED |
+| `/etc/clamav/clamd.conf` | `clamav-config 0.1.0-r0` | static (LogFile/PidFile/LocalSocket/DB dir/User, Foreground off); `replaces="clamav-daemon"` takes over the sample copy Alpine installs; hardening-gated via `HardeningPackages`; installer `writeClamdConfig` DELETED (the runtime dirs come from the service units' own checkpath/wrapper) |
 
 ## Candidates (static — migrate when picked up)
 
@@ -18,8 +21,6 @@
 |---|---|---|
 | `/etc/greetd/config.toml` | niri/niriWayle setup | content fully static (vt 7, greeter.sh, user greeter) — shared by both DEs → `greetd-config` |
 | `/etc/greetd/greeter.sh` | niri/niriWayle setup | static (XDG fallback + exec niri -- regreet + session.log redirect) → same `greetd-config` |
-| `/etc/fail2ban/jail.d/50-feralos.conf` | `internal/security_stack.go` | static (nftables banaction, sshd jail) → `fail2ban-config` (or merged into a security-stack config package) |
-| `/etc/clamav/clamd.conf` | `features/hardening.go` | static → `clamav-config` |
 | `/etc/audit/audit.rules` | `internal/security_stack.go` | NEAR-static: existence-filtered watches (sudoers/ssh paths) — migrate only with the paths settled |
 | `/etc/aide.conf` + daily cron | `internal/security_stack.go` | static (watch roots, report paths) → with the audit.rules decision |
 | modprobe blacklist | `features/hardening.go` | static → `hardening-config`? (groups with the sysctl drop-ins if they ever go static) |
@@ -43,4 +44,4 @@
 - ONE package per service family: `<svc>-config` (configuration) and `<svc>-dinit` (service) are SEPARATE packages.
 - Vendor demo-config takeover: `replaces="<vendor-pkg>"` (klogd-openrc precedent — vendor updates leave our file as `.apk-new`).
 - The config is static and complete: absent-file sources are inert (`ignore_not_found`), no conditional blocks, one config valid on every install.
-- Boot-time files the service needs: pre-created by the service's OWN tmpfiles, never by the installer.
+- Boot-time files the service must FIND are configuration: shipped by `<svc>-config` (package content, or its `post-install` when the owner is a dynamically allocated system user), never created by the service wrapper, never by the installer. Files that ARE the service's own state (runtime dir, socket path, pidfile) stay with the service package, declared in tmpfiles — no imperative code (ADR-013 R1).

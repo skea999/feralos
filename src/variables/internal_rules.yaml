@@ -189,6 +189,13 @@ standardPackages:
   # dinit service logs; runs via /etc/periodic/daily (cronie).
   - logrotate
   - vector
+  # logrotate-config: the FeralOS rotation policy as an APK package
+  # (ADR-013 — static config, not installer-written): generic rule on
+  # /var/log/*.log + /var/log/*/*.log (daily, rotate 14, copytruncate —
+  # universal-safe, new logs auto-covered) plus a comment-only takeover of
+  # the vendor /etc/logrotate.d/fail2ban stub (the generic glob already
+  # matches fail2ban.log; two entries = "duplicate log entry" every run).
+  - logrotate-config
   # vector-config: the FeralOS Vector configuration as an APK package
   # (static, GENERIC 1:1 source->file pattern — one glob source, one
   # dedicated /var/log file per source; sources without their files are
@@ -223,6 +230,11 @@ standardPackages:
   - audit
   - aide
   - fail2ban
+  # fail2ban-config: the jail drop-in is package-shipped (ADR-013 — static
+  # config, not installer-written). depends=fail2ban; 50-feralos.conf sorts
+  # after the vendor alpine-ssh.conf, so its [DEFAULT]/[sshd] values win.
+  # (clamav-config lives in HardeningPackages — EnableHardening-gated.)
+  - fail2ban-config
   - tracee
   - lynis
   # Shell

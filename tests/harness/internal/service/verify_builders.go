@@ -102,6 +102,25 @@ func buildLogChecks(checks map[string]string) {
 	checks["vector_validate"] = "vector validate --skip-healthchecks /etc/vector/vector.yaml >/dev/null 2>&1 && echo 'vector config valid' || echo 'vector config INVALID'"
 	checks["vector_conf_d"] = "test -d /etc/vector/conf.d && test -f /etc/vector/conf.d/README.md && grep -q 'conf.d' /usr/lib/dinit/vector && echo 'conf.d ready (dir + README + wrapper merge)' || echo 'conf.d INCOMPLETE'"
 	checks["log_coverage"] = "for f in messages auth.log daemon.log kern.log sudo.log firewalld.log wayle-session.log vector.log dmesg; do if [ -s /var/log/$f ]; then echo \"$f: $(wc -l < /var/log/$f) lines\"; else echo \"$f: MISSING\"; fi; done"
+	// ADR-013 R1 regression guard: the sink FILES are configuration (shipped +
+	// owned by vector-config's post-install), the service wrapper creates
+	// nothing, and the generic logrotate rule has exactly one owner (the
+	// vendor fail2ban snippet is stubbed — two entries would make every daily
+	// run fail with "duplicate log entry").
+	checks["logging_config_packages"] = `fail=0
+for f in messages auth.log daemon.log kern.log sudo.log firewalld.log user-session.log; do
+  if [ -e "/var/log/$f" ]; then
+    o=$(stat -c %U "/var/log/$f" 2>/dev/null)
+    [ "$o" = vector ] || { echo "FAIL: /var/log/$f owner $o (want vector)"; fail=1; }
+  else
+    echo "FAIL: /var/log/$f missing (vector-config post-install)"; fail=1
+  fi
+done
+grep -q '/var/log/\*\.log' /etc/logrotate.d/feralos 2>/dev/null || { echo 'FAIL: /etc/logrotate.d/feralos generic rule missing'; fail=1; }
+grep -qE '^[^#]*/var/log' /etc/logrotate.d/fail2ban 2>/dev/null && { echo 'FAIL: vendor fail2ban logrotate entry not stubbed'; fail=1; }
+grep -qE '(chown|touch) ' /usr/lib/dinit/vector 2>/dev/null && { echo 'FAIL: vector wrapper creates configuration'; fail=1; }
+[ $fail -eq 0 ] && echo 'logging config packages OK (sinks vector-owned, generic rule, wrapper config-free)'
+exit $fail`
 }
 
 // buildRestUsageChecks — at-rest footprint probes, executed FIRST (pre-pass

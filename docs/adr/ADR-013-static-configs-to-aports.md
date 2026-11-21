@@ -1,6 +1,6 @@
 # ADR-013: Static Package Configs Move to aports `*-config` Packages
 
-- **Status**: Accepted (2026-11-19)
+- **Status**: Accepted (2026-11-19) · R1 amendment (2026-11-21)
 - **Context**: The installer writes dozens of config files into the chroot. Many are STATIC — they take nothing from `variables.yaml`, never change per install, and are owned conceptually by the package whose service consumes them. Installer-written static configs: (a) mix package content into installer code, (b) are not upgradable independently, (c) blur the ownership line (the config belongs to the service's package, not to the installer).
 - **Decision**: **EVERY static config moves to aports as a `<pkgname>-config` package.** The rule:
   - **Takes input from `variables.yaml` or is dynamic per install** → the config STAYS installer-written (the installer is the only component that knows the user, the locale, the layout, ...).
@@ -11,7 +11,7 @@
   - ONE package per service family — config and service are SEPARATE packages (`vector-config` = the configuration; `vector-dinit` = the service). No bundling.
   - Vendor-owned demo configs are taken over with **`replaces="vector"`** (file-level takeover, klogd-openrc precedent: future vendor updates leave our file as `.apk-new`, ours stays).
   - The config is **static and complete**: sources/consumers that may be absent are handled with `ignore_not_found`-style tolerance (vector file sources) or inert blocks — NO conditional blocks, NO per-install variation: the same config is valid on every install.
-  - Files the service must find at boot (e.g. a pre-created log sink) are pre-created by the service's OWN tmpfiles (the service user has the permissions), never by the installer.
+  - Files the service must find at boot (e.g. a pre-created log sink) are **configuration, not service code**: they ship as content of the service's `<pkg>-config` package. The `*-dinit` package may declare only its OWN runtime state (runtime dir, socket path, pidfile), and only declaratively (tmpfiles) — imperative setup in a service wrapper is forbidden. **R1** supersedes the original sentence ("pre-created by the service's OWN tmpfiles"): the config package owns the files, the service package owns the process. Where the owner is a dynamically allocated system user (Alpine `adduser -S`, no fixed uid), the config package materializes the files in its own `post-install` — idempotent, and it repairs a wrong owner on upgrade.
 - **Exemplar**: `vector-config 0.1.0-r0` — the Vector configuration moved from `internal/logging.go writeVectorConfig` to the aports package (static YAML, `replaces="vector"` demo takeover, `conf.d` drop-in dir + README shipped, generic 1:1 source→file pattern).
 - **Consequences**:
   - The installer's `logging.go` lost `writeVectorConfig` entirely; `writeVectorSetupService` (OpenRC dirs/socket glue) stays — init-specific, references nothing user-specific.

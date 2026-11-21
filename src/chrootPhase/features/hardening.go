@@ -21,7 +21,7 @@ func HardeningPackages(conf *config.Config) []string {
 	// updates flowing whenever a network is up. The clamd/freshclam dinit
 	// units come from clamav-daemon-dinit/freshclam-dinit (installer
 	// conversion loop — one daemon, one package).
-	return []string{"bubblewrap", "apparmor", "apparmor-profiles", "libapparmor", "apparmor-utils", "clamav-daemon", "clamav-scanner", "clamav-db", "freshclam"}
+	return []string{"bubblewrap", "apparmor", "apparmor-profiles", "libapparmor", "apparmor-utils", "clamav-daemon", "clamav-scanner", "clamav-db", "freshclam", "clamav-config"}
 }
 
 // DebugOverrides returns sysctl/kernel overrides when EnableDebug is true.
@@ -58,7 +58,6 @@ func SetupHardening(conf *config.Config) error {
 		return err
 	}
 	restrictFilePermissions(chroot)
-	writeClamdConfig(chroot)
 	runClamavSnapshot(chroot)
 
 	fmt.Println("[INFO] Hardening complete.")
@@ -103,31 +102,6 @@ func runClamavSnapshot(chroot string) {
 		return
 	}
 	fmt.Println("[INFO] clamav signature DB snapshot present.")
-}
-
-// writeClamdConfig writes the FeralOS clamd configuration over the package
-// sample (best-effort: the sample's commented defaults are already sane, so
-// a write failure is a WARNING — the daemon still runs). Explicit LogFile so
-// the vector clamav_logs source + logrotate have a stable path; Foreground
-// stays default-off — both service units pass the CLI flag, which overrides
-// the config file (clamd.c: argv scan beats optget). freshclam updates the
-// DB whenever a network is up (offline it just logs failed attempts).
-func writeClamdConfig(chroot string) {
-	clamdConf := `# FeralOS clamd configuration (installer-written over the package sample)
-LogFile /var/log/clamav/clamd.log
-LogTime yes
-PidFile /run/clamav/clamd.pid
-LocalSocket /run/clamav/clamd.sock
-DatabaseDirectory /var/lib/clamav
-User clamav
-Foreground no
-`
-	if err := shell.WriteFile(chroot, "/etc/clamav/clamd.conf", []byte(clamdConf), 0644); err != nil {
-		fmt.Printf("[WARNING] Failed to write clamd config: %v\n", err)
-	}
-	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /var/log/clamav /run/clamav && chown clamav:clamav /var/log/clamav /run/clamav"); err != nil {
-		fmt.Printf("[WARNING] Failed to create clamav dirs: %v\n", err)
-	}
 }
 
 // enableApparmor wires the apparmor boot enablement: dinit gets the
