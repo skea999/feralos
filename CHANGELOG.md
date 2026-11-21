@@ -136,6 +136,17 @@ Two real bugs were found by the matrix and fixed (not test noise): `login_readin
 - **niri `2026-11-21T15-32-59Z`: 128/129** — the only failure was `login_readiness`: the passive autologin check demanded the wayle shell, which does not exist on a plain niri install (no wayle, no wayle-session script). Fixed: the check is now DE-aware — end marker = wayle shell on niriWayle, compositor on niri; the wayle-session milestone line is only reported for niriWayle. `greeter_config` on niri PASS (dispatcher + `greeter-niri.sh`).
 - Cosmetic: the aports smoke-install also caught that two config packages cannot own the same path — split into the dispatcher + `greeter-niri.sh`/`greeter-wayle.sh` (see the greetd entry).
 
+## 2026-11-21 — second OpenRC root cause: vendor initd logfile under root-owned /var/log (+ dbus-audit OpenRC exit fix)
+
+- Proof run 1/2: niriWayle dinit `2026-11-21T18-33-28Z` **133/133 ALL GREEN** with `vector-config r4` live.
+- Proof run 2/2: niriWayle OpenRC `2026-11-21T18-45-39Z` 104/107 — debugged live via `debug_run`:
+  1. `vector [failed]`: the VENDOR initd opens `/var/log/vector.log` as the vector user (`output_log="$logfile"`, logfile default `/var/log/$RC_SVCNAME.log`) — R1 made `/var/log` root-owned (0755), so the open fails `Permission denied` and the daemon crashes before writing anything. (The earlier `log_coverage` "MISSING" lines were 0-byte sinks failing `[ -s ]` — misleading label, no deletion ever happened.)
+  2. `log_errors`: `feralos-dbus-audit failed to start` — the audit exits 1 on `missing > 0`, but under OpenRC a missing DINIT unit is expected (the vendor dbus-daemon-launch-helper activates natively; this run: 1 "missing" on a healthy boot).
+- Fixes:
+  - **`vector-config 0.1.0-r5`**: `post-install` pre-creates `/var/log/vector.log` (`vector:vector 0644`) beside the sinks; ships a comment-only `/etc/logrotate.d/vector` stub (the vendor file duplicates the generic rule — "duplicate log entry" on every daily run, same pattern as the fail2ban stub).
+  - **dbus-audit** (`src/firstBoot/dbus-audit/main.go`): `dinitRunning()` — on an OpenRC boot (no `/run/dinitctl`) missing dinit units are reported but are NOT a gap: exit 0, "OpenRC boot: missing dinit units are expected" line added. dinit boots keep the strict gate.
+- aports `main` `26253f2`; harness gating (config_packages_static split, vector_conf_d/vector_logs dinit-gated) pushed as `1a81da2`. Final proof runs follow the deploy.
+
 ## 2026-11-21 — ROOT CAUSE: busybox syslogd killed vector under OpenRC (fail2ban `need logger`) + harness gating
 
 - **OpenRC run `2026-11-21T17-56-19Z` 104/109 — debugged live via `debug_run`**: `vector [failed]`, `log_coverage` sinks missing. Root cause chain, proven on the live VM:

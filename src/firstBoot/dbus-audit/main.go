@@ -272,9 +272,25 @@ func auditActivationTargets(rep *reporter) int {
 	rep.line("--- Summary: %d activation targets (%d session, %d system) — %d covered, %d installed, %d missing ---",
 		len(session)+len(system), len(session), len(system), ok, installed, missing)
 	if missing > 0 {
+		// OpenRC has no dinit units by design (ADR-010: under OpenRC the
+		// vendor dbus-daemon-launch-helper activates natively — run
+		// 2026-11-21T18-45-39Z: 1 "missing" on a healthy OpenRC boot made
+		// the boot service fail and tripped log_errors). Only a dinit boot
+		// with an uncovered target is a real gap.
+		if !dinitRunning() {
+			rep.line("OpenRC boot: missing dinit units are expected (vendor dbus activation covers them) — not a gap")
+			return 0
+		}
 		return 1
 	}
 	return 0
+}
+
+// dinitRunning reports whether dinit is the active init (its control socket
+// exists). Absent socket = OpenRC boot (or a non-dinit fallback).
+func dinitRunning() bool {
+	_, err := os.Stat("/run/dinitctl")
+	return err == nil
 }
 
 // scanTargets parses every activation file of one scope, skipping
