@@ -111,6 +111,17 @@ All notable changes to FeralOS will be documented in this file.
 - **KDE `2026-11-21T15-46-04Z`: 89/90** — the only failure was `log_errors` on the dinit-conversion loop: it ran `apk add alsa-utils-dinit` (no such package) three times. `alsa-utils` was documented in the `dinitSkipSessionManaged` comment but missing from the LIST (same for `pulseaudio`, `openconnect`, `vpnc`). `kde_session`, `config_packages_static` PASS.
 - Fix: the four entries added to `dinitSkipSessionManaged`; the conversion loop probes availability first (`apk search -x <pkg>`) and records the package as missing WITHOUT attempting the add — no retries, no FAIL lines for a condition the "missing" summary already reports.
 
+## 2026-11-21 — full desktop matrix green: niriWayle 132/132, niri 129/129, KDE 90/90, COSMIC 90/90
+
+| Desktop | Run | Result |
+|---|---|---|
+| niriWayle | `2026-11-21T15-21-40Z` | **132/132** — greeter_config, config_packages_static, logging_config_packages, niri_greeter PASS |
+| niri | `2026-11-21T16-03-34Z` (rerun) | **129/129** — login_readiness DE-aware fix proven (`greetd→niri compositor 1.00s`) |
+| KDE Plasma | `2026-11-21T16-14-21Z` (rerun) | **90/90** — `kde_session` PASS, `log_errors` PASS, zero `alsa-utils-dinit` attempts |
+| COSMIC | `2026-11-21T15-55-54Z` | **90/90** — `cosmic_session` PASS after the cosmic-greeter config split |
+
+Two real bugs were found by the matrix and fixed (not test noise): `login_readiness` demanded the wayle shell on plain niri (`d3fd580`), and the dinit-conversion loop retried a non-existent `alsa-utils-dinit` (`818a41d` — skip list completed + `apk search -x` probe). All four config-package families (ADR-013 waves) are live on every desktop.
+
 ## 2026-11-21 — desktop matrix: niriWayle 132/132, niri login_readiness fixed, KDE/COSMIC running
 
 - **niriWayle `2026-11-21T15-21-40Z`: 132/132 ALL GREEN** — `greeter_config`, `config_packages_static`, `logging_config_packages`, `niri_greeter` all PASS.
