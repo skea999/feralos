@@ -1,5 +1,6 @@
 // PASSIVE autologin timing for the login_readiness verify check (niri
-// family). The harness target boots with the TEST-ONLY greetd
+// family, DE-aware: the end marker is the wayle shell on niriWayle and the
+// compositor on plain niri). The harness target boots with the TEST-ONLY greetd
 // [initial_session] autologin, so the login happens DURING BOOT with no
 // interaction — and the check measures HOW LONG it took, passively, from
 // kernel timestamps (no typing, no greetd restarts, no SSH-driven input —
@@ -14,7 +15,7 @@
 //	t2 = wayle-session script up  (its /proc starttime — the script holds
 //	                              the greetd session lifetime)
 //	t3 = niri compositor up       (user niri /proc starttime)
-//	t4 = wayle shell running      (pgrep)
+//	t4 = wayle shell running      (pgrep — niriWayle only; niri ends at t3)
 //
 // Reported deltas: greetd->runtime-dir (PAM handoff), greetd->session
 // script, greetd->niri compositor, greetd->wayle shell (TOTAL desktop).
@@ -66,7 +67,14 @@ n=$(pgrep niri | head -1); [ -n "$n" ] && echo "niri_ticks=$(awk '{print int($22
 [ -d /run/user/%s ] && echo "runtime_epoch=$(stat -c %%Y /run/user/%s)"
 echo "uptime=$(cut -d. -f1 /proc/uptime)"
 echo "now=$(date +%%s)"
+pgrep niri >/dev/null && echo "niri_up=1" || echo "niri_up=0"
 pgrep -f '[w]ayle$' >/dev/null && echo "wayle_up=1" || echo "wayle_up=0"`, uid, uid)
+
+	// The end marker is DE-specific: niriWayle ends at the wayle shell, plain
+	// niri ends at the compositor (that install has no wayle shell and no
+	// wayle-session script — run 2026-11-21T15-32-59Z, niri fixture, failed
+	// the wayle marker for exactly that reason).
+	wayle := cfg.DesktopEnvironment == "niriWayle"
 
 	// Poll briefly: by the time the verify runs the session is long up —
 	// the poll only covers a pathological early race.
@@ -83,7 +91,11 @@ pgrep -f '[w]ayle$' >/dev/null && echo "wayle_up=1" || echo "wayle_up=0"`, uid, 
 				snap[strings.TrimSpace(k)] = strings.TrimSpace(v)
 			}
 		}
-		if snap["wayle_up"] == "1" || time.Now().After(deadline) {
+		up := snap["niri_up"] == "1"
+		if wayle {
+			up = snap["wayle_up"] == "1"
+		}
+		if up || time.Now().After(deadline) {
 			break
 		}
 		if err := sleepCtx(ctx, loginWaitPoll); err != nil {
@@ -116,10 +128,12 @@ pgrep -f '[w]ayle$' >/dev/null && echo "wayle_up=1" || echo "wayle_up=0"`, uid, 
 	} else {
 		detail += "greetd->runtime-dir: MISSING (no /run/user/<uid>)\n"
 	}
-	if sessionOK {
-		detail += fmt.Sprintf("greetd->wayle-session script: %.2fs\n", sessionTicks-greetdTicks)
-	} else {
-		detail += "greetd->wayle-session script: MISSING\n"
+	if wayle {
+		if sessionOK {
+			detail += fmt.Sprintf("greetd->wayle-session script: %.2fs\n", sessionTicks-greetdTicks)
+		} else {
+			detail += "greetd->wayle-session script: MISSING\n"
+		}
 	}
 	if niriOK {
 		detail += fmt.Sprintf("greetd->niri compositor: %.2fs\n", niriTicks-greetdTicks)
@@ -127,8 +141,12 @@ pgrep -f '[w]ayle$' >/dev/null && echo "wayle_up=1" || echo "wayle_up=0"`, uid, 
 		detail += "greetd->niri compositor: MISSING\n"
 	}
 
-	if snap["wayle_up"] != "1" {
+	if wayle && snap["wayle_up"] != "1" {
 		detail += "wayle shell MISSING (desktop never came up)\n"
+		return detail, nil
+	}
+	if !wayle && snap["niri_up"] != "1" {
+		detail += "niri compositor MISSING (desktop never came up)\n"
 		return detail, nil
 	}
 

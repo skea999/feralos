@@ -106,6 +106,12 @@ All notable changes to FeralOS will be documented in this file.
 - Full distribution release
 
 
+## 2026-11-21 — desktop matrix: niriWayle 132/132, niri login_readiness fixed, KDE/COSMIC running
+
+- **niriWayle `2026-11-21T15-21-40Z`: 132/132 ALL GREEN** — `greeter_config`, `config_packages_static`, `logging_config_packages`, `niri_greeter` all PASS.
+- **niri `2026-11-21T15-32-59Z`: 128/129** — the only failure was `login_readiness`: the passive autologin check demanded the wayle shell, which does not exist on a plain niri install (no wayle, no wayle-session script). Fixed: the check is now DE-aware — end marker = wayle shell on niriWayle, compositor on niri; the wayle-session milestone line is only reported for niriWayle. `greeter_config` on niri PASS (dispatcher + `greeter-niri.sh`).
+- Cosmetic: the aports smoke-install also caught that two config packages cannot own the same path — split into the dispatcher + `greeter-niri.sh`/`greeter-wayle.sh` (see the greetd entry).
+
 ## 2026-11-21 — greetd split: greetd-config (common) + dms-config / wayle-config (per DE) + cosmic-greeter-config
 
 - **Correction of the earlier plan**: a single `greetd-config` is wrong — the greeter configuration differs per desktop. Final split:
