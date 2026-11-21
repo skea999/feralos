@@ -92,6 +92,10 @@ dinitSkipSessionManaged:
   - pipewire
   - pipewire-pulse
   - wireplumber
+  - alsa-utils
+  - pulseaudio
+  - openconnect
+  - vpnc
   - gnome-keyring
   - wpa_supplicant
   - wireguard-tools

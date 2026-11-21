@@ -316,6 +316,14 @@ func installDinitPackages(conf *config.Config) error {
 		}
 
 		dinitPkg := base + "-dinit"
+		// Availability probe first: without it a repo package that has no
+		// -dinit counterpart (alsa-utils on KDE, run 2026-11-21T15-46-04Z)
+		// burns three retries and leaves a [RESULT] FAIL in the log for a
+		// condition the "missing" list already reports.
+		if searchOut, _ := shell.ExecuteCmdArgs(chroot, "apk", "search", "-x", dinitPkg); strings.TrimSpace(searchOut) == "" {
+			missing = append(missing, dinitPkg)
+			continue
+		}
 		outAdd, _ := shell.ExecuteCmdArgs(chroot, "apk", "add", dinitPkg)
 		if strings.Contains(outAdd, "no such package") {
 			missing = append(missing, dinitPkg)

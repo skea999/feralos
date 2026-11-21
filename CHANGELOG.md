@@ -106,6 +106,11 @@ All notable changes to FeralOS will be documented in this file.
 - Full distribution release
 
 
+## 2026-11-21 — KDE 89/90: alsa-utils-dinit retry noise fixed (rules + probe)
+
+- **KDE `2026-11-21T15-46-04Z`: 89/90** — the only failure was `log_errors` on the dinit-conversion loop: it ran `apk add alsa-utils-dinit` (no such package) three times. `alsa-utils` was documented in the `dinitSkipSessionManaged` comment but missing from the LIST (same for `pulseaudio`, `openconnect`, `vpnc`). `kde_session`, `config_packages_static` PASS.
+- Fix: the four entries added to `dinitSkipSessionManaged`; the conversion loop probes availability first (`apk search -x <pkg>`) and records the package as missing WITHOUT attempting the add — no retries, no FAIL lines for a condition the "missing" summary already reports.
+
 ## 2026-11-21 — desktop matrix: niriWayle 132/132, niri login_readiness fixed, KDE/COSMIC running
 
 - **niriWayle `2026-11-21T15-21-40Z`: 132/132 ALL GREEN** — `greeter_config`, `config_packages_static`, `logging_config_packages`, `niri_greeter` all PASS.
