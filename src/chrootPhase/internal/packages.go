@@ -6,6 +6,7 @@ import (
 	"feralos/src/utils/logic"
 	"feralos/src/utils/shell"
 	"fmt"
+	"path"
 	"strings"
 )
 
@@ -133,7 +134,14 @@ func SetupPackages(conf *config.Config) error {
 	// `apk update` picks the new repo up (apk-tools 3 resolves from cache).
 	// URL from the rules (feralosRepo.keyringUrl; LoadInternalRules requires
 	// it non-empty).
-	if err := bootstrapFeralosRepo(chroot, conf.Internal.FeralosRepo.KeyringURL); err != nil {
+	// feralosRepoUrl override (pages-race hardening): the harness serves
+	// the repo from the last green aports CI artifact, so a live Pages
+	// deploy can never swap the APKINDEX mid-install.
+	repoBase := strings.TrimRight(conf.User.FeralosRepoURL, "/")
+	if repoBase != "" {
+		fmt.Printf("[INFO] FeralOS repo override active: %s\n", repoBase)
+	}
+	if err := bootstrapFeralosRepo(chroot, conf.Internal.FeralosRepo.KeyringURL, repoBase); err != nil {
 		return fmt.Errorf("feralos repo bootstrap failed: %w", err)
 	}
 
@@ -228,15 +236,32 @@ func SetupPackages(conf *config.Config) error {
 // bootstrapFeralosRepo downloads and installs feralos-keyring, which adds
 // both the signing key and the repository definition to the chroot. The URL
 // comes from the rules (feralosRepo.keyringUrl).
-func bootstrapFeralosRepo(chroot, keyringURL string) error {
+func bootstrapFeralosRepo(chroot, keyringURL, repoBase string) error {
 	fmt.Println("[INFO] Bootstrapping FeralOS package repository...")
-	url := keyringURL
+	// base URL: the override when set, else the dirname of the canonical
+	// keyring URL (Pages). The keyring FILENAME always comes from the rules.
+	base := strings.TrimRight(repoBase, "/")
+	if base == "" {
+		base = strings.TrimSuffix(keyringURL, path.Base(keyringURL))
+		base = strings.TrimRight(base, "/")
+	}
+	url := base + "/" + path.Base(keyringURL)
 	tmp := "/tmp/feralos-keyring.apk"
 	if _, err := shell.ExecuteCmdArgs(chroot, "wget", "-q", url, "-O", tmp); err != nil {
 		return fmt.Errorf("failed to download feralos-keyring: %w", err)
 	}
 	if _, err := shell.ExecuteCmdArgs(chroot, "apk", "add", "--allow-untrusted", tmp); err != nil {
 		return fmt.Errorf("failed to install feralos-keyring: %w", err)
+	}
+	// Point the repo at the same base: the keyring package ships the
+	// repositories.d entry with the canonical Pages URL; a mirror override
+	// rewrites it so the whole install fetches from one consistent source.
+	listFile := "/etc/apk/repositories.d/feralos.list"
+	canonical := strings.TrimSuffix(keyringURL, path.Base(keyringURL))
+	canonical = strings.TrimRight(canonical, "/")
+	if _, err := shell.ExecuteCmdArgs(chroot, "sed", "-i",
+		fmt.Sprintf("s|%s|%s|", canonical, base), listFile); err != nil {
+		return fmt.Errorf("failed to rewrite feralos repo URL: %w", err)
 	}
 	fmt.Println("[INFO] FeralOS repository bootstrapped.")
 	return nil

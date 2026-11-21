@@ -13,18 +13,23 @@ type Config struct {
 }
 
 type UserVariables struct {
-	Unattended         bool     `yaml:"unattended"`
-	IgnoreErrors       bool     `yaml:"ignoreErrors"`
-	EnableEdgeRepos    bool     `yaml:"enableEdgeRepos"`
-	Disks              []string `yaml:"disks"`
-	UserName           string   `yaml:"userName"`
-	Password           string   `yaml:"password"`
-	LuksPassword       string   `yaml:"luksPassword"`
-	Hostname           string   `yaml:"hostname"`
-	Timezone           string   `yaml:"timezone"`
-	Locale             string   `yaml:"locale"`
-	Keymap             string   `yaml:"keymap"`
-	Mirror             string   `yaml:"mirror"`
+	Unattended      bool     `yaml:"unattended"`
+	IgnoreErrors    bool     `yaml:"ignoreErrors"`
+	EnableEdgeRepos bool     `yaml:"enableEdgeRepos"`
+	Disks           []string `yaml:"disks"`
+	UserName        string   `yaml:"userName"`
+	Password        string   `yaml:"password"`
+	LuksPassword    string   `yaml:"luksPassword"`
+	Hostname        string   `yaml:"hostname"`
+	Timezone        string   `yaml:"timezone"`
+	Locale          string   `yaml:"locale"`
+	Keymap          string   `yaml:"keymap"`
+	Mirror          string   `yaml:"mirror"`
+	// Optional override of the FeralOS package repo base URL (the keyring
+	// apk filename still comes from feralosRepo.keyringUrl). Empty = the
+	// canonical Pages URL. The harness sets it to its local mirror so an
+	// install never races a live Pages deploy (pages-race, run 17-07-34Z).
+	FeralosRepoURL     string   `yaml:"feralosRepoUrl"`
 	Arch               string   `yaml:"arch"`
 	Branch             string   `yaml:"branch"`
 	ExtraPackages      []string `yaml:"extraPackages"`

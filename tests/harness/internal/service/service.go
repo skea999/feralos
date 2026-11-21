@@ -27,6 +27,9 @@ import (
 const defaultRunnerImageURL = "https://cloud.debian.org/images/cloud/trixie/latest/debian-13-genericcloud-amd64.qcow2"
 const defaultAlpineMirrorURL = "https://dl-cdn.alpinelinux.org/alpine"
 
+// aportsRepoSlug — the feralos package repo (pages-race hardening source).
+const aportsRepoSlug = "skea999/feralos-aports"
+
 const (
 	statusRunning             = "running"
 	statusFailed              = "failed"
@@ -113,35 +116,39 @@ type PrepareRunnerResult struct {
 }
 
 type RunConfig struct {
-	ArtifactsRoot       string
-	RepoRoot            string
-	RunnerImage         string
-	QemuBinary          string
-	QemuImgBinary       string
-	RunnerSSHUser       string
-	RunnerSSHPort       int
-	TargetSSHPort       int
-	MemoryMiB           int
-	TargetMemoryMiB     int
-	CPUs                int
-	EnableTPM           bool
-	IgnoreErrors        bool
-	EnableEdgeRepos     bool
-	EnableSecureboot    bool
-	EnableHardening     bool
-	EnablePodman        bool `yaml:"enablePodman"`
-	EnableDinit         bool `yaml:"enableDinit"`
-	EnableDebug         bool `yaml:"enableDebug"`
-	EnableZswap         bool
-	EnableNix           bool
-	EnableSwap          bool
-	SwapSize            string
-	EnableKVM           bool
-	DiskSize            string
-	DiskLayout          string
-	DesktopEnvironment  string
-	VideoDriver         string
-	AlpineMirror        string
+	ArtifactsRoot      string
+	RepoRoot           string
+	RunnerImage        string
+	QemuBinary         string
+	QemuImgBinary      string
+	RunnerSSHUser      string
+	RunnerSSHPort      int
+	TargetSSHPort      int
+	MemoryMiB          int
+	TargetMemoryMiB    int
+	CPUs               int
+	EnableTPM          bool
+	IgnoreErrors       bool
+	EnableEdgeRepos    bool
+	EnableSecureboot   bool
+	EnableHardening    bool
+	EnablePodman       bool `yaml:"enablePodman"`
+	EnableDinit        bool `yaml:"enableDinit"`
+	EnableDebug        bool `yaml:"enableDebug"`
+	EnableZswap        bool
+	EnableNix          bool
+	EnableSwap         bool
+	SwapSize           string
+	EnableKVM          bool
+	DiskSize           string
+	DiskLayout         string
+	DesktopEnvironment string
+	VideoDriver        string
+	AlpineMirror       string
+	// FeralosRepoMirror: local mirror base URL serving the feralos repo from
+	// the last green aports CI artifact (pages-race hardening). Empty = the
+	// canonical Pages URL.
+	FeralosRepoMirror   string
 	InstalledUser       string
 	InstalledPassword   string
 	NixPackages         []string
@@ -619,6 +626,17 @@ func (service *Service) RunInstall(ctx context.Context, cfg *RunConfig) (RunResu
 		return RunResult{}, fmt.Errorf("start alpine cache server: %w", err)
 	}
 	cfg.AlpineMirror = alpineCacheServer.GuestURL
+
+	// Pages-race hardening: a live Pages deploy mid-install swaps the
+	// APKINDEX and aborts the whole apk add (run 2026-11-21T17-07-34Z).
+	// Install the feralos packages from the LAST GREEN aports CI artifact
+	// served by the same mirror. Any failure falls back to live Pages.
+	if feralosErr := stageFeralosRepoArtifact(ctx, alpineCacheDir); feralosErr != nil {
+		fmt.Printf("[WARNING] feralos repo artifact unavailable — falling back to live Pages: %v\n", feralosErr)
+	} else {
+		cfg.FeralosRepoMirror = alpineCacheServer.GuestURL + "/feralos-repo/x86_64"
+		fmt.Printf("[INFO] FeralOS packages served from CI artifact: %s\n", cfg.FeralosRepoMirror)
+	}
 
 	if diskErr := qemu.CreateDisk(cfg.QemuImgBinary, disk1Path, cfg.DiskSize); diskErr != nil {
 		return RunResult{}, diskErr
@@ -1999,10 +2017,10 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		// warning (informational — retries exhausted, continues). Also
 		// mdadm "error opening /dev/md?" (no pre-existing RAID), mkfs.btrfs
 		// usage-help example lines (contain "error" in the example text).
-		allowRe := regexp.MustCompile(`(?i)(0 errors|no errors|errors: 0|0 failed|no failed|failed: 0|zero errors|libgpg-error|liberror-perl|error trace:|start-stop-daemon: no matching processes found|fsck\.vfat: No such file or directory|Check FAT filesystem on DEVICE for errors|early-sysctl command failed|\[FAILED\] early-sysctl|install command '/bin/false'|mount /run/netns.*Invalid argument|booster: mount\(/dev/dm-|dpkg was interrupted|dpkg --configure -a|failed, retrying in|apt does not have a stable CLI|error opening /dev/md|E\.g\.: dev1|LABEL=EFIVDB|errors=remount-ro|sysctl: error:.*is an unknown key|sysctl: unknown sysctl|icmp_ignore_bogus_error_responses|/nix/store/[^ ]*-error|commitpartial|bwrap.*pivot_root|To enable access to XDG directories|abseil-cpp-strerror|fail2ban|Clamd was NOT notified|installation is OUTDATED|in use but fuser finds nothing|pam_elogind.*Failed to connect to system bus|DNS: transient error \(try again later\)|^\[stdout\] [0-9]+ error; [0-9.]+ MiB in [0-9]+ packages)`)
+		allowRe := regexp.MustCompile(`(?i)(0 errors|no errors|errors: 0|0 failed|no failed|failed: 0|zero errors|libgpg-error|liberror-perl|error trace:|start-stop-daemon: no matching processes found|fsck\.vfat: No such file or directory|Check FAT filesystem on DEVICE for errors|early-sysctl command failed|\[FAILED\] early-sysctl|install command '/bin/false'|mount /run/netns.*Invalid argument|booster: mount\(/dev/dm-|dpkg was interrupted|dpkg --configure -a|failed, retrying in|apt does not have a stable CLI|error opening /dev/md|E\.g\.: dev1|LABEL=EFIVDB|errors=remount-ro|sysctl: error:.*is an unknown key|sysctl: unknown sysctl|icmp_ignore_bogus_error_responses|/nix/store/[^ ]*-error|commitpartial|bwrap.*pivot_root|To enable access to XDG directories|abseil-cpp-strerror|fail2ban|Clamd was NOT notified|installation is OUTDATED|DNS: transient error \(try again later\)|^\[stdout\] [0-9]+ error; [0-9.]+ MiB in [0-9]+ packages)`)
 		// BTRFS-specific errors: only for btrfs layouts (btrfsStandard, btrfsStandardServer, btrfsRaid0, btrfsUnencrypted)
 		if strings.Contains(cfg.DiskLayout, "btrfs") {
-			allowRe = regexp.MustCompile(`(?i)(0 errors|no errors|errors: 0|0 failed|no failed|failed: 0|zero errors|libgpg-error|liberror-perl|error trace:|start-stop-daemon: no matching processes found|fsck\.vfat: No such file or directory|Check FAT filesystem on DEVICE for errors|early-sysctl command failed|\[FAILED\] early-sysctl|install command '/bin/false'|mount /run/netns.*Invalid argument|booster: mount\(/dev/dm-|dpkg was interrupted|dpkg --configure -a|failed, retrying in|apt does not have a stable CLI|error opening /dev/md|E\.g\.: dev1|LABEL=EFIVDB|errors=remount-ro|sysctl: error:.*is an unknown key|sysctl: unknown sysctl|icmp_ignore_bogus_error_responses|/nix/store/[^ ]*-error|commitpartial|bwrap.*pivot_root|To enable access to XDG directories|BTRFS error.*is missing|BTRFS error.*failed to read the system array|BTRFS error.*open_ctree failed|BTRFS Transaction aborted|forced readonly|abseil-cpp-strerror|fail2ban|Clamd was NOT notified|installation is OUTDATED|in use but fuser finds nothing|pam_elogind.*Failed to connect to system bus|DNS: transient error \(try again later\)|^\[stdout\] [0-9]+ error; [0-9.]+ MiB in [0-9]+ packages)`)
+			allowRe = regexp.MustCompile(`(?i)(0 errors|no errors|errors: 0|0 failed|no failed|failed: 0|zero errors|libgpg-error|liberror-perl|error trace:|start-stop-daemon: no matching processes found|fsck\.vfat: No such file or directory|Check FAT filesystem on DEVICE for errors|early-sysctl command failed|\[FAILED\] early-sysctl|install command '/bin/false'|mount /run/netns.*Invalid argument|booster: mount\(/dev/dm-|dpkg was interrupted|dpkg --configure -a|failed, retrying in|apt does not have a stable CLI|error opening /dev/md|E\.g\.: dev1|LABEL=EFIVDB|errors=remount-ro|sysctl: error:.*is an unknown key|sysctl: unknown sysctl|icmp_ignore_bogus_error_responses|/nix/store/[^ ]*-error|commitpartial|bwrap.*pivot_root|To enable access to XDG directories|BTRFS error.*is missing|BTRFS error.*failed to read the system array|BTRFS error.*open_ctree failed|BTRFS Transaction aborted|forced readonly|abseil-cpp-strerror|fail2ban|Clamd was NOT notified|installation is OUTDATED|DNS: transient error \(try again later\)|^\[stdout\] [0-9]+ error; [0-9.]+ MiB in [0-9]+ packages)`)
 		}
 		var problems []string
 		for _, logName := range []string{"target-serial.log", "installer.log"} {
@@ -2656,6 +2674,12 @@ func writeHarnessVariables(cfg *RunConfig, keyPair guest.KeyPair, outputPath, al
 	}
 
 	sshKey := escapeDoubleQuotes(keyPair.PublicKey)
+	// pages-race hardening: pin the feralos repo to the harness mirror
+	// (empty line when unset — the yaml template has a %s placeholder)
+	repoOverride := ""
+	if strings.TrimSpace(cfg.FeralosRepoMirror) != "" {
+		repoOverride = fmt.Sprintf("  feralosRepoUrl: %q", cfg.FeralosRepoMirror)
+	}
 	content := fmt.Sprintf(`variables:
   unattended: true
   ignoreErrors: true
@@ -2673,6 +2697,7 @@ func writeHarnessVariables(cfg *RunConfig, keyPair guest.KeyPair, outputPath, al
   mirror: "%s"
   arch: "x86_64"
   branch: "latest-stable"
+%s
 
   diskLayout: "%s"
   desktopEnvironment: "%s"
@@ -2707,6 +2732,7 @@ func writeHarnessVariables(cfg *RunConfig, keyPair guest.KeyPair, outputPath, al
 		cfg.InstalledUser,
 		escapeDoubleQuotes(cfg.InstalledPassword),
 		alpineMirror,
+		repoOverride,
 		cfg.DiskLayout,
 		deOrDefault(cfg.DesktopEnvironment),
 		cfg.VideoDriver,
@@ -2884,11 +2910,45 @@ func deOrDefault(de string) string {
 	return de
 }
 
+// stageFeralosRepoArtifact downloads the repo artifact from the last green
+// aports CI build into the mirror cache and reports the guest-relative URL
+// base for the x86_64 repo. Requires gh + authentication on the host; any
+// failure is non-fatal (the caller falls back to live Pages).
+func stageFeralosRepoArtifact(ctx context.Context, mirrorCacheDir string) error {
+	gh, err := exec.LookPath("gh")
+	if err != nil {
+		return fmt.Errorf("gh not found: %w", err)
+	}
+	listArgs := []string{"run", "list", "--repo", aportsRepoSlug, "--branch", "main",
+		"--status", "success", "--limit", "1", "--json", "databaseId", "-q", ".[0].databaseId"}
+	out, err := exec.CommandContext(ctx, gh, listArgs...).Output()
+	if err != nil {
+		return fmt.Errorf("list aports runs: %w", err)
+	}
+	runID := strings.TrimSpace(string(out))
+	if runID == "" {
+		return fmt.Errorf("no successful aports run found")
+	}
+	target := filepath.Join(mirrorCacheDir, "feralos-repo")
+	_ = os.RemoveAll(target)
+	if err := os.MkdirAll(target, 0o755); err != nil {
+		return fmt.Errorf("create artifact dir: %w", err)
+	}
+	dlArgs := []string{"run", "download", runID, "--repo", aportsRepoSlug,
+		"-n", "feralos-repo", "-D", target, "--quiet"}
+	if out, err := exec.CommandContext(ctx, gh, dlArgs...).CombinedOutput(); err != nil {
+		return fmt.Errorf("download artifact %s: %w (%s)", runID, err, strings.TrimSpace(string(out)))
+	}
+	if _, err := os.Stat(filepath.Join(target, "x86_64", "APKINDEX.tar.gz")); err != nil {
+		return fmt.Errorf("artifact misses x86_64/APKINDEX.tar.gz: %w", err)
+	}
+	return nil
+}
+
 func resolveHarnessAlpineMirror(cfg *RunConfig) (string, error) {
 	if strings.TrimSpace(cfg.AlpineMirror) != "" {
 		return strings.TrimRight(cfg.AlpineMirror, "/"), nil
 	}
-
 	baseVariablesPath := filepath.Join(cfg.RepoRoot, "src", "variables", "variables.yaml")
 	baseData, err := os.ReadFile(baseVariablesPath)
 	if err != nil {
