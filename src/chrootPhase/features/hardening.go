@@ -21,7 +21,7 @@ func HardeningPackages(conf *config.Config) []string {
 	// updates flowing whenever a network is up. The clamd/freshclam dinit
 	// units come from clamav-daemon-dinit/freshclam-dinit (installer
 	// conversion loop — one daemon, one package).
-	return []string{"bubblewrap", "apparmor", "apparmor-profiles", "libapparmor", "apparmor-utils", "clamav-daemon", "clamav-scanner", "clamav-db", "freshclam", "clamav-config"}
+	return []string{"bubblewrap", "apparmor", "apparmor-profiles", "libapparmor", "apparmor-utils", "clamav-daemon", "clamav-scanner", "clamav-db", "freshclam", "clamav-config", "hardening-config"}
 }
 
 // DebugOverrides returns sysctl/kernel overrides when EnableDebug is true.
@@ -49,9 +49,6 @@ func SetupHardening(conf *config.Config) error {
 	enableApparmor(chroot, conf.User.EnableDinit)
 	applyHardeningCmdline(u, loglevelArg, dmesgRestrictArg)
 	if err := writeHardeningSysctls(chroot, conf.User.EnableDebug, dmesgRestrictVal, memfdVal, iouringVal); err != nil {
-		return err
-	}
-	if err := writeModprobeBlacklist(chroot); err != nil {
 		return err
 	}
 	if err := writePermissionsService(chroot); err != nil {
@@ -171,160 +168,8 @@ kernel.ftrace_enabled=0`, iouringVal, memfdVal)
 		return fmt.Errorf("failed to write mem protection sysctl: %w", err)
 	}
 
-	if err := shell.WriteFile(chroot, "/etc/sysctl.d/97-disableCoreDumps.conf", []byte("kernel.core_pattern=|/bin/false\n"), 0644); err != nil {
-		return fmt.Errorf("failed to write core dump config: %w", err)
-	}
-
-	if err := shell.WriteFile(chroot, "/etc/sysctl.d/96-disableSuidDumps.conf", []byte("fs.suid_dumpable=0\n"), 0644); err != nil {
-		return fmt.Errorf("failed to write suid dump config: %w", err)
-	}
-
-	if err := shell.WriteFile(chroot, "/etc/sysctl.d/95-randomizeAddresses.conf", []byte("kernel.randomize_va_space=2\n"), 0644); err != nil {
-		return fmt.Errorf("failed to write ASLR config: %w", err)
-	}
-
 	if err := shell.WriteFile(chroot, "/etc/sysctl.d/94-limitLogs.conf", []byte(fmt.Sprintf("kernel.printk=%s\n", printkVal)), 0644); err != nil {
 		return fmt.Errorf("failed to write log limit config: %w", err)
-	}
-
-	ipv4Conf := `net.ipv4.tcp_syncookies=1
-net.ipv4.tcp_rfc1337=1
-net.ipv4.conf.all.rp_filter=1
-net.ipv4.conf.default.rp_filter=1
-net.ipv4.conf.all.accept_redirects=0
-net.ipv4.conf.default.accept_redirects=0
-net.ipv4.conf.all.secure_redirects=0
-net.ipv4.conf.default.secure_redirects=0
-net.ipv4.conf.all.send_redirects=0
-net.ipv4.conf.default.send_redirects=0
-net.ipv4.conf.all.accept_source_route=0
-net.ipv4.conf.default.accept_source_route=0
-net.ipv4.tcp_sack=0
-net.ipv4.tcp_dsack=0
-net.ipv4.tcp_fack=0
-net.ipv4.tcp_timestamps=0
-net.ipv4.icmp_echo_ignore_broadcasts=1
-net.ipv4.icmp_ignore_bogus_error_responses=1
-net.ipv4.conf.all.log_martians=1
-net.ipv4.conf.default.log_martians=1`
-	if err := shell.WriteFile(chroot, "/etc/sysctl.d/93-ipv4Configs.conf", []byte(ipv4Conf+"\n"), 0644); err != nil {
-		return fmt.Errorf("failed to write ipv4 config: %w", err)
-	}
-
-	return nil
-}
-
-// writeModprobeBlacklist disables unnecessary network protocols, filesystems
-// and hardware drivers via /etc/modprobe.d/disabledModules.conf.
-func writeModprobeBlacklist(chroot string) error {
-	modprobeBlacklist := `# Disable unnecessary network protocols
-install dccp /bin/false
-install sctp /bin/false
-install rds /bin/false
-install tipc /bin/false
-install n-hdlc /bin/false
-install ax25 /bin/false
-install netrom /bin/false
-install x25 /bin/false
-install rose /bin/false
-install decnet /bin/false
-install econet /bin/false
-install af_802154 /bin/false
-install ipx /bin/false
-install appletalk /bin/false
-install psnap /bin/false
-install p8023 /bin/false
-install p8022 /bin/false
-install can /bin/false
-install atm /bin/false
-
-# Disable unnecessary filesystems
-install cramfs /bin/false
-install freevxfs /bin/false
-install jffs2 /bin/false
-install hfs /bin/false
-install hfsplus /bin/false
-install squashfs /bin/false
-install udf /bin/false
-install cifs /bin/false
-install ksmbd /bin/false
-install gfs2 /bin/false
-
-# Disable unnecessary hardware drivers
-# NOTE (kmod, 2026-11-15): install-rules are HONORED now — busybox modprobe
-# ignored them, real kmod does not. Lines that contradict shipped desktop
-# features were removed: bluetooth (bluez + bluetooth service ship in the DE
-# stacks; golden services expect it started) and uvcvideo (webcam capture —
-# obs-studio ships). Everything below stays: genuine attack surface.
-install vivid /bin/false
-install thunderbolt /bin/false
-install firewire-core /bin/false
-install firewire-ohci /bin/false
-install firewire_sbp2 /bin/false
-install ohci1394 /bin/false
-install sbp2 /bin/false
-install dv1394 /bin/false
-install raw1394 /bin/false
-install video1394 /bin/false
-install msr /bin/false
-install ath_pci /bin/false
-install evbug /bin/false
-install usbkbd /bin/false
-install eepro100 /bin/false
-install de4x5 /bin/false
-install eth1394 /bin/false
-install snd_intel8x0m /bin/false
-install snd_aw2 /bin/false
-install prism54 /bin/false
-install bcm43xx /bin/false
-install garmin_gps /bin/false
-install asus_acpi /bin/false
-install snd_pcsp /bin/false
-install amd76x_edac /bin/false
-install aty128fb /bin/false
-install atyfb /bin/false
-install radeonfb /bin/false
-install cirrusfb /bin/false
-install cyber2000fb /bin/false
-install cyblafb /bin/false
-install gx1fb /bin/false
-install hgafb /bin/false
-install i810fb /bin/false
-install intelfb /bin/false
-install kyrofb /bin/false
-install lxfb /bin/false
-install matroxfb_bases /bin/false
-install neofb /bin/false
-install nvidiafb /bin/false
-install pm2fb /bin/false
-install rivafb /bin/false
-install s1d13xxxfb /bin/false
-install savagefb /bin/false
-install sisfb /bin/false
-install sstfb /bin/false
-install tdfxfb /bin/false
-install tridentfb /bin/false
-install vesafb /bin/false
-install vfb /bin/false
-install viafb /bin/false
-install vt8623fb /bin/false
-install udlfb /bin/false
-blacklist cdrom
-blacklist sr_mod
-
-install ppdev /bin/false
-install parport_pc /bin/false
-install parport /bin/false
-install intel_agp /bin/false
-install intel_gtt /bin/false
-install intel_pmc_bxt /bin/false
-install psmouse /bin/false
-
-install input_leds /bin/false
-install mousedev /bin/false
-install joydev /bin/false`
-	if err := shell.WriteFile(chroot, "/etc/modprobe.d/disabledModules.conf", []byte(modprobeBlacklist+"\n"), 0644); err != nil {
-		return fmt.Errorf("failed to write modprobe blacklist: %w", err)
 	}
 
 	return nil

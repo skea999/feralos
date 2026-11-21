@@ -107,11 +107,5 @@ exit $rc
 		}
 	}
 
-	fmt.Println("[INFO] Writing bridging sysctl...")
-	bridgingContent := "net.ipv4.conf.all.bc_forwarding=1\nnet.ipv4.conf.default.bc_forwarding=1\n"
-	if err := shell.WriteFile(chroot, "/etc/sysctl.d/bridging.conf", []byte(bridgingContent), 0644); err != nil {
-		return fmt.Errorf("failed to write bridging sysctl: %w", err)
-	}
-
 	return nil
 }

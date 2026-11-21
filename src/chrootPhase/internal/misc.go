@@ -13,12 +13,6 @@ func SetupMisc(conf *config.Config) error {
 	chroot := conf.Internal.ChrootDir
 	u := &conf.User
 
-	if err := setupEditorConf(chroot); err != nil {
-		return err
-	}
-	if err := setupConsolePS1(chroot); err != nil {
-		return err
-	}
 	if err := setupTimezone(chroot, u); err != nil {
 		return err
 	}
@@ -26,9 +20,6 @@ func SetupMisc(conf *config.Config) error {
 		return err
 	}
 	if err := setupKeymapConf(chroot, u); err != nil {
-		return err
-	}
-	if err := setupPager(chroot); err != nil {
 		return err
 	}
 
@@ -57,9 +48,6 @@ func SetupMisc(conf *config.Config) error {
 	if err := setupUrsineLogDir(chroot); err != nil {
 		return err
 	}
-	if err := setupSmartd(chroot); err != nil {
-		return err
-	}
 	setupAuditCron(chroot, conf.Internal.MaintenanceCron.ApkAudit)
 	generateSSHHostKeys(chroot)
 
@@ -71,30 +59,6 @@ func SetupMisc(conf *config.Config) error {
 	// on non-zero). Privileged steps use sudo — DMS opens this in a
 	// terminal, so the password prompt is visible there.
 	return writeFeralosUpdateScript(chroot)
-}
-
-// setupEditorConf sets micro as the default editor (/etc/profile.d/editor.sh).
-func setupEditorConf(chroot string) error {
-	// 1. Editor
-	fmt.Println("[INFO] Setting editor to micro...")
-	if err := shell.WriteFile(chroot, "/etc/profile.d/editor.sh", []byte("export EDITOR=micro\n"), 0644); err != nil {
-		return fmt.Errorf("failed to write editor.sh: %w", err)
-	}
-	return nil
-}
-
-// setupConsolePS1 writes the root/user PS1 prompt (/etc/profile.d/console.sh).
-func setupConsolePS1(chroot string) error {
-	// 3. PS1
-	ps1Content := `if [ "$(whoami)" = "root" ] ; then
-    PS1="\[\033[31;1m\]\u\[\033[0m\]@\[\033[1;33m\]\h\[\033[0m\]:\w# "
-else
-    PS1="\[\033[32;1m\]\u\[\033[0m\]@\[\033[1;33m\]\h\[\033[0m\]:\w> "
-fi`
-	if err := shell.WriteFile(chroot, "/etc/profile.d/console.sh", []byte(ps1Content+"\n"), 0644); err != nil {
-		return fmt.Errorf("failed to write console.sh: %w", err)
-	}
-	return nil
 }
 
 // setupTimezone links /etc/localtime to the configured zoneinfo entry.
@@ -132,20 +96,6 @@ func setupKeymapConf(chroot string, u *config.UserVariables) error {
 	keymapConf := fmt.Sprintf("KEYMAP=%q\n", keymapPath)
 	if err := shell.WriteFile(chroot, "/etc/conf.d/loadkmap", []byte(keymapConf), 0644); err != nil {
 		return fmt.Errorf("failed to write keymap config: %w", err)
-	}
-	return nil
-}
-
-// setupPager points the pager at moor (profile sed, best-effort) and writes
-// the fish equivalent (/etc/fish/conf.d/pager.fish).
-func setupPager(chroot string) error {
-	// 7. Pager (fish only)
-	fmt.Println("[INFO] Configuring pager...")
-	if _, err := shell.ExecuteCmd(chroot, "sed -i 's/PAGER=less/PAGER=moor/g' /etc/profile"); err != nil {
-		fmt.Printf("[WARNING] Failed to set pager: %v\n", err)
-	}
-	if err := shell.WriteFile(chroot, "/etc/fish/conf.d/pager.fish", []byte("set -gx PAGER moor\n"), 0644); err != nil {
-		return fmt.Errorf("failed to write pager.fish: %w", err)
 	}
 	return nil
 }
@@ -191,16 +141,6 @@ func removeMkinitfs(chroot string) {
 func setupUrsineLogDir(chroot string) error {
 	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /var/log/ursine && chmod 0750 /var/log/ursine"); err != nil {
 		return fmt.Errorf("failed to create /var/log/ursine: %w", err)
-	}
-	return nil
-}
-
-// setupSmartd writes the smartd device scan configuration.
-func setupSmartd(chroot string) error {
-	// 14. Smartd config
-	fmt.Println("[INFO] Configuring smartd...")
-	if err := shell.WriteFile(chroot, "/etc/smartd.conf", []byte("DEVICESCAN -a -o on -S on -s (S/../.././02|L/../../6/03) -W 4,40,45\n"), 0644); err != nil {
-		return fmt.Errorf("failed to write smartd.conf: %w", err)
 	}
 	return nil
 }

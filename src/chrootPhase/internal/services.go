@@ -40,10 +40,7 @@ func SetupServices(conf *config.Config) error {
 		return err
 	}
 
-	// polkit power rule — written for BOTH inits (see writePowerPolkitRule).
-	if err := writePowerPolkitRule(chroot); err != nil {
-		return err
-	}
+	// polkit power rule: package-shipped (polkit-power-config, ADR-013).
 
 	// Dinit: enablement is data-driven (Alpine model: packages ship service
 	// files, rules decide what runs), mirroring the OpenRC flow:
@@ -229,53 +226,5 @@ esac
 	fmt.Println("[INFO] Dinit shutdown commands installed (poweroff/reboot/halt/shutdown/soft-reboot)")
 	fmt.Println("[INFO] elogind shutdown hook installed (loginctl poweroff/reboot → dinit)")
 
-	return nil
-}
-
-// writePowerPolkitRule installs the wheel rule for the login1 power actions
-// (power-off/reboot/halt/suspend) AND the power-profiles-daemon
-// switch/hold actions. Written for BOTH inits: under dinit, elogind cannot
-// map PIDs to sessions (NoSessionForPID — no session cgroups), so polkit
-// never sees "allow_active" and the upstream policies are unsatisfiable —
-// every loginctl power action would become an auth challenge (or a silent
-// timeout with no agent) and every power-profile switch (Wayle battery
-// dropdown / DMS power UI) would be denied (PPD's policy is
-// allow_active=yes upstream; action ids renamed in PPD 0.30 — the policy
-// file on Alpine is power-profiles-daemon.policy). Covers the DMS/Wayle
-// power buttons, stasis' automatic `loginctl suspend` idle step and
-// power-profile switching. wheel = admin already — none of these is a
-// privilege escalation, and this matches standard desktop behavior (no
-// password for the owner's own machine). Harmless under OpenRC.
-func writePowerPolkitRule(chroot string) error {
-	polkitRule := `// FeralOS: allow wheel to power off/reboot/suspend and to switch power
-// profiles without an auth prompt. elogind cannot attribute PIDs to
-// sessions under dinit (NoSessionForPID), so the default "allow_active"
-// policy never matches (login1 power actions AND PowerProfiles switch/hold
-// share that class). wheel is admin anyway.
-polkit.addRule(function(action, subject) {
-    if (subject.isInGroup("wheel") &&
-        (action.id == "org.freedesktop.login1.power-off" ||
-         action.id == "org.freedesktop.login1.power-off-multiple-sessions" ||
-         action.id == "org.freedesktop.login1.reboot" ||
-         action.id == "org.freedesktop.login1.reboot-multiple-sessions" ||
-         action.id == "org.freedesktop.login1.halt" ||
-         action.id == "org.freedesktop.login1.halt-multiple-sessions" ||
-         action.id == "org.freedesktop.login1.suspend" ||
-         action.id == "org.freedesktop.login1.suspend-multiple-sessions" ||
-         action.id == "org.freedesktop.UPower.PowerProfiles.switch-profile" ||
-         action.id == "org.freedesktop.UPower.PowerProfiles.hold-profile")) {
-        return polkit.Result.YES;
-    }
-});
-`
-	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /etc/polkit-1/rules.d"); err != nil {
-		return fmt.Errorf("failed to create polkit rules dir: %w", err)
-	}
-	if err := shell.WriteFile(chroot, "/etc/polkit-1/rules.d/49-feralos-power.rules", []byte(polkitRule+"\n"), 0644); err != nil {
-		return fmt.Errorf("failed to install polkit power rule: %w", err)
-	}
-	if _, err := shell.ExecuteCmd(chroot, "chmod 644 /etc/polkit-1/rules.d/49-feralos-power.rules"); err != nil {
-		return fmt.Errorf("failed to chmod polkit power rule: %w", err)
-	}
 	return nil
 }

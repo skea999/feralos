@@ -183,6 +183,9 @@ standardPackages:
   - pciutils
   - usbutils
   - smartmontools
+  # smartd-config: static /etc/smartd.conf (DEVICESCAN + self-test schedule) —
+  # ADR-013. Alpine's smartmontools ships /etc/conf.d/smartd, so no collision.
+  - smartd-config
   # Logging
   # logrotate: vector does NOT rotate files — it only tails rotated ones
   # (copytruncate recommended by vector docs). Covers vector sinks AND
@@ -237,9 +240,16 @@ standardPackages:
   - fail2ban-config
   - tracee
   - lynis
+  # polkit-power-config: the wheel power/power-profile rule — ADR-013. No
+  # depends on purpose: the file is inert without polkit (DEs pull it), which
+  # preserves the previous behaviour (file always written).
+  - polkit-power-config
   # Shell
   - fish
   - fish-tools
+  # profile-config: static shell defaults (editor.sh, console.sh, pager.sh,
+  # fish pager) — ADR-013, the installer no longer writes them.
+  - profile-config
   # Initramfs (booster replaces mkinitfs)
   - booster
   # kmod: real modprobe/depmod at /sbin (replaces the busybox applet link —

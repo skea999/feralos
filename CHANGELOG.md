@@ -106,6 +106,15 @@ All notable changes to FeralOS will be documented in this file.
 - Full distribution release
 
 
+## 2026-11-21 — ADR-013 wave A: hardening-config, profile-config, smartd-config, polkit-power-config
+
+- **`hardening-config 0.1.0-r0`** (hardening-gated, `HardeningPackages`): `/etc/sysctl.d/{93-ipv4Configs,95-randomizeAddresses,96-disableSuidDumps,97-disableCoreDumps,bridging}.conf` + `/etc/modprobe.d/disabledModules.conf`. `writeHardeningSysctls` keeps only the debug-dependent 94/98/99; `writeModprobeBlacklist` deleted; the bridging write leaves `storage.go`.
+- **`profile-config 0.1.0-r0`** (standardPackages): `/etc/profile.d/{editor.sh,console.sh,pager.sh}` + `/etc/fish/conf.d/pager.fish`. The installer's `sed` on the vendor `/etc/profile` (PAGER=less → moor) is replaced by the `pager.sh` drop-in — a vendor-file edit becomes a drop-in.
+- **`smartd-config 0.1.0-r0`** (standardPackages): `/etc/smartd.conf` (DEVICESCAN, nightly short test 02:00, long Saturday 03:00, temps 4/40/45 °C). No collision: Alpine's smartmontools ships `/etc/conf.d/smartd`.
+- **`polkit-power-config 0.1.0-r0`** (standardPackages): `/etc/polkit-1/rules.d/49-feralos-power.rules`. `depends=""` on purpose — the rule is inert without polkit, so the previous behaviour is preserved (file always present, polkit only where a desktop pulls it). `writePowerPolkitRule` deleted.
+- **Not migrated** (deliberate): `94-limitLogs` (printk), `98-hardening` (io_uring/memfd), `99-cmdline-hardening` (dmesg_restrict) and `zswap.conf` (`vm.min_free_kbytes`) still depend on `enableDebug`/RAM → split first, then a second hardening-config round. `lxc-config` skipped by owner decision.
+- **Validated**: `abuild checksum` + `abuild -d` ×4 (alpine:3.24), contents verified; `src` gofmt/build/vet/`go test -count=1 ./...` green. Harness run follows the aports deploy.
+
 ## 2026-11-21 — remote-shipping README for vector conf.d + clean 131/131 harness run
 
 - **`vector-config 0.1.0-r3`**: `/etc/vector/conf.d/README.md` now documents remote shipping (instructions only, nothing implemented): merge points (dinit wrapper merges conf.d automatically; OpenRC needs `command_args="--config …"` in `/etc/conf.d/vector`), file placement/permissions, socket+TLS and HTTP-bearer sink examples referencing the base sources, secret handling (`${VAR}` interpolated in raw text INCLUDING comments; unset = exit 78; pass values via the dinit env-file `/etc/dinit.d/config/vector.conf` or `/etc/conf.d/vector`, `chmod 0600` once a secret lives there), disk buffering under `/var/lib/vector`, validate/restart/verify, removal. aports `main` `9d7a980`, CI `44904805198` green, Pages 200.

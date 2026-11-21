@@ -14,6 +14,10 @@
 | `/etc/logrotate.d/feralos` | `logrotate-config 0.1.0-r0` | GENERIC rule `/var/log/*.log` + `/var/log/*/*.log` (daily, rotate 14, compress, copytruncate); `depends="logrotate"` (execution via `/etc/periodic/daily/logrotate`, cronie — init-agnostic); also takes over the vendor `/etc/logrotate.d/fail2ban` (`replaces="fail2ban"`) with a comment-only stub — the generic rule matches the same file and a second entry makes every run fail with `duplicate log entry` |
 | `/etc/fail2ban/jail.d/50-feralos.conf` | `fail2ban-config 0.1.0-r0` | static jail (nftables banaction, sshd on vector's `/var/log/auth.log`, polling backend); sorts after the vendor `alpine-ssh.conf` so its `[DEFAULT]`/`[sshd]` values win; installer `writeFail2banJail` DELETED |
 | `/etc/clamav/clamd.conf` | `clamav-config 0.1.0-r0` | static (LogFile/PidFile/LocalSocket/DB dir/User, Foreground off); `replaces="clamav-daemon"` takes over the sample copy Alpine installs; hardening-gated via `HardeningPackages`; installer `writeClamdConfig` DELETED (the runtime dirs come from the service units' own checkpath/wrapper) |
+| `/etc/sysctl.d/{93-ipv4Configs,95-randomizeAddresses,96-disableSuidDumps,97-disableCoreDumps,bridging}.conf` + `/etc/modprobe.d/disabledModules.conf` | `hardening-config 0.1.0-r0` | static hardened defaults; hardening-gated (`HardeningPackages`), so non-hardening installs are untouched. SPLIT: `94-limitLogs` (printk), `98-hardening` (io_uring/memfd), `99-cmdline-hardening` (dmesg_restrict) and `zswap.conf` (min_free_kbytes) STAY — values come from `enableDebug`/RAM |
+| `/etc/profile.d/{editor.sh,console.sh,pager.sh}` + `/etc/fish/conf.d/pager.fish` | `profile-config 0.1.0-r0` | static shell defaults; the old `sed` on the vendor `/etc/profile` (PAGER=less→moor) is replaced by the `pager.sh` drop-in |
+| `/etc/smartd.conf` | `smartd-config 0.1.0-r0` | static DEVICESCAN + self-test schedule; no collision (Alpine's smartmontools ships `/etc/conf.d/smartd`) |
+| `/etc/polkit-1/rules.d/49-feralos-power.rules` | `polkit-power-config 0.1.0-r0` | static wheel rule (login1 power + PPD switch/hold); `depends=""` on purpose — inert without polkit, which preserves the old behaviour (file always present, polkit only where a DE pulls it) |
 
 ## Candidates (static — migrate when picked up)
 
@@ -23,8 +27,6 @@
 | `/etc/greetd/greeter.sh` | niri/niriWayle setup | static (XDG fallback + exec niri -- regreet + session.log redirect) → same `greetd-config` |
 | `/etc/audit/audit.rules` | `internal/security_stack.go` | NEAR-static: existence-filtered watches (sudoers/ssh paths) — migrate only with the paths settled |
 | `/etc/aide.conf` + daily cron | `internal/security_stack.go` | static (watch roots, report paths) → with the audit.rules decision |
-| modprobe blacklist | `features/hardening.go` | static → `hardening-config`? (groups with the sysctl drop-ins if they ever go static) |
-| `/etc/fish/conf.d/pager.fish` | `internal/misc.go` setupPager | static → tiny; batch with another migration |
 
 ## Stays installer-written (input-dependent / dynamic)
 
