@@ -249,8 +249,10 @@ exit "$errors"
 // SetupDbusAudit runs an ADR-010 supervision audit pass INSIDE the chroot
 // using the PACKAGED binary — feralos-dbus-audit (standardPackages) ships
 // /usr/libexec/dinit/feralos-dbus-audit; the aports package is the single
-// source of truth, so bump its _commit pin whenever src/firstBoot/dbus-audit
-// changes (the installer does NOT compile the binary).
+// source of truth: the binary is built from the STANDALONE repo
+// (github.com/skea999/feralos-dbus-audit — release tags; the feralos repo
+// no longer carries the source), so a code change there needs a new tag +
+// an aports pkgver bump.
 //
 // INVOKED TWICE (2026-11-11):
 //   - step 8a, INSTALL pass — before the desktop setup, because the

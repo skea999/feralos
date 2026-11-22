@@ -184,7 +184,7 @@ environment.
 
 ## Supervision audit — `feralos-dbus-audit` (auto-installer + enforcement)
 
-Standalone Go binary (`src/firstBoot/dbus-audit/` in the feralos repo,
+Standalone Go binary (its own repo: github.com/skea999/feralos-dbus-audit — release tags; aports `feralos-dbus-audit` pins them),
 packaged as `feralos-dbus-audit` in feralos-aports, `/usr/libexec/dinit/feralos-dbus-audit`)
 that turns the ADR-010 rule into the AUTO-INSTALL mechanism (R1b,
 2026-11-03): it discovers every activation target and installs its
