@@ -52,7 +52,6 @@ func SetupHardening(conf *config.Config) error {
 	if err := writeDebugSysctlOverrides(chroot, conf.User.EnableDebug); err != nil {
 		return err
 	}
-	restrictFilePermissions(chroot)
 	runClamavSnapshot(chroot)
 
 	fmt.Println("[INFO] Hardening complete.")
@@ -150,16 +149,4 @@ vm.memfd_noexec=1`
 		return fmt.Errorf("failed to write debug sysctl overrides: %w", err)
 	}
 	return nil
-}
-
-// restrictFilePermissions applies the final permission posture: boot and
-// module dirs root-only, stricter profile umask. Best-effort (warnings only).
-func restrictFilePermissions(chroot string) {
-	if _, err := shell.ExecuteCmd(chroot, "chmod 700 /boot /lib/modules"); err != nil {
-		fmt.Printf("[WARNING] Failed to chmod /boot: %v\n", err)
-	}
-
-	if _, err := shell.ExecuteCmd(chroot, "sed -i 's/umask 022/umask 0077/g' /etc/profile"); err != nil {
-		fmt.Printf("[WARNING] Failed to set umask: %v\n", err)
-	}
 }
