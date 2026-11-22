@@ -2086,8 +2086,8 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 			coverageCheck.Detail = fmt.Sprintf("cannot read %s: %v", auditLog, readErr)
 			result.Success = false
 		} else {
-			summaryRe := regexp.MustCompile(`(?m)^--- Summary: (\d+) activation targets \((\d+) session, (\d+) system\) — (\d+) covered, (\d+) installed, (\d+) missing ---`)
-			missRe := regexp.MustCompile(`(?m)^(MISS|GAP)\b.*$`)
+			summaryRe := regexp.MustCompile(`(?m)^(?:\[stdout\] )?--- Summary: (\d+) activation targets \((\d+) session, (\d+) system\) — (\d+) covered, (\d+) installed, (\d+) missing ---`)
+			missRe := regexp.MustCompile(`(?m)^(?:\[stdout\] )?(MISS|GAP)\b.*$`)
 			last := -1
 			for _, m := range summaryRe.FindAllStringSubmatchIndex(string(data), -1) {
 				last = m[0]
