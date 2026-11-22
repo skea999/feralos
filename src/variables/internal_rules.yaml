@@ -644,11 +644,6 @@ packageLogic:
     services: {"dbus": "default"}
   openssh:
     services: {"sshd": "default"}
-  apparmor:
-    # enablement glue moved from features/hardening.go (rc-update boot +
-    # dinit boot.d link) — the apparmor-dinit unit comes from the automatic
-    # conversion of apparmor-openrc (a hardening-config dependency).
-    services: {"apparmor": "boot"}
   set-permissions:
     # hardening posture at boot (pulled as a hardening-config dependency —
     # never installed explicitly). OpenRC: rc-update add boot; dinit:
@@ -684,7 +679,7 @@ packageLogic:
     # freshclam are apk dependencies of hardening-config (ADR-013 R2), so
     # their own rules keys would never fire (the feature-gated re-apply
     # iterates HardeningPackages() = [hardening-config]).
-    services: {"clamd": "default", "freshclam": "default"}
+    services: {"clamd": "default", "freshclam": "default", "apparmor": "boot"}
   clamav-daemon:
     services: {"clamd": "default"}
   freshclam:
