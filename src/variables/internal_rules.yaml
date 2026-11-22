@@ -670,15 +670,16 @@ packageLogic:
   tracee:
     services: {"tracee": "default"}
   hardening-config:
-    # the clamav family enablement rides the FAMILY package: clamav-daemon/
-    # freshclam are apk dependencies of hardening-config (ADR-013 R2), so
-    # their own rules keys would never fire (the feature-gated re-apply
-    # iterates HardeningPackages() = [hardening-config]).
+    # the clamav family enablement + install coupling ride the FAMILY
+    # package: clamav-daemon/freshclam are apk dependencies of
+    # hardening-config (ADR-013 R2), so their own rules keys would never
+    # fire (the feature-gated re-apply iterates HardeningPackages() =
+    # [hardening-config]).
     # set-permissions rides this key too: it is dep-installed (never in a
-    # package list) and its own packageLogic key is unreachable — the
-    # feature-gated re-apply iterates HardeningPackages() = [hardening-config].
+    # package list) and its own packageLogic key is unreachable.
     services: {"clamd": "default", "freshclam": "default", "apparmor": "boot", "set-permissions": "boot"}
   clamav-daemon:
+    packages: ["clamav-daemon", "freshclam"]
     services: {"clamd": "default"}
   freshclam:
     services: {"freshclam": "default"}

@@ -112,6 +112,49 @@ func createDummySymlinkPackage(chroot, replacedPkg, replacementBin string) error
 	return nil
 }
 
+// applyInstallCouplings applies the packageLogic install couplings at
+// RUNTIME against the live pkg list: any INSTALLED package whose rules key
+// carries `packages` pulls them (owner directive: clamav-daemon →
+// freshclam). The config-load pass cannot see these keys — dep-installed
+// packages are not in AllPackages. Loops to stability for chained keys.
+// Only the `packages` field is applied here: services/groups/modules have
+// their own mechanisms.
+func applyInstallCouplings(chroot string, conf *config.Config) error {
+	pkgList, listErr := shell.ExecuteCmdArgs(chroot, "apk", "info")
+	if listErr != nil {
+		return fmt.Errorf("pkg list: %w", listErr)
+	}
+	for {
+		added := false
+		for name := range conf.Internal.PackageLogic {
+			rule := conf.Internal.PackageLogic[name]
+			if len(rule.Packages) == 0 {
+				continue
+			}
+			if !installed(pkgList, name) {
+				continue
+			}
+			for _, p := range rule.Packages {
+				if installed(pkgList, p) {
+					continue
+				}
+				fmt.Printf("[INFO] Install coupling: %s → %s\n", name, p)
+				if _, addErr := shell.ExecuteCmdArgs(chroot, "apk", "add", p); addErr != nil {
+					return fmt.Errorf("coupled install %s (from %s): %w", p, name, addErr)
+				}
+				pkgList, listErr = shell.ExecuteCmdArgs(chroot, "apk", "info")
+				if listErr != nil {
+					return fmt.Errorf("pkg list refresh: %w", listErr)
+				}
+				added = true
+			}
+		}
+		if !added {
+			return nil
+		}
+	}
+}
+
 // SetupPackages installs all required packages inside the chroot.
 func SetupPackages(conf *config.Config) error {
 	shell.SetCaller("packages")
@@ -203,6 +246,11 @@ func SetupPackages(conf *config.Config) error {
 		if _, err := shell.ExecuteCmdArgs(chroot, "apk", args...); err != nil {
 			return fmt.Errorf("failed to install packages: %w", err)
 		}
+	}
+
+	// packageLogic install couplings (runtime, against the live pkg list)
+	if err := applyInstallCouplings(chroot, conf); err != nil {
+		return fmt.Errorf("install couplings failed: %w", err)
 	}
 
 	// Dinit: install dinit packages (after standard packages so we can
