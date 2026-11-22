@@ -2070,6 +2070,49 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		result.Checks["log_errors"] = logCheck
 	}
 
+	// ADR-010 coverage gate (host-side, reads installer.log): the step-16
+	// REPORT pass of feralos-dbus-audit ends with a Summary line; a missing
+	// supervision unit on a DINIT install = an unsupervised daemon
+	// (PolicyKit1 gap: polkit-dinit was never pulled — the audit resolution
+	// and the conversion loop both missed it, run 2026-11-21T00-42-45Z).
+	// OpenRC installs are exempt: there the vendor dbus-daemon-launch-helper
+	// activates natively (the audit itself reports "not a gap").
+	if cfg.EnableDinit {
+		coverageCheck := CheckResult{Pass: true, Detail: "every activation target has a supervision unit"}
+		auditLog := filepath.Join(cfg.RunDir, "installer.log")
+		data, readErr := os.ReadFile(auditLog)
+		if readErr != nil {
+			coverageCheck.Pass = false
+			coverageCheck.Detail = fmt.Sprintf("cannot read %s: %v", auditLog, readErr)
+			result.Success = false
+		} else {
+			summaryRe := regexp.MustCompile(`(?m)^--- Summary: (\d+) activation targets \((\d+) session, (\d+) system\) — (\d+) covered, (\d+) installed, (\d+) missing ---`)
+			missRe := regexp.MustCompile(`(?m)^(MISS|GAP)\b.*$`)
+			last := -1
+			for _, m := range summaryRe.FindAllStringSubmatchIndex(string(data), -1) {
+				last = m[0]
+			}
+			if last < 0 {
+				coverageCheck.Pass = false
+				coverageCheck.Detail = "audit REPORT summary not found (step 16 did not run?)"
+				result.Success = false
+			} else {
+				tail := string(data)[last:]
+				misses := summaryRe.FindStringSubmatch(tail)
+				if len(misses) != 7 {
+					coverageCheck.Pass = false
+					coverageCheck.Detail = "malformed audit summary"
+					result.Success = false
+				} else if misses[6] != "0" {
+					coverageCheck.Pass = false
+					coverageCheck.Detail = fmt.Sprintf("%s activation targets without a supervision unit:\n", misses[6]) + strings.Join(missRe.FindAllString(tail, -1), "\n")
+					result.Success = false
+				}
+			}
+		}
+		result.Checks["dbus_audit_coverage"] = coverageCheck
+	}
+
 	// Services active check — verify configured services are actually
 	// running (rc-status), not just that their init scripts printed [ ok ].
 	// Excluded services that cannot work under QEMU:
