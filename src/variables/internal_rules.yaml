@@ -644,11 +644,6 @@ packageLogic:
     services: {"dbus": "default"}
   openssh:
     services: {"sshd": "default"}
-  set-permissions:
-    # hardening posture at boot (pulled as a hardening-config dependency —
-    # never installed explicitly). OpenRC: rc-update add boot; dinit:
-    # boot.d link to the scripted unit. Unit/initd name per ADR-010 R1.
-    services: {"set-permissions": "boot"}
   smartmontools:
     services: {"smartd": "default"}
   acpid:
@@ -679,7 +674,10 @@ packageLogic:
     # freshclam are apk dependencies of hardening-config (ADR-013 R2), so
     # their own rules keys would never fire (the feature-gated re-apply
     # iterates HardeningPackages() = [hardening-config]).
-    services: {"clamd": "default", "freshclam": "default", "apparmor": "boot"}
+    # set-permissions rides this key too: it is dep-installed (never in a
+    # package list) and its own packageLogic key is unreachable — the
+    # feature-gated re-apply iterates HardeningPackages() = [hardening-config].
+    services: {"clamd": "default", "freshclam": "default", "apparmor": "boot", "set-permissions": "boot"}
   clamav-daemon:
     services: {"clamd": "default"}
   freshclam:

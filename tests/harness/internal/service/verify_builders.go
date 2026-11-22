@@ -210,6 +210,11 @@ test -f /etc/sysctl.d/bridging.conf || { echo "FAIL: bridging.conf missing"; fai
 grep -q 'install dccp /bin/false' /etc/modprobe.d/disabledModules.conf 2>/dev/null || { echo "FAIL: disabledModules.conf missing"; fail=1; }
 test -x /etc/init.d/set-permissions || { echo "FAIL: set-permissions initd missing"; fail=1; }
 test -f /lib/dinit.d/set-permissions || { echo "FAIL: set-permissions dinit unit missing"; fail=1; }
+if [ -S /run/dinitctl ]; then
+  test -e /etc/dinit.d/boot.d/set-permissions || { echo "FAIL: set-permissions boot.d link missing (not enabled)"; fail=1; }
+else
+  rc-update show boot 2>/dev/null | grep -q set-permissions || { echo "FAIL: set-permissions not in boot runlevel (not enabled)"; fail=1; }
+fi
 grep -q 'apparmor=1' /etc/kernel/cmdline 2>/dev/null || { echo "FAIL: apparmor=1 missing from cmdline"; fail=1; }
 if [ -S /run/dinitctl ]; then
   test -e /etc/dinit.d/boot.d/apparmor || { echo "FAIL: apparmor boot.d link missing"; fail=1; }
