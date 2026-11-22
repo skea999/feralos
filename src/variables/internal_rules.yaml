@@ -644,6 +644,11 @@ packageLogic:
     services: {"dbus": "default"}
   openssh:
     services: {"sshd": "default"}
+  set-permissions:
+    # hardening posture at boot (pulled as a hardening-config dependency —
+    # never installed explicitly). OpenRC: rc-update add boot; dinit:
+    # boot.d link to the scripted unit. Unit/initd name per ADR-010 R1.
+    services: {"set-permissions": "boot"}
   smartmontools:
     services: {"smartd": "default"}
   acpid:

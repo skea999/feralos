@@ -203,9 +203,14 @@ func buildSecurityStackChecks(cfg *VerifyConfig, checks map[string]string) {
 		// service family: sysctl drop-ins + module blacklist.
 		checks["config_packages_hardening"] = `fail=0
 grep -q tcp_syncookies /etc/sysctl.d/93-ipv4Configs.conf 2>/dev/null || { echo "FAIL: 93-ipv4Configs.conf missing"; fail=1; }
+grep -q 'kernel.printk=3 3 3 3' /etc/sysctl.d/94-limitLogs.conf 2>/dev/null || { echo "FAIL: 94-limitLogs.conf missing"; fail=1; }
+grep -q 'kernel.io_uring_disabled=1' /etc/sysctl.d/98-hardening.conf 2>/dev/null || { echo "FAIL: 98-hardening.conf missing"; fail=1; }
+grep -q 'kernel.dmesg_restrict=1' /etc/sysctl.d/99-cmdline-hardening.conf 2>/dev/null || { echo "FAIL: 99-cmdline-hardening.conf missing"; fail=1; }
 test -f /etc/sysctl.d/bridging.conf || { echo "FAIL: bridging.conf missing"; fail=1; }
 grep -q 'install dccp /bin/false' /etc/modprobe.d/disabledModules.conf 2>/dev/null || { echo "FAIL: disabledModules.conf missing"; fail=1; }
-[ $fail -eq 0 ] && echo 'hardening config packages OK (sysctl drop-ins + module blacklist)'
+test -x /etc/init.d/set-permissions || { echo "FAIL: set-permissions initd missing"; fail=1; }
+test -f /lib/dinit.d/set-permissions || { echo "FAIL: set-permissions dinit unit missing"; fail=1; }
+[ $fail -eq 0 ] && echo 'hardening config packages OK (sysctl 93-99 + bridging + modprobe + set-permissions both inits)'
 exit $fail`
 	}
 

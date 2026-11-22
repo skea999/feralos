@@ -12,24 +12,22 @@ func HardeningPackages(conf *config.Config) []string {
 	if !conf.User.EnableHardening {
 		return nil
 	}
-	// clamav: malware scanning (user decision — hardening-gated). clamav-db
-	// ships NO signatures in 1.4.6 (installer pulls a snapshot once at install
-	// time — runClamavSnapshot); freshclam listed here so the PackageLogic
-	// re-apply (packages.go) fires its services map entry: boot.d/initd
-	// enablement satisfies clamd's dependency (the vendor rc_need="freshclam"
-	// semantic — without it the OpenRC fallback blocks clamd) and keeps DB
-	// updates flowing whenever a network is up. The clamd/freshclam dinit
-	// units come from clamav-daemon-dinit/freshclam-dinit (installer
-	// conversion loop — one daemon, one package).
-	return []string{"bubblewrap", "apparmor", "apparmor-profiles", "libapparmor", "apparmor-utils", "clamav-daemon", "clamav-scanner", "clamav-db", "freshclam", "clamav-config", "hardening-config"}
+	// ONE package: hardening-config pulls the whole family as apk
+	// dependencies (apparmor stack, clamav stack incl. clamav-config, the
+	// set-permissions posture). ADR-013 R2.
+	return []string{"hardening-config"}
 }
 
-// DebugOverrides returns sysctl/kernel overrides when EnableDebug is true.
-func DebugOverrides(conf *config.Config) (loglevel string, dmesgRestrict string, dmesgRestrictVal string, memfdVal string, iouringVal string) {
+// DebugOverrides returns the kernel-cmdline overrides for EnableDebug:
+// verbose log level and relaxed dmesg_restrict. The remaining relaxed sysctls
+// (printk / io_uring_disabled / memfd_noexec) ship as the
+// /etc/sysctl.d/99-feralos-debug.conf drop-in (writeDebugSysctlOverrides) —
+// it sorts after the hardened drop-ins so the relaxed values win.
+func DebugOverrides(conf *config.Config) (loglevel string, dmesgRestrict string) {
 	if !conf.User.EnableDebug {
-		return "loglevel=0", "sysctl.kernel.dmesg_restrict=1", "1", "1", "1"
+		return "loglevel=0", "sysctl.kernel.dmesg_restrict=1"
 	}
-	return "loglevel=7", "sysctl.kernel.dmesg_restrict=0", "0", "0", "0"
+	return "loglevel=7", "sysctl.kernel.dmesg_restrict=0"
 }
 
 // SetupHardening applies kernel hardening configuration to the chroot.
@@ -44,14 +42,14 @@ func SetupHardening(conf *config.Config) error {
 
 	fmt.Println("[INFO] Applying kernel hardening...")
 
-	loglevelArg, dmesgRestrictArg, dmesgRestrictVal, memfdVal, iouringVal := DebugOverrides(conf)
+	loglevelArg, dmesgRestrictArg := DebugOverrides(conf)
 
 	enableApparmor(chroot, conf.User.EnableDinit)
 	applyHardeningCmdline(u, loglevelArg, dmesgRestrictArg)
-	if err := writeHardeningSysctls(chroot, conf.User.EnableDebug, dmesgRestrictVal, memfdVal, iouringVal); err != nil {
-		return err
-	}
-	if err := writePermissionsService(chroot); err != nil {
+	// static hardened sysctls + module blacklist + the whole family ship via
+	// hardening-config (apk dependency); only the DEBUG relaxation is
+	// installer-written (a drop-in that sorts last)
+	if err := writeDebugSysctlOverrides(chroot, conf.User.EnableDebug); err != nil {
 		return err
 	}
 	restrictFilePermissions(chroot)
@@ -134,81 +132,23 @@ func applyHardeningCmdline(u *config.UserVariables, loglevelArg, dmesgRestrictAr
 	u.KernelCmdline = append(u.KernelCmdline, hardeningCmdline)
 }
 
-// writeHardeningSysctls writes every hardening sysctl drop-in
-// (/etc/sysctl.d/9*.conf), values keyed off the debug overrides.
-func writeHardeningSysctls(chroot string, enableDebug bool, dmesgRestrictVal, memfdVal, iouringVal string) error {
-	printkVal := "3 3 3 3"
-	if enableDebug {
-		printkVal = "7 4 1 7"
+// writeDebugSysctlOverrides relaxes the four debug-sensitive sysctls when
+// enableDebug is set. The file sorts AFTER the hardened drop-ins shipped by
+// hardening-config (99-feralos-debug > 99-cmdline-hardening / 98 / 94) —
+// sysctl applies the last value per key. Not written without enableDebug:
+// the hardened files then stand alone.
+func writeDebugSysctlOverrides(chroot string, enableDebug bool) error {
+	if !enableDebug {
+		return nil
 	}
-
-	sysctlHardening := fmt.Sprintf(`kernel.kptr_restrict=2
-kernel.dmesg_restrict=%s
-kernel.unprivileged_bpf_disabled=1
-net.core.bpf_jit_harden=2
-dev.tty.ldisc_autoload=0
-kernel.kexec_load_disabled=1
-kernel.perf_event_paranoid=3
-kernel.yama.ptrace_scope=2
-fs.protected_symlinks=1
-fs.protected_hardlinks=1
-fs.protected_fifos=2
-fs.protected_regular=2
-kernel.sysrq=4`, dmesgRestrictVal)
-	if err := shell.WriteFile(chroot, "/etc/sysctl.d/99-cmdline-hardening.conf", []byte(sysctlHardening+"\n"), 0644); err != nil {
-		return fmt.Errorf("failed to write sysctl hardening: %w", err)
+	fmt.Println("[INFO] Writing debug sysctl overrides (relaxed posture)...")
+	debug := `kernel.printk=7 4 1 7
+kernel.dmesg_restrict=0
+kernel.io_uring_disabled=0
+vm.memfd_noexec=1`
+	if err := shell.WriteFile(chroot, "/etc/sysctl.d/99-feralos-debug.conf", []byte(debug+"\n"), 0644); err != nil {
+		return fmt.Errorf("failed to write debug sysctl overrides: %w", err)
 	}
-
-	memProtect := fmt.Sprintf(`# Kernel hardening - Memory protection
-kernel.unprivileged_userns_apparmor_policy=1
-kernel.io_uring_disabled=%s
-vm.memfd_noexec=%s
-kernel.ftrace_enabled=0`, iouringVal, memfdVal)
-	if err := shell.WriteFile(chroot, "/etc/sysctl.d/98-hardening.conf", []byte(memProtect+"\n"), 0644); err != nil {
-		return fmt.Errorf("failed to write mem protection sysctl: %w", err)
-	}
-
-	if err := shell.WriteFile(chroot, "/etc/sysctl.d/94-limitLogs.conf", []byte(fmt.Sprintf("kernel.printk=%s\n", printkVal)), 0644); err != nil {
-		return fmt.Errorf("failed to write log limit config: %w", err)
-	}
-
-	return nil
-}
-
-// writePermissionsService installs the set-permissions OpenRC service
-// (secure sticky-bit and permission posture applied at boot).
-func writePermissionsService(chroot string) error {
-	permissionsService := `#!/sbin/openrc-run
-
-name="set-permissions"
-
-start() {
-  ebegin "Setting secure permissions"
-  /bin/chmod 0755 /usr/bin/passwd
-  /bin/chown root:root /usr/bin/passwd
-  /bin/chmod 745 /bin/mount
-  /bin/chown root:root /bin/mount
-  /bin/chmod 0755 /home/
-  /bin/chown root:root /home/
-  /bin/chmod 0700 /root
-  /bin/chown root:root /root
-  /bin/chmod a-st -R /bin/
-  /bin/chmod a-st -R /usr/local/bin/
-  /bin/chmod a-st -R /sbin/
-  /bin/chmod a-st -R /usr/sbin/
-  /bin/chmod a-st -R /lib/
-  /bin/chmod a-st -R /usr/local/lib/
-  /bin/chmod a-st -R /usr/lib/
-  /bin/chmod a-st -R /opt/
-  eend $?
-}`
-	if err := shell.WriteFile(chroot, "/etc/init.d/set-permissions", []byte(permissionsService+"\n"), 0644); err != nil {
-		return fmt.Errorf("failed to write set-permissions service: %w", err)
-	}
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("chmod 755 %s", "/etc/init.d/set-permissions")); err != nil {
-		return fmt.Errorf("failed to chmod set-permissions: %w", err)
-	}
-
 	return nil
 }
 
