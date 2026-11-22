@@ -22,6 +22,7 @@
 | `/etc/greetd/config.toml` | `greetd-config 0.1.0-r0` | COMMON part only (vt 7, `command=/etc/greetd/greeter.sh`, `user=greeter`) — shared by niri and niriWayle; COSMIC does not use this file |
 | `/etc/greetd/greeter.sh` | `dms-config 0.1.0-r0` (niri) / `wayle-config 0.1.0-r0` (niriWayle) | the DE-specific half: what the greeter session runs. niri = `exec niri -- regreet`; niriWayle adds `>> /var/lib/greetd/session.log 2>&1` (diagnosability, `login_readiness` tails it). Mutually exclusive packages — one DE per install, same path |
 | `/etc/greetd/feralos-cosmic-greeter.toml` + `/etc/pam.d/cosmic-greeter` | `cosmic-greeter-config 0.1.0-r0` | moved OUT of `cosmic-greeter-dinit` (r10 now depends on it) — config belongs to a `*-config` package, not the service package |
+| `/etc/kernel/cmdline.d/50-hardening.conf` | `hardening-config 0.1.0-r4` | the hardened cmdline fragment (extracted from `applyHardeningCmdline`, DELETED); ships with the apk trigger — a fragment upgrade reassembles `/etc/kernel/cmdline` and rebuilds the UKI (no post-install) |
 
 ## Candidates (static — migrate when picked up)
 

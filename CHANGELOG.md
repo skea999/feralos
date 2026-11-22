@@ -189,6 +189,12 @@ Two real bugs were found by the matrix and fixed (not test noise): `login_readin
 - **Installer**: `internal/logging.go` deleted (`SetupLogging` + `writeVectorSetupService`, including the `/btrbk` chown); call removed from the chroot tail. `standardPackages` += `vector-setup-openrc`.
 - **Validated**: `abuild checksum` + `abuild -d` ×2; real `apk add` over Alpine `vector` + `vector-openrc` in a container — no conflict, vendor initd untouched, `vector-setup` 0755, sinks `vector:vector`, both tmpfiles fragments present; zero `btrbk` references in all three vector packages; `src` build/vet/tests green. Harness dinit + OpenRC runs follow this entry.
 
+## 2026-11-22 — cmdline.d round VERIFIED on both inits + backlog sweep
+
+- **dinit `2026-11-22T12-01-44Z`: 136/136** (previous final run; the 00-09 run predated the rebuilt harness binary — no staging line because the binary pre-dated the edits; the staging itself was proven in the 00-42 OpenRC run as a Pages fallback and in the 12-01/03-25 dinit runs via the artifact).
+- **OpenRC `2026-11-22T16-03-10Z`: 109/109** — zero shutdown noise (turnstile r9 stop-order holds on the fallback init too), `log_errors` clean WITHOUT the two allowlist entries.
+- **Backlog sweep** (from the cmdline.d round note): turnstiled stop-order — DONE (turnstile r9, both inits); pages-race — DONE (artifact staging live: keyring + apk add fetch from the CI artifact, verified in run 00-42 and later); sysctl debug split — DONE (94/98/99 static hardened in hardening-config, debug relaxation as the sort-last drop-in + cmdline fragment); REMAIN: `nix-config` and the `kernel-hooks` migration (`50-booster.hook` is still installer-written — same ADR-013 pattern, planned).
+
 ## 2026-11-22 — kernel cmdline.d: the hardening cmdline fragment ships in hardening-config
 
 - **`hardening.go` loses the cmdline fragment** (`applyHardeningCmdline` DELETED): the hardened kernel cmdline now ships in **`hardening-config r4`** as `/etc/kernel/cmdline.d/50-hardening.conf` — data, upgradable, no installer involvement.
