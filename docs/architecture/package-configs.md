@@ -35,6 +35,8 @@
 
 | Config | Why it stays |
 |---|---|
+| `/etc/kernel-hooks.d/50-booster.hook` (UKI rebuild hook) | `kernel.flavor` (rules) + microcode paths (variables: amd/intel) + booster initramfs — all install-dependent; the apk kernel hook re-runs it at every kernel upgrade with the runtime env (`NEW_VERSION`). NOT a migration candidate (owner decision 2026-11-22). |
+| `/etc/kernel/cmdline.d/00-base.conf` + `99-debug.conf` | variables-dependent: layout/LUKS rootflags, `init=` dinit, serial console, `loglevel=7`/`dmesg_restrict=0` (enableDebug). The STATIC hardened fragment (`50-hardening.conf`) ships in `hardening-config r4`. |
 | `/etc/profile.d/20locale.sh` | `locale` from variables (expanded it_IT.UTF-8) |
 | `/etc/conf.d/loadkmap` | `keymap` from variables |
 | `/etc/greetd/regreet.toml` | `timezone` from variables |
