@@ -2028,16 +2028,26 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 		// "start-stop-daemon: no matching processes found" (no SMART hardware
 		// in QEMU — daemon never starts), fsck "fsck.vfat: No such file or
 		// directory" (fsck.vfat not installed — ESP check cannot run in QEMU),
+		//   - fsck "fsck: /dev/fb0: No such file or directory": the target's
+		//     /sbin/fsck = the busybox applet (the dummy util-linux-misc
+		//     keeps the real one out — uutils `more` conflict); busybox fsck
+		//     resolves fstab LABEL= tags by probing EVERY /dev node and
+		//     perror-printing per-node failures. At sysinit the probe races
+		//     the KMS fb0 handover (simpledrm → virtio_gpu, "vgaarb
+		//     deactivate vga console" removes /dev/fb0 microseconds before
+		//     the probe's open). Pure boot-race noise on BOTH inits: the
+		//     probe then resolves LABEL=EFIVDB and the ESP check completes
+		//     (fsck.fat runs on /dev/vda1 and returns clean).
 		// runner-side Debian "dpkg was interrupted" (stale runner image, not
 		// the installer) — including the retry lines that contain bare "failed",
 		// and the installer's non-interactive "ignoring error and continuing"
 		// warning (informational — retries exhausted, continues). Also
 		// mdadm "error opening /dev/md?" (no pre-existing RAID), mkfs.btrfs
 		// usage-help example lines (contain "error" in the example text).
-		allowRe := regexp.MustCompile(`(?i)(0 errors|no errors|errors: 0|0 failed|no failed|failed: 0|zero errors|libgpg-error|liberror-perl|error trace:|start-stop-daemon: no matching processes found|fsck\.vfat: No such file or directory|Check FAT filesystem on DEVICE for errors|early-sysctl command failed|\[FAILED\] early-sysctl|install command '/bin/false'|mount /run/netns.*Invalid argument|booster: mount\(/dev/dm-|dpkg was interrupted|dpkg --configure -a|failed, retrying in|apt does not have a stable CLI|error opening /dev/md|E\.g\.: dev1|LABEL=EFIVDB|errors=remount-ro|sysctl: error:.*is an unknown key|sysctl: unknown sysctl|icmp_ignore_bogus_error_responses|/nix/store/[^ ]*-error|commitpartial|bwrap.*pivot_root|To enable access to XDG directories|abseil-cpp-strerror|fail2ban|Clamd was NOT notified|installation is OUTDATED|DNS: transient error \(try again later\)|^\[stdout\] [0-9]+ error; [0-9.]+ MiB in [0-9]+ packages)`)
+		allowRe := regexp.MustCompile(`(?i)(0 errors|no errors|errors: 0|0 failed|no failed|failed: 0|zero errors|libgpg-error|liberror-perl|error trace:|start-stop-daemon: no matching processes found|fsck\.vfat: No such file or directory|fsck: /dev/fb0: No such file or directory|Check FAT filesystem on DEVICE for errors|early-sysctl command failed|\[FAILED\] early-sysctl|install command '/bin/false'|mount /run/netns.*Invalid argument|booster: mount\(/dev/dm-|dpkg was interrupted|dpkg --configure -a|failed, retrying in|apt does not have a stable CLI|error opening /dev/md|E\.g\.: dev1|LABEL=EFIVDB|errors=remount-ro|sysctl: error:.*is an unknown key|sysctl: unknown sysctl|icmp_ignore_bogus_error_responses|/nix/store/[^ ]*-error|commitpartial|bwrap.*pivot_root|To enable access to XDG directories|abseil-cpp-strerror|fail2ban|Clamd was NOT notified|installation is OUTDATED|DNS: transient error \(try again later\)|^\[stdout\] [0-9]+ error; [0-9.]+ MiB in [0-9]+ packages)`)
 		// BTRFS-specific errors: only for btrfs layouts (btrfsStandard, btrfsStandardServer, btrfsRaid0, btrfsUnencrypted)
 		if strings.Contains(cfg.DiskLayout, "btrfs") {
-			allowRe = regexp.MustCompile(`(?i)(0 errors|no errors|errors: 0|0 failed|no failed|failed: 0|zero errors|libgpg-error|liberror-perl|error trace:|start-stop-daemon: no matching processes found|fsck\.vfat: No such file or directory|Check FAT filesystem on DEVICE for errors|early-sysctl command failed|\[FAILED\] early-sysctl|install command '/bin/false'|mount /run/netns.*Invalid argument|booster: mount\(/dev/dm-|dpkg was interrupted|dpkg --configure -a|failed, retrying in|apt does not have a stable CLI|error opening /dev/md|E\.g\.: dev1|LABEL=EFIVDB|errors=remount-ro|sysctl: error:.*is an unknown key|sysctl: unknown sysctl|icmp_ignore_bogus_error_responses|/nix/store/[^ ]*-error|commitpartial|bwrap.*pivot_root|To enable access to XDG directories|BTRFS error.*is missing|BTRFS error.*failed to read the system array|BTRFS error.*open_ctree failed|BTRFS Transaction aborted|forced readonly|abseil-cpp-strerror|fail2ban|Clamd was NOT notified|installation is OUTDATED|DNS: transient error \(try again later\)|^\[stdout\] [0-9]+ error; [0-9.]+ MiB in [0-9]+ packages)`)
+			allowRe = regexp.MustCompile(`(?i)(0 errors|no errors|errors: 0|0 failed|no failed|failed: 0|zero errors|libgpg-error|liberror-perl|error trace:|start-stop-daemon: no matching processes found|fsck\.vfat: No such file or directory|fsck: /dev/fb0: No such file or directory|Check FAT filesystem on DEVICE for errors|early-sysctl command failed|\[FAILED\] early-sysctl|install command '/bin/false'|mount /run/netns.*Invalid argument|booster: mount\(/dev/dm-|dpkg was interrupted|dpkg --configure -a|failed, retrying in|apt does not have a stable CLI|error opening /dev/md|E\.g\.: dev1|LABEL=EFIVDB|errors=remount-ro|sysctl: error:.*is an unknown key|sysctl: unknown sysctl|icmp_ignore_bogus_error_responses|/nix/store/[^ ]*-error|commitpartial|bwrap.*pivot_root|To enable access to XDG directories|BTRFS error.*is missing|BTRFS error.*failed to read the system array|BTRFS error.*open_ctree failed|BTRFS Transaction aborted|forced readonly|abseil-cpp-strerror|fail2ban|Clamd was NOT notified|installation is OUTDATED|DNS: transient error \(try again later\)|^\[stdout\] [0-9]+ error; [0-9.]+ MiB in [0-9]+ packages)`)
 		}
 		var problems []string
 		for _, logName := range []string{"target-serial.log", "installer.log"} {
@@ -2768,6 +2778,8 @@ func writeHarnessVariables(cfg *RunConfig, keyPair guest.KeyPair, outputPath, al
 
   enableSecureboot: %s
   enableTPM: %s
+  enableBaseSecurity: %s
+  enableCompleteSecurity: %s
   enableHardening: %s
   enableZswap: %s
   enableNix: %s
@@ -2799,6 +2811,8 @@ func writeHarnessVariables(cfg *RunConfig, keyPair guest.KeyPair, outputPath, al
 		sshKey,
 		yn(cfg.EnableSecureboot),
 		yn(cfg.EnableTPM),
+		yn(cfg.EnableBaseSecurity),
+		yn(cfg.EnableCompleteSecurity),
 		yn(cfg.EnableHardening),
 		yn(cfg.EnableZswap),
 		yn(cfg.EnableNix),
