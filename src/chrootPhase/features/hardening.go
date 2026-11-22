@@ -4,7 +4,6 @@ import (
 	"feralos/src/utils/config"
 	"feralos/src/utils/shell"
 	"fmt"
-	"strings"
 )
 
 // HardeningPackages returns the APK packages needed for security hardening.
@@ -44,7 +43,6 @@ func SetupHardening(conf *config.Config) error {
 
 	loglevelArg, dmesgRestrictArg := DebugOverrides(conf)
 
-	enableApparmor(chroot, conf.User.EnableDinit)
 	applyHardeningCmdline(u, loglevelArg, dmesgRestrictArg)
 	// static hardened sysctls + module blacklist + the whole family ship via
 	// hardening-config (apk dependency); only the DEBUG relaxation is
@@ -52,67 +50,9 @@ func SetupHardening(conf *config.Config) error {
 	if err := writeDebugSysctlOverrides(chroot, conf.User.EnableDebug); err != nil {
 		return err
 	}
-	runClamavSnapshot(chroot)
 
 	fmt.Println("[INFO] Hardening complete.")
 	return nil
-}
-
-// runClamavSnapshot pulls the signature DB ONCE at install time (the
-// installer machine has network; the installed target may never). Alpine
-// clamav-db 1.4.6 ships NO signatures — without this, clamd cannot start on
-// the target (freshclam keeps retrying there, but only ever succeeds with a
-// network). Best-effort: outcome verified by db-file existence, not exit
-// (best-effort runs swallow command failures); freshclam chowns the files to
-// the DatabaseOwner (clamav) per its config, so the clamd user can read them.
-func runClamavSnapshot(chroot string) {
-	// Minimal config: DatabaseMirror is HARD-REQUIRED by freshclam 1.x (no
-	// default — without it: "No DatabaseMirror or PrivateMirror servers set",
-	// exit 9 — run10); DatabaseDirectory/DatabaseOwner are the relevant
-	// overrides. NOTE: the old DaemonNotify option was REMOVED from freshclam
-	// 1.x — any occurrence is a parse error (run9: exit 2, DB never
-	// populated). The chroot run therefore emits the benign "Clamd was NOT
-	// notified" post-update warning (no clamd here) — allowlisted in the
-	// harness log_errors sweep. On the TARGET the packaged freshclam.conf
-	// applies and a running clamd accepts the notify.
-	cfg := "# installer-time freshclam (no clamd in chroot)\nDatabaseMirror database.clamav.net\nDatabaseDirectory /var/lib/clamav\nDatabaseOwner clamav\n"
-	if err := shell.WriteFile(chroot, "/tmp/freshclam-install.conf", []byte(cfg), 0644); err != nil {
-		fmt.Printf("[WARNING] failed to write freshclam install config: %v\n", err)
-	}
-	if _, err := shell.ExecuteCmd(chroot, "freshclam --config-file=/tmp/freshclam-install.conf"); err != nil {
-		fmt.Printf("[WARNING] freshclam failed: %v\n", err)
-	}
-	if _, err := shell.ExecuteCmd(chroot, "rm -f /tmp/freshclam-install.conf"); err != nil {
-		fmt.Printf("[WARNING] failed to remove freshclam install config: %v\n", err)
-	}
-	// Outcome via ls OUTPUT, not exit code — best-effort runs swallow
-	// command failures, an exit-based check would log a false success (run9).
-	// List the DIRECTORY (always exists, exit 0 — a 4-file ls exits 2 on
-	// missing operands and its [ERROR][IGNORED] marker trips log_errors,
-	// run11): output carries .cvd/.cld only when signatures are present.
-	out, _ := shell.ExecuteCmd(chroot, "ls /var/lib/clamav/ 2>/dev/null")
-	if !strings.Contains(out, ".cvd") && !strings.Contains(out, ".cld") {
-		fmt.Printf("[WARNING] clamav signature DB MISSING (clamd stays down until freshclam succeeds on a network)\n")
-		return
-	}
-	fmt.Println("[INFO] clamav signature DB snapshot present.")
-}
-
-// enableApparmor wires the apparmor boot enablement: dinit gets the
-// apparmor-dinit scripted service symlink (loads profiles into the kernel at
-// boot — openrc apparmor start() equivalent; installed by the dinit
-// conversion of apparmor-openrc), OpenRC is ALWAYS enabled (never
-// conditional — fallback readiness: a dinit install must stay bootable
-// under OpenRC).
-func enableApparmor(chroot string, enableDinit bool) {
-	if enableDinit {
-		if _, err := shell.ExecuteCmd(chroot, "mkdir -p /etc/dinit.d/boot.d && test -f /lib/dinit.d/apparmor && ln -sf /lib/dinit.d/apparmor /etc/dinit.d/boot.d/apparmor || true"); err != nil {
-			fmt.Printf("[WARNING] Failed to enable apparmor dinit service: %v\n", err)
-		}
-	}
-	if _, err := shell.ExecuteCmd(chroot, "rc-update add apparmor boot"); err != nil {
-		fmt.Printf("[WARNING] Failed to add apparmor to boot: %v\n", err)
-	}
 }
 
 // applyHardeningCmdline appends the hardening kernel cmdline fragment to the

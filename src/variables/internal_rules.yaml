@@ -644,6 +644,11 @@ packageLogic:
     services: {"dbus": "default"}
   openssh:
     services: {"sshd": "default"}
+  apparmor:
+    # enablement glue moved from features/hardening.go (rc-update boot +
+    # dinit boot.d link) — the apparmor-dinit unit comes from the automatic
+    # conversion of apparmor-openrc (a hardening-config dependency).
+    services: {"apparmor": "boot"}
   set-permissions:
     # hardening posture at boot (pulled as a hardening-config dependency —
     # never installed explicitly). OpenRC: rc-update add boot; dinit:
