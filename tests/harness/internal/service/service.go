@@ -634,7 +634,11 @@ func (service *Service) RunInstall(ctx context.Context, cfg *RunConfig) (RunResu
 	if feralosErr := stageFeralosRepoArtifact(ctx, alpineCacheDir); feralosErr != nil {
 		fmt.Printf("[WARNING] feralos repo artifact unavailable — falling back to live Pages: %v\n", feralosErr)
 	} else {
-		cfg.FeralosRepoMirror = alpineCacheServer.GuestURL + "/feralos-repo/x86_64"
+		feralosServer, serverErr := cache.StartFeralosRepoServer(ctx, filepath.Join(alpineCacheDir, "feralos-repo"))
+		if serverErr != nil {
+			return RunResult{}, fmt.Errorf("start feralos repo server: %w", serverErr)
+		}
+		cfg.FeralosRepoMirror = feralosServer.GuestURL + "/feralos-aports/x86_64"
 		fmt.Printf("[INFO] FeralOS packages served from CI artifact: %s\n", cfg.FeralosRepoMirror)
 	}
 
@@ -2935,12 +2939,14 @@ func stageFeralosRepoArtifact(ctx context.Context, mirrorCacheDir string) error 
 		return fmt.Errorf("create artifact dir: %w", err)
 	}
 	dlArgs := []string{"run", "download", runID, "--repo", aportsRepoSlug,
-		"-n", "feralos-repo", "-D", target, "--quiet"}
+		"-n", "feralos-repo", "-D", target}
 	if out, err := exec.CommandContext(ctx, gh, dlArgs...).CombinedOutput(); err != nil {
 		return fmt.Errorf("download artifact %s: %w (%s)", runID, err, strings.TrimSpace(string(out)))
 	}
-	if _, err := os.Stat(filepath.Join(target, "x86_64", "APKINDEX.tar.gz")); err != nil {
-		return fmt.Errorf("artifact misses x86_64/APKINDEX.tar.gz: %w", err)
+	// the artifact mirrors the Pages layout: feralos-aports/x86_64/*
+	indexPath := filepath.Join(target, "feralos-aports", "x86_64", "APKINDEX.tar.gz")
+	if _, err := os.Stat(indexPath); err != nil {
+		return fmt.Errorf("artifact misses feralos-aports/x86_64/APKINDEX.tar.gz: %w", err)
 	}
 	return nil
 }
