@@ -674,6 +674,12 @@ packageLogic:
     services: {"fail2ban": "default"}
   tracee:
     services: {"tracee": "default"}
+  hardening-config:
+    # the clamav family enablement rides the FAMILY package: clamav-daemon/
+    # freshclam are apk dependencies of hardening-config (ADR-013 R2), so
+    # their own rules keys would never fire (the feature-gated re-apply
+    # iterates HardeningPackages() = [hardening-config]).
+    services: {"clamd": "default", "freshclam": "default"}
   clamav-daemon:
     services: {"clamd": "default"}
   freshclam:
