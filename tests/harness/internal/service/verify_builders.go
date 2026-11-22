@@ -338,7 +338,8 @@ func buildDinitChecks(cfg *VerifyConfig, checks map[string]string) {
 		// — written for both inits.)
 		// + Custom reboot seed per DE: niri via DMS customPowerActionReboot
 		// in settings.json; niriWayle via the seeded wayle config.toml
-		// dropdown-reboot-command — both `sudo -n /usr/bin/reboot` via
+		// dropdown-reboot-command (the feralos-reboot wrapper — resolves
+		// to `sudo -n /usr/bin/reboot` under dinit) via
 		// /etc/sudoers.d/zz-power (must sort AFTER /etc/sudoers.d/wheel
 		// (`%wheel ALL=(ALL) ALL`; sudo-rs last-match-wins would override
 		// the NOPASSWD tag otherwise — live-caught 2026-10-11). The zz-power
@@ -353,7 +354,10 @@ func buildDinitChecks(cfg *VerifyConfig, checks map[string]string) {
 			shutdownCmd += fmt.Sprintf(" && grep -q customPowerActionReboot /home/%s/.config/DankMaterialShell/settings.json", cfg.InstalledUser)
 		}
 		if cfg.DesktopEnvironment == desktopNiriWayle {
-			shutdownCmd += fmt.Sprintf(" && grep -q 'dropdown-reboot-command = \"sudo -n /usr/bin/reboot\"' /home/%s/.config/wayle/config.toml", cfg.InstalledUser)
+			// the seeded config carries the STATIC wrapper command
+			// (feralos-reboot) since wayle-config 0.1.1; under dinit the
+			// wrapper resolves to `sudo -n /usr/bin/reboot`.
+			shutdownCmd += fmt.Sprintf(" && grep -q 'dropdown-reboot-command = \"feralos-reboot\"' /home/%s/.config/wayle/config.toml", cfg.InstalledUser)
 		}
 		checks["dinit_shutdown_commands"] = shutdownCmd + " && echo 'shutdown commands OK' || { echo 'shutdown commands MISSING'; exit 1; }"
 		// conf.d-equivalent config files (Artix pattern): every -dinit
@@ -686,6 +690,23 @@ echo 'dbus activation units live OK'
 	// launcher, oo7 secrets. niri has no counterpart here (and vice versa:
 	// the DMS checks above are niri-only).
 	if cfg.DesktopEnvironment == desktopNiriWayle {
+		// wayle-config (ADR-013 wave C): the niriWayle STATIC system pieces
+		// are package-owned — the init-agnostic reboot wrapper + the oo7
+		// /etc/pam.d/passwd override (Alpine ships none). The $HOME seeds
+		// (wayle config.toml, niri config.kdl) stay installer-written by
+		// design: home files are installer-owned AND user-editable — a
+		// package re-asserting them on update would clobber manual changes
+		// (owner decision 2026-11-23, same principle that keeps the
+		// vendor-file appends installer-run-ONCE).
+		checks["config_packages_wayle"] = `fail=0
+apk info -e wayle-config >/dev/null 2>&1 || { echo "FAIL: wayle-config not installed"; fail=1; }
+test -x /usr/bin/feralos-reboot || { echo "FAIL: feralos-reboot wrapper missing"; fail=1; }
+grep -q '/run/dinitctl' /usr/bin/feralos-reboot || { echo "FAIL: wrapper dinit path missing"; fail=1; }
+grep -q 'exec loginctl reboot' /usr/bin/feralos-reboot || { echo "FAIL: wrapper OpenRC path missing"; fail=1; }
+grep -q 'password optional pam_oo7.so' /etc/pam.d/passwd || { echo "FAIL: oo7 passwd override missing"; fail=1; }
+grep -q 'password include base-password' /etc/pam.d/passwd || { echo "FAIL: oo7 passwd base include missing"; fail=1; }
+[ $fail -eq 0 ] && echo 'wayle config packages OK (reboot wrapper + oo7 passwd PAM override)'
+exit $fail`
 		// wayle_running: the Wayle shell process (bar/notifications/OSD/
 		// wallpaper) alive for the session user. Poll 90s like the other
 		// session checks — the shell starts after greetd + turnstile +
@@ -754,12 +775,13 @@ echo 'dbus activation units live OK'
 		// 2026-10-31). The reboot command runs the dinit wrapper via
 		// zz-power (asserted by dinit_shutdown_commands — same
 		// rule/rationale as niri/DMS).
-		// Init-aware: OpenRC fixtures expect `loginctl reboot`.
-		wayleRebootCmd := "loginctl reboot"
-		if cfg.EnableDinit {
-			wayleRebootCmd = "sudo -n /usr/bin/reboot"
-		}
-		checks["wayle_session_actions"] = fmt.Sprintf("f=/home/%s/.config/wayle/config.toml; test -f \"$f\" || { echo 'wayle config.toml missing'; exit 1; }; grep -q 'dropdown-lock-command = \"veila lock\"' \"$f\" || { echo 'lock command missing'; exit 1; }; grep -q 'dropdown-logout-command = \"niri msg action quit --skip-confirmation\"' \"$f\" || { echo 'logout command missing'; exit 1; }; grep -q 'dropdown-reboot-command = %q' \"$f\" || { echo 'reboot command missing'; exit 1; }; grep -q 'dropdown-poweroff-command = \"loginctl poweroff\"' \"$f\" || { echo 'poweroff command missing'; exit 1; }; grep -q 'left-click = \"dropdown:dashboard\"' \"$f\" || { echo 'dashboard left-click missing'; exit 1; }; grep -q 'location = \"bottom\"' \"$f\" || { echo 'bar not at bottom'; exit 1; }; grep -q 'theme-provider = \"matugen\"' \"$f\" || { echo 'matugen theme provider missing'; exit 1; }; grep -qF 'left = [\"custom-launcher\", \"niri-workspaces\", \"window-title\"]' \"$f\" || { echo 'launcher+workspaces+window-title layout missing'; exit 1; }; grep -qF 'right = [\"systray\", \"battery\", \"bluetooth\", \"network\", \"microphone\", \"volume\", \"notifications\", \"custom-windows\", \"clock\", \"dashboard\"]' \"$f\" || { echo 'right layout mismatch'; exit 1; }; grep -qF 'id = \"windows\"' \"$f\" || { echo 'window-list custom module missing'; exit 1; }; grep -qF \"left-click = \\\"raffi -i 'win '\\\"\" \"$f\" || { echo 'window switcher (raffi -i win) not wired'; exit 1; }; grep -q 'label-show = false' \"$f\" || { echo 'icon-only status modules missing'; exit 1; }; grep -q 'border-show = true' \"$f\" || { echo 'dashboard borders missing'; exit 1; }; grep -q 'left-click = \"/usr/bin/raffi-toggle\"' \"$f\" || { echo 'launcher toggle not wired'; exit 1; }; echo 'wayle session actions OK (Windows-style bottom bar + dashboard dropdown + raffi-toggle launcher + window-list switcher)'", cfg.InstalledUser, wayleRebootCmd)
+		// The reboot command = the package-shipped /usr/bin/feralos-reboot
+		// wrapper (wayle-config 0.1.1 — init-agnostic: /run/dinitctl probe
+		// picks `sudo -n /usr/bin/reboot` under dinit, `loginctl reboot`
+		// under OpenRC). The dinit sudo path is backed by zz-power
+		// (asserted by dinit_shutdown_commands — same rule/rationale as
+		// niri/DMS); no init-aware branch anymore.
+		checks["wayle_session_actions"] = fmt.Sprintf("f=/home/%s/.config/wayle/config.toml; test -f \"$f\" || { echo 'wayle config.toml missing'; exit 1; }; grep -q 'dropdown-lock-command = \"veila lock\"' \"$f\" || { echo 'lock command missing'; exit 1; }; grep -q 'dropdown-logout-command = \"niri msg action quit --skip-confirmation\"' \"$f\" || { echo 'logout command missing'; exit 1; }; grep -q 'dropdown-reboot-command = \"feralos-reboot\"' \"$f\" || { echo 'reboot command missing'; exit 1; }; grep -q 'dropdown-poweroff-command = \"loginctl poweroff\"' \"$f\" || { echo 'poweroff command missing'; exit 1; }; grep -q 'left-click = \"dropdown:dashboard\"' \"$f\" || { echo 'dashboard left-click missing'; exit 1; }; grep -q 'location = \"bottom\"' \"$f\" || { echo 'bar not at bottom'; exit 1; }; grep -q 'theme-provider = \"matugen\"' \"$f\" || { echo 'matugen theme provider missing'; exit 1; }; grep -qF 'left = [\"custom-launcher\", \"niri-workspaces\", \"window-title\"]' \"$f\" || { echo 'launcher+workspaces+window-title layout missing'; exit 1; }; grep -qF 'right = [\"systray\", \"battery\", \"bluetooth\", \"network\", \"microphone\", \"volume\", \"notifications\", \"custom-windows\", \"clock\", \"dashboard\"]' \"$f\" || { echo 'right layout mismatch'; exit 1; }; grep -qF 'id = \"windows\"' \"$f\" || { echo 'window-list custom module missing'; exit 1; }; grep -qF \"left-click = \\\"raffi -i 'win '\\\"\" \"$f\" || { echo 'window switcher (raffi -i win) not wired'; exit 1; }; grep -q 'label-show = false' \"$f\" || { echo 'icon-only status modules missing'; exit 1; }; grep -q 'border-show = true' \"$f\" || { echo 'dashboard borders missing'; exit 1; }; grep -q 'left-click = \"/usr/bin/raffi-toggle\"' \"$f\" || { echo 'launcher toggle not wired'; exit 1; }; echo 'wayle session actions OK (Windows-style bottom bar + dashboard dropdown + raffi-toggle launcher + window-list switcher)'", cfg.InstalledUser)
 		// stasis_idle: the stasis context-aware idle manager (feralos-aports
 		// 1.6.3, dependency of wayle-session) — package + supervised
 		// session service stasis.user (started by the wayle-session script

@@ -50,7 +50,7 @@ The Wayle bar carries the **dashboard button** (distro icon, far right — seede
 |---|---|---|
 | Lock | `veila lock` | `loginctl lock-session` is a no-op on niri (no logind Lock handler) |
 | Logout | `niri msg action quit --skip-confirmation` | exits the compositor → wayle-session's dinit-monitor hold ends → session tears down to the greeter. `loginctl terminate-session` would hit the dinit polkit gap (`NoSessionForPID` → auth prompt) |
-| Reboot | `sudo -n /usr/bin/reboot` (dinit) · `loginctl reboot` (OpenRC) | under dinit the logind path is broken (elogind → busybox `/sbin/reboot` SIGTERM → dinit overwrites REBOOT→HALT); the dinit wrapper + `zz-power` NOPASSWD rule is the proven path (same as niri/DMS) |
+| Reboot | `feralos-reboot` (wayle-config) | init-agnostic wrapper: `/run/dinitctl` probe → `sudo -n /usr/bin/reboot` (dinit — the logind path is broken there: elogind's busybox `/sbin/reboot` follow-up makes dinit overwrite REBOOT→HALT; backed by the `zz-power` NOPASSWD rule) · `loginctl reboot` (OpenRC) |
 | Power off | `loginctl poweroff` | works under both inits via the elogind system-shutdown hook (`50-feralos-dinit.sh` → `dinit-poweroff`) |
 
 ## Launcher
@@ -68,7 +68,7 @@ Mod+W (and a click on the bar's **window list** module) opens the Raffi **window
 - Wayle: `~/.config/wayle/config.toml` (installer-seeded session commands + dashboard button — see [Session actions](#session-actions); auto-created otherwise; live reload; GUI `wayle-settings`)
 - Veila: `~/.config/veila/config.toml` (auto-created; themes, widgets)
 - stasis: `/etc/stasis/stasis.rune` (apk-shipped FeralOS plan — see [Locking & idle](#locking--idle); a per-user `~/.config/stasis/stasis.rune` is only a fallback for a missing/broken system file)
-- niri: `~/.config/niri/config.kdl` (installer-written: env block, prefer-no-csd, binds — launcher/lock/screenshots/window management; no DMS includes)
+- niri: `~/.config/niri/config.kdl` (installer-written: env block, prefer-no-csd, binds — launcher/lock/screenshots/window management; no DMS includes). User-editable by design — installer-owned seeds, never package-re-asserted (owner decision 2026-11-23)
 
 ## Harness
 

@@ -342,11 +342,15 @@ spawn-at-startup "sh" "-c" "command -v xdg-user-dirs-update >/dev/null 2>&1 && x
 	//     modules.dashboard.left-click` = "dropdown:dashboard" AND a real
 	//     VNC click opened the panel on run 2026-10-28T00-10-10Z) — the
 	//     explicit line only pins the intent against upstream default drift.
-	wayleRebootCmd := "loginctl reboot"
-	if u.EnableDinit {
-		wayleRebootCmd = "sudo -n /usr/bin/reboot"
-	}
-	wayleConf := fmt.Sprintf(`[bar]
+	// wayleConf = 100% static since wayle-config 0.1.1: the dashboard's
+	// reboot command is the package-shipped /usr/bin/feralos-reboot wrapper
+	// (init-agnostic — dinit picks `sudo -n /usr/bin/reboot` via
+	// /run/dinitctl, OpenRC keeps `loginctl reboot`), so the template no
+	// longer branches on EnableDinit. The seed stays installer-written:
+	// /home files are installer-owned (owner decision 2026-11-23) and the
+	// config must remain user-editable — a package-owned seed re-asserted
+	// by every update would override manual changes.
+	wayleConf := `[bar]
 location = "bottom"
 background-opacity = 0
 rounding = "md"
@@ -394,7 +398,7 @@ left-click = "raffi -i 'win '"
 label-max-length = 50
 
 [modules.clock]
-format = "%%H:%%M"
+format = "%H:%M"
 
 [modules.battery]
 label-show = false
@@ -416,7 +420,7 @@ left-click = "dropdown:dashboard"
 border-show = true
 dropdown-lock-command = "veila lock"
 dropdown-logout-command = "niri msg action quit --skip-confirmation"
-dropdown-reboot-command = "%s"
+dropdown-reboot-command = "feralos-reboot"
 dropdown-poweroff-command = "loginctl poweroff"
 
 [[bar.layout]]
@@ -424,7 +428,7 @@ monitor = "*"
 left = ["custom-launcher", "niri-workspaces", "window-title"]
 center = []
 	right = ["systray", "battery", "bluetooth", "network", "microphone", "volume", "notifications", "custom-windows", "clock", "dashboard"]
-`, wayleRebootCmd)
+`
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p /home/%s/.config/wayle", u.UserName)); err != nil {
 		return fmt.Errorf("mkdir wayle config dir: %w", err)
 	}
@@ -437,15 +441,16 @@ center = []
 	// xdg-terminals.list/mimeapps.list seeds. Apps and defaults are
 	// per-install concerns for niriWayle v1.
 
-	// Reboot NOPASSWD rule backing step 7b: the seeded Wayle reboot command
-	// (`sudo -n /usr/bin/reboot` — the dinit wrapper) runs without a
+	// Reboot NOPASSWD rule backing the reboot path: under dinit the seeded
+	// Wayle command resolves (via the package-shipped /usr/bin/feralos-reboot
+	// wrapper) to `sudo -n /usr/bin/reboot`, which must run without a
 	// password prompt. wheel = admin already; reboot is no privilege
 	// escalation. sudo-rs reads /etc/sudoers.d. FILENAME MUST SORT AFTER
 	// "wheel": sudo-rs applies the LAST matching rule, and
 	// /etc/sudoers.d/wheel (`%wheel ALL=(ALL) ALL`, password) would
 	// otherwise override the NOPASSWD tag (live-caught via debug_run
-	// 2026-10-11). Wired only under dinit (the wrapper is dinit's; the
-	// OpenRC seed keeps `loginctl reboot`).
+	// 2026-10-11). Wired only under dinit (the wrapper's sudo path is
+	// dinit's; OpenRC keeps `loginctl reboot`, no sudo involved).
 	if u.EnableDinit {
 		if err := writeFile(chroot, "/etc/sudoers.d/zz-power", "%wheel ALL=(root) NOPASSWD: /usr/bin/reboot\n"); err != nil {
 			return fmt.Errorf("write sudoers power rule: %w", err)
