@@ -178,29 +178,59 @@ func buildGreeterChecks(cfg *VerifyConfig, checks map[string]string) {
 	checks["login_readiness"] = "special-case: verifyLoginReadiness"
 }
 
-// buildSecurityStackChecks — base security stack domain
-// (docs/architecture/security_stack.md): auditd, fail2ban, Tracee, AIDE are
-// ALWAYS installed (base installer); clamd/freshclam are hardening-gated
-// (registered only when cfg.EnableHardening). Both inits covered per check.
+// buildSecurityStackChecks — security-variable domains (ADR-014, the
+// 2026-11-22 split of the former always-on stack). The enterprise stack
+// (auditd, AIDE, fail2ban, Tracee, lynis) is registered ONLY when
+// cfg.EnableCompleteSecurity; clamd/freshclam only when cfg.EnableHardening;
+// the AppArmor family only when cfg.EnableBaseSecurity. Both inits covered
+// per check.
 func buildSecurityStackChecks(cfg *VerifyConfig, checks map[string]string) {
-	checks["auditd_service"] = "if [ -S /run/dinitctl ]; then dinitctl list 2>/dev/null | grep -w auditd || test -e /etc/dinit.d/boot.d/auditd && echo 'auditd (boot.d)' || test -e /lib/dinit.d/auditd && echo 'auditd (service file)'; else rc-update show 2>/dev/null | grep -w auditd; fi"
-	checks["auditd_rules"] = "auditctl -l 2>/dev/null | grep -qE '(^|[[:space:]])-w ' && echo 'audit rules loaded' || echo 'audit rules NOT loaded'"
-	checks["auditd_immutable"] = "grep -q '^-e 2$' /etc/audit/audit.rules && auditctl -l >/dev/null 2>&1 && echo 'rules file present, kernel accepted the load' || echo 'rules file/kernel load BROKEN'"
-	// pgrep -f self-match guard: the [x] bracket trick keeps the check's own
-	// `sh -c` cmdline (which contains the literal pattern) from matching
-	// itself (freshclam_service PASSed wrongly in run 2026-11-15T16-07-11Z).
-	checks["fail2ban_service"] = "pgrep -f '[f]ail2ban-server' >/dev/null && echo 'fail2ban-server running' || echo 'fail2ban-server NOT running'"
-	// jail presence lives in the OVERALL status (Jail list:) — `status sshd`
-	// prints the per-jail block WITHOUT a Jail list line (run7: jail was up,
-	// check grepped the wrong output).
-	checks["fail2ban_sshd"] = "fail2ban-client status 2>/dev/null | grep -q 'Jail list.*sshd' && echo 'sshd jail active' || echo 'sshd jail MISSING'; fail2ban-client status 2>&1 | head -3; ls -la /var/log/auth.log 2>&1"
-	checks["tracee_running"] = "pgrep -f '[/]usr/libexec/tracee/tracee' >/dev/null && echo 'tracee running' || echo 'tracee NOT running'"
-	checks["tracee_log"] = "for f in /var/log/dinit/tracee.log /var/log/tracee.log; do [ -s \"$f\" ] && echo \"$f has events\" && exit 0; done; echo 'tracee log MISSING or empty'"
-	checks["aide_baseline"] = "test -f /var/lib/aide/aide.db && echo 'aide baseline db present' || echo 'aide baseline db MISSING'"
-	checks["aide_cron"] = "test -x /etc/periodic/daily/aide-check && echo 'aide daily check installed' || echo 'aide daily check MISSING'"
+	if cfg.EnableCompleteSecurity {
+		checks["auditd_service"] = "if [ -S /run/dinitctl ]; then dinitctl list 2>/dev/null | grep -w auditd || test -e /etc/dinit.d/boot.d/auditd && echo 'auditd (boot.d)' || test -e /lib/dinit.d/auditd && echo 'auditd (service file)'; else rc-update show 2>/dev/null | grep -w auditd; fi"
+		checks["auditd_rules"] = "auditctl -l 2>/dev/null | grep -qE '(^|[[:space:]])-w ' && echo 'audit rules loaded' || echo 'audit rules NOT loaded'"
+		checks["auditd_immutable"] = "grep -q '^-e 2$' /etc/audit/audit.rules && auditctl -l >/dev/null 2>&1 && echo 'rules file present, kernel accepted the load' || echo 'rules file/kernel load BROKEN'"
+		// pgrep -f self-match guard: the [x] bracket trick keeps the check's own
+		// `sh -c` cmdline (which contains the literal pattern) from matching
+		// itself (freshclam_service PASSed wrongly in run 2026-11-15T16-07-11Z).
+		checks["fail2ban_service"] = "pgrep -f '[f]ail2ban-server' >/dev/null && echo 'fail2ban-server running' || echo 'fail2ban-server NOT running'"
+		// jail presence lives in the OVERALL status (Jail list:) — `status sshd`
+		// prints the per-jail block WITHOUT a Jail list line (run7: jail was up,
+		// check grepped the wrong output).
+		checks["fail2ban_sshd"] = "fail2ban-client status 2>/dev/null | grep -q 'Jail list.*sshd' && echo 'sshd jail active' || echo 'sshd jail MISSING'; fail2ban-client status 2>&1 | head -3; ls -la /var/log/auth.log 2>&1"
+		checks["tracee_running"] = "pgrep -f '[/]usr/libexec/tracee/tracee' >/dev/null && echo 'tracee running' || echo 'tracee NOT running'"
+		checks["tracee_log"] = "for f in /var/log/dinit/tracee.log /var/log/tracee.log; do [ -s \"$f\" ] && echo \"$f has events\" && exit 0; done; echo 'tracee log MISSING or empty'"
+		checks["aide_baseline"] = "test -f /var/lib/aide/aide.db && echo 'aide baseline db present' || echo 'aide baseline db MISSING'"
+		checks["aide_cron"] = "test -x /etc/periodic/daily/aide-check && echo 'aide daily check installed' || echo 'aide daily check MISSING'"
+		checks["lynis_present"] = "test -x /usr/sbin/lynis && test -e /etc/periodic/daily/lynis && echo 'lynis + daily cron installed' || echo 'lynis MISSING'"
+		// complete-security-config (ADR-013 wave B): the static configs are
+		// apk-owned — assert the representative files still land.
+		checks["config_packages_complete_security"] = `fail=0
+apk info -e complete-security-config >/dev/null 2>&1 || { echo "FAIL: complete-security-config not installed"; fail=1; }
+grep -q '^-w /etc/passwd' /etc/audit/audit.rules 2>/dev/null || { echo "FAIL: audit.rules identity watches missing"; fail=1; }
+grep -q '^-e 2$' /etc/audit/audit.rules 2>/dev/null || { echo "FAIL: audit.rules immutable marker missing"; fail=1; }
+test -f /etc/aide.conf || { echo "FAIL: aide.conf missing"; fail=1; }
+test -x /etc/periodic/daily/aide-check || { echo "FAIL: aide-check cron missing"; fail=1; }
+[ $fail -eq 0 ] && echo 'complete security config packages OK (audit.rules + aide.conf + cron)'
+exit $fail`
+	}
+	if cfg.EnableBaseSecurity {
+		// base-security-config (ADR-014): the AppArmor family + the LSM
+		// cmdline fragment (moved OUT of the hardening fragment).
+		checks["config_packages_base_security"] = `fail=0
+apk info -e base-security-config >/dev/null 2>&1 || { echo "FAIL: base-security-config not installed"; fail=1; }
+grep -q 'apparmor=1' /etc/kernel/cmdline 2>/dev/null || { echo "FAIL: apparmor=1 missing from cmdline"; fail=1; }
+if [ -S /run/dinitctl ]; then
+  test -e /etc/dinit.d/boot.d/apparmor || { echo "FAIL: apparmor boot.d link missing"; fail=1; }
+else
+  rc-update show boot 2>/dev/null | grep -q apparmor || { echo "FAIL: apparmor not in boot runlevel"; fail=1; }
+fi
+[ $fail -eq 0 ] && echo 'base security config packages OK (apparmor stack + LSM cmdline, both inits)'
+exit $fail`
+	}
 	if cfg.EnableHardening {
 		// hardening-config (ADR-013 wave A) is hardening-gated like its
-		// service family: sysctl drop-ins + module blacklist.
+		// service family: sysctl drop-ins + module blacklist. AppArmor is
+		// NOT here anymore (ADR-014 — it rides base-security-config).
 		checks["config_packages_hardening"] = `fail=0
 grep -q tcp_syncookies /etc/sysctl.d/93-ipv4Configs.conf 2>/dev/null || { echo "FAIL: 93-ipv4Configs.conf missing"; fail=1; }
 grep -q 'kernel.printk=3 3 3 3' /etc/sysctl.d/94-limitLogs.conf 2>/dev/null || { echo "FAIL: 94-limitLogs.conf missing"; fail=1; }
@@ -215,13 +245,7 @@ if [ -S /run/dinitctl ]; then
 else
   rc-update show boot 2>/dev/null | grep -q set-permissions || { echo "FAIL: set-permissions not in boot runlevel (not enabled)"; fail=1; }
 fi
-grep -q 'apparmor=1' /etc/kernel/cmdline 2>/dev/null || { echo "FAIL: apparmor=1 missing from cmdline"; fail=1; }
-if [ -S /run/dinitctl ]; then
-  test -e /etc/dinit.d/boot.d/apparmor || { echo "FAIL: apparmor boot.d link missing"; fail=1; }
-else
-  rc-update show boot 2>/dev/null | grep -q apparmor || { echo "FAIL: apparmor not in boot runlevel"; fail=1; }
-fi
-[ $fail -eq 0 ] && echo 'hardening config packages OK (sysctl 93-99 + bridging + modprobe + set-permissions + apparmor both inits)'
+[ $fail -eq 0 ] && echo 'hardening config packages OK (sysctl 93-99 + bridging + modprobe + set-permissions)'
 exit $fail`
 	}
 
@@ -234,7 +258,6 @@ grep -q 'EDITOR=micro' /etc/profile.d/editor.sh 2>/dev/null || { echo "FAIL: edi
 grep -q DEVICESCAN /etc/smartd.conf 2>/dev/null || { echo "FAIL: smartd.conf missing"; fail=1; }
 [ $fail -eq 0 ] && echo 'static config packages OK (profile, smartd)'
 exit $fail`
-	checks["lynis_present"] = "test -x /usr/sbin/lynis && test -e /etc/periodic/daily/lynis && echo 'lynis + daily cron installed' || echo 'lynis MISSING'"
 	if cfg.EnableHardening {
 		// pgrep WITHOUT -x: busybox pgrep may not honor -x, and comm matching
 		// is safe here (the `sh -c` process comm is "sh", no self-match —

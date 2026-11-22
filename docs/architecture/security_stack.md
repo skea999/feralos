@@ -1,18 +1,35 @@
 # FeralOS Security Stack
 
-**Canonical detail source for the base security stack** (ADR-012). `AGENTS.md` links here; this file owns the per-tool inventory, file paths, and the deferred-work TODOs.
+**Canonical detail source for the security stack** (ADR-012 enterprise stack + ADR-014 variables). `AGENTS.md` links here; this file owns the per-tool inventory, file paths, and the deferred-work TODOs.
+
+## Variables (ADR-014 — the 2026-11-22 split)
+
+Three INDEPENDENT toggles (defaults: `enableBaseSecurity: true`,
+`enableCompleteSecurity: true`, `enableHardening: false`; no layering — they
+do not imply each other):
+
+| Variable | Package | What rides it |
+|---|---|---|
+| `enableBaseSecurity` | `base-security-config` | the AppArmor stack + `40-apparmor.conf` (`apparmor=1 security=apparmor`; the tokens LEFT `50-hardening.conf`) — enablement `apparmor: boot` rides the `base-security-config` packageLogic key |
+| `enableCompleteSecurity` | `complete-security-config` | the enterprise stack below (audit/AIDE/fail2ban/Tracee/lynis) + `audit.rules` + `aide.conf` + daily cron — enablement (`auditd/fail2ban/tracee: default`) rides the family key |
+| `enableHardening` | `hardening-config r5` | static kernel hardening (sysctls 93-99, modprobe blacklist, umask, `50-hardening.conf`) + ClamAV (the only tool exception) + `set-permissions` (boot) — enablement rides the `hardening-config` family key |
+
+`internal/security_stack.go` is DELETED (ADR-013 wave B): the static configs
+are package-shipped; `BaselineAide` lives in `features/completesecurity.go`
+(step 18 — the baseline must capture the FINAL filesystem state) and gates on
+BOTH the variable and the `aide` package in the live pkg list.
 
 ## Principle
 
-Local-only desktop stack, shipped by the BASE installer (no flag), minimum tool count, every tool logs to `/var/log` (Vector collects; manual remote shipping later = one `conf.d` drop-in). Memory-safe preference — the two C exceptions (auditd userspace, AIDE) are documented in ADR-012 with rationale.
+Local-only desktop stack, minimum tool count, every tool logs to `/var/log` (Vector collects; manual remote shipping later = one `conf.d` drop-in). Memory-safe preference — the two C exceptions (auditd userspace, AIDE) are documented in ADR-012 with rationale. NOT always-on anymore (ADR-014): the enterprise stack is `enableCompleteSecurity`-gated.
 
 ## Stack inventory
 
 | Layer | Package(s) | Service units (both inits) | Config (installer-written) | Log path | Vector source |
 |---|---|---|---|---|---|
-| Syscall audit | `audit` + `audit-openrc` + `audit-dinit` (auto via conversion) | `auditd` | `/etc/audit/audit.rules` (`internal/security_stack.go`) | `/var/log/audit/audit.log` (self-rotated by auditd.conf) | `audit_logs` |
-| File integrity | `aide` (feralos port of Alpine testing; no daemon) | — (daily cron `/etc/periodic/daily/aide-check`) | `/etc/aide.conf` + baseline db (`internal/security_stack.go`) | `/var/log/aide/aide.log` | `aide_logs` |
-| Brute-force IPS | `fail2ban` + `fail2ban-dinit` (BOTH-INIT override, `replaces=fail2ban-openrc`) | `fail2ban` | `/etc/fail2ban/jail.d/50-feralos.conf` (`internal/security_stack.go`) | `/var/log/fail2ban.log` (own logrotate) | `fail2ban_logs` |
+| Syscall audit | `audit` + `audit-openrc` + `audit-dinit` (auto via conversion) — dep-installed via `complete-security-config` | `auditd` | `/etc/audit/audit.rules` (`complete-security-config` — static core + post-install existence-filtered sudo/doas/ssh watches above `-e 2`) | `/var/log/audit/audit.log` (self-rotated by auditd.conf) | `audit_logs` |
+| File integrity | `aide` (feralos port of Alpine testing; no daemon) — dep-installed via `complete-security-config` | — (daily cron `/etc/periodic/daily/aide-check`, package-shipped) | `/etc/aide.conf` (`complete-security-config`) + baseline db (step 18, `features/completesecurity.go`) | `/var/log/aide/aide.log` | `aide_logs` |
+| Brute-force IPS | `fail2ban` + `fail2ban-dinit` (BOTH-INIT override, `replaces=fail2ban-openrc`) — dep-installed via `complete-security-config` | `fail2ban` | `/etc/fail2ban/jail.d/50-feralos.conf` (`fail2ban-config`) | `/var/log/fail2ban.log` (own logrotate) | `fail2ban_logs` |
 | Runtime detection | `tracee` (feralos port — first musl packaging; SHARED build) | `tracee` | `/etc/dinit.d/config/tracee.conf` (tuning; also `/etc/conf.d/tracee`) | `/var/log/dinit/tracee.log` (dinit) / `/var/log/tracee.log` (OpenRC) | rides `dinit_services` (dinit) |
 | Conformance report | `lynis` (feralos port; no daemon) | — (daily cron from package) | none (package default.prf) | `/var/log/lynis.log` | `lynis_logs` |
 | Malware (HARDENING-gated) | `clamav-daemon` + `clamav-scanner` + `clamav-db` + `clamav-daemon-dinit` + `freshclam-dinit` | `clamd` (depends-on freshclam), `freshclam` | `/etc/clamav/clamd.conf` + `freshclam.conf` (`clamav-config`, ADR-013) | `/var/log/clamav/clamd.log` + `freshclam.log` (own logrotate) | `clamav_logs` |
@@ -20,7 +37,7 @@ Local-only desktop stack, shipped by the BASE installer (no flag), minimum tool 
 ## File ownership (installer)
 
 - `src/chrootPhase/internal/security_stack.go` — BASE stack configs (audit rules, fail2ban jail, aide config/cron), called step 2b; `BaselineAide` at step 18 (AFTER the edge install — the baseline must capture the final filesystem state).
-- ClamAV packages ride as apk DEPENDENCIES of `hardening-config` (ADR-013 R2 family consolidation); enablement rides the `hardening-config` packageLogic key.
+- ClamAV packages ride as apk DEPENDENCIES of `hardening-config` (ADR-013 R2 family consolidation); enablement rides the `hardening-config` packageLogic key. AppArmor does NOT ride this family anymore (ADR-014 — `base-security-config`).
 - `src/chrootPhase/internal/logging.go` — Vector gated sources + `conf.d` drop-in dir + README + install-time `vector validate --skip-healthchecks`.
 - aports: `audit-dinit`, `fail2ban-dinit`, `tracee`, `aide`, `lynis`, `clamav-daemon-dinit`, `freshclam-dinit` (all tag-pinned).
 
@@ -40,4 +57,4 @@ Local-only desktop stack, shipped by the BASE installer (no flag), minimum tool 
 
 ## Verification
 
-Harness: `auditd_service`, `auditd_rules`, `auditd_immutable`, `fail2ban_service`, `fail2ban_sshd`, `tracee_running`, `tracee_log`, `aide_baseline`, `aide_cron`, `lynis_present`, and under EnableHardening `clamd_service`, `freshclam_service`, `clamav_db_snapshot`; `services_status` golden lists carry `auditd`/`fail2ban`/`tracee` on both inits; `vector_conf_d` proves the drop-in mechanism.
+Harness (gated per variable, ADR-014): under EnableCompleteSecurity `auditd_service`, `auditd_rules`, `auditd_immutable`, `fail2ban_service`, `fail2ban_sshd`, `tracee_running`, `tracee_log`, `aide_baseline`, `aide_cron`, `lynis_present`, `config_packages_complete_security`; under EnableBaseSecurity `config_packages_base_security` (cmdline `apparmor=1` + boot enablement); under EnableHardening `config_packages_hardening` (sysctls + set-permissions), `clamd_service`, `freshclam_service`, `clamav_db_snapshot`; `services_status` golden lists append `auditd`/`fail2ban`/`tracee` ONLY under EnableCompleteSecurity; `vector_conf_d` proves the drop-in mechanism.

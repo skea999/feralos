@@ -12,8 +12,9 @@ func HardeningPackages(conf *config.Config) []string {
 		return nil
 	}
 	// ONE package: hardening-config pulls the whole family as apk
-	// dependencies (apparmor stack, clamav stack incl. clamav-config, the
-	// set-permissions posture). ADR-013 R2.
+	// dependencies (the static kernel hardening, the clamav stack incl.
+	// clamav-config, the set-permissions posture). ADR-013 R2. AppArmor is
+	// NOT part of this family anymore (ADR-014): it rides base-security-config.
 	return []string{"hardening-config"}
 }
 

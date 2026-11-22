@@ -92,7 +92,9 @@ variables:
 |-----|------|-------------|
 | `enableSecureboot` | `bool` | Compile `feralos-secureboot` → `/opt/feralos/bin/feralos-secureboot`, enroll sbctl + sign UKI. Run manually on hardware (also printed by the end-of-installer guide), harness auto. |
 | `enableTPM` | `bool` | Compile `feralos-tpm` → `/opt/feralos/bin/feralos-tpm`, bind LUKS → TPM2 via clevis. Always passes swtpm to QEMU. |
-| `enableHardening` | `bool` | AppArmor, sysctl, permissions. Includes `enableDebug` false path. |
+| `enableBaseSecurity` | `bool` | Default `true`. AppArmor baseline (ADR-014): the AppArmor stack (`base-security-config`) + the LSM cmdline fragment (`40-apparmor.conf`, `apparmor=1 security=apparmor`). INDEPENDENT of the other two security toggles. |
+| `enableCompleteSecurity` | `bool` | Default `true`. Enterprise observability stack (ADR-014): auditd, AIDE (+ baseline at step 18), fail2ban, Tracee (~500MB RAM idle), lynis — all via `complete-security-config`. Heavy → set `false` for low-RAM targets. INDEPENDENT. |
+| `enableHardening` | `bool` | Static kernel hardening + posture (ADR-014): sysctls 93-99, module blacklist, `50-hardening.conf`, umask, `set-permissions` (boot) + ClamAV (the only tool exception — `clamav-config`, DB snapshot at install). NO monitoring tools, NO AppArmor (that is `enableBaseSecurity`). Includes `enableDebug` false path. |
 | `enableZswap` | `bool` | Zswap compressed swap, `vm.min_free_kbytes` 1% RAM. Server always, others toggle. |
 | `enableNix` | `bool` | Nix package manager, `/nix` subvolumes, daemon. Build sandbox: upstream default (`/tmp`, exec since round 48 — no workaround). `trusted-users = root @wheel` (NixOS default — wheel is root-equivalent). |
 | `enableSwap` | `bool` | `btrfsStandard`/`btrfsUnencrypted`/`btrfsRaid0`: enable swap (file or LUKS partitions). `btrfsStandardServer`: always true (LUKS swap). `swapSize` only matters when true. |

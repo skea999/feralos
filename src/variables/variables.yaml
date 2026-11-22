@@ -34,8 +34,16 @@ variables:
   defaultNetworkInterface: "eth0"
 
   # Feature Toggles
+  # Security variables (ADR-014 — three INDEPENDENT toggles):
+  #   enableBaseSecurity      AppArmor baseline (MAC + LSM cmdline fragment)
+  #   enableCompleteSecurity  enterprise stack: auditd, AIDE, fail2ban,
+  #                           Tracee, lynis (heavy — Tracee ~500MB RAM)
+  #   enableHardening         static kernel hardening + ClamAV (no
+  #                           monitoring tools; set-permissions posture)
   enableSecureboot: false
   enableTPM: false
+  enableBaseSecurity: true
+  enableCompleteSecurity: true
   enableHardening: false
   enableZswap: true
   enableNix: true

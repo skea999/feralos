@@ -40,16 +40,23 @@ type UserVariables struct {
 	SshAuthorizedKey   string   `yaml:"sshAuthorizedKey"`
 
 	// Feature toggles
-	EnableSecureboot bool   `yaml:"enableSecureboot"`
-	EnableTPM        bool   `yaml:"enableTPM"`
-	EnableHardening  bool   `yaml:"enableHardening"`
-	EnableZswap      bool   `yaml:"enableZswap"`
-	EnableNix        bool   `yaml:"enableNix"`
-	EnableSwap       bool   `yaml:"enableSwap"`
-	SwapSize         string `yaml:"swapSize"`
-	EnableDebug      bool   `yaml:"enableDebug"`
-	EnablePodman     bool   `yaml:"enablePodman"`
-	EnableDinit      bool   `yaml:"enableDinit"`
+	EnableSecureboot bool `yaml:"enableSecureboot"`
+	EnableTPM        bool `yaml:"enableTPM"`
+	// Security variables (ADR-014 — the 2026-11-22 split of the former
+	// always-on security stack into three independent toggles):
+	// baseSecurity = AppArmor baseline; completeSecurity = enterprise
+	// stack (auditd/AIDE/fail2ban/Tracee/lynis); hardening = static kernel
+	// hardening + ClamAV (no monitoring tools — the clamav exception).
+	EnableBaseSecurity     bool   `yaml:"enableBaseSecurity"`
+	EnableCompleteSecurity bool   `yaml:"enableCompleteSecurity"`
+	EnableHardening        bool   `yaml:"enableHardening"`
+	EnableZswap            bool   `yaml:"enableZswap"`
+	EnableNix              bool   `yaml:"enableNix"`
+	EnableSwap             bool   `yaml:"enableSwap"`
+	SwapSize               string `yaml:"swapSize"`
+	EnableDebug            bool   `yaml:"enableDebug"`
+	EnablePodman           bool   `yaml:"enablePodman"`
+	EnableDinit            bool   `yaml:"enableDinit"`
 
 	// Network
 	DefaultNetworkInterface string `yaml:"defaultNetworkInterface"`

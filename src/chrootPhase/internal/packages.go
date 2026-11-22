@@ -112,6 +112,17 @@ func createDummySymlinkPackage(chroot, replacedPkg, replacementBin string) error
 	return nil
 }
 
+// installed reports whether pkg appears in the `apk info` listing (the
+// line-delimited gate pattern — formerly internal/security_stack.go's
+// installed(), kept here for the install couplings; the features package
+// carries its own pkgInstalled copy — importing internal from features
+// would create an import cycle via internal/packages.go → features).
+func installed(pkgList, pkg string) bool {
+	return strings.Contains(pkgList, "\n"+pkg+"\n") ||
+		strings.HasPrefix(pkgList, pkg+"\n") ||
+		strings.HasSuffix(pkgList, "\n"+pkg)
+}
+
 // applyInstallCouplings applies the packageLogic install couplings at
 // RUNTIME against the live pkg list: any INSTALLED package whose rules key
 // carries `packages` pulls them (owner directive: clamav-daemon →
@@ -218,14 +229,32 @@ func SetupPackages(conf *config.Config) error {
 	// Nix packages (owned by features/nix.go — auto-enables if rules request nixPackages)
 	allPkgs = append(allPkgs, features.NixPackages(conf)...)
 
+	// Security-variable packages (ADR-014, each owned by its features/ file):
+	// baseSecurity (AppArmor), completeSecurity (enterprise stack), hardening
+	// (static kernel hardening + clamav + set-permissions)
+	allPkgs = append(allPkgs, features.BaseSecurityPackages(conf)...)
+	allPkgs = append(allPkgs, features.CompleteSecurityPackages(conf)...)
+
 	// Hardening packages (owned by features/hardening.go)
 	allPkgs = append(allPkgs, features.HardeningPackages(conf)...)
 
 	// Feature-gated appends BYPASS logic.ApplyRules (it already iterated
 	// AllPackages in main before these existed): re-apply the rules entries
 	// for the late-added names so their services/groups/modules fire —
-	// without this, clamav-daemon's clamd/freshclam enablement never happens
-	// (harness 2026-11-15T16-07-11Z: zero boot.d links, jail-less daemons).
+	// without this, the family enablement never happens (harness
+	// 2026-11-15T16-07-11Z: zero boot.d links, jail-less daemons). ADR-014:
+	// base-security-config + complete-security-config follow the same
+	// family-key pattern (dep-installed packages have no reachable key).
+	for _, pkg := range features.BaseSecurityPackages(conf) {
+		if rule, ok := conf.Internal.PackageLogic[pkg]; ok {
+			logic.ApplyRule(&u, &rule)
+		}
+	}
+	for _, pkg := range features.CompleteSecurityPackages(conf) {
+		if rule, ok := conf.Internal.PackageLogic[pkg]; ok {
+			logic.ApplyRule(&u, &rule)
+		}
+	}
 	for _, pkg := range features.HardeningPackages(conf) {
 		if rule, ok := conf.Internal.PackageLogic[pkg]; ok {
 			logic.ApplyRule(&u, &rule)

@@ -33,6 +33,8 @@ Violation = feature logic leaked outside owner.
 | `EnableSecureboot` | `utils/firstboot/secureboot.go` | `main.go` |
 | `EnableTPM` | `utils/firstboot/tpm.go` | `main.go` |
 | `EnablePodman` | `chrootPhase/features/podman.go` | `packages.go` + `chroot_phase.go` |
+| `EnableBaseSecurity` | `chrootPhase/features/basesecurity.go` | `packages.go` + `chroot_phase.go` |
+| `EnableCompleteSecurity` | `chrootPhase/features/completesecurity.go` | `packages.go` + `chroot_phase.go` (+ `BaselineAide` step 18) |
 | `EnableHardening` | `chrootPhase/features/hardening.go` | `packages.go` + `chroot_phase.go` |
 | `EnableNix` | `chrootPhase/features/nix.go` | `packages.go` + `chroot_phase.go` |
 | `EnableZswap` | `chrootPhase/features/zswap.go` + `zswap_server.go` | `packages.go` + `chroot_phase.go` |
@@ -41,7 +43,11 @@ Violation = feature logic leaked outside owner.
 | `EnableSwap` | `hostPhase/disks/*` | `host_phase.go` (disk layout layer) |
 | `DesktopEnvironment` | `chrootPhase/desktops/desktops.go` | `chroot_phase.go` |
 
-**Hardening family note (ADR-013 R2, 2026-11-22)**: `HardeningPackages()` = `[hardening-config]` — the whole family (apparmor stack, clamav stack, `set-permissions`, the static sysctls 93-99 + modprobe blacklist + umask drop-in) rides as apk dependencies of `hardening-config`; the clamav enablement rides the `hardening-config` packageLogic key (deps-installed packages need their rules keys on the family package). `hardening.go` keeps only: cmdline fragment (variables), apparmor enablement glue, the debug drop-in `99-feralos-debug.conf` (variables), the clamav DB snapshot pull (network). The permission posture (`set-permissions`) is packaged and ENABLED at boot on both inits — it was installer-written but never enabled since the beginning.
+**Security-variables note (ADR-014, 2026-11-22 — three INDEPENDENT owner files)**:
+- `BaseSecurityPackages()` = `[base-security-config]` — the AppArmor stack + the LSM cmdline fragment (`40-apparmor.conf`); enablement rides the `base-security-config` packageLogic key. `SetupBaseSecurity()` is a no-op INFO (everything packaged).
+- `CompleteSecurityPackages()` = `[complete-security-config]` — the enterprise stack (audit/AIDE/fail2ban/Tracee/lynis) + the static configs (audit.rules, aide.conf + cron); enablement rides the family key. `BaselineAide` (step 18, final-FS baseline) stays here — NOT packageable. `internal/security_stack.go` DELETED.
+- `HardeningPackages()` = `[hardening-config]` — the static kernel hardening (sysctls 93-99, modprobe blacklist, umask, `50-hardening.conf`) + clamav + `set-permissions` (posture, ENABLED at boot — D2 decision); enablement rides the `hardening-config` packageLogic key. AppArmor is NOT in this family anymore.
+`hardening.go` keeps only: cmdline fragment (variables), the debug drop-in `99-feralos-debug.conf` (variables), the clamav DB snapshot pull (network).
 
 ## User-Session Daemons = Supervised Services (Artix/Chimera model, user rule 2026-10-16)
 

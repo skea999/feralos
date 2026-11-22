@@ -23,6 +23,8 @@ variables:
   enableSecureboot: false
   enableTPM: false
   enableHardening: true
+  enableBaseSecurity: true
+  enableCompleteSecurity: true
   enableZswap: true
   enableNix: true
   enableSwap: true

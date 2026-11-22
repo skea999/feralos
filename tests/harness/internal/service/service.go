@@ -116,35 +116,38 @@ type PrepareRunnerResult struct {
 }
 
 type RunConfig struct {
-	ArtifactsRoot      string
-	RepoRoot           string
-	RunnerImage        string
-	QemuBinary         string
-	QemuImgBinary      string
-	RunnerSSHUser      string
-	RunnerSSHPort      int
-	TargetSSHPort      int
-	MemoryMiB          int
-	TargetMemoryMiB    int
-	CPUs               int
-	EnableTPM          bool
-	IgnoreErrors       bool
-	EnableEdgeRepos    bool
-	EnableSecureboot   bool
-	EnableHardening    bool
-	EnablePodman       bool `yaml:"enablePodman"`
-	EnableDinit        bool `yaml:"enableDinit"`
-	EnableDebug        bool `yaml:"enableDebug"`
-	EnableZswap        bool
-	EnableNix          bool
-	EnableSwap         bool
-	SwapSize           string
-	EnableKVM          bool
-	DiskSize           string
-	DiskLayout         string
-	DesktopEnvironment string
-	VideoDriver        string
-	AlpineMirror       string
+	ArtifactsRoot    string
+	RepoRoot         string
+	RunnerImage      string
+	QemuBinary       string
+	QemuImgBinary    string
+	RunnerSSHUser    string
+	RunnerSSHPort    int
+	TargetSSHPort    int
+	MemoryMiB        int
+	TargetMemoryMiB  int
+	CPUs             int
+	EnableTPM        bool
+	IgnoreErrors     bool
+	EnableEdgeRepos  bool
+	EnableSecureboot bool
+	// ADR-014 security variables (the 2026-11-22 split)
+	EnableBaseSecurity     bool
+	EnableCompleteSecurity bool
+	EnableHardening        bool
+	EnablePodman           bool `yaml:"enablePodman"`
+	EnableDinit            bool `yaml:"enableDinit"`
+	EnableDebug            bool `yaml:"enableDebug"`
+	EnableZswap            bool
+	EnableNix              bool
+	EnableSwap             bool
+	SwapSize               string
+	EnableKVM              bool
+	DiskSize               string
+	DiskLayout             string
+	DesktopEnvironment     string
+	VideoDriver            string
+	AlpineMirror           string
 	// FeralosRepoMirror: local mirror base URL serving the feralos repo from
 	// the last green aports CI artifact (pages-race hardening). Empty = the
 	// canonical Pages URL.
@@ -185,6 +188,8 @@ type VariablesYAML struct {
 		DefaultNetworkInterface string   `yaml:"defaultNetworkInterface"`
 		EnableSecureboot        bool     `yaml:"enableSecureboot"`
 		EnableTPM               bool     `yaml:"enableTPM"`
+		EnableBaseSecurity      bool     `yaml:"enableBaseSecurity"`
+		EnableCompleteSecurity  bool     `yaml:"enableCompleteSecurity"`
 		EnableHardening         bool     `yaml:"enableHardening"`
 		EnableZswap             bool     `yaml:"enableZswap"`
 		EnableNix               bool     `yaml:"enableNix"`
@@ -246,6 +251,9 @@ func LoadVariablesFile(cfg *RunConfig, filePath string) error {
 	cfg.EnableEdgeRepos = v.EnableEdgeRepos
 	cfg.EnableSecureboot = v.EnableSecureboot
 	cfg.EnableTPM = v.EnableTPM
+	// ADR-014 security variables
+	cfg.EnableBaseSecurity = v.EnableBaseSecurity
+	cfg.EnableCompleteSecurity = v.EnableCompleteSecurity
 	cfg.EnableHardening = v.EnableHardening
 	cfg.EnableZswap = v.EnableZswap
 	cfg.EnableNix = v.EnableNix
@@ -321,12 +329,15 @@ type VerifyConfig struct {
 	EnableDinit        bool
 	EnableDebug        bool
 	EnableNix          bool
-	EnableHardening    bool
-	SwapSize           string
-	DiskLayout         string
-	NixPackages        []string
-	FlatpakPackages    []string
-	Timeout            time.Duration
+	// ADR-014 security variables
+	EnableBaseSecurity     bool
+	EnableCompleteSecurity bool
+	EnableHardening        bool
+	SwapSize               string
+	DiskLayout             string
+	NixPackages            []string
+	FlatpakPackages        []string
+	Timeout                time.Duration
 }
 
 type VerifyResult struct {
@@ -1291,29 +1302,31 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg *RunConfig,
 	_ = stateStore.Save(active)
 	phase(9, "verify target")
 	verifyResult, err := service.Verify(ctx, &VerifyConfig{
-		ArtifactsRoot:      cfg.ArtifactsRoot,
-		RunDir:             runDir,
-		SSHPort:            cfg.TargetSSHPort,
-		SSHUser:            "root",
-		PrivateKey:         keyPair.PrivateKeyPath,
-		InstalledUser:      cfg.InstalledUser,
-		InstalledPassword:  cfg.InstalledPassword,
-		QMPPath:            targetQMPPath,
-		DesktopEnvironment: cfg.DesktopEnvironment,
-		VideoDriver:        cfg.VideoDriver,
-		EnableSwap:         cfg.EnableSwap,
-		EnableSecureboot:   cfg.EnableSecureboot,
-		EnableTPM:          cfg.EnableTPM,
-		EnablePodman:       cfg.EnablePodman,
-		EnableDinit:        cfg.EnableDinit,
-		EnableDebug:        cfg.EnableDebug,
-		EnableNix:          cfg.EnableNix,
-		EnableHardening:    cfg.EnableHardening,
-		SwapSize:           cfg.SwapSize,
-		DiskLayout:         cfg.DiskLayout,
-		NixPackages:        cfg.NixPackages,
-		FlatpakPackages:    cfg.FlatpakPackages,
-		Timeout:            cfg.VerificationTimeout,
+		ArtifactsRoot:          cfg.ArtifactsRoot,
+		RunDir:                 runDir,
+		SSHPort:                cfg.TargetSSHPort,
+		SSHUser:                "root",
+		PrivateKey:             keyPair.PrivateKeyPath,
+		InstalledUser:          cfg.InstalledUser,
+		InstalledPassword:      cfg.InstalledPassword,
+		QMPPath:                targetQMPPath,
+		DesktopEnvironment:     cfg.DesktopEnvironment,
+		VideoDriver:            cfg.VideoDriver,
+		EnableSwap:             cfg.EnableSwap,
+		EnableSecureboot:       cfg.EnableSecureboot,
+		EnableTPM:              cfg.EnableTPM,
+		EnablePodman:           cfg.EnablePodman,
+		EnableDinit:            cfg.EnableDinit,
+		EnableDebug:            cfg.EnableDebug,
+		EnableNix:              cfg.EnableNix,
+		EnableBaseSecurity:     cfg.EnableBaseSecurity,
+		EnableCompleteSecurity: cfg.EnableCompleteSecurity,
+		EnableHardening:        cfg.EnableHardening,
+		SwapSize:               cfg.SwapSize,
+		DiskLayout:             cfg.DiskLayout,
+		NixPackages:            cfg.NixPackages,
+		FlatpakPackages:        cfg.FlatpakPackages,
+		Timeout:                cfg.VerificationTimeout,
 	})
 	if err != nil {
 		active.Status = statusFailed

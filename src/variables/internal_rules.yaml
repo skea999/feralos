@@ -228,30 +228,20 @@ standardPackages:
   # counterpart (klogd-dinit) ships in the dinit init bundle (packages.go,
   # EnableDinit-gated — init plumbing, not distro content).
   - klogd-openrc
-  # Security stack (BASE — docs/architecture/security_stack.md): auditd
-  # (kernel audit framework; userspace C, the framework itself is in-kernel),
-  # AIDE (file integrity; C — no credible memory-safe FIM exists, batch
-  # offline tool; no daemon → no -openrc/-dinit counterpart needed), fail2ban
-  # (brute-force, nftables banaction), Tracee (eBPF runtime detection; Go,
-  # first musl packaging, shared build — static cannot load Go-signature
-  # plugins), lynis (conformance report, shell). Enablement: services map
-  # (audit/fail2ban/tracee keys). The -openrc subpackages ride their base
-  # packages (abuild install_if) and the conversion loop (packages.go)
-  # installs the -dinit counterparts automatically — audit-dinit and
-  # fail2ban-dinit are NEVER listed here. fail2ban-dinit ALSO overrides
-  # /etc/init.d/fail2ban (`replaces` retires the vendor fail2ban-openrc —
-  # its initd needs the `logger` service vector replaced). clamav is
-  # EnableHardening-gated (features/hardening.go), NOT here.
-  - audit
-  - aide
-  - fail2ban
-  # fail2ban-config: the jail drop-in is package-shipped (ADR-013 — static
-  # config, not installer-written). depends=fail2ban; 50-feralos.conf sorts
-  # after the vendor alpine-ssh.conf, so its [DEFAULT]/[sshd] values win.
-  # (clamav-config lives in HardeningPackages — EnableHardening-gated.)
-  - fail2ban-config
-  - tracee
-  - lynis
+  # Security variables (ADR-014 — the 2026-11-22 split; ADR-013 packages):
+  # the former ALWAYS-ON base security stack (audit/AIDE/fail2ban/Tracee/
+  # lynis — ADR-012) is GONE from standardPackages: it rides the
+  # enableCompleteSecurity variable via features/completesecurity.go and
+  # complete-security-config (family deps + the static configs). AppArmor
+  # rides enableBaseSecurity via base-security-config. ClamAV stays
+  # enableHardening-gated (features/hardening.go). Nothing security-related
+  # is always-on anymore — only infra (klogd, vector, dbus-audit).
+  # The -openrc subpackages ride their base packages (abuild install_if) and
+  # the conversion loop (packages.go) installs the -dinit counterparts
+  # automatically — audit-dinit and fail2ban-dinit are NEVER listed in any
+  # package list. fail2ban-dinit ALSO overrides /etc/init.d/fail2ban
+  # (`replaces` retires the vendor fail2ban-openrc — its initd needs the
+  # `logger` service vector replaced).
   # polkit-power-config: the wheel power/power-profile rule — ADR-013. No
   # depends on purpose: the file is inert without polkit (DEs pull it), which
   # preserves the previous behaviour (file always written).
@@ -662,11 +652,22 @@ packageLogic:
   # parses as null and carries no data).
   earlyoom:
     services: {"earlyoom": "default"}
-  # Security stack service enablement (docs/architecture/security_stack.md):
-  # unit names = the OpenRC initd names (audit-openrc / fail2ban-dinit's
-  # override / tracee's own initd), so `services` alone drives both inits.
-  # clamd/freshclam are clamav-daemon/freshclam keys (hardening-gated — the
-  # packages arrive only via features/hardening.go).
+  # Security-variable service enablement (ADR-014 — the 2026-11-22 split;
+  # docs/architecture/security_stack.md): unit names = the OpenRC initd
+  # names (audit-openrc / fail2ban-dinit's override / tracee's own initd),
+  # so `services` alone drives both inits.
+  # The enterprise stack (auditd/fail2ban/tracee) is dep-installed via
+  # complete-security-config (enableCompleteSecurity), so its enablement
+  # rides the FAMILY key — the standalone audit/fail2ban/tracee keys below
+  # exist ONLY for manual apk-add installs (they never fire from the
+  # installer path). Same for apparmor via base-security-config
+  # (enableBaseSecurity) and clamd/freshclam via hardening-config
+  # (enableHardening); set-permissions is dep-installed too and rides the
+  # hardening family key.
+  complete-security-config:
+    services: {"auditd": "default", "fail2ban": "default", "tracee": "default"}
+  base-security-config:
+    services: {"apparmor": "boot"}
   audit:
     services: {"auditd": "default"}
   fail2ban:
@@ -681,7 +682,8 @@ packageLogic:
     # [hardening-config]).
     # set-permissions rides this key too: it is dep-installed (never in a
     # package list) and its own packageLogic key is unreachable.
-    services: {"clamd": "default", "freshclam": "default", "apparmor": "boot", "set-permissions": "boot"}
+    # apparmor is NOT here anymore (ADR-014): it rides base-security-config.
+    services: {"clamd": "default", "freshclam": "default", "set-permissions": "boot"}
   clamav-daemon:
     packages: ["clamav-daemon", "freshclam"]
     services: {"clamd": "default"}

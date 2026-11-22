@@ -211,7 +211,17 @@ func askAll(reader *bufio.Scanner, conf *config.Config, order ruleEnumOrder) err
 		return err
 	}
 	u.EnableTPM = tpm
-	hardening, err := askBool(reader, "Enable Hardening", u.EnableHardening)
+	baseSecurity, err := askBool(reader, "Enable Base Security (AppArmor)", u.EnableBaseSecurity)
+	if err != nil {
+		return err
+	}
+	u.EnableBaseSecurity = baseSecurity
+	completeSecurity, err := askBool(reader, "Enable Complete Security (enterprise stack: auditd/AIDE/fail2ban/Tracee/lynis)", u.EnableCompleteSecurity)
+	if err != nil {
+		return err
+	}
+	u.EnableCompleteSecurity = completeSecurity
+	hardening, err := askBool(reader, "Enable Hardening (static kernel hardening + ClamAV)", u.EnableHardening)
 	if err != nil {
 		return err
 	}
@@ -462,6 +472,8 @@ func printSummary(conf *config.Config) {
 	fmt.Printf("  videoDriver:            %s\n", u.VideoDriver)
 	fmt.Printf("  enableSecureboot:       %v\n", u.EnableSecureboot)
 	fmt.Printf("  enableTPM:              %v\n", u.EnableTPM)
+	fmt.Printf("  enableBaseSecurity:     %v\n", u.EnableBaseSecurity)
+	fmt.Printf("  enableCompleteSecurity: %v\n", u.EnableCompleteSecurity)
 	fmt.Printf("  enableHardening:        %v\n", u.EnableHardening)
 	fmt.Printf("  enableZswap:            %v\n", u.EnableZswap)
 	fmt.Printf("  enableNix:              %v\n", u.EnableNix)

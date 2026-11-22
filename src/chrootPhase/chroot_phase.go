@@ -46,11 +46,15 @@ func Run(conf *config.Config) error {
 
 	// 2. Logging: package-shipped (vector-config + vector-dinit, ADR-013).
 
-	// 2b. Security stack configs (audit rules, fail2ban jail, aide config —
-	// docs/architecture/security_stack.md; packages + service enablement are
-	// rules-driven)
-	if err := internal.SetupSecurityStack(conf, pkgList); err != nil {
-		return fmt.Errorf("security stack setup failed: %w", err)
+	// 2b. Security variables (ADR-014): baseSecurity (AppArmor baseline),
+	// completeSecurity (enterprise stack) — the static configs are
+	// package-shipped (ADR-013); packages + service enablement are
+	// rules-driven
+	if err := features.SetupBaseSecurity(conf); err != nil {
+		return fmt.Errorf("base security setup failed: %w", err)
+	}
+	if err := features.SetupCompleteSecurity(conf); err != nil {
+		return fmt.Errorf("complete security setup failed: %w", err)
 	}
 
 	// 3. Setup network
@@ -159,12 +163,12 @@ func Run(conf *config.Config) error {
 		return fmt.Errorf("edge repositories setup failed: %w", err)
 	}
 
-	// 18. AIDE baseline database (security stack) — AFTER the edge install
-	// (the last step that can touch watched paths): the baseline must capture
-	// the FINAL filesystem state or every install-time change would surface
-	// as first-boot drift. Non-fatal (WARNING) — the harness check on
+	// 18. AIDE baseline database (completeSecurity, ADR-014) — AFTER the edge
+	// install (the last step that can touch watched paths): the baseline must
+	// capture the FINAL filesystem state or every install-time change would
+	// surface as first-boot drift. Non-fatal (WARNING) — the harness check on
 	// /var/lib/aide/aide.db is the strict signal.
-	internal.BaselineAide(conf, pkgList)
+	features.BaselineAide(conf, pkgList)
 
 	fmt.Println("[INFO] ChrootPhase.Run completed successfully.")
 	return nil
