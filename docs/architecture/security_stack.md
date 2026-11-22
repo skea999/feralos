@@ -15,12 +15,12 @@ Local-only desktop stack, shipped by the BASE installer (no flag), minimum tool 
 | Brute-force IPS | `fail2ban` + `fail2ban-dinit` (BOTH-INIT override, `replaces=fail2ban-openrc`) | `fail2ban` | `/etc/fail2ban/jail.d/50-feralos.conf` (`internal/security_stack.go`) | `/var/log/fail2ban.log` (own logrotate) | `fail2ban_logs` |
 | Runtime detection | `tracee` (feralos port — first musl packaging; SHARED build) | `tracee` | `/etc/dinit.d/config/tracee.conf` (tuning; also `/etc/conf.d/tracee`) | `/var/log/dinit/tracee.log` (dinit) / `/var/log/tracee.log` (OpenRC) | rides `dinit_services` (dinit) |
 | Conformance report | `lynis` (feralos port; no daemon) | — (daily cron from package) | none (package default.prf) | `/var/log/lynis.log` | `lynis_logs` |
-| Malware (HARDENING-gated) | `clamav-daemon` + `clamav-scanner` + `clamav-db` + `clamav-daemon-dinit` + `freshclam-dinit` | `clamd` (depends-on freshclam), `freshclam` | `/etc/clamav/clamd.conf` (`features/hardening.go`) | `/var/log/clamav/clamd.log` + `freshclam.log` (own logrotate) | `clamav_logs` |
+| Malware (HARDENING-gated) | `clamav-daemon` + `clamav-scanner` + `clamav-db` + `clamav-daemon-dinit` + `freshclam-dinit` | `clamd` (depends-on freshclam), `freshclam` | `/etc/clamav/clamd.conf` + `freshclam.conf` (`clamav-config`, ADR-013) | `/var/log/clamav/clamd.log` + `freshclam.log` (own logrotate) | `clamav_logs` |
 
 ## File ownership (installer)
 
 - `src/chrootPhase/internal/security_stack.go` — BASE stack configs (audit rules, fail2ban jail, aide config/cron), called step 2b; `BaselineAide` at step 18 (AFTER the edge install — the baseline must capture the final filesystem state).
-- `src/chrootPhase/features/hardening.go` — ClamAV packages + `/etc/clamav/clamd.conf` (feature confinement: hardening owner file).
+- ClamAV packages ride as apk DEPENDENCIES of `hardening-config` (ADR-013 R2 family consolidation); enablement rides the `hardening-config` packageLogic key.
 - `src/chrootPhase/internal/logging.go` — Vector gated sources + `conf.d` drop-in dir + README + install-time `vector validate --skip-healthchecks`.
 - aports: `audit-dinit`, `fail2ban-dinit`, `tracee`, `aide`, `lynis`, `clamav-daemon-dinit`, `freshclam-dinit` (all tag-pinned).
 

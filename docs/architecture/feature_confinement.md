@@ -41,6 +41,8 @@ Violation = feature logic leaked outside owner.
 | `EnableSwap` | `hostPhase/disks/*` | `host_phase.go` (disk layout layer) |
 | `DesktopEnvironment` | `chrootPhase/desktops/desktops.go` | `chroot_phase.go` |
 
+**Hardening family note (ADR-013 R2, 2026-11-22)**: `HardeningPackages()` = `[hardening-config]` — the whole family (apparmor stack, clamav stack, `set-permissions`, the static sysctls 93-99 + modprobe blacklist + umask drop-in) rides as apk dependencies of `hardening-config`; the clamav enablement rides the `hardening-config` packageLogic key (deps-installed packages need their rules keys on the family package). `hardening.go` keeps only: cmdline fragment (variables), apparmor enablement glue, the debug drop-in `99-feralos-debug.conf` (variables), the clamav DB snapshot pull (network). The permission posture (`set-permissions`) is packaged and ENABLED at boot on both inits — it was installer-written but never enabled since the beginning.
+
 ## User-Session Daemons = Supervised Services (Artix/Chimera model, user rule 2026-10-16)
 
 EVERY user-session daemon runs as a supervised per-user dinit service (`.user`, started by the turnstile-spawned user dinit) — NOTHING is left to unsupervised D-Bus activation, autostart or daemon self-spawn. If Alpine lacks the `-user-dinit` package, one is created in feralos-aports (e.g. `oo7-user-dinit`, `xdg-desktop-portal-user-dinit`). Applies to BOTH inits (OpenRC gets the identical user-dinit stack via turnstile).

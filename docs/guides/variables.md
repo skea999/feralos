@@ -73,6 +73,7 @@ variables:
 | Key | Type | Description |
 |-----|------|-------------|
 | `mirror` | `string` | Alpine mirror `https://dl-cdn.alpinelinux.org/alpine`. |
+| `feralosRepoUrl` | (optional) override of the FeralOS package repo base URL — the keyring filename still comes from `feralosRepo.keyringUrl` | empty = the canonical Pages URL; the harness sets it to its local mirror (pages-race hardening) |
 | `arch` | `string` | `x86_64` (only tested). |
 | `branch` | `string` | `latest-stable`, `v3.19`, `edge`, etc. |
 | `unattended` | `bool` | `true` skips wizard, uses file as-is. `false` runs interactive `createConfig`. Skips manual input ONLY — does not affect error handling. |

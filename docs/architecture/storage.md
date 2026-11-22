@@ -62,8 +62,12 @@ Written by `chrootPhase/internal/storage.go` (binary paths resolved in the
 chroot at install time; output appended to dedicated logs, rotated by
 logrotate 7d):
 
-- **Daily btrbk** `02:00` — `btrbk run` (retention in `/etc/btrbk/btrbk.conf`:
-  keep 7 daily / 4 weekly / 3 monthly) → `/var/log/btrbk/cron.log`
+- **Daily btrbk** `02:00` — `btrbk run` (retention in `/etc/btrbk/btrbk.conf`,
+  **btrbk ≥ 0.32 syntax**: `snapshot_preserve 7d 4w 3m` + `snapshot_preserve_min latest`
+  + `preserve_hour_of_day 2`; the old pre-0.32 options — `run_as`, `compact`,
+  `logdir`, `compare`, `keep_*` — made btrbk refuse the config, so ZERO
+  snapshots were ever created; config now ships in `storage.go` and is gated
+  by the harness `btrbk_config` + `btrbk_snapshot` checks) → `/var/log/btrbk/cron.log`
 - **Weekly TRIM** `Sun 03:00` — `/etc/periodic/weekly/btrfs-trim`: enables
   discard passthrough on active dm-crypt volumes (`cryptsetup refresh
   --allow-discards`), `btrfs filesystem trim -a /`, then clears the
