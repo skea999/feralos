@@ -239,6 +239,11 @@ func dinitExpectedServices(cfg *VerifyConfig) []string {
 	if isNiriFamilyDE(cfg.DesktopEnvironment) {
 		expected = append(expected, dinitExpectedServicesNiriFamily...)
 	}
+	// set-permissions (hardening posture, boot): hardening-gated — absent
+	// from installs without enableHardening.
+	if cfg.EnableHardening {
+		expected = append(expected, "set-permissions")
+	}
 	return expected
 }
 
