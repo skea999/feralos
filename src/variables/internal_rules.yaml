@@ -275,6 +275,10 @@ standardPackages:
   # clean boot log, no signature noise (run12 serial 11.5-14.4s; ADR-012
   # stack runs sig_enforce=1 by design).
   - kmod
+  # assemble-cmdline: the kernel cmdline.d assembler (/usr/sbin) — SetupBoot
+  # and the 50-booster hook assemble /etc/kernel/cmdline from the .d
+  # fragments through it. Boot-generic machinery (NOT hardening-gated).
+  - assemble-cmdline
   # Firmware
   - fwupd
   - fwupd-efi
