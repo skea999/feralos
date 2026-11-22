@@ -217,6 +217,8 @@ Two real bugs were found by the matrix and fixed (not test noise): `login_readin
 
 - **feralos repo cleanup**: `src/firstBoot/dbus-audit` REMOVED — the source of truth is the standalone repo; the installer never compiled it (the aports package ships the binary). Docs: `dbus-activation.md` + `misc.go` comment point to the new home.
 
+- **CONFIRMED LIVE — run `2026-11-22T17-24-49Z`: 136/136** with `feralos-dbus-audit (0.1.2-r1)` installed from the new standalone repo: step-8a INSTALL pass auto-installed the 17 supervision packages, step-16 REPORT `32 covered, 0 installed, 0 missing`, `dbus_audit_coverage` PASS, no regressions across the whole package stack (btrbk/set-permissions/apparmor/artifact staging all green). Docs: `aports-pinning.md` (standalone tool repos carry their own release tags), `dbus-activation.md` updated.
+
 ## 2026-11-22 — feralos-dbus-audit moves to its own standalone repo
 
 - **New repo `skea999/feralos-dbus-audit`** (Go, public): the ADR-010 supervision audit as a standalone tool — moved out of `src/firstBoot/dbus-audit` in the feralos installer repo. Same model as `assemble-cmdline`: own blocking CI (fmt/vet/golangci-lint incl gosec/test/build/govulncheck/gitleaks/yamllint/editorconfig/typos/markdownlint — 8/8 green), LICENSE + CONTRIBUTING copied from feralos, pre-commit mirrored, `shell/` = minimal silent-exec core extracted from `utils/shell` (`ExecSilentArgs` + `SetCaller`; the caller now prefixes the error path — parity with the feralos shell).

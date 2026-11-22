@@ -33,8 +33,10 @@ commit archive** (`archive/<sha>...`).
   fixed to a pinned versioned artifact.
 - Our own repos (`skea999/feralos`, `skea999/ursine`,
   `skea999/dms-window-buttons`): cut a tag for each package-relevant source
-  state instead of commit pins (e.g. tag `dbus-audit-0.1.0` at the feralos
-  commit the `feralos-dbus-audit` APKBUILD is cut from).
+  state instead of commit pins. Standalone tool repos (2026-11-22:
+  `skea999/feralos-dbus-audit`, `skea999/assemble-cmdline`) carry their own
+  release tags — the aports APKBUILD pins those directly; the historical
+  feralos-repo tags (`dbus-audit-0.1.x`) stay for the pre-migration lineage.
 
 ## Inventory 2026-11-08
 
