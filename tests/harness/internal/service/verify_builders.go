@@ -755,7 +755,7 @@ exit $fail`
 		// Secret portal pin (oo7 README config: niriWayle has no
 		// gnome-keyring, so Secret must resolve to oo7-portal explicitly).
 		// No DMI guard: flatpak + the portals conf are real on every host.
-		checks["keyrack_flatpak"] = fmt.Sprintf("flatpak info app.drey.KeyRack >/dev/null 2>&1 && grep -q 'org.freedesktop.impl.portal.Secret=oo7-portal' /home/%s/.config/xdg-desktop-portal/niri-portals.conf && echo 'Key Rack flatpak installed + Secret=oo7-portal pinned'", cfg.InstalledUser)
+		checks["keyrack_flatpak"] = "flatpak info app.drey.KeyRack >/dev/null 2>&1 && grep -q 'org.freedesktop.impl.portal.Secret=oo7-portal' /etc/xdg-desktop-portal/niri-portals.conf && echo 'Key Rack flatpak installed + Secret=oo7-portal pinned'"
 		// oo7_pam_unlock: full login-unlock parity proof for the oo7 stack.
 		// STATIC half registered here; the RUNTIME half (authenticated PAM
 		// login on service "greetd" + secrets.log proof) is driven by
