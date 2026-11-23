@@ -45,7 +45,7 @@ box log <run> --host medion --pod feralos-vm      # progress
 
 - First call: `prepare-runner` (once) + `skea_harness run --keep-target-running`
   with the niriWayle dinit fixture, about 6 minutes on the Medion with a warm
-  package cache; the full 114-check verification runs on this display too.
+  package cache; the full verification runs on this display too.
 - Later calls: boot the last verified run's disk with debug_run (about 1.5
   minutes, TPM unlocks the disk).
 - `start.sh` refuses to start while another run is active in the box (they
