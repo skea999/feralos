@@ -360,28 +360,15 @@ include "dms/colors.kdl"
 	// DMS appearance (mode/colors/icons) to GTK, Qt, KDE, Flatpak. Manual
 	// seeds would conflict with it. The plugin + enablement are installed
 	// separately (see the plugin round).
-	// gsettings INFRASTRUCTURE kept (not a theme override): the dconf
-	// package ships NO /etc/dconf/profile/user (Debian ships it) — without
-	// the profile GLib never consults the user/system dbs and `gsettings
-	// get` returns schema defaults, verified live. `dconf update` compiles
-	// the (empty) system db so user-level writes from the plugin take
-	// effect immediately. Alpine's dconf also ships NO /etc/dconf at all
-	// (verified: apk add dconf in a clean container) — `dconf update` errors
-	// "Error opening directory /etc/dconf/db" without the system-db:local
-	// dir, so create it (harness run 2026-10-12T22-09-52Z caught the failure
-	// after the former seed write stopped creating it as a side effect).
-	// /etc/dconf/profile/user ships in niri-base-config (Alpine's dconf
-	// ships NO /etc/dconf at all). The db DIR + `dconf update` stay:
-	// DMS's theming plugin writes user-level dconf keys at runtime and
-	// needs the compiled (empty) system db present (harness run
-	// 2026-10-12T22-09-52Z caught the "Error opening directory" failure
-	// without it).
-	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /etc/dconf/db/local.d"); err != nil {
-		return fmt.Errorf("create dconf system db dir: %w", err)
-	}
-	if _, err := shell.ExecuteCmd(chroot, "dconf update"); err != nil {
-		return fmt.Errorf("dconf update: %w", err)
-	}
+	// gsettings INFRASTRUCTURE — FULLY package-materialized now:
+	// /etc/dconf/profile/user ships in niri-base-config AND its post-install
+	// compiles the (empty) system db at PACKAGE-install time — the edge/
+	// flatpak install runs BEFORE the desktop setup and the dconf writes
+	// need the compiled db (harness run 2026-10-12T22-09-52Z caught the
+	// "Error opening directory" failure; proof 2026-11-23T23-15-08Z
+	// caught the flatpak variant of the same race). Nothing left here —
+	// DMS's theming plugin writes user-level dconf at runtime against the
+	// package-materialized db.
 	mimeapps := `[Default Applications]
 x-scheme-handler/https=firefox.desktop
 x-scheme-handler/http=firefox.desktop

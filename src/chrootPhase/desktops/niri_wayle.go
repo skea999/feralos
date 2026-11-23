@@ -406,21 +406,13 @@ center = []
 		}
 	}
 
-	// gsettings INFRASTRUCTURE: /etc/dconf/profile/user ships in
-	// niri-base-config (Alpine's dconf ships NO /etc/dconf at all — without
-	// the profile GLib never consults the user/system dbs). The db DIR +
-	// `dconf update` STAY: the flatpak install (and GTK apps generally)
-	// write user-level dconf and hit "unable to open file /etc/dconf/db/
-	// local" without the compiled (empty) system db — the same failure
-	// niri.go caught live (harness run 2026-10-12T22-09-52Z, re-caught by
-	// log_errors on the 2026-11-23 flagship run when the mkdir+update were
-	// briefly dropped).
-	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /etc/dconf/db/local.d"); err != nil {
-		return fmt.Errorf("create dconf system db dir: %w", err)
-	}
-	if _, err := shell.ExecuteCmd(chroot, "dconf update"); err != nil {
-		return fmt.Errorf("dconf update: %w", err)
-	}
+	// gsettings INFRASTRUCTURE — FULLY package-materialized now:
+	// /etc/dconf/profile/user ships in niri-base-config AND its post-install
+	// compiles the (empty) system db at PACKAGE-install time — the edge/
+	// flatpak install runs BEFORE the desktop setup and the flatpak
+	// dconf writes need the compiled db (proof 2026-11-23T23-15-08Z:
+	// Key Rack hit "unable to open file /etc/dconf/db/local" when the
+	// materialization lived here). Nothing left in the installer.
 
 	// 8. NetworkManager is the network service for the niriWayle desktop
 	// (Wayle network module talks to NM): both statics ship in
