@@ -53,7 +53,7 @@ feralos_installer/
 │       │   ├── dbus_audit.go, dbus_audit_helpers.go
 │       │   └── ...
 │       ├── features/ (hardening.go, zswap.go, zswap_server.go, nix.go, podman.go, edgerepos.go)
-│       └── desktops/ (niri.go, niri_wayle.go, desktops.go, branding.go)
+│       └── desktops/ (niri.go, niri_wayle.go, desktops.go, xdgsu.go)
 ├── tests/
 │   ├── fixtures/variables/ (30 fixtures, full template mirror + README — all scenarios)
 │   ├── harness/ (cmd/skea_harness, internal/, variables-*.yaml deprecated shims)

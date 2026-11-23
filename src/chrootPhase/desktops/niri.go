@@ -68,9 +68,8 @@ timezone = "%s"
 	// 3a. Branding — FeralOS logo (system hicolor icon) + default wallpapers
 	// (the regreet background above + ultrawide variant). Cosmetic: never
 	// fatal.
-	if err := installBrandingAssets(chroot); err != nil {
-		fmt.Printf("[WARNING] Branding assets not installed (non-fatal): %v\n", err)
-	}
+	// Branding (logo + wallpapers) ships in niri-base-config — nothing
+	// to install here.
 
 	// 4. greeter user + dirs. greetd apk does not create the 'greeter' user.
 	// The greeter's niri reads its config from its HOME (per-home, not
@@ -361,7 +360,7 @@ include "dms/colors.kdl"
 	// DMS appearance (mode/colors/icons) to GTK, Qt, KDE, Flatpak. Manual
 	// seeds would conflict with it. The plugin + enablement are installed
 	// separately (see the plugin round).
-	// gsettings INFRASTRUCTURE kept (not a theme override): Alpine's dconf
+	// gsettings INFRASTRUCTURE kept (not a theme override): the dconf
 	// package ships NO /etc/dconf/profile/user (Debian ships it) — without
 	// the profile GLib never consults the user/system dbs and `gsettings
 	// get` returns schema defaults, verified live. `dconf update` compiles
@@ -371,10 +370,12 @@ include "dms/colors.kdl"
 	// "Error opening directory /etc/dconf/db" without the system-db:local
 	// dir, so create it (harness run 2026-10-12T22-09-52Z caught the failure
 	// after the former seed write stopped creating it as a side effect).
-	dconfProfile := "user-db:user\nsystem-db:local\n"
-	if err := writeFile(chroot, "/etc/dconf/profile/user", dconfProfile); err != nil {
-		return fmt.Errorf("seed dconf profile: %w", err)
-	}
+	// /etc/dconf/profile/user ships in niri-base-config (Alpine's dconf
+	// ships NO /etc/dconf at all). The db DIR + `dconf update` stay:
+	// DMS's theming plugin writes user-level dconf keys at runtime and
+	// needs the compiled (empty) system db present (harness run
+	// 2026-10-12T22-09-52Z caught the "Error opening directory" failure
+	// without it).
 	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /etc/dconf/db/local.d"); err != nil {
 		return fmt.Errorf("create dconf system db dir: %w", err)
 	}
@@ -425,73 +426,23 @@ x-scheme-handler/webcals=org.gnome.Calendar.desktop`
 		fmt.Printf("[WARNING] failed to strip background-effect from layout.kdl: %v\n", err)
 	}
 
-	// 7. NetworkManager is the network service for the niri desktop
-	// (rounds 30/44 — DMS network/VPN UI needs the NM backend):
-	//  - NM may manage interfaces configured by ifupdown (managed=true)
-	//  - /etc/network/interfaces reduced to lo (eth0 belongs to NM; the
-	//    stale DHCP ifupdown config caused double default routes).
-	//    This OVERWRITES the eth0-dhcp file written by internal.setupInterfaces
-	//    earlier in the chroot run — that write is dead in the niri flow
-	//    (kept there for non-niri flows; see network.go setupInterfaces).
-	//  - NM polkit rule allows the plugdev group (user added there via
-	//    internal_rules groups)
-	nmManage := `[ifupdown]
-managed=true
-`
-	if err := writeFile(chroot, "/etc/NetworkManager/conf.d/10-manage.conf", nmManage); err != nil {
-		return fmt.Errorf("write NM manage conf: %w", err)
-	}
-	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /etc/NetworkManager/conf.d"); err != nil {
-		return fmt.Errorf("mkdir NM conf.d: %w", err)
-	}
-	interfacesLo := `# NetworkManager manages wired/wireless interfaces (see
-# /etc/NetworkManager/conf.d/10-manage.conf). Keep loopback here only.
-auto lo
-iface lo inet loopback
-`
-	if err := writeFile(chroot, "/etc/network/interfaces", interfacesLo); err != nil {
-		return fmt.Errorf("write interfaces (lo only): %w", err)
-	}
+	// 7. NetworkManager is the network service (the DMS widget talks to NM,
+	// rounds 30/44 — DMS network/VPN UI needs the NM backend): both statics
+	// ship in niri-base-config — /etc/NetworkManager/conf.d/10-manage.conf
+	// (managed=true) and /etc/network/interfaces reduced to loopback (it
+	// OVERWRITES the eth0-dhcp file internal.setupInterfaces wrote earlier;
+	// that write is dead in the niri-family flow).
 
 	// 8. CUPS printer admin: SystemGroup stays at the Alpine default
 	// (lpadmin, in cups-files.conf) — the session user is added to the
 	// lpadmin group instead of widening CUPS admin to all of wheel
 	// (round 24: without membership, CUPS answers 403 on CUPS-Get-Devices).
 
-	// 9. xdg-su wrapper — niri unsupported by xdg-su, use alacritty + su
-	xdgSu := `#!/bin/sh
-# xdg-su wrapper — for niri uses alacritty+su, other DEs call the original
-# Not overwritten by updates (in /usr/local/bin)
-
-case "$XDG_CURRENT_DESKTOP" in
-    *niri*)
-        cmd=
-        user=
-        while [ $# -gt 0 ]; do
-            case "$1" in
-                -c) cmd="$2"; shift 2 ;;
-                -u) user="$2"; shift 2 ;;
-                *) shift ;;
-            esac
-        done
-        if [ -n "$cmd" ] && command -v alacritty >/dev/null 2>&1; then
-            if [ -n "$user" ]; then
-                exec alacritty -e su -c "$cmd" "$user"
-            else
-                exec alacritty -e su -c "$cmd"
-            fi
-        fi
-        exit 1
-        ;;
-esac
-
-exec /usr/bin/xdg-su "$@"
-`
-	if err := writeFile(chroot, "/usr/local/bin/xdg-su", xdgSu); err != nil {
-		return fmt.Errorf("write xdg-su wrapper: %w", err)
-	}
-	if _, err := shell.ExecuteCmd(chroot, "chmod +x /usr/local/bin/xdg-su"); err != nil {
-		return fmt.Errorf("chmod xdg-su: %w", err)
+	// 9. xdg-su wrapper — shared with niriWayle: STAYS installer-side
+	// (packages must not write under /usr/local; the /usr/local location
+	// is what survives vendor xdg-su updates).
+	if err := installXdgSuWrapper(chroot); err != nil {
+		return err
 	}
 
 	// 10. groups: the session user's groups come from the rules (DE `groups`

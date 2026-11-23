@@ -378,7 +378,23 @@ func buildDinitChecks(cfg *VerifyConfig, checks map[string]string) {
 func buildDesktopChecks(cfg *VerifyConfig, checks map[string]string) {
 	isNiriFamily := isNiriFamilyDE(cfg.DesktopEnvironment)
 	if isNiriFamily {
-		checks["niri_config_valid"] = fmt.Sprintf("niri validate --config /var/lib/greetd/.config/niri/config.kdl && niri validate --config /home/%s/.config/niri/config.kdl && grep -q '^prefer-no-csd' /home/%s/.config/niri/config.kdl && grep -q 'QT_WAYLAND_DISABLE_WINDOWDECORATION \"1\"' /home/%s/.config/niri/config.kdl && echo 'niri config valid (prefer-no-csd + Qt no-decoration; hotkey overlay intentionally NOT skipped)'", cfg.InstalledUser, cfg.InstalledUser, cfg.InstalledUser)
+		if cfg.DesktopEnvironment == desktopNiriWayle {
+			checks["niri_config_valid"] = fmt.Sprintf("niri validate --config /var/lib/greetd/.config/niri/config.kdl && niri validate --config /home/%s/.config/niri/config.kdl && grep -qF 'include \"/usr/share/feralos/wayle/niri/base.kdl\"' /home/%s/.config/niri/config.kdl && grep -q '^prefer-no-csd' /usr/share/feralos/wayle/niri/base.kdl && grep -q 'QT_WAYLAND_DISABLE_WINDOWDECORATION \"1\"' /usr/share/feralos/wayle/niri/base.kdl && echo 'niri config valid (include + package base: prefer-no-csd + Qt no-decoration; hotkey overlay intentionally NOT skipped)'", cfg.InstalledUser, cfg.InstalledUser)
+		} else {
+			checks["niri_config_valid"] = fmt.Sprintf("niri validate --config /var/lib/greetd/.config/niri/config.kdl && niri validate --config /home/%s/.config/niri/config.kdl && grep -q '^prefer-no-csd' /home/%s/.config/niri/config.kdl && grep -q 'QT_WAYLAND_DISABLE_WINDOWDECORATION \"1\"' /home/%s/.config/niri/config.kdl && echo 'niri config valid (prefer-no-csd + Qt no-decoration; hotkey overlay intentionally NOT skipped)'", cfg.InstalledUser, cfg.InstalledUser, cfg.InstalledUser)
+		}
+		// niri-base-config (ADR-013 wave C): the SHARED niri-family statics
+		// (both DE package lists carry it) — dconf profile, NM manage conf,
+		// lo-only interfaces, branding (logo + wallpapers).
+		checks["config_packages_niri_base"] = `fail=0
+apk info -e niri-base-config >/dev/null 2>&1 || { echo "FAIL: niri-base-config not installed"; fail=1; }
+grep -q 'system-db:local' /etc/dconf/profile/user || { echo "FAIL: dconf profile missing"; fail=1; }
+grep -q 'managed=true' /etc/NetworkManager/conf.d/10-manage.conf || { echo "FAIL: NM manage conf missing"; fail=1; }
+grep -q 'iface lo inet loopback' /etc/network/interfaces || { echo "FAIL: lo-only interfaces missing"; fail=1; }
+test -f /usr/share/icons/hicolor/scalable/apps/feralos-logo.svg || { echo "FAIL: branding logo missing"; fail=1; }
+test -f /usr/share/wallpapers/feralos-default.png || { echo "FAIL: wallpaper missing"; fail=1; }
+[ $fail -eq 0 ] && echo 'niri base config packages OK (dconf profile + NM manage + lo interfaces + branding)'
+exit $fail`
 		checks["greetd_config"] = "ls /etc/greetd/config.toml /etc/greetd/greeter.sh /etc/greetd/regreet.toml /var/lib/greetd/.config/niri/config.kdl && test -x /etc/greetd/greeter.sh && [ \"$(id -u greeter)\" -lt 1000 ] && echo \"greeter is a system user (hidden from ReGreet's UID-filtered list)\""
 		// greetd_socket: greetd daemon alive (IPC socket). Runtime complement
 		// to the static greetd_config check. Works on BOTH init systems —
@@ -705,7 +721,12 @@ grep -q '/run/dinitctl' /usr/bin/feralos-reboot || { echo "FAIL: wrapper dinit p
 grep -q 'exec loginctl reboot' /usr/bin/feralos-reboot || { echo "FAIL: wrapper OpenRC path missing"; fail=1; }
 grep -q 'password optional pam_oo7.so' /etc/pam.d/passwd || { echo "FAIL: oo7 passwd override missing"; fail=1; }
 grep -q 'password include base-password' /etc/pam.d/passwd || { echo "FAIL: oo7 passwd base include missing"; fail=1; }
-[ $fail -eq 0 ] && echo 'wayle config packages OK (reboot wrapper + oo7 passwd PAM override)'
+test -f /usr/share/feralos/wayle/niri/base.kdl || { echo "FAIL: niri base.kdl missing"; fail=1; }
+grep -q '^prefer-no-csd' /usr/share/feralos/wayle/niri/base.kdl || { echo "FAIL: base.kdl prefer-no-csd missing"; fail=1; }
+grep -q 'Mod+T' /usr/share/feralos/wayle/niri/base.kdl || { echo "FAIL: base.kdl binds missing"; fail=1; }
+test -f /etc/xdg-desktop-portal/niri-portals.conf || { echo "FAIL: portals admin conf missing"; fail=1; }
+grep -q 'Secret=oo7-portal' /etc/xdg-desktop-portal/niri-portals.conf || { echo "FAIL: oo7 portal pin missing"; fail=1; }
+[ $fail -eq 0 ] && echo 'wayle config packages OK (reboot wrapper + oo7 passwd PAM + niri base.kdl + portals admin conf)'
 exit $fail`
 		// wayle_running: the Wayle shell process (bar/notifications/OSD/
 		// wallpaper) alive for the session user. Poll 90s like the other

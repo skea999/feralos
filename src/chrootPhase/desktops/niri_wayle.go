@@ -76,13 +76,8 @@ timezone = "%s"
 		return fmt.Errorf("write regreet config: %w", err)
 	}
 
-	// 3a. Branding — FeralOS logo (system hicolor icon: the Wayle launcher
-	// custom module uses icon-name = "feralos-logo") + default wallpapers
-	// (the regreet background above + ultrawide variant). Cosmetic: never
-	// fatal.
-	if err := installBrandingAssets(chroot); err != nil {
-		fmt.Printf("[WARNING] Branding assets not installed (non-fatal): %v\n", err)
-	}
+	// 3a. Branding (logo + wallpapers) ships in niri-base-config — nothing
+	// to install here.
 
 	// 3b. Hide the upstream bare `niri` session from regreet (real-hardware
 	// fix): the greeter showed BOTH the upstream niri session and the FeralOS
@@ -183,42 +178,36 @@ XDG_DATA_DIRS=/home/%s/.local/share/flatpak/exports/share:/var/lib/flatpak/expor
 		return fmt.Errorf("write /etc/environment: %w", err)
 	}
 
-	// 6. xdg-desktop-portal portal backend for the user — the user conf
-	// OVERRIDES Alpine's system niri-portals.conf entirely (that one lists
-	// default=gnome;gtk and its niri-portalsconf dependency pulls the gnome
-	// portal backend — which we shadow with an empty 999 dummy so the real
-	// package, and nautilus with it, never installs). default=gtk keeps the
-	// gtk backend as the generic provider (FileChooser/Settings/Print/
-	// Access/Wallpaper); wlr owns the compositor-native Screenshot/ScreenCast
-	// (the gnome backend would answer via mutter and fail on niri). Secret
-	// is pinned to oo7-portal (exact config the oo7 README prescribes;
-	// without the pin Secret would resolve implicitly to the gtk backend —
-	// niriWayle has NO gnome-keyring, so the org.freedesktop.secrets D-Bus
-	// name must be owned by oo7's portal).
-	userPortals := `[preferred]
-default=gtk;
-org.freedesktop.impl.portal.ScreenCast=wlr;
-org.freedesktop.impl.portal.Screenshot=wlr;
-org.freedesktop.impl.portal.Secret=oo7-portal;
-`
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p /home/%s/.config/xdg-desktop-portal", u.UserName)); err != nil {
-		return fmt.Errorf("mkdir user portals dir: %w", err)
-	}
-	if err := writeFile(chroot, fmt.Sprintf("/home/%s/.config/xdg-desktop-portal/niri-portals.conf", u.UserName), userPortals); err != nil {
-		return fmt.Errorf("write user portals conf: %w", err)
-	}
+	// 6. xdg-desktop-portal backend — the ADMIN-path override ships in
+	// wayle-config (/etc/xdg-desktop-portal/niri-portals.conf: default=gtk,
+	// wlr Screenshot/ScreenCast, Secret=oo7-portal — the oo7 README pin;
+	// niriWayle has NO gnome-keyring so the org.freedesktop.secrets D-Bus
+	// name must be owned by oo7's portal). XDG precedence: $XDG_CONFIG_HOME
+	// > /etc > /usr/share — with no user file the admin conf wins, same
+	// effective state as the per-user seed it replaces. The Alpine system
+	// niri-portals.conf (default=gnome;gtk) is still shadowed by the
+	// niri-portalsconf 999 dummy in the package list.
 
-	// 7. niri config for the real user — keymap, wayland env, XWayland,
-	// default binds (terminal=alacritty, launcher=raffi, lock=veila).
-	// Session services (dbus/pipewire/pulse/wireplumber/polkit-agent/
-	// wayle/veila/wayvnc) are supervised by the USER dinit instance
-	// turnstile starts at login — not spawned here.
-	userNiri := fmt.Sprintf(`// CSD off (Windows-like): niri asks apps to omit client-side titlebars —
-// window controls live on the Wayle bar plus keys (Mod+Q close / Mod+F
-// maximize / Mod+Shift+F fullscreen). Caveats (niri docs): floating windows
-// lose resize handles — resize with Mod+right-click; apps must be restarted
-// for the change to apply.
-prefer-no-csd
+	// 7. niri config for the real user — the per-install parts ONLY (input
+	// keymap + the user-path XDG_DATA_DIRS): the STATIC base (prefer-no-csd,
+	// environment minus DATA_DIRS, xwayland-satellite, the full binds set —
+	// upstream defaults + raffi/veila adjustments) ships in wayle-config as
+	// /usr/share/feralos/wayle/niri/base.kdl and MERGES per-property (niri
+	// >=25.11 include). User customization = edit THIS file: a binds block
+	// here overrides individual keys over the package base, and the home
+	// file is never package-re-asserted on updates (owner decision
+	// 2026-11-23). Session services (dbus/pipewire/pulse/wireplumber/
+	// polkit-agent/wayle/veila/wayvnc) are supervised by the USER dinit
+	// instance turnstile starts at login — not spawned here.
+	userNiri := fmt.Sprintf(`// FeralOS niriWayle — user config (installer-written, user-editable).
+// The STATIC base ships in wayle-config and merges per-property:
+//     include "/usr/share/feralos/wayle/niri/base.kdl"
+// (prefer-no-csd, wayland env, xwayland-satellite, the full binds set —
+// terminal=alacritty, launcher=raffi, lock=veila, window switcher=raffi).
+// Only the PER-INSTALL parts live here. To override a single bind, add
+// your own binds block below — only the keys you set change.
+
+include "/usr/share/feralos/wayle/niri/base.kdl"
 
 input {
     keyboard {
@@ -231,52 +220,9 @@ input {
 }
 
 environment {
-    XDG_SESSION_TYPE "wayland"
-    XDG_SESSION_DESKTOP "niri"
-    XDG_CURRENT_DESKTOP "niri"
     XDG_DATA_DIRS "/home/%s/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share:/usr/share:/home/%s/.nix-profile/share"
-    QT_QPA_PLATFORM "wayland"
-    QT_QPA_PLATFORMTHEME "xdgdesktopportal"
-    // Hard override: Qt drops client-side decorations (niri's prefer-no-csd
-    // also works via xdg-decoration negotiation; this env guarantees it —
-    // value must be numeric "1", "true" parses to 0 and does NOT disable).
-    QT_WAYLAND_DISABLE_WINDOWDECORATION "1"
-    ELECTRON_OZONE_PLATFORM_HINT "auto"
-    SDL_VIDEO_DRIVER "wayland"
-    CLUTTER_BACKEND "wayland"
-    _JAVA_AWT_WM_NONREPARENTING "1"
-    WINIT_WAYLAND_NO_AVOID_RESIZE "1"
 }
-
-// NOTE: no hotkey-overlay skip-at-startup here — the "Important Hotkeys"
-// overlay is wanted (user request; shows the keybind cheatsheet at login).
-// Do not add a skip block.
-
-// --- XWayland for X11 apps ---
-xwayland-satellite {
-    path "xwayland-satellite"
-}
-
-// Session services (dbus/pipewire/pulse/wireplumber/polkit-agent/wayle/
-// veila/wayvnc) are supervised by the USER dinit instance turnstile starts
-// at login — not spawned here (crash-restart + ordering handled by dinit).
-
-// XDG user dirs (Documents/Downloads/...) — idempotent, no-op after first run
-spawn-at-startup "sh" "-c" "command -v xdg-user-dirs-update >/dev/null 2>&1 && xdg-user-dirs-update"
-
-// NO background-effect awk strip here (niri.go has one): the DMS layout.kdl
-// include does not exist in this DE — nothing to strip.
 `, u.Keymap, u.UserName, u.UserName)
-	// Binds: niri's upstream default-config.kdl binds section, embedded
-	// verbatim with TWO adjustments (raw string — NOT passed through
-	// Sprintf, it contains % width arguments):
-	//   - Mod+D launcher: fuzzel -> raffi (native iced GUI launcher)
-	//   - Super+Alt+L lock: swaylock -> `veila lock` (veila daemon subcommand)
-	// Mod+L keeps its default focus-column-right (the lock lives on
-	// Super+Alt+L, niri's stock lock position). No wlogout references exist
-	// in the upstream defaults. Runtime-only spawns kept as-is (wpctl,
-	// playerctl, brightnessctl): missing binaries only error on keypress.
-	userNiri += niriWayleBinds
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p /home/%s/.config/niri", u.UserName)); err != nil {
 		return fmt.Errorf("mkdir user niri config dir: %w", err)
 	}
@@ -460,83 +406,25 @@ center = []
 		}
 	}
 
-	// gsettings INFRASTRUCTURE (not a theme override; shared with niri):
-	// Alpine's dconf ships NO /etc/dconf/profile/user and NO /etc/dconf at
-	// all — without the profile GLib never consults the user/system dbs and
-	// `dconf update` errors "Error opening directory /etc/dconf/db".
-	dconfProfile := "user-db:user\nsystem-db:local\n"
-	if err := writeFile(chroot, "/etc/dconf/profile/user", dconfProfile); err != nil {
-		return fmt.Errorf("seed dconf profile: %w", err)
-	}
-	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /etc/dconf/db/local.d"); err != nil {
-		return fmt.Errorf("create dconf system db dir: %w", err)
-	}
-	if _, err := shell.ExecuteCmd(chroot, "dconf update"); err != nil {
-		return fmt.Errorf("dconf update: %w", err)
-	}
+	// gsettings INFRASTRUCTURE: /etc/dconf/profile/user ships in
+	// niri-base-config (Alpine's dconf ships NO /etc/dconf at all — without
+	// the profile GLib never consults the user/system dbs; no keys exist so
+	// no `dconf update` is needed).
 
 	// 8. NetworkManager is the network service for the niriWayle desktop
-	// (Wayle network module talks to NM, same as the niri DMS widget did):
-	//  - NM may manage interfaces configured by ifupdown (managed=true)
-	//  - /etc/network/interfaces reduced to lo (eth0 belongs to NM).
-	//    This OVERWRITES the eth0-dhcp file written by internal.setupInterfaces
-	//    earlier in the chroot run — that write is dead in the niri/niriWayle
-	//    flow (kept there for non-niri flows; see network.go setupInterfaces).
-	//  - NM polkit rule allows the plugdev group (user added there via
-	//    internal_rules groups)
-	nmManage := `[ifupdown]
-managed=true
-`
-	if err := writeFile(chroot, "/etc/NetworkManager/conf.d/10-manage.conf", nmManage); err != nil {
-		return fmt.Errorf("write NM manage conf: %w", err)
-	}
-	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /etc/NetworkManager/conf.d"); err != nil {
-		return fmt.Errorf("mkdir NM conf.d: %w", err)
-	}
-	interfacesLo := `# NetworkManager manages wired/wireless interfaces (see
-# /etc/NetworkManager/conf.d/10-manage.conf). Keep loopback here only.
-auto lo
-iface lo inet loopback
-`
-	if err := writeFile(chroot, "/etc/network/interfaces", interfacesLo); err != nil {
-		return fmt.Errorf("write interfaces (lo only): %w", err)
-	}
+	// (Wayle network module talks to NM): both statics ship in
+	// niri-base-config — /etc/NetworkManager/conf.d/10-manage.conf
+	// (managed=true) and /etc/network/interfaces reduced to loopback (it
+	// OVERWRITES the eth0-dhcp file internal.setupInterfaces wrote earlier;
+	// that write is dead in the niri-family flow).
 
 	// 9. xdg-su wrapper — niri unsupported by xdg-su, use alacritty + su
-	// (shared with niri; matches *niri* so niriwayle sessions hit it too).
-	xdgSu := `#!/bin/sh
-# xdg-su wrapper — for niri uses alacritty+su, other DEs call the original
-# Not overwritten by updates (in /usr/local/bin)
-
-case "$XDG_CURRENT_DESKTOP" in
-    *niri*)
-        cmd=
-        user=
-        while [ $# -gt 0 ]; do
-            case "$1" in
-                -c) cmd="$2"; shift 2 ;;
-                -u) user="$2"; shift 2 ;;
-                *) shift ;;
-            esac
-        done
-        if [ -n "$cmd" ] && command -v alacritty >/dev/null 2>&1; then
-            if [ -n "$user" ]; then
-                exec alacritty -e su -c "$cmd" "$user"
-            else
-                exec alacritty -e su -c "$cmd"
-            fi
-        fi
-        exit 1
-        ;;
-esac
-
-exec /usr/bin/xdg-su "$@"
-`
-	if err := writeFile(chroot, "/usr/local/bin/xdg-su", xdgSu); err != nil {
-		return fmt.Errorf("write xdg-su wrapper: %w", err)
-	}
-	if _, err := shell.ExecuteCmd(chroot, "chmod +x /usr/local/bin/xdg-su"); err != nil {
-		return fmt.Errorf("chmod xdg-su: %w", err)
+	// (shared with niri; matches *niri* so niriwayle sessions hit it).
+	// STAYS installer-side: packages must not write under /usr/local
+	// (abuild rule) and the /usr/local location is what survives vendor
+	// xdg-su updates.
+	if err := installXdgSuWrapper(chroot); err != nil {
+		return err
 	}
 
 	// 10. groups: the session user's groups come from the rules (DE `groups`
@@ -642,233 +530,3 @@ password optional pam_oo7.so
 	fmt.Println("[INFO] niriWayle desktop environment configured.")
 	return nil
 }
-
-// niriWayleBinds is the binds section of niri's upstream default-config.kdl
-// (https://raw.githubusercontent.com/YaLTeR/niri/main/resources/default-config.kdl),
-// embedded with two spawn adjustments: fuzzel → raffi, swaylock → veila lock.
-// Raw string on purpose: the content contains % width arguments and must not
-// go through Sprintf.
-const niriWayleBinds = `binds {
-    // Keys consist of modifiers separated by + signs, followed by an XKB key name
-    // in the end. To find an XKB name for a particular key, you may use a program
-    // like wev.
-    //
-    // "Mod" is a special modifier equal to Super when running on a TTY, and to Alt
-    // when running as a winit window.
-    //
-    // Most actions that you can bind here can also be invoked programmatically with
-    // ` + "`niri msg action do-something`" + `.
-
-    // Mod-Shift-/, which is usually the same as Mod-?,
-    // shows a list of important hotkeys.
-    Mod+Shift+Slash { show-hotkey-overlay; }
-
-    // Suggested binds for running programs: terminal, app launcher, screen locker.
-    // FeralOS niriWayle: launcher = raffi-toggle (close-if-open/spawn-if-not
-    // via niri IPC — Mod+D and the Wayle bar button both toggle), locker = veila,
-    // window switcher = raffi with a pre-filled query (same as the bar's
-    // custom-windows module click).
-    Mod+T hotkey-overlay-title="Open a Terminal: alacritty" { spawn "alacritty"; }
-    Mod+D hotkey-overlay-title="Run an Application: raffi" { spawn "/usr/bin/raffi-toggle"; }
-    Mod+W hotkey-overlay-title="Window Switcher" { spawn "raffi" "-i" "win "; }
-    Super+Alt+L hotkey-overlay-title="Lock the Screen: veila" { spawn "veila" "lock"; }
-
-    // Use spawn-sh to run a shell command. Do this if you need pipes, multiple commands, etc.
-    // Note: the entire command goes as a single argument. It's passed verbatim to ` + "`sh -c`" + `.
-    // For example, this is a standard bind to toggle the screen reader (orca).
-    Super+Alt+S allow-when-locked=true hotkey-overlay-title=null { spawn-sh "pkill orca || exec orca"; }
-
-    // Example volume keys mappings for PipeWire & WirePlumber.
-    // The allow-when-locked=true property makes them work even when the session is locked.
-    // Using spawn-sh allows to pass multiple arguments together with the command.
-    // "-l 1.0" limits the volume to 100%.
-    XF86AudioRaiseVolume allow-when-locked=true { spawn-sh "wpctl set-volume @DEFAULT_AUDIO_SINK@ 0.1+ -l 1.0"; }
-    XF86AudioLowerVolume allow-when-locked=true { spawn-sh "wpctl set-volume @DEFAULT_AUDIO_SINK@ 0.1-"; }
-    XF86AudioMute        allow-when-locked=true { spawn-sh "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"; }
-    XF86AudioMicMute     allow-when-locked=true { spawn-sh "wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle"; }
-
-    // Example media keys mapping using playerctl.
-    // This will work with any MPRIS-enabled media player.
-    XF86AudioPlay        allow-when-locked=true { spawn-sh "playerctl play-pause"; }
-    XF86AudioPause       allow-when-locked=true { spawn-sh "playerctl play-pause"; }
-    XF86AudioStop        allow-when-locked=true { spawn-sh "playerctl stop"; }
-    XF86AudioPrev        allow-when-locked=true { spawn-sh "playerctl previous"; }
-    XF86AudioNext        allow-when-locked=true { spawn-sh "playerctl next"; }
-
-    // Example brightness key mappings for brightnessctl.
-    // You can use regular spawn with multiple arguments too (to avoid going through "sh"),
-    // but you need to manually put each argument in separate "" quotes.
-    XF86MonBrightnessUp allow-when-locked=true { spawn "brightnessctl" "--class=backlight" "set" "+10%"; }
-    XF86MonBrightnessDown allow-when-locked=true { spawn "brightnessctl" "--class=backlight" "set" "10%-"; }
-
-    // Open/close the Overview: a zoomed-out view of workspaces and windows.
-    // You can also move the mouse into the top-left hot corner,
-    // or do a four-finger swipe up on a touchpad.
-    Mod+O repeat=false { toggle-overview; }
-
-    Mod+Q repeat=false { close-window; }
-    Alt+F4 repeat=false { close-window; }
-
-    Mod+Left  { focus-column-left; }
-    Mod+Down  { focus-window-down; }
-    Mod+Up    { focus-window-up; }
-    Mod+Right { focus-column-right; }
-    Mod+H     { focus-column-left; }
-    Mod+J     { focus-window-down; }
-    Mod+K     { focus-window-up; }
-    Mod+L     { focus-column-right; }
-
-    Mod+Ctrl+Left  { move-column-left; }
-    Mod+Ctrl+Down  { move-window-down; }
-    Mod+Ctrl+Up    { move-window-up; }
-    Mod+Ctrl+Right { move-column-right; }
-    Mod+Ctrl+H     { move-column-left; }
-    Mod+Ctrl+J     { move-window-down; }
-    Mod+Ctrl+K     { move-window-up; }
-    Mod+Ctrl+L     { move-column-right; }
-
-    Mod+Home { focus-column-first; }
-    Mod+End  { focus-column-last; }
-    Mod+Ctrl+Home { move-column-to-first; }
-    Mod+Ctrl+End  { move-column-to-last; }
-
-    Mod+Shift+Left  { focus-monitor-left; }
-    Mod+Shift+Down  { focus-monitor-down; }
-    Mod+Shift+Up    { focus-monitor-up; }
-    Mod+Shift+Right { focus-monitor-right; }
-    Mod+Shift+H     { focus-monitor-left; }
-    Mod+Shift+J     { focus-monitor-down; }
-    Mod+Shift+K     { focus-monitor-up; }
-    Mod+Shift+L     { focus-monitor-right; }
-
-    Mod+Shift+Ctrl+Left  { move-column-to-monitor-left; }
-    Mod+Shift+Ctrl+Down  { move-column-to-monitor-down; }
-    Mod+Shift+Ctrl+Up    { move-column-to-monitor-up; }
-    Mod+Shift+Ctrl+Right { move-column-to-monitor-right; }
-    Mod+Shift+Ctrl+H     { move-column-to-monitor-left; }
-    Mod+Shift+Ctrl+J     { move-column-to-monitor-down; }
-    Mod+Shift+Ctrl+K     { move-column-to-monitor-up; }
-    Mod+Shift+Ctrl+L     { move-column-to-monitor-right; }
-
-    Mod+Page_Down      { focus-workspace-down; }
-    Mod+Page_Up        { focus-workspace-up; }
-    Mod+U              { focus-workspace-down; }
-    Mod+I              { focus-workspace-up; }
-    Mod+Ctrl+Page_Down { move-column-to-workspace-down; }
-    Mod+Ctrl+Page_Up   { move-column-to-workspace-up; }
-    Mod+Ctrl+U         { move-column-to-workspace-down; }
-    Mod+Ctrl+I         { move-column-to-workspace-up; }
-
-    Mod+Shift+Page_Down { move-workspace-down; }
-    Mod+Shift+Page_Up   { move-workspace-up; }
-    Mod+Shift+U         { move-workspace-down; }
-    Mod+Shift+I         { move-workspace-up; }
-
-    // You can bind mouse wheel scroll ticks using the following syntax.
-    // These binds will change direction based on the natural-scroll setting.
-    //
-    // To avoid scrolling through workspaces really fast, you can use
-    // the cooldown-ms property. The bind will be rate-limited to this value.
-    Mod+WheelScrollDown      cooldown-ms=150 { focus-workspace-down; }
-    Mod+WheelScrollUp        cooldown-ms=150 { focus-workspace-up; }
-    Mod+Ctrl+WheelScrollDown cooldown-ms=150 { move-column-to-workspace-down; }
-    Mod+Ctrl+WheelScrollUp   cooldown-ms=150 { move-column-to-workspace-up; }
-
-    Mod+WheelScrollRight      { focus-column-right; }
-    Mod+WheelScrollLeft       { focus-column-left; }
-    Mod+Ctrl+WheelScrollRight { move-column-right; }
-    Mod+Ctrl+WheelScrollLeft  { move-column-left; }
-
-    // You can refer to workspaces by index. However, keep in mind that
-    // niri is a dynamic workspace system, so these commands are kind of
-    // "best effort".
-    Mod+1 { focus-workspace 1; }
-    Mod+2 { focus-workspace 2; }
-    Mod+3 { focus-workspace 3; }
-    Mod+4 { focus-workspace 4; }
-    Mod+5 { focus-workspace 5; }
-    Mod+6 { focus-workspace 6; }
-    Mod+7 { focus-workspace 7; }
-    Mod+8 { focus-workspace 8; }
-    Mod+9 { focus-workspace 9; }
-    Mod+Ctrl+1 { move-column-to-workspace 1; }
-    Mod+Ctrl+2 { move-column-to-workspace 2; }
-    Mod+Ctrl+3 { move-column-to-workspace 3; }
-    Mod+Ctrl+4 { move-column-to-workspace 4; }
-    Mod+Ctrl+5 { move-column-to-workspace 5; }
-    Mod+Ctrl+6 { move-column-to-workspace 6; }
-    Mod+Ctrl+7 { move-column-to-workspace 7; }
-    Mod+Ctrl+8 { move-column-to-workspace 8; }
-    Mod+Ctrl+9 { move-column-to-workspace 9; }
-
-    // The following binds move the focused window in and out of a column.
-    // If the window is alone, they will consume it into the nearby column to the side.
-    // If the window is already in a column, they will expel it out.
-    Mod+BracketLeft  { consume-or-expel-window-left; }
-    Mod+BracketRight { consume-or-expel-window-right; }
-
-    // Consume one window from the right to the bottom of the focused column.
-    Mod+Comma  { consume-window-into-column; }
-    // Expel the bottom window from the focused column to the right.
-    Mod+Period { expel-window-from-column; }
-
-    // Cycle through widths set in preset-column-widths.
-    Mod+R { switch-preset-column-width; }
-    // Cycling through the presets in reverse order is also possible.
-    Mod+Shift+R { switch-preset-column-width-back; }
-
-    Mod+Ctrl+Shift+R { switch-preset-window-height; }
-    Mod+Ctrl+R { reset-window-height; }
-
-    Mod+F { maximize-column; }
-    Mod+Shift+F { fullscreen-window; }
-
-    // While maximize-column leaves gaps and borders around the window,
-    // maximize-window-to-edges doesn't: the window expands to the edges of the screen.
-    Mod+M { maximize-window-to-edges; }
-
-    // Expand the focused column to space not taken up by other fully visible columns.
-    Mod+Ctrl+F { expand-column-to-available-width; }
-
-    Mod+C { center-column; }
-
-    // Center all fully visible columns on screen.
-    Mod+Ctrl+C { center-visible-columns; }
-
-    // Finer width adjustments.
-    // This command can also:
-    // * set width in pixels: "1000"
-    // * adjust width in pixels: "-5" or "+5"
-    // * set width as a percentage of screen width: "25%"
-    // * adjust width as a percentage of screen width: "-10%" or "+10%"
-    Mod+Minus { set-column-width "-10%"; }
-    Mod+Equal { set-column-width "+10%"; }
-
-    // Finer height adjustments when in column with other windows.
-    Mod+Shift+Minus { set-window-height "-10%"; }
-    Mod+Shift+Equal { set-window-height "+10%"; }
-
-    // Move the focused window between the floating and the tiling layout.
-    Mod+V       { toggle-window-floating; }
-    Mod+Shift+V { switch-focus-between-floating-and-tiling; }
-
-    Print { screenshot; }
-    Ctrl+Print { screenshot-screen; }
-    Alt+Print { screenshot-window; }
-
-    // Applications such as remote-desktop clients and software KVM switches may
-    // request that niri stops processing the keyboard shortcuts defined here
-    // so they may, for example, forward the key presses as-is to a remote machine.
-    // It is a good idea to bind an escape hatch to toggle the inhibitor,
-    // so a buggy application cannot hold your session hostage.
-    Mod+Escape allow-inhibiting=false { toggle-keyboard-shortcuts-inhibit; }
-
-    // The quit action will show a confirmation dialog to avoid accidental exits.
-    Mod+Shift+E { quit; }
-    Ctrl+Alt+Delete { quit; }
-
-    // Powers off the monitors. To turn them back on, do any input like
-    // moving the mouse or pressing any other key.
-    Mod+Shift+P { power-off-monitors; }
-}
-`
