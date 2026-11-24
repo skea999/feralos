@@ -170,7 +170,7 @@ func buildGreeterChecks(cfg *VerifyConfig, checks map[string]string) {
 	if cfg.DesktopEnvironment != desktopNiri && cfg.DesktopEnvironment != desktopNiriWayle {
 		return
 	}
-	checks["greeter_config"] = `test -f /etc/greetd/config.toml && grep -q '^vt = 7' /etc/greetd/config.toml && grep -q 'command = "/etc/greetd/greeter.sh"' /etc/greetd/config.toml && grep -q 'user = "greeter"' /etc/greetd/config.toml && test -x /etc/greetd/greeter.sh && grep -q 'greeter-niri.sh' /etc/greetd/greeter.sh && s=/etc/greetd/greeter-niri.sh && { test -x "$s" || s=/etc/greetd/greeter-wayle.sh; } && test -x "$s" && grep -q regreet "$s" && grep -q niri "$s" && test -f /etc/greetd/regreet.toml && grep -q font_name /etc/greetd/regreet.toml && command -v regreet >/dev/null && command -v niri >/dev/null && id greeter >/dev/null 2>&1 && apk info -e greetd-config >/dev/null && { apk info -e dms-config >/dev/null || apk info -e wayle-config >/dev/null; } && echo 'greetd+regreet config valid' || echo 'greeter config INVALID'`
+	checks["greeter_config"] = `test -f /etc/greetd/config.toml && grep -q '^vt = 7' /etc/greetd/config.toml && grep -q 'command = "/etc/greetd/greeter.sh"' /etc/greetd/config.toml && grep -q 'user = "greeter"' /etc/greetd/config.toml && test -x /etc/greetd/greeter.sh && grep -q 'greeter-niri.sh' /etc/greetd/greeter.sh && s=/etc/greetd/greeter-niri.sh && { test -x "$s" || s=/etc/greetd/greeter-wayle.sh; } && test -x "$s" && grep -q regreet "$s" && grep -q niri "$s" && test -f /etc/greetd/regreet.toml && grep -q font_name /etc/greetd/regreet.toml && command -v regreet >/dev/null && command -v niri >/dev/null && id greeter >/dev/null 2>&1 && apk info -e greetd-config >/dev/null && { apk info -e dms-config >/dev/null || apk info -e wayle-config >/dev/null; } && test -L /usr/share/icons/hicolor/scalable/apps/feralos-logo.svg && echo 'greetd+regreet config valid' || echo 'greeter config INVALID'`
 	// Real-login timing: measured by the special-cased verifyLoginReadiness
 	// (login_readiness.go) — a real greetd->regreet->Wayle login with QMP
 	// keyboard input. This string is a placeholder (never executed as a
@@ -257,6 +257,18 @@ grep -q 'PAGER=moor' /etc/profile.d/pager.sh 2>/dev/null || { echo "FAIL: pager.
 grep -q 'EDITOR=micro' /etc/profile.d/editor.sh 2>/dev/null || { echo "FAIL: editor.sh missing"; fail=1; }
 grep -q DEVICESCAN /etc/smartd.conf 2>/dev/null || { echo "FAIL: smartd.conf missing"; fail=1; }
 [ $fail -eq 0 ] && echo 'static config packages OK (profile, smartd)'
+exit $fail`
+	// feralos-branding-cli: the FeralOS CLI identity (os-release takeover —
+	// /etc/os-release = the vendor symlink to /usr/lib/os-release; issue +
+	// motd are vendor takeovers too). /etc/alpine-release stays vendor.
+	checks["os_identity"] = `fail=0
+grep -q '^NAME="FeralOS"' /usr/lib/os-release || { echo "FAIL: os-release NAME not FeralOS"; fail=1; }
+grep -q '^ID=feralos' /usr/lib/os-release || { echo "FAIL: os-release ID not feralos"; fail=1; }
+grep -q 'ID_LIKE="alpine"' /usr/lib/os-release || { echo "FAIL: os-release ID_LIKE missing"; fail=1; }
+grep -q 'FeralOS 0.1' /etc/issue || { echo "FAIL: issue banner not FeralOS"; fail=1; }
+grep -q 'Welcome to FeralOS' /etc/motd || { echo "FAIL: motd not FeralOS"; fail=1; }
+[ -s /etc/alpine-release ] || { echo "FAIL: /etc/alpine-release missing (stays vendor)"; fail=1; }
+[ $fail -eq 0 ] && echo 'os identity OK (FeralOS os-release + issue + motd; alpine-release vendor)'
 exit $fail`
 	if cfg.EnableHardening {
 		// pgrep WITHOUT -x: busybox pgrep may not honor -x, and comm matching
@@ -385,15 +397,18 @@ func buildDesktopChecks(cfg *VerifyConfig, checks map[string]string) {
 		}
 		// niri-base-config (ADR-013 wave C): the SHARED niri-family statics
 		// (both DE package lists carry it) — dconf profile, NM manage conf,
-		// lo-only interfaces, branding (logo + wallpapers).
+		// lo-only interfaces + the SHARED wallpaper materialization
+		// (symlinks into the feralos-branding staging). The per-DE identity
+		// (hicolor logo) is the consumers' (wayle-config/dms-config).
 		checks["config_packages_niri_base"] = `fail=0
 apk info -e niri-base-config >/dev/null 2>&1 || { echo "FAIL: niri-base-config not installed"; fail=1; }
 grep -q 'system-db:local' /etc/dconf/profile/user || { echo "FAIL: dconf profile missing"; fail=1; }
 grep -q 'managed=true' /etc/NetworkManager/conf.d/10-manage.conf || { echo "FAIL: NM manage conf missing"; fail=1; }
 grep -q 'iface lo inet loopback' /etc/network/interfaces || { echo "FAIL: lo-only interfaces missing"; fail=1; }
-test -f /usr/share/icons/hicolor/scalable/apps/feralos-logo.svg || { echo "FAIL: branding logo missing"; fail=1; }
-test -f /usr/share/wallpapers/feralos-default.png || { echo "FAIL: wallpaper missing"; fail=1; }
-[ $fail -eq 0 ] && echo 'niri base config packages OK (dconf profile + NM manage + lo interfaces + branding)'
+test -L /usr/share/wallpapers/feralos-default.png || { echo "FAIL: wallpaper link missing"; fail=1; }
+readlink /usr/share/wallpapers/feralos-default.png | grep -q 'feralos/branding/feralos-wallpaper-1080p.png' || { echo "FAIL: wallpaper link target wrong"; fail=1; }
+readlink /usr/share/wallpapers/feralos-default-3440x1440.png | grep -q 'feralos/branding/feralos-wallpaper-1440p.png' || { echo "FAIL: UW wallpaper link target wrong"; fail=1; }
+[ $fail -eq 0 ] && echo 'niri base config packages OK (dconf profile + NM manage + lo interfaces + wallpaper links)'
 exit $fail`
 		checks["greetd_config"] = "ls /etc/greetd/config.toml /etc/greetd/greeter.sh /etc/greetd/regreet.toml /var/lib/greetd/.config/niri/config.kdl && test -x /etc/greetd/greeter.sh && [ \"$(id -u greeter)\" -lt 1000 ] && echo \"greeter is a system user (hidden from ReGreet's UID-filtered list)\""
 		// greetd_socket: greetd daemon alive (IPC socket). Runtime complement
@@ -726,7 +741,9 @@ grep -q '^prefer-no-csd' /usr/share/feralos/wayle/niri/base.kdl || { echo "FAIL:
 grep -q 'Mod+T' /usr/share/feralos/wayle/niri/base.kdl || { echo "FAIL: base.kdl binds missing"; fail=1; }
 test -f /etc/xdg-desktop-portal/niri-portals.conf || { echo "FAIL: portals admin conf missing"; fail=1; }
 grep -q 'Secret=oo7-portal' /etc/xdg-desktop-portal/niri-portals.conf || { echo "FAIL: oo7 portal pin missing"; fail=1; }
-[ $fail -eq 0 ] && echo 'wayle config packages OK (reboot wrapper + oo7 passwd PAM + niri base.kdl + portals admin conf)'
+test -L /usr/share/icons/hicolor/scalable/apps/feralos-logo.svg || { echo "FAIL: hicolor logo link missing"; fail=1; }
+readlink /usr/share/icons/hicolor/scalable/apps/feralos-logo.svg | grep -q 'feralos/branding/feralos-logo.svg' || { echo "FAIL: hicolor link target wrong"; fail=1; }
+[ $fail -eq 0 ] && echo 'wayle config packages OK (reboot wrapper + oo7 passwd PAM + niri base.kdl + portals admin + hicolor link)'
 exit $fail`
 		// wayle_running: the Wayle shell process (bar/notifications/OSD/
 		// wallpaper) alive for the session user. Poll 90s like the other

@@ -228,6 +228,15 @@ standardPackages:
   # counterpart (klogd-dinit) ships in the dinit init bundle (packages.go,
   # EnableDinit-gated — init plumbing, not distro content).
   - klogd-openrc
+  # feralos-branding-cli: the FeralOS CLI identity (ADR-013 wave C) —
+  # /usr/lib/os-release (/etc/os-release = the vendor symlink to it),
+  # /etc/issue, /etc/motd take over the Alpine text (replaces="alpine-release
+  # alpine-baselayout"; the vendor files stay as .apk-new on upgrades).
+  # /etc/alpine-release stays VENDOR on purpose: the honest base version,
+  # read by Alpine tooling. UNIVERSAL (every install shows the identity) —
+  # not DE-gated. feralos-branding (the asset staging) rides the consumer
+  # depends (niri-base-config + wayle-config + dms-config) — never listed.
+  - feralos-branding-cli
   # Security variables (ADR-014 — the 2026-11-22 split; ADR-013 packages):
   # the former ALWAYS-ON base security stack (audit/AIDE/fail2ban/Tracee/
   # lynis — ADR-012) is GONE from standardPackages: it rides the
