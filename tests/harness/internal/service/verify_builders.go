@@ -397,9 +397,11 @@ func buildDesktopChecks(cfg *VerifyConfig, checks map[string]string) {
 		}
 		// niri-base-config (ADR-013 wave C): the SHARED niri-family statics
 		// (both DE package lists carry it) — dconf profile, NM manage conf,
-		// lo-only interfaces + the SHARED wallpaper materialization
-		// (symlinks into the feralos-branding staging). The per-DE identity
-		// (hicolor logo) is the consumers' (wayle-config/dms-config).
+		// lo-only interfaces + the SHARED identity materialization (hicolor
+		// logo + wallpapers, symlinks into the feralos-branding staging).
+		// The identity lives HERE (shared) because the smoke CI installs
+		// every apk into ONE root — the two DE-exclusive packages would
+		// collide on the same path (CI run 45301085299).
 		checks["config_packages_niri_base"] = `fail=0
 apk info -e niri-base-config >/dev/null 2>&1 || { echo "FAIL: niri-base-config not installed"; fail=1; }
 grep -q 'system-db:local' /etc/dconf/profile/user || { echo "FAIL: dconf profile missing"; fail=1; }
@@ -408,7 +410,9 @@ grep -q 'iface lo inet loopback' /etc/network/interfaces || { echo "FAIL: lo-onl
 test -L /usr/share/wallpapers/feralos-default.png || { echo "FAIL: wallpaper link missing"; fail=1; }
 readlink /usr/share/wallpapers/feralos-default.png | grep -q 'feralos/branding/feralos-wallpaper-1080p.png' || { echo "FAIL: wallpaper link target wrong"; fail=1; }
 readlink /usr/share/wallpapers/feralos-default-3440x1440.png | grep -q 'feralos/branding/feralos-wallpaper-1440p.png' || { echo "FAIL: UW wallpaper link target wrong"; fail=1; }
-[ $fail -eq 0 ] && echo 'niri base config packages OK (dconf profile + NM manage + lo interfaces + wallpaper links)'
+test -L /usr/share/icons/hicolor/scalable/apps/feralos-logo.svg || { echo "FAIL: hicolor logo link missing"; fail=1; }
+readlink /usr/share/icons/hicolor/scalable/apps/feralos-logo.svg | grep -q 'feralos/branding/feralos-logo.svg' || { echo "FAIL: hicolor link target wrong"; fail=1; }
+[ $fail -eq 0 ] && echo 'niri base config packages OK (dconf profile + NM manage + lo interfaces + wallpaper links + hicolor identity)'
 exit $fail`
 		checks["greetd_config"] = "ls /etc/greetd/config.toml /etc/greetd/greeter.sh /etc/greetd/regreet.toml /var/lib/greetd/.config/niri/config.kdl && test -x /etc/greetd/greeter.sh && [ \"$(id -u greeter)\" -lt 1000 ] && echo \"greeter is a system user (hidden from ReGreet's UID-filtered list)\""
 		// greetd_socket: greetd daemon alive (IPC socket). Runtime complement
@@ -741,9 +745,7 @@ grep -q '^prefer-no-csd' /usr/share/feralos/wayle/niri/base.kdl || { echo "FAIL:
 grep -q 'Mod+T' /usr/share/feralos/wayle/niri/base.kdl || { echo "FAIL: base.kdl binds missing"; fail=1; }
 test -f /etc/xdg-desktop-portal/niri-portals.conf || { echo "FAIL: portals admin conf missing"; fail=1; }
 grep -q 'Secret=oo7-portal' /etc/xdg-desktop-portal/niri-portals.conf || { echo "FAIL: oo7 portal pin missing"; fail=1; }
-test -L /usr/share/icons/hicolor/scalable/apps/feralos-logo.svg || { echo "FAIL: hicolor logo link missing"; fail=1; }
-readlink /usr/share/icons/hicolor/scalable/apps/feralos-logo.svg | grep -q 'feralos/branding/feralos-logo.svg' || { echo "FAIL: hicolor link target wrong"; fail=1; }
-[ $fail -eq 0 ] && echo 'wayle config packages OK (reboot wrapper + oo7 passwd PAM + niri base.kdl + portals admin + hicolor link)'
+[ $fail -eq 0 ] && echo 'wayle config packages OK (reboot wrapper + oo7 passwd PAM + niri base.kdl + portals admin)'
 exit $fail`
 		// wayle_running: the Wayle shell process (bar/notifications/OSD/
 		// wallpaper) alive for the session user. Poll 90s like the other
