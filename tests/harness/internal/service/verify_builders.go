@@ -411,6 +411,7 @@ test -L /usr/share/wallpapers/feralos-default.png || { echo "FAIL: wallpaper lin
 readlink /usr/share/wallpapers/feralos-default.png | grep -q 'feralos/branding/feralos-wallpaper-1080p.png' || { echo "FAIL: wallpaper link target wrong"; fail=1; }
 readlink /usr/share/wallpapers/feralos-default-3440x1440.png | grep -q 'feralos/branding/feralos-wallpaper-1440p.png' || { echo "FAIL: UW wallpaper link target wrong"; fail=1; }
 readlink /usr/share/icons/hicolor/scalable/apps/feralos-logo.svg | grep -q 'feralos/branding/feralos-logo.svg' || { echo "FAIL: hicolor link target wrong"; fail=1; }
+apk info -e xdg-su >/dev/null 2>&1 || { echo "FAIL: xdg-su package missing (rides niri-base-config depends)"; fail=1; }
 test -x /usr/bin/xdg-su || { echo "FAIL: xdg-su wrapper missing"; fail=1; }
 grep -q 'alacritty -e su' /usr/bin/xdg-su || { echo "FAIL: xdg-su wrapper not the niri alacritty+su wrapper"; fail=1; }
 [ $fail -eq 0 ] && echo 'niri base config packages OK (dconf profile + NM manage + lo interfaces + wallpaper links + hicolor identity + xdg-su wrapper)'
