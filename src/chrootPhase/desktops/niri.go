@@ -35,45 +35,22 @@ func SetupNiri(conf *config.Config) error {
 	// greetd config.toml + greeter.sh are package-shipped (ADR-013):
 	// greetd-config (common) + dms-config/wayle-config (DE-specific script).
 
-	// 3. regreet config — timezone from user variables
-	// Wallpaper: the FeralOS default (installed by installBrandingAssets in
-	// step 3a below — the path must match its 1080p target).
-	regreetConf := fmt.Sprintf(`[background]
-path = "/usr/share/wallpapers/feralos-default.png"
-fit = "Contain"
+	// 3. ReGreet config ships in greetd-config 0.2.0 — 100% static, ONE
+	// SHARED file for both DEs (owner rule 2026-11-25: aesthetic merges,
+	// functional separates). The [widget.clock] timezone key is OMITTED
+	// (regreet sample: "Remove to use the system time zone") and the
+	// installer sets the system tz from variables. Nothing to write here.
 
-[GTK]
-application_prefer_dark_theme = true
-cursor_theme_name = "Adwaita"
-font_name = "Cantarell 16"
-icon_theme_name = "Adwaita"
-theme_name = "Adwaita"
-
-	[commands]
-reboot = ["reboot"]
-poweroff = ["poweroff"]
-
-[appearance]
-greeting_msg = "Welcome back!"
-
-[widget.clock]
-format = "%%a %%H:%%M"
-resolution = "500ms"
-timezone = "%s"
-`, u.Timezone)
-	if err := writeFile(chroot, "/etc/greetd/regreet.toml", regreetConf); err != nil {
-		return fmt.Errorf("write regreet config: %w", err)
-	}
-
-	// 3a. Branding — FeralOS logo (system hicolor icon) + default wallpapers
-	// (the regreet background above + ultrawide variant). Cosmetic: never
-	// fatal.
-	// Branding (logo + wallpapers) ships in niri-base-config — nothing
+	// 3a. Branding (logo + wallpapers) ships in niri-base-config — nothing
 	// to install here.
 
-	// 4. greeter user + dirs. greetd apk does not create the 'greeter' user.
-	// The greeter's niri reads its config from its HOME (per-home, not
-	// /etc/xdg — gap 5.7): overlay off at the login screen (round 14).
+	// 4. greeter user + dirs: greetd-config 0.2.0 post-install provisions
+	// ALL of it (greeter user with the -S/-G rationale below, /var/lib
+	// dirs, fontconfig USER-cache pre-build, ownership).
+	// The greeter niri config stays installer-written: its ONLY variable
+	// is the keyboard layout. The greeter's niri reads its config from its
+	// HOME (per-home, not /etc/xdg — gap 5.7): overlay off at the login
+	// screen (round 14).
 	greeterNiri := fmt.Sprintf(`input {
     keyboard {
         xkb {
@@ -86,41 +63,8 @@ hotkey-overlay {
     skip-at-startup
 }
 `, u.Keymap)
-	// -S (system user, UID 100-999): ReGreet 0.2.0 lists /etc/passwd users
-	// with UID in [UID_MIN, UID_MAX] (1000-60000 per /etc/login.defs) —
-	// without -S the greeter account (UID 1001) shows up as a login option.
-	// System UIDs are filtered out. GOTCHA: busybox adduser -S without -G
-	// defaults the primary group to "nogroup" and creates NO same-name
-	// group (loginutils/adduser.c: usegroup = "nogroup"), breaking the
-	// later chown greeter:greeter — so create the system group explicitly
-	// and pass -G. Side effects checked: turnstile spawns the user dinit
-	// for any non-root login (greeter included); explicit -s /bin/sh
-	// overrides the busybox system-user /bin/false default.
-	if _, err := shell.ExecuteCmd(chroot, "getent passwd greeter >/dev/null 2>&1 || { getent group greeter >/dev/null 2>&1 || addgroup -S greeter; adduser -S -G greeter -D -s /bin/sh -h /var/lib/greetd greeter; }"); err != nil {
-		return fmt.Errorf("create greeter user: %w", err)
-	}
-	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /var/lib/greetd/.config/niri"); err != nil {
-		return fmt.Errorf("mkdir greeter niri config dir: %w", err)
-	}
 	if err := writeFile(chroot, "/var/lib/greetd/.config/niri/config.kdl", greeterNiri); err != nil {
 		return fmt.Errorf("write greeter niri config: %w", err)
-	}
-	// ReGreet state dir must be writable by the greeter user, else last
-	// user/session is never remembered (gap 5.8, round 15). mkdir first:
-	// the dir only exists after greetd-regreet installs, and a missing dir
-	// would make chown -R fail on fresh installs.
-	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /var/lib/regreet"); err != nil {
-		return fmt.Errorf("mkdir /var/lib/regreet: %w", err)
-	}
-	// Greeter user-dinit log dir: the greeter's user dinit services
-	// (dbus-session etc.) log under $HOME/.local/share/dinit (dinit logfile),
-	// same layout as the session user below — without it they fail with
-	// "opening log file". Covered by the chown -R greeter:greeter below.
-	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /var/lib/greetd/.local/share/dinit"); err != nil {
-		return fmt.Errorf("mkdir greeter dinit log dir: %w", err)
-	}
-	if _, err := shell.ExecuteCmd(chroot, "chown -R greeter:greeter /var/lib/greetd /var/lib/regreet && chmod 700 /var/lib/regreet"); err != nil {
-		return fmt.Errorf("fix greeter/regreet ownership: %w", err)
 	}
 
 	// 4b. Login-shell trick (moved from users.go — desktop-owned now, runs
@@ -191,13 +135,19 @@ org.freedesktop.impl.portal.Secret=gnome-keyring;
 	// Session services live in the user dinit instance started by turnstile
 	// at login; RustDesk removed — remote desktop = wayvnc (user dinit
 	// service, round 37/43).
-	userNiri := fmt.Sprintf(`// CSD off (Windows-like): niri asks apps to omit client-side titlebars —
-// window controls live on the DMS bar (dms-window-buttons widget) plus keys
-// (Mod+Q close / Mod+F maximize / Mod+Shift+F fullscreen). DMS's own embedded
-// niri config ships prefer-no-csd active too. Caveats (niri docs): floating
-// windows lose resize handles — resize with Mod+right-click; apps must be
-// restarted for the change to apply.
-prefer-no-csd
+	// DMS static base (prefer-no-csd, environment minus the per-install
+	// XDG_DATA_DIRS, xwayland-satellite, the xdg-user-dirs spawn) ships in
+	// dms-config (/usr/share/dms/niri/base.kdl) and merges PER-PROPERTY
+	// (niri >=25.11 include). The fragment below = the per-install parts
+	// ONLY (input keymap + the user-path XDG_DATA_DIRS) + the per-version
+	// DMS fragments (`dms setup` generates them per user — relative
+	// includes, NOT static, NOT package content).
+	userNiri := fmt.Sprintf(`// FeralOS niri (DMS) — user config (installer-written, user-editable).
+// The STATIC base ships in dms-config and merges per-property:
+//     include "/usr/share/dms/niri/base.kdl"
+// Only the PER-INSTALL parts live here.
+
+include "/usr/share/dms/niri/base.kdl"
 
 input {
     keyboard {
@@ -210,38 +160,8 @@ input {
 }
 
 environment {
-    XDG_SESSION_TYPE "wayland"
-    XDG_SESSION_DESKTOP "niri"
-    XDG_CURRENT_DESKTOP "niri"
     XDG_DATA_DIRS "/home/%s/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share:/usr/share:/home/%s/.nix-profile/share"
-    QT_QPA_PLATFORM "wayland"
-    QT_QPA_PLATFORMTHEME "xdgdesktopportal"
-    // Hard override: Qt drops client-side decorations (niri's prefer-no-csd
-    // also works via xdg-decoration negotiation; this env guarantees it —
-    // value must be numeric "1", "true" parses to 0 and does NOT disable).
-    QT_WAYLAND_DISABLE_WINDOWDECORATION "1"
-    ELECTRON_OZONE_PLATFORM_HINT "auto"
-    SDL_VIDEO_DRIVER "wayland"
-    CLUTTER_BACKEND "wayland"
-    _JAVA_AWT_WM_NONREPARENTING "1"
-    WINIT_WAYLAND_NO_AVOID_RESIZE "1"
 }
-
-// NOTE: no hotkey-overlay skip-at-startup here — the "Important Hotkeys"
-// overlay is wanted (user request; shows the keybind cheatsheet at login).
-// Do not add a skip block.
-
-// --- XWayland for X11 apps ---
-xwayland-satellite {
-    path "xwayland-satellite"
-}
-
-// Session services (dbus/pipewire/pulse/wireplumber/polkit-agent/dms/wayvnc)
-// are supervised by the USER dinit instance turnstile starts at login — not
-// spawned here (crash-restart + ordering handled by dinit).
-
-// XDG user dirs (Documents/Downloads/...) — idempotent, no-op after first run
-spawn-at-startup "sh" "-c" "command -v xdg-user-dirs-update >/dev/null 2>&1 && xdg-user-dirs-update"
 
 include "dms/binds.kdl"
 include "dms/layout.kdl"

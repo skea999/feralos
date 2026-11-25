@@ -44,37 +44,10 @@ func SetupNiriWayle(conf *config.Config) error {
 	// greetd config.toml + greeter.sh are package-shipped (ADR-013):
 	// greetd-config (common) + dms-config/wayle-config (DE-specific script).
 
-	// 3. regreet config — timezone from user variables
-	// Font: DejaVu Sans (font-dejavu installed) — Cantarell is NOT in the
-	// package list; a missing font forces full fontconfig fallback resolution
-	// on every greeter start (slow-boot contributor).
-	// Wallpaper: the FeralOS default (installed by installBrandingAssets in
-	// step 3a below — the path must match its 1080p target).
-	regreetConf := fmt.Sprintf(`[background]
-path = "/usr/share/wallpapers/feralos-default.png"
-
-[GTK]
-application_prefer_dark_theme = true
-cursor_theme_name = "Adwaita"
-font_name = "DejaVu Sans 16"
-icon_theme_name = "Adwaita"
-theme_name = "Adwaita"
-
-	[commands]
-reboot = ["reboot"]
-poweroff = ["poweroff"]
-
-[appearance]
-greeting_msg = "Welcome back!"
-
-[widget.clock]
-format = "%%a %%H:%%M"
-resolution = "500ms"
-timezone = "%s"
-`, u.Timezone)
-	if err := writeFile(chroot, "/etc/greetd/regreet.toml", regreetConf); err != nil {
-		return fmt.Errorf("write regreet config: %w", err)
-	}
+	// 3. ReGreet config ships in greetd-config 0.2.0 — 100% static: the
+	// [widget.clock] timezone key is OMITTED (regreet sample: "Remove to
+	// use the system time zone") and the installer sets the system tz from
+	// variables. Nothing to write here.
 
 	// 3a. Branding (logo + wallpapers) ships in niri-base-config — nothing
 	// to install here.
@@ -88,12 +61,11 @@ timezone = "%s"
 		return fmt.Errorf("hide bare niri session from regreet: %w", err)
 	}
 
-	// 4. greeter user + dirs (shared with niri; full rationale in niri.go):
-	// -S system user hides the greeter from ReGreet's UID-filtered list;
-	// explicit -G avoids busybox adduser -S's nogroup primary-group trap.
-	if _, err := shell.ExecuteCmd(chroot, "getent passwd greeter >/dev/null 2>&1 || { getent group greeter >/dev/null 2>&1 || addgroup -S greeter; adduser -S -G greeter -D -s /bin/sh -h /var/lib/greetd greeter; }"); err != nil {
-		return fmt.Errorf("create greeter user: %w", err)
-	}
+	// 4. greeter user + dirs + fontconfig cache: greetd-config 0.2.0
+	// post-install provisions ALL of it (greeter user, /var/lib/greetd
+	// dirs, the fontconfig USER-cache pre-build, ownership).
+	// The greeter niri config stays installer-written: its ONLY variable
+	// is the keyboard layout.
 	greeterNiri := fmt.Sprintf(`input {
     keyboard {
         xkb {
@@ -106,43 +78,8 @@ hotkey-overlay {
     skip-at-startup
 }
 `, u.Keymap)
-	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /var/lib/greetd/.config/niri"); err != nil {
-		return fmt.Errorf("mkdir greeter niri config dir: %w", err)
-	}
 	if err := writeFile(chroot, "/var/lib/greetd/.config/niri/config.kdl", greeterNiri); err != nil {
 		return fmt.Errorf("write greeter niri config: %w", err)
-	}
-	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /var/lib/regreet"); err != nil {
-		return fmt.Errorf("mkdir /var/lib/regreet: %w", err)
-	}
-	// Greeter user-dinit log dir (same layout as the session user below).
-	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /var/lib/greetd/.local/share/dinit"); err != nil {
-		return fmt.Errorf("mkdir greeter dinit log dir: %w", err)
-	}
-	if _, err := shell.ExecuteCmd(chroot, "chown -R greeter:greeter /var/lib/greetd /var/lib/regreet && chmod 700 /var/lib/regreet"); err != nil {
-		return fmt.Errorf("fix greeter/regreet ownership: %w", err)
-	}
-
-	// 4b. Pre-build fontconfig cache for the greeter user — GTK4's first
-	// text render with a cold cache scans every system font (noto-cjk +
-	// noto-extra = thousands of files): the consistent 30-60s gray screen
-	// before the regreet login (real-install report 2026-11-15).
-	// SEQUENCE MATTERS: (1) create the greeter USER cache dir and hand it
-	// to greeter BEFORE fc-cache; (2) fc-cache as root with HOME pointed
-	// there — fontconfig then writes the USER cache into the writable dir
-	// (running fc-cache as the greeter user failed permission-denied on
-	// the system cache, and root fc-cache alone never populates the user
-	// cache — run17 "No such file"). Result: the greeter finds a valid
-	// prebuilt user cache at first boot — no scan, fast login. The
-	// login_readiness harness check measures whether it actually helps.
-	if _, err := shell.ExecuteCmd(chroot, "mkdir -p /var/lib/greetd/.cache/fontconfig && chown -R greeter:greeter /var/lib/greetd/.cache"); err != nil {
-		fmt.Printf("[WARNING] failed to prepare greeter fontconfig cache dir: %v\n", err)
-	}
-	if _, err := shell.ExecuteCmd(chroot, "env HOME=/var/lib/greetd fc-cache -f"); err != nil {
-		fmt.Printf("[WARNING] fontconfig cache pre-build for greeter failed (non-fatal): %v\n", err)
-	}
-	if _, err := shell.ExecuteCmd(chroot, "chown -R greeter:greeter /var/lib/greetd/.cache"); err != nil {
-		fmt.Printf("[WARNING] failed to chown greeter fontconfig cache: %v\n", err)
 	}
 
 	// 4c. Login-shell trick (moved from users.go — desktop-owned now, runs
@@ -192,7 +129,7 @@ XDG_DATA_DIRS=/home/%s/.local/share/flatpak/exports/share:/var/lib/flatpak/expor
 	// keymap + the user-path XDG_DATA_DIRS): the STATIC base (prefer-no-csd,
 	// environment minus DATA_DIRS, xwayland-satellite, the full binds set —
 	// upstream defaults + raffi/veila adjustments) ships in wayle-config as
-	// /usr/share/feralos/wayle/niri/base.kdl and MERGES per-property (niri
+	// /usr/share/wayle/niri/base.kdl and MERGES per-property (niri
 	// >=25.11 include). User customization = edit THIS file: a binds block
 	// here overrides individual keys over the package base, and the home
 	// file is never package-re-asserted on updates (owner decision
@@ -201,13 +138,13 @@ XDG_DATA_DIRS=/home/%s/.local/share/flatpak/exports/share:/var/lib/flatpak/expor
 	// instance turnstile starts at login — not spawned here.
 	userNiri := fmt.Sprintf(`// FeralOS niriWayle — user config (installer-written, user-editable).
 // The STATIC base ships in wayle-config and merges per-property:
-//     include "/usr/share/feralos/wayle/niri/base.kdl"
+//     include "/usr/share/wayle/niri/base.kdl"
 // (prefer-no-csd, wayland env, xwayland-satellite, the full binds set —
 // terminal=alacritty, launcher=raffi, lock=veila, window switcher=raffi).
 // Only the PER-INSTALL parts live here. To override a single bind, add
 // your own binds block below — only the keys you set change.
 
-include "/usr/share/feralos/wayle/niri/base.kdl"
+include "/usr/share/wayle/niri/base.kdl"
 
 input {
     keyboard {
@@ -464,20 +401,9 @@ center = []
 	}
 	// Alpine ships NO /etc/pam.d/passwd (passwd falls back to the vendor
 	// `other` stack); this override shadows ONLY the passwd service.
-	//nolint:gosec // G101: PAM stack config text, not a credential
-	passwdPam := `#%PAM-1.0
-#
-# FeralOS (niriWayle): oo7 keyring password re-sync. The password stack
-# runs for user-initiated passwd changes; pam_oo7 (after base-password,
-# which sets PAM_OLDAUTHTOK/PAM_AUTHTOK) sends old+new to the oo7 daemon,
-# which re-encrypts all matching keyrings. Root resets (chpasswd) carry
-# no old authtok and cannot sync - universal limitation, same as GNOME.
-password include base-password
-password optional pam_oo7.so
-`
-	if err := writeFile(chroot, "/etc/pam.d/passwd", passwdPam); err != nil {
-		return fmt.Errorf("write /etc/pam.d/passwd override: %w", err)
-	}
+	// /etc/pam.d/passwd (the oo7 keyring re-sync override) ships in
+	// wayle-config 0.1.1 — the Go write was a DOUBLE WRITE of identical
+	// content and is gone (caught in the 2026-11-24 desktop-shrink round).
 	// Daemon log level — the INFO line "Received unlock request" is the
 	// end-to-end delivery proof (the harness oo7_pam_unlock runtime check
 	// greps it), but per user directive only enableDebug installs carry

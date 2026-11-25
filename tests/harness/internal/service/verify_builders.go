@@ -391,9 +391,9 @@ func buildDesktopChecks(cfg *VerifyConfig, checks map[string]string) {
 	isNiriFamily := isNiriFamilyDE(cfg.DesktopEnvironment)
 	if isNiriFamily {
 		if cfg.DesktopEnvironment == desktopNiriWayle {
-			checks["niri_config_valid"] = fmt.Sprintf("niri validate --config /var/lib/greetd/.config/niri/config.kdl && niri validate --config /home/%s/.config/niri/config.kdl && grep -qF 'include \"/usr/share/feralos/wayle/niri/base.kdl\"' /home/%s/.config/niri/config.kdl && grep -q '^prefer-no-csd' /usr/share/feralos/wayle/niri/base.kdl && grep -q 'QT_WAYLAND_DISABLE_WINDOWDECORATION \"1\"' /usr/share/feralos/wayle/niri/base.kdl && echo 'niri config valid (include + package base: prefer-no-csd + Qt no-decoration; hotkey overlay intentionally NOT skipped)'", cfg.InstalledUser, cfg.InstalledUser)
+			checks["niri_config_valid"] = fmt.Sprintf("niri validate --config /var/lib/greetd/.config/niri/config.kdl && niri validate --config /home/%s/.config/niri/config.kdl && grep -qF 'include \"/usr/share/wayle/niri/base.kdl\"' /home/%s/.config/niri/config.kdl && grep -q '^prefer-no-csd' /usr/share/wayle/niri/base.kdl && grep -q 'QT_WAYLAND_DISABLE_WINDOWDECORATION \"1\"' /usr/share/wayle/niri/base.kdl && echo 'niri config valid (include + package base: prefer-no-csd + Qt no-decoration; hotkey overlay intentionally NOT skipped)'", cfg.InstalledUser, cfg.InstalledUser)
 		} else {
-			checks["niri_config_valid"] = fmt.Sprintf("niri validate --config /var/lib/greetd/.config/niri/config.kdl && niri validate --config /home/%s/.config/niri/config.kdl && grep -q '^prefer-no-csd' /home/%s/.config/niri/config.kdl && grep -q 'QT_WAYLAND_DISABLE_WINDOWDECORATION \"1\"' /home/%s/.config/niri/config.kdl && echo 'niri config valid (prefer-no-csd + Qt no-decoration; hotkey overlay intentionally NOT skipped)'", cfg.InstalledUser, cfg.InstalledUser, cfg.InstalledUser)
+			checks["niri_config_valid"] = fmt.Sprintf("niri validate --config /var/lib/greetd/.config/niri/config.kdl && niri validate --config /home/%s/.config/niri/config.kdl && grep -qF 'include \"/usr/share/dms/niri/base.kdl\"' /home/%s/.config/niri/config.kdl && grep -q '^prefer-no-csd' /usr/share/dms/niri/base.kdl && grep -q 'QT_WAYLAND_DISABLE_WINDOWDECORATION \"1\"' /usr/share/dms/niri/base.kdl && echo 'niri config valid (include + dms package base: prefer-no-csd + Qt no-decoration; hotkey overlay intentionally NOT skipped)'", cfg.InstalledUser, cfg.InstalledUser)
 		}
 		// niri-base-config (ADR-013 wave C): the SHARED niri-family statics
 		// (both DE package lists carry it) — dconf profile, NM manage conf,
@@ -415,6 +415,19 @@ apk info -e xdg-su >/dev/null 2>&1 || { echo "FAIL: xdg-su package missing (ride
 test -x /usr/bin/xdg-su || { echo "FAIL: xdg-su wrapper missing"; fail=1; }
 grep -q 'alacritty -e su' /usr/bin/xdg-su || { echo "FAIL: xdg-su wrapper not the niri alacritty+su wrapper"; fail=1; }
 [ $fail -eq 0 ] && echo 'niri base config packages OK (dconf profile + NM manage + lo interfaces + wallpaper links + hicolor identity + xdg-su wrapper)'
+exit $fail`
+		// dms-config 0.2.0: the DMS static base (include target) + the
+		// greeter script + the package-owned regreet.toml (greetd-config,
+		// shared, NO timezone key — regreet uses the system tz).
+		checks["config_packages_dms"] = `fail=0
+apk info -e dms-config >/dev/null 2>&1 || { echo "FAIL: dms-config not installed"; fail=1; }
+apk info -e greetd-config >/dev/null 2>&1 || { echo "FAIL: greetd-config not installed"; fail=1; }
+test -f /usr/share/dms/niri/base.kdl || { echo "FAIL: dms niri base.kdl missing"; fail=1; }
+grep -q '^prefer-no-csd' /usr/share/dms/niri/base.kdl || { echo "FAIL: dms base.kdl prefer-no-csd missing"; fail=1; }
+grep -q 'font_name = "DejaVu Sans 16"' /etc/greetd/regreet.toml || { echo "FAIL: regreet.toml not the shared static (DejaVu)"; fail=1; }
+grep -q 'timezone' /etc/greetd/regreet.toml && { echo "FAIL: regreet.toml must NOT pin a timezone (system tz)"; fail=1; }
+test -d /var/lib/greetd/.cache/fontconfig || { echo "FAIL: greeter fontconfig cache dir missing (greetd-config post-install)"; fail=1; }
+[ $fail -eq 0 ] && echo 'dms config packages OK (niri base.kdl + shared static regreet + greeter provisioning)'
 exit $fail`
 		checks["greetd_config"] = "ls /etc/greetd/config.toml /etc/greetd/greeter.sh /etc/greetd/regreet.toml /var/lib/greetd/.config/niri/config.kdl && test -x /etc/greetd/greeter.sh && [ \"$(id -u greeter)\" -lt 1000 ] && echo \"greeter is a system user (hidden from ReGreet's UID-filtered list)\""
 		// greetd_socket: greetd daemon alive (IPC socket). Runtime complement
@@ -742,9 +755,9 @@ grep -q '/run/dinitctl' /usr/bin/feralos-reboot || { echo "FAIL: wrapper dinit p
 grep -q 'exec loginctl reboot' /usr/bin/feralos-reboot || { echo "FAIL: wrapper OpenRC path missing"; fail=1; }
 grep -q 'password optional pam_oo7.so' /etc/pam.d/passwd || { echo "FAIL: oo7 passwd override missing"; fail=1; }
 grep -q 'password include base-password' /etc/pam.d/passwd || { echo "FAIL: oo7 passwd base include missing"; fail=1; }
-test -f /usr/share/feralos/wayle/niri/base.kdl || { echo "FAIL: niri base.kdl missing"; fail=1; }
-grep -q '^prefer-no-csd' /usr/share/feralos/wayle/niri/base.kdl || { echo "FAIL: base.kdl prefer-no-csd missing"; fail=1; }
-grep -q 'Mod+T' /usr/share/feralos/wayle/niri/base.kdl || { echo "FAIL: base.kdl binds missing"; fail=1; }
+test -f /usr/share/wayle/niri/base.kdl || { echo "FAIL: niri base.kdl missing"; fail=1; }
+grep -q '^prefer-no-csd' /usr/share/wayle/niri/base.kdl || { echo "FAIL: base.kdl prefer-no-csd missing"; fail=1; }
+grep -q 'Mod+T' /usr/share/wayle/niri/base.kdl || { echo "FAIL: base.kdl binds missing"; fail=1; }
 test -f /etc/xdg-desktop-portal/niri-portals.conf || { echo "FAIL: portals admin conf missing"; fail=1; }
 grep -q 'Secret=oo7-portal' /etc/xdg-desktop-portal/niri-portals.conf || { echo "FAIL: oo7 portal pin missing"; fail=1; }
 [ $fail -eq 0 ] && echo 'wayle config packages OK (reboot wrapper + oo7 passwd PAM + niri base.kdl + portals admin)'
