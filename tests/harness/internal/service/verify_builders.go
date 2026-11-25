@@ -416,19 +416,23 @@ test -x /usr/bin/xdg-su || { echo "FAIL: xdg-su wrapper missing"; fail=1; }
 grep -q 'alacritty -e su' /usr/bin/xdg-su || { echo "FAIL: xdg-su wrapper not the niri alacritty+su wrapper"; fail=1; }
 [ $fail -eq 0 ] && echo 'niri base config packages OK (dconf profile + NM manage + lo interfaces + wallpaper links + hicolor identity + xdg-su wrapper)'
 exit $fail`
-		// dms-config 0.2.0: the DMS static base (include target) + the
-		// greeter script + the package-owned regreet.toml (greetd-config,
-		// shared, NO timezone key — regreet uses the system tz).
-		checks["config_packages_dms"] = `fail=0
-apk info -e dms-config >/dev/null 2>&1 || { echo "FAIL: dms-config not installed"; fail=1; }
-apk info -e greetd-config >/dev/null 2>&1 || { echo "FAIL: greetd-config not installed"; fail=1; }
-test -f /usr/share/dms/niri/base.kdl || { echo "FAIL: dms niri base.kdl missing"; fail=1; }
-grep -q '^prefer-no-csd' /usr/share/dms/niri/base.kdl || { echo "FAIL: dms base.kdl prefer-no-csd missing"; fail=1; }
-grep -q 'font_name = "DejaVu Sans 16"' /etc/greetd/regreet.toml || { echo "FAIL: regreet.toml not the shared static (DejaVu)"; fail=1; }
-grep -q 'timezone' /etc/greetd/regreet.toml && { echo "FAIL: regreet.toml must NOT pin a timezone (system tz)"; fail=1; }
-test -d /var/lib/greetd/.cache/fontconfig || { echo "FAIL: greeter fontconfig cache dir missing (greetd-config post-install)"; fail=1; }
-[ $fail -eq 0 ] && echo 'dms config packages OK (niri base.kdl + shared static regreet + greeter provisioning)'
-exit $fail`
+		// dms-config is the niri (DMS) variant's greeter package — NOT
+		// installed on niriWayle (which carries wayle-config): gate it.
+		if cfg.DesktopEnvironment == desktopNiri {
+			// dms-config 0.2.0: the DMS static base (include target) + the
+			// greeter script + the package-owned regreet.toml (greetd-config,
+			// shared, NO timezone key — regreet uses the system tz).
+			checks["config_packages_dms"] = `fail=0
+		apk info -e dms-config >/dev/null 2>&1 || { echo "FAIL: dms-config not installed"; fail=1; }
+		apk info -e greetd-config >/dev/null 2>&1 || { echo "FAIL: greetd-config not installed"; fail=1; }
+		test -f /usr/share/dms/niri/base.kdl || { echo "FAIL: dms niri base.kdl missing"; fail=1; }
+		grep -q '^prefer-no-csd' /usr/share/dms/niri/base.kdl || { echo "FAIL: dms base.kdl prefer-no-csd missing"; fail=1; }
+		grep -q 'font_name = "DejaVu Sans 16"' /etc/greetd/regreet.toml || { echo "FAIL: regreet.toml not the shared static (DejaVu)"; fail=1; }
+		grep -q 'timezone' /etc/greetd/regreet.toml && { echo "FAIL: regreet.toml must NOT pin a timezone (system tz)"; fail=1; }
+		test -d /var/lib/greetd/.cache/fontconfig || { echo "FAIL: greeter fontconfig cache dir missing (greetd-config post-install)"; fail=1; }
+		[ $fail -eq 0 ] && echo 'dms config packages OK (niri base.kdl + shared static regreet + greeter provisioning)'
+		exit $fail`
+		}
 		checks["greetd_config"] = "ls /etc/greetd/config.toml /etc/greetd/greeter.sh /etc/greetd/regreet.toml /var/lib/greetd/.config/niri/config.kdl && test -x /etc/greetd/greeter.sh && [ \"$(id -u greeter)\" -lt 1000 ] && echo \"greeter is a system user (hidden from ReGreet's UID-filtered list)\""
 		// greetd_socket: greetd daemon alive (IPC socket). Runtime complement
 		// to the static greetd_config check. Works on BOTH init systems —
