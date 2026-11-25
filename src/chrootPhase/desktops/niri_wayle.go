@@ -421,15 +421,6 @@ center = []
 	// OVERWRITES the eth0-dhcp file internal.setupInterfaces wrote earlier;
 	// that write is dead in the niri-family flow).
 
-	// 9. xdg-su wrapper — niri unsupported by xdg-su, use alacritty + su
-	// (shared with niri; matches *niri* so niriwayle sessions hit it).
-	// STAYS installer-side: packages must not write under /usr/local
-	// (abuild rule) and the /usr/local location is what survives vendor
-	// xdg-su updates.
-	if err := installXdgSuWrapper(chroot); err != nil {
-		return err
-	}
-
 	// 10. groups: the session user's groups come from the rules (DE `groups`
 	// — incl. audio for /dev/snd, PipeWire); the greeter joins the DE
 	// `greeterGroups` (greetd re-owns /var/lib/greetd 0750 at boot —

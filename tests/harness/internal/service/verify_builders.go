@@ -410,9 +410,10 @@ grep -q 'iface lo inet loopback' /etc/network/interfaces || { echo "FAIL: lo-onl
 test -L /usr/share/wallpapers/feralos-default.png || { echo "FAIL: wallpaper link missing"; fail=1; }
 readlink /usr/share/wallpapers/feralos-default.png | grep -q 'feralos/branding/feralos-wallpaper-1080p.png' || { echo "FAIL: wallpaper link target wrong"; fail=1; }
 readlink /usr/share/wallpapers/feralos-default-3440x1440.png | grep -q 'feralos/branding/feralos-wallpaper-1440p.png' || { echo "FAIL: UW wallpaper link target wrong"; fail=1; }
-test -L /usr/share/icons/hicolor/scalable/apps/feralos-logo.svg || { echo "FAIL: hicolor logo link missing"; fail=1; }
 readlink /usr/share/icons/hicolor/scalable/apps/feralos-logo.svg | grep -q 'feralos/branding/feralos-logo.svg' || { echo "FAIL: hicolor link target wrong"; fail=1; }
-[ $fail -eq 0 ] && echo 'niri base config packages OK (dconf profile + NM manage + lo interfaces + wallpaper links + hicolor identity)'
+test -x /usr/bin/xdg-su || { echo "FAIL: xdg-su wrapper missing"; fail=1; }
+grep -q 'alacritty -e su' /usr/bin/xdg-su || { echo "FAIL: xdg-su wrapper not the niri alacritty+su wrapper"; fail=1; }
+[ $fail -eq 0 ] && echo 'niri base config packages OK (dconf profile + NM manage + lo interfaces + wallpaper links + hicolor identity + xdg-su wrapper)'
 exit $fail`
 		checks["greetd_config"] = "ls /etc/greetd/config.toml /etc/greetd/greeter.sh /etc/greetd/regreet.toml /var/lib/greetd/.config/niri/config.kdl && test -x /etc/greetd/greeter.sh && [ \"$(id -u greeter)\" -lt 1000 ] && echo \"greeter is a system user (hidden from ReGreet's UID-filtered list)\""
 		// greetd_socket: greetd daemon alive (IPC socket). Runtime complement

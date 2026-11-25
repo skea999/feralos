@@ -103,7 +103,7 @@ rc-update add firewalld default
 - **User portals conf**: `/home/<user>/.config/xdg-desktop-portal/niri-portals.conf` — `[preferred] org.freedesktop.impl.portal.ScreenCast=wlr;` (system default `gnome;gtk` breaks ScreenCast)
 - **Session logs**: `~/.local/share/dinit/` (user dinit service logs — dinit `log-type=file` per service)
 - **Groups**: user `video,input` (rules) + `audio` (`/dev/snd` for PipeWire) via `usermod -aG`; `plugdev`+`netdev` (rules) for NetworkManager GUI management; seat access via elogind D-Bus
-- `xdg-su` wrapper: `/usr/local/bin/xdg-su` — niri unsupported by xdg-su, uses `alacritty -e su -c` for `*niri*` desktops
+- `xdg-su` wrapper: `/usr/bin/xdg-su` (`niri-base-config`) — niri unsupported by xdg-su, uses `alacritty -e su -c` for `*niri*` desktops
 
 ## Secrets (gnome-keyring)
 

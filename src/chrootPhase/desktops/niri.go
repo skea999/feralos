@@ -425,13 +425,6 @@ x-scheme-handler/webcals=org.gnome.Calendar.desktop`
 	// lpadmin group instead of widening CUPS admin to all of wheel
 	// (round 24: without membership, CUPS answers 403 on CUPS-Get-Devices).
 
-	// 9. xdg-su wrapper — shared with niriWayle: STAYS installer-side
-	// (packages must not write under /usr/local; the /usr/local location
-	// is what survives vendor xdg-su updates).
-	if err := installXdgSuWrapper(chroot); err != nil {
-		return err
-	}
-
 	// 10. groups: the session user's groups come from the rules (DE `groups`
 	// — incl. audio for /dev/snd, PipeWire); the greeter joins the DE
 	// `greeterGroups` (greetd re-owns /var/lib/greetd 0750 at boot —
