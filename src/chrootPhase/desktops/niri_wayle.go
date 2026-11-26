@@ -73,10 +73,15 @@ XDG_DATA_DIRS=/home/%s/.local/share/flatpak/exports/share:/var/lib/flatpak/expor
 		return fmt.Errorf("write /etc/environment: %w", err)
 	}
 
-	// portals: the ADMIN-path override ships in wayle-config (oo7-portal
-	// Secret pin — no gnome-keyring here;
-	// precedence user > /etc > /usr/share; the niri-portalsconf 999 dummy
-	// shadows the vendor gnome backend).
+	// portals: the ADMIN-path override ships in wayle-config
+	// (/etc/xdg-desktop-portal/niri-portals.conf: default=gtk, wlr
+	// Screenshot/ScreenCast, Secret=oo7-portal — no gnome-keyring here, so
+	// the org.freedesktop.secrets D-Bus name must be owned by oo7's
+	// portal). Precedence: user > /etc > /usr/share. The vendor
+	// /usr/share conf (Alpine's niri-portalsconf subpackage:
+	// gnome;gtk + gnome-keyring) is shadowed for the interfaces we pin;
+	// the xdg-desktop-portal-gnome 999 dummy keeps the real gnome backend
+	// out.
 
 	// user niri config = per-install parts only (layout + user-path
 	// XDG_DATA_DIRS); the static base merges from the wayle-config include
