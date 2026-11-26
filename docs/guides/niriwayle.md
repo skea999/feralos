@@ -68,7 +68,7 @@ Mod+W (and a click on the bar's **window list** module) opens the Raffi **window
 - Wayle: `~/.config/wayle/config.toml` (installer-seeded session commands + dashboard button — see [Session actions](#session-actions); auto-created otherwise; live reload; GUI `wayle-settings`)
 - Veila: `~/.config/veila/config.toml` (auto-created; themes, widgets)
 - stasis: `/etc/stasis/stasis.rune` (apk-shipped FeralOS plan — see [Locking & idle](#locking--idle); a per-user `~/.config/stasis/stasis.rune` is only a fallback for a missing/broken system file)
-- niri: `~/.config/niri/config.kdl` (installer-written: env block, prefer-no-csd, binds — launcher/lock/screenshots/window management; no DMS includes). User-editable by design — installer-owned seeds, never package-re-asserted (owner decision 2026-11-23)
+- niri: 3 files (owner decision 2026-11-26) — `config.kdl` = YOUR entry file (include lines only, edits merge per-key, never re-asserted); `install.kdl` = per-install values (layout + XDG_DATA_DIRS, written once by the installer); `/usr/share/wayle/niri/base.kdl` = the static base (wayle-config package).
 
 ## Harness
 

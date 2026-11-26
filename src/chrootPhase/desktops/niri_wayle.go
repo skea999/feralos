@@ -83,19 +83,27 @@ XDG_DATA_DIRS=/home/%s/.local/share/flatpak/exports/share:/var/lib/flatpak/expor
 	// the xdg-desktop-portal-gnome 999 dummy keeps the real gnome backend
 	// out.
 
-	// user niri config = per-install parts only (layout + user-path
-	// XDG_DATA_DIRS); the static base merges from the wayle-config include
-	// (per-property). User edits here win per-key; never package-re-asserted.
-	userNiri := fmt.Sprintf(`// FeralOS niriWayle — user config (installer-written, user-editable).
-// The STATIC base ships in wayle-config and merges per-property:
-//     include "/usr/share/wayle/niri/base.kdl"
-// (prefer-no-csd, wayland env, xwayland-satellite, the full binds set —
-// terminal=alacritty, launcher=raffi, lock=veila, window switcher=raffi).
-// Only the PER-INSTALL parts live here. To override a single bind, add
-// your own binds block below — only the keys you set change.
+	// niri config = 3 files, 3 owners (owner decision 2026-11-26):
+	//   base.kdl   (wayle-config)     static bulk — apk owns it, upgrades
+	//                                  replace it, nobody edits it
+	//   install.kdl (installer, ONCE) per-install values (layout +
+	//                                  XDG_DATA_DIRS) — never re-asserted
+	//   config.kdl (installer once,   the USER file: include lines only —
+	//    then USER)                   edits here merge per-key and survive
+	//                                  apk + installer forever
+	userNiri := `// FeralOS niriWayle — YOUR niri config. The two includes below load:
+//   /usr/share/wayle/niri/base.kdl — package static base (binds, env,
+//                                   xwayland; apk owns it, upgrades replace it)
+//   install.kdl                    — per-install values (layout,
+//                                   XDG_DATA_DIRS; written once by the installer)
+// Your edits HERE merge per-key over both (niri >=25.11): add a binds
+// block below to override single keys — only the keys you set change.
 
 include "/usr/share/wayle/niri/base.kdl"
-
+include "install.kdl"
+`
+	installNiri := fmt.Sprintf(`// per-install values — written ONCE by the installer, safe to edit
+// (nothing re-asserts this file).
 input {
     keyboard {
         xkb {
@@ -112,6 +120,9 @@ environment {
 `, u.Keymap, u.UserName, u.UserName)
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p /home/%s/.config/niri", u.UserName)); err != nil {
 		return fmt.Errorf("mkdir user niri config dir: %w", err)
+	}
+	if err := writeFile(chroot, fmt.Sprintf("/home/%s/.config/niri/install.kdl", u.UserName), installNiri); err != nil {
+		return fmt.Errorf("write user niri install config: %w", err)
 	}
 	if err := writeFile(chroot, fmt.Sprintf("/home/%s/.config/niri/config.kdl", u.UserName), userNiri); err != nil {
 		return fmt.Errorf("write user niri config: %w", err)
