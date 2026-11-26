@@ -298,11 +298,14 @@ include "dms/colors.kdl"
 	}
 
 	// 11. gnome-keyring: unlock the login keyring with the login password
-	// when the PAM session opens (greetd PAM). The pam_gnome_keyring AUTH
-	// line ships in the dms-config takeover of /etc/pam.d/greetd (the
-	// `session ... auto_start` line already ships in Alpine's
-	// base-session). Secrets themselves are D-Bus activated on demand
+	// when the PAM session opens (greetd PAM). Only the auth line is added
+	// here — the `session ... auto_start` line already ships in Alpine's
+	// base-session. Secrets themselves are D-Bus activated on demand
 	// (org.freedesktop.secrets service ships with the package).
+	pamGreetd := "/etc/pam.d/greetd"
+	if _, err := shell.ExecuteCmd(chroot, "grep -q 'auth.*pam_gnome_keyring.so' "+pamGreetd+" || echo 'auth       optional pam_gnome_keyring.so' >> "+pamGreetd); err != nil {
+		fmt.Printf("[WARNING] Failed to add pam_gnome_keyring to greetd PAM: %v\n", err)
+	}
 
 	// 12. turnstiled enablement is RULES-DRIVEN: the DE `services` map
 	// carries "turnstiled": "default" (internal_rules.yaml) — services.go
