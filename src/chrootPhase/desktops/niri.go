@@ -144,43 +144,12 @@ org.freedesktop.impl.portal.Secret=gnome-keyring;
 	// dmsWindowButtons plugin (Windows-style maximize/fullscreen/close for
 	// the focused window — system-wide plugin under
 	// /etc/xdg/quickshell/dms-plugins, package dms-window-buttons).
-	dmsSettingsDir := fmt.Sprintf("/home/%s/.config/DankMaterialShell", u.UserName)
-	// DMS reboot fix: plain `loginctl reboot` under dinit halts (elogind
-	// execs busybox /sbin/reboot, dinit overwrites REBOOT→HALT). Wire
-	// customPowerActionReboot = `sudo -n /usr/bin/reboot` (zz-power), dinit
-	// only; OpenRC keeps loginctl.
-	settingsJSON := "{\n  \"configVersion\": 1,\n  \"currentThemeCategory\": \"generic\",\n  \"currentThemeName\": \"green\",\n  \"dankBarLeftWidgets\": [\"launcherButton\", \"workspaceSwitcher\", \"runningApps\"],\n  \"dankBarRightWidgets\": [\"systemTray\", \"clipboard\", \"cpuUsage\", \"memUsage\", \"notificationButton\", \"battery\", \"controlCenterButton\", \"dmsWindowButtons\"],\n  \"updaterUseCustomCommand\": true,\n  \"updaterCustomCommand\": \"/usr/local/bin/feralos-update\""
-	if u.EnableDinit {
-		settingsJSON += ",\n  \"customPowerActionReboot\": \"sudo -n /usr/bin/reboot\""
-	}
-	settingsJSON += "\n}\n"
-	if err := writeFile(chroot, fmt.Sprintf("%s/settings.json", dmsSettingsDir), settingsJSON); err != nil {
-		return fmt.Errorf("seed DMS settings.json: %w", err)
-	}
-	// /etc/sudoers.d/zz-power ships in the feralos-reboot package (the DMS
-	// custom reboot command = `sudo -n /usr/bin/reboot` under dinit).
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("chown %s:%s '%s/settings.json'", u.UserName, u.UserName, dmsSettingsDir)); err != nil {
-		return fmt.Errorf("chown DMS settings.json: %w", err)
-	}
-	// DMS plugin seed: widget plugins are disabled by default — enable
-	// dmsWindowButtons (bare { "<pluginId>": ... } map).
-	pluginSettings := "{\n  \"dmsWindowButtons\": {\n    \"enabled\": true\n  }\n}\n"
-	if err := shell.WriteFile(chroot, dmsSettingsDir+"/plugin_settings.json", []byte(pluginSettings), 0644); err != nil {
-		return fmt.Errorf("seed DMS plugin_settings.json (window buttons): %w", err)
-	}
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("chown %s:%s '%s/plugin_settings.json'", u.UserName, u.UserName, dmsSettingsDir)); err != nil {
-		return fmt.Errorf("chown DMS plugin_settings.json: %w", err)
-	}
-	// dark mode seed: belt+braces (installs default dark; the seed
-	// guarantees it portal-independently). State store = XDG state dir.
-	dmsStateDir := fmt.Sprintf("/home/%s/.local/state/DankMaterialShell", u.UserName)
-	sessionJSON := "{\n  \"isLightMode\": false\n}\n"
-	if err := shell.WriteFile(chroot, dmsStateDir+"/session.json", []byte(sessionJSON), 0644); err != nil {
-		return fmt.Errorf("seed DMS session.json (dark mode): %w", err)
-	}
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("chown %s:%s '%s/session.json'", u.UserName, u.UserName, dmsStateDir)); err != nil {
-		return fmt.Errorf("chown DMS session.json: %w", err)
-	}
+	// The DMS seed files ship in dms-config 0.3.2 via /etc/skel
+	// (settings.json with the dinit reboot command baked — zz-power ships
+	// unconditionally in feralos-reboot so the command is correct under
+	// both inits —, plugin_settings.json enabling dmsWindowButtons,
+	// session.json dark mode). Copied at adduser for the install-time
+	// user and inherited by future users. Nothing to write here.
 	// default apps: GLOBAL since dms-config 0.3.0 (/etc/xdg/mimeapps.list +
 	// /etc/xdg/xdg-terminals.list — every user inherits; the DMS Default
 	// Apps tab reads/writes the USER files on first change). Nothing to
