@@ -91,43 +91,6 @@ XDG_DATA_DIRS=/home/%s/.local/share/flatpak/exports/share:/var/lib/flatpak/expor
 	//   config.kdl (installer once,   the USER file: include lines only —
 	//    then USER)                   edits here merge per-key and survive
 	//                                  apk + installer forever
-	userNiri := `// FeralOS niriWayle — YOUR niri config. The two includes below load:
-//   /usr/share/wayle/niri/base.kdl — package static base (binds, env,
-//                                   xwayland; apk owns it, upgrades replace it)
-//   install.kdl                    — per-install values (layout,
-//                                   XDG_DATA_DIRS; written once by the installer)
-// Your edits HERE merge per-key over both (niri >=25.11): add a binds
-// block below to override single keys — only the keys you set change.
-
-include "/usr/share/wayle/niri/base.kdl"
-include "install.kdl"
-`
-	installNiri := fmt.Sprintf(`// per-install values — written ONCE by the installer, safe to edit
-// (nothing re-asserts this file).
-input {
-    keyboard {
-        xkb {
-            rules "evdev"
-            model "pc105"
-            layout "%s"
-        }
-    }
-}
-
-environment {
-    XDG_DATA_DIRS "/home/%s/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share:/usr/share:/home/%s/.nix-profile/share"
-}
-`, u.Keymap, u.UserName, u.UserName)
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p /home/%s/.config/niri", u.UserName)); err != nil {
-		return fmt.Errorf("mkdir user niri config dir: %w", err)
-	}
-	if err := writeFile(chroot, fmt.Sprintf("/home/%s/.config/niri/install.kdl", u.UserName), installNiri); err != nil {
-		return fmt.Errorf("write user niri install config: %w", err)
-	}
-	if err := writeFile(chroot, fmt.Sprintf("/home/%s/.config/niri/config.kdl", u.UserName), userNiri); err != nil {
-		return fmt.Errorf("write user niri config: %w", err)
-	}
-	// user dinit log files live under ~/.local/share/dinit (dinit logfile)
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p /home/%s/.local/share/dinit", u.UserName)); err != nil {
 		return fmt.Errorf("mkdir user dinit log dir: %w", err)
 	}
