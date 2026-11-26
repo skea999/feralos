@@ -108,28 +108,13 @@ XDG_DATA_DIRS=/home/%s/.local/share/flatpak/exports/share:/var/lib/flatpak/expor
 		return fmt.Errorf("write /etc/environment: %w", err)
 	}
 
-	// 6. xdg-desktop-portal portal backend for the user — the user conf
-	// OVERRIDES Alpine's system niri-portals.conf entirely (that one lists
-	// default=gnome;gtk and its niri-portalsconf dependency pulls the gnome
-	// portal backend — which we shadow with an empty 999 dummy so the real
-	// package, and nautilus with it, never installs). default=gtk keeps the
-	// gtk backend as the generic provider; wlr owns the compositor-native
-	// Screenshot/ScreenCast. Secret stays pinned to gnome-keyring (niri
-	// ships gnome-keyring; its portal file serves the Secret interface —
-	// the explicit pin keeps resolution deterministic now that the gnome
-	// backend is absent).
-	userPortals := `[preferred]
-default=gtk;
-org.freedesktop.impl.portal.ScreenCast=wlr;
-org.freedesktop.impl.portal.Screenshot=wlr;
-org.freedesktop.impl.portal.Secret=gnome-keyring;
-`
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p /home/%s/.config/xdg-desktop-portal", u.UserName)); err != nil {
-		return fmt.Errorf("mkdir user portals dir: %w", err)
-	}
-	if err := writeFile(chroot, fmt.Sprintf("/home/%s/.config/xdg-desktop-portal/niri-portals.conf", u.UserName), userPortals); err != nil {
-		return fmt.Errorf("write user portals conf: %w", err)
-	}
+	// 6. xdg-desktop-portal backend — the ADMIN-path override ships in
+	// dms-config 0.3.0 (/etc/xdg-desktop-portal/niri-portals.conf:
+	// default=gtk, wlr Screenshot/ScreenCast, Secret=gnome-keyring — the
+	// DMS flavor; XDG precedence user > /etc > /usr/share, with no user
+	// file the admin conf wins). The Alpine system niri-portals.conf
+	// (default=gnome;gtk) is still shadowed by the niri-portalsconf 999
+	// dummy in the package list.
 
 	// 8. niri config for the real user — keymap, wayland env, XWayland.
 	// Session services live in the user dinit instance started by turnstile
@@ -258,9 +243,10 @@ include "dms/colors.kdl"
 	// (pkgs.alpinelinux.org contents): firefox.desktop, org.gnome.eog.desktop
 	// (NOT eog.desktop), com.system76.CosmicPlayer.desktop, Alacritty.desktop.
 	// MIME lists = DMS DefaultAppsTab.mimeMapping verbatim.
-	if err := writeFile(chroot, fmt.Sprintf("/home/%s/.config/xdg-terminals.list", u.UserName), "Alacritty.desktop"); err != nil {
-		return fmt.Errorf("seed default terminal (Alacritty): %w", err)
-	}
+	// GLOBAL since dms-config 0.3.0: they ship as /etc/xdg/mimeapps.list +
+	// /etc/xdg/xdg-terminals.list (the GLib / xdg-terminal-exec standard
+	// system layers — every user inherits them live; the DMS Default Apps
+	// tab reads/writes the USER files on first change). Nothing to seed here.
 	// NOTE: no manual theme seeds here (no kdeglobals/gtk settings.ini/dconf
 	// color-scheme/flatpak overrides) — the DMS plugin `dms-theme-sync`
 	// (third-party, GPL-3.0) is the theming authority: it propagates the
@@ -276,39 +262,9 @@ include "dms/colors.kdl"
 	// caught the flatpak variant of the same race). Nothing left here —
 	// DMS's theming plugin writes user-level dconf at runtime against the
 	// package-materialized db.
-	mimeapps := `[Default Applications]
-x-scheme-handler/https=firefox.desktop
-x-scheme-handler/http=firefox.desktop
-text/html=firefox.desktop
-application/xhtml+xml=firefox.desktop
-image/png=org.gnome.eog.desktop
-image/jpeg=org.gnome.eog.desktop
-image/gif=org.gnome.eog.desktop
-image/bmp=org.gnome.eog.desktop
-image/webp=org.gnome.eog.desktop
-image/avif=org.gnome.eog.desktop
-image/svg+xml=org.gnome.eog.desktop
-image/tiff=org.gnome.eog.desktop
-image/heic=org.gnome.eog.desktop
-image/heif=org.gnome.eog.desktop
-image/jxl=org.gnome.eog.desktop
-	audio/mpeg=com.system76.CosmicPlayer.desktop
-audio/x-flac=com.system76.CosmicPlayer.desktop
-audio/wav=com.system76.CosmicPlayer.desktop
-audio/ogg=com.system76.CosmicPlayer.desktop
-audio/aac=com.system76.CosmicPlayer.desktop
-audio/webm=com.system76.CosmicPlayer.desktop
-x-scheme-handler/geo=org.gnome.Maps.desktop
-text/calendar=org.gnome.Calendar.desktop
-x-scheme-handler/calendar=org.gnome.Calendar.desktop
-x-scheme-handler/webcal=org.gnome.Calendar.desktop
-x-scheme-handler/webcals=org.gnome.Calendar.desktop`
-	if err := writeFile(chroot, fmt.Sprintf("/home/%s/.config/mimeapps.list", u.UserName), mimeapps); err != nil {
-		return fmt.Errorf("seed default apps (mimeapps.list): %w", err)
-	}
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("chown %s:%s '/home/%s/.config/xdg-terminals.list' '/home/%s/.config/mimeapps.list'", u.UserName, u.UserName, u.UserName, u.UserName)); err != nil {
-		return fmt.Errorf("chown default app seeds: %w", err)
-	}
+	// mimeapps.list + xdg-terminals.list ship in dms-config 0.3.0 as the
+	// GLOBAL system-layer defaults (/etc/xdg/... — every user inherits
+	// them live). Nothing to seed here.
 	// DMS 1.6 layout template emits `background-effect { xray false }` — a
 	// niri node added after 25.11 (ext-background-effect-v1, unsupported by
 	// Alpine 3.24 niri) that breaks the whole include (run 2026-09-26,
@@ -342,14 +298,11 @@ x-scheme-handler/webcals=org.gnome.Calendar.desktop`
 	}
 
 	// 11. gnome-keyring: unlock the login keyring with the login password
-	// when the PAM session opens (greetd PAM). Only the auth line is added
-	// here — the `session ... auto_start` line already ships in Alpine's
-	// base-session. Secrets themselves are D-Bus activated on demand
+	// when the PAM session opens (greetd PAM). The pam_gnome_keyring AUTH
+	// line ships in the dms-config takeover of /etc/pam.d/greetd (the
+	// `session ... auto_start` line already ships in Alpine's
+	// base-session). Secrets themselves are D-Bus activated on demand
 	// (org.freedesktop.secrets service ships with the package).
-	pamGreetd := "/etc/pam.d/greetd"
-	if _, err := shell.ExecuteCmd(chroot, "grep -q 'auth.*pam_gnome_keyring.so' "+pamGreetd+" || echo 'auth       optional pam_gnome_keyring.so' >> "+pamGreetd); err != nil {
-		fmt.Printf("[WARNING] Failed to add pam_gnome_keyring to greetd PAM: %v\n", err)
-	}
 
 	// 12. turnstiled enablement is RULES-DRIVEN: the DE `services` map
 	// carries "turnstiled": "default" (internal_rules.yaml) — services.go
