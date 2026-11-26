@@ -221,21 +221,8 @@ include "dms/colors.kdl"
 	if err := writeFile(chroot, fmt.Sprintf("%s/settings.json", dmsSettingsDir), settingsJSON); err != nil {
 		return fmt.Errorf("seed DMS settings.json: %w", err)
 	}
-	if u.EnableDinit {
-		// NOPASSWD for the dinit reboot wrapper only (wheel = admin already;
-		// reboot is no privilege escalation — same posture as the polkit
-		// login1 rule). sudo-rs reads /etc/sudoers.d. FILENAME MUST SORT
-		// AFTER "wheel": sudo-rs applies the LAST matching rule, and
-		// /etc/sudoers.d/wheel (`%wheel ALL=(ALL) ALL`, password) would
-		// otherwise override the NOPASSWD tag (live-caught via debug_run
-		// 2026-10-11: `sudo -l` showed the rule but execution asked auth).
-		if err := writeFile(chroot, "/etc/sudoers.d/zz-power", "%wheel ALL=(root) NOPASSWD: /usr/bin/reboot\n"); err != nil {
-			return fmt.Errorf("write sudoers power rule: %w", err)
-		}
-		if _, err := shell.ExecuteCmd(chroot, "chmod 440 /etc/sudoers.d/zz-power"); err != nil {
-			return fmt.Errorf("chmod sudoers power rule: %w", err)
-		}
-	}
+	// /etc/sudoers.d/zz-power ships in the feralos-reboot package (the DMS
+	// custom reboot command = `sudo -n /usr/bin/reboot` under dinit).
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("chown %s:%s '%s/settings.json'", u.UserName, u.UserName, dmsSettingsDir)); err != nil {
 		return fmt.Errorf("chown DMS settings.json: %w", err)
 	}

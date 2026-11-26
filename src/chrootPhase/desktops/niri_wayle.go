@@ -324,24 +324,8 @@ center = []
 	// xdg-terminals.list/mimeapps.list seeds. Apps and defaults are
 	// per-install concerns for niriWayle v1.
 
-	// Reboot NOPASSWD rule backing the reboot path: under dinit the seeded
-	// Wayle command resolves (via the package-shipped /usr/bin/feralos-reboot
-	// wrapper) to `sudo -n /usr/bin/reboot`, which must run without a
-	// password prompt. wheel = admin already; reboot is no privilege
-	// escalation. sudo-rs reads /etc/sudoers.d. FILENAME MUST SORT AFTER
-	// "wheel": sudo-rs applies the LAST matching rule, and
-	// /etc/sudoers.d/wheel (`%wheel ALL=(ALL) ALL`, password) would
-	// otherwise override the NOPASSWD tag (live-caught via debug_run
-	// 2026-10-11). Wired only under dinit (the wrapper's sudo path is
-	// dinit's; OpenRC keeps `loginctl reboot`, no sudo involved).
-	if u.EnableDinit {
-		if err := writeFile(chroot, "/etc/sudoers.d/zz-power", "%wheel ALL=(root) NOPASSWD: /usr/bin/reboot\n"); err != nil {
-			return fmt.Errorf("write sudoers power rule: %w", err)
-		}
-		if _, err := shell.ExecuteCmd(chroot, "chmod 440 /etc/sudoers.d/zz-power"); err != nil {
-			return fmt.Errorf("chmod sudoers power rule: %w", err)
-		}
-	}
+	// The sudoers NOPASSWD rule (/etc/sudoers.d/zz-power) ships in the
+	// feralos-reboot package (the wrapper's dinit sudo path needs it).
 
 	// gsettings INFRASTRUCTURE — FULLY package-materialized now:
 	// /etc/dconf/profile/user ships in niri-base-config AND its post-install
