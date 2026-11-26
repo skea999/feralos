@@ -18,11 +18,9 @@ import (
 // eglfilter, fixed custom-mode spawns) are intentionally absent. Reference:
 // references/niri-alpine/niri-real-hardware.md + installer-gaps.md.
 //
-// DMS is the feralos-aports native package (dms-shell, musl): no nix, no
-// nixGL, no execfilter. The old /etc/init.d/dms OpenRC service is gone on
-// purpose — DMS must be spawned by the niri session (spawn-at-startup):
-// it needs WAYLAND_DISPLAY and the seat session; an OpenRC service hung
-// boot and duplicated the shell (FIX-niri-dms.md rounds 1-2).
+// DMS = the feralos-aports native package (musl, no nix). Spawned by the
+// niri session (needs WAYLAND_DISPLAY + seat) — an OpenRC service hung
+// boot and duplicated the shell, so none exists.
 func SetupNiri(conf *config.Config) error {
 	chroot := conf.Internal.ChrootDir
 	u := conf.User
@@ -35,22 +33,12 @@ func SetupNiri(conf *config.Config) error {
 	// greetd config.toml + greeter.sh are package-shipped (ADR-013):
 	// greetd-config (common) + dms-config/wayle-config (DE-specific script).
 
-	// 3. ReGreet config ships in greetd-config 0.2.0 — 100% static, ONE
-	// SHARED file for both DEs (owner rule 2026-11-25: aesthetic merges,
-	// functional separates). The [widget.clock] timezone key is OMITTED
-	// (regreet sample: "Remove to use the system time zone") and the
-	// installer sets the system tz from variables. Nothing to write here.
+	// regreet.toml (greetd-config): ONE shared static file, no timezone
+	// key — regreet uses the system tz. Branding + greeter provisioning:
+	// niri-base-config / greetd-config post-install.
 
-	// 3a. Branding (logo + wallpapers) ships in niri-base-config — nothing
-	// to install here.
-
-	// 4. greeter user + dirs: greetd-config 0.2.0 post-install provisions
-	// ALL of it (greeter user with the -S/-G rationale below, /var/lib
-	// dirs, fontconfig USER-cache pre-build, ownership).
-	// The greeter niri config stays installer-written: its ONLY variable
-	// is the keyboard layout. The greeter's niri reads its config from its
-	// HOME (per-home, not /etc/xdg — gap 5.7): overlay off at the login
-	// screen (round 14).
+	// greeter niri config stays installer-written (only variable: the
+	// layout; per-home config, not /etc/xdg — overlay off at login).
 	greeterNiri := fmt.Sprintf(`input {
     keyboard {
         xkb {
@@ -67,20 +55,10 @@ hotkey-overlay {
 		return fmt.Errorf("write greeter niri config: %w", err)
 	}
 
-	// 4b. Login-shell trick (moved from users.go — desktop-owned now, runs
-	// AFTER user creation: chrootPhase step 5 users < step 9 desktops).
-	// passwd shell = /usr/libexec/login-shell (niri-user-dinit) so
-	// niri-session skips its bash re-exec and reaches the dinit branch.
-	// The shipped symlink targets /bin/ash, but busybox invoked as
-	// `login-shell` looks up an applet with that name and fails
-	// ("login-shell: applet not found") — re-point it at fish. The path is
-	// ALSO listed in /etc/shells so pkexec accepts the session shell
-	// (RC=127 otherwise — every privileged DMS/polkit op died, run
-	// 2026-10-11 debug_run). Listing it is safe: the FeralOS niri-session
-	// (niri-user-dinit, replaces="niri") has NO /etc/shells bash re-exec
-	// trap — only upstream Alpine's script did. Backward risk: reverting to
-	// upstream niri-session would re-arm that trap. All three steps
-	// idempotent.
+	// login-shell trick (per-user, idempotent): passwd shell = the
+	// login-shell proxy so niri-session skips its bash re-exec; re-point
+	// the shipped ash symlink to fish ("applet not found" otherwise) +
+	// list in /etc/shells (pkexec RC=127 without it).
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("usermod -s /usr/libexec/login-shell %s", u.UserName)); err != nil {
 		fmt.Printf("[WARNING] Failed to set %s shell to login-shell: %v\n", u.UserName, err)
 	}
@@ -91,16 +69,10 @@ hotkey-overlay {
 		fmt.Printf("[WARNING] Failed to list login-shell in /etc/shells: %v\n", err)
 	}
 
-	// 5. Session startup — no wrapper: Alpine's /usr/bin/niri-session is used
-	// UNMODIFIED. greetd sets SHELL from passwd; the user is created with
-	// /usr/libexec/login-shell — the path IS listed in /etc/shells
-	// (pkexec requirement, step 4b) but it is NOT the fish binary itself
-	// (a symlink to fish), so niri-session skips its bash re-exec and
-	// reaches the dinit branch: turnstile (PAM, base-session) starts the
-	// user dinit at login and `dinitctl --user start niri` starts the
-	// `niri` service (niri-user-dinit); niri-shutdown clears the session
-	// env on exit. XDG session env comes from /etc/environment (pam_env in
-	// the turnstiled PAM stack) + the niri config environment block below.
+	// session: upstream /usr/bin/niri-session unmodified (login-shell proxy
+	// skips its bash re-exec; turnstile starts the user dinit, `dinitctl
+	// --user start niri` starts the compositor). Session env via
+	// /etc/environment (pam_env).
 	environmentFile := fmt.Sprintf(`XDG_SESSION_DESKTOP=niri
 XDG_DATA_DIRS=/home/%s/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share:/usr/share:/home/%s/.nix-profile/share
 `, u.UserName, u.UserName)
@@ -108,16 +80,11 @@ XDG_DATA_DIRS=/home/%s/.local/share/flatpak/exports/share:/var/lib/flatpak/expor
 		return fmt.Errorf("write /etc/environment: %w", err)
 	}
 
-	// 6. xdg-desktop-portal backend for the user — the per-user conf STAYS
-	// installer-written: the Secret pin DIFFERS per variant (DMS
-	// =gnome-keyring here; Wayle =oo7-portal via the wayle-config /etc
-	// admin conf) and the smoke CI installs every apk into ONE root — two
-	// packages shipping the same portals path would collide (the hicolor
-	// lesson, run 45301085299). default=gtk keeps the gtk backend as the
-	// generic provider; wlr owns the compositor-native
-	// Screenshot/ScreenCast. The Alpine system niri-portals.conf
-	// (default=gnome;gtk) is still shadowed by the niri-portalsconf 999
-	// dummy in the package list.
+	// per-user portals conf stays installer-written: the Secret pin
+	// differs per variant (gnome-keyring here, oo7-portal in wayle-config)
+	// and the smoke CI would collide same paths (one accumulated root).
+	// default=gtk; wlr owns Screenshot/ScreenCast; the niri-portalsconf
+	// 999 dummy shadows the vendor gnome backend.
 	userPortals := `[preferred]
 default=gtk;
 org.freedesktop.impl.portal.ScreenCast=wlr;
@@ -204,15 +171,10 @@ include "dms/colors.kdl"
 	// the focused window — system-wide plugin under
 	// /etc/xdg/quickshell/dms-plugins, package dms-window-buttons).
 	dmsSettingsDir := fmt.Sprintf("/home/%s/.config/DankMaterialShell", u.UserName)
-	// DMS reboot fix (no elogind rebuild): DMS runs `loginctl reboot`
-	// (isElogind branch) → elogind execs the ABSOLUTE /sbin/reboot (busybox)
-	// → SIGTERM to dinit → dinit overwrites the shutdown type REBOOT→HALT =
-	// machine halts, never reboots (poweroff survives: busybox SIGUSR2 is
-	// ignored by dinit; diagnosis: run 2026-10-11T20-38-40Z live test).
-	// SessionService (1.6.2) runs `customPowerActionReboot` as the session
-	// user via `sh -c` → `sudo -n /usr/bin/reboot` = our dinit wrapper,
-	// NOPASSWD-granted to wheel for this exact binary (below). Wired only
-	// under dinit (the wrapper is dinit's; OpenRC keeps loginctl default).
+	// DMS reboot fix: plain `loginctl reboot` under dinit halts (elogind
+	// execs busybox /sbin/reboot, dinit overwrites REBOOT→HALT). Wire
+	// customPowerActionReboot = `sudo -n /usr/bin/reboot` (zz-power), dinit
+	// only; OpenRC keeps loginctl.
 	settingsJSON := "{\n  \"configVersion\": 1,\n  \"currentThemeCategory\": \"generic\",\n  \"currentThemeName\": \"green\",\n  \"dankBarLeftWidgets\": [\"launcherButton\", \"workspaceSwitcher\", \"runningApps\"],\n  \"dankBarRightWidgets\": [\"systemTray\", \"clipboard\", \"cpuUsage\", \"memUsage\", \"notificationButton\", \"battery\", \"controlCenterButton\", \"dmsWindowButtons\"],\n  \"updaterUseCustomCommand\": true,\n  \"updaterCustomCommand\": \"/usr/local/bin/feralos-update\""
 	if u.EnableDinit {
 		settingsJSON += ",\n  \"customPowerActionReboot\": \"sudo -n /usr/bin/reboot\""
@@ -226,10 +188,8 @@ include "dms/colors.kdl"
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("chown %s:%s '%s/settings.json'", u.UserName, u.UserName, dmsSettingsDir)); err != nil {
 		return fmt.Errorf("chown DMS settings.json: %w", err)
 	}
-	// DMS plugin seed: enable the window-buttons plugin. Widget plugins are
-	// DISABLED by default (PluginService: getPluginSetting(id, "enabled",
-	// false)); the file is a bare map { "<pluginId>": { ... } } (verified
-	// against 1.6.2 SettingsData.parsePluginSettings).
+	// DMS plugin seed: widget plugins are disabled by default — enable
+	// dmsWindowButtons (bare { "<pluginId>": ... } map).
 	pluginSettings := "{\n  \"dmsWindowButtons\": {\n    \"enabled\": true\n  }\n}\n"
 	if err := shell.WriteFile(chroot, dmsSettingsDir+"/plugin_settings.json", []byte(pluginSettings), 0644); err != nil {
 		return fmt.Errorf("seed DMS plugin_settings.json (window buttons): %w", err)
@@ -237,10 +197,8 @@ include "dms/colors.kdl"
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("chown %s:%s '%s/plugin_settings.json'", u.UserName, u.UserName, dmsSettingsDir)); err != nil {
 		return fmt.Errorf("chown DMS plugin_settings.json: %w", err)
 	}
-	// DMS dark mode seed (belt+braces): fresh installs already default dark
-	// (SharedSessionSpec.js isLightMode def=false; PortalService applies mode
-	// changes only after the first read), but the explicit seed guarantees
-	// dark portal-independently. Session store = XDG state dir, NOT config.
+	// dark mode seed: belt+braces (installs default dark; the seed
+	// guarantees it portal-independently). State store = XDG state dir.
 	dmsStateDir := fmt.Sprintf("/home/%s/.local/state/DankMaterialShell", u.UserName)
 	sessionJSON := "{\n  \"isLightMode\": false\n}\n"
 	if err := shell.WriteFile(chroot, dmsStateDir+"/session.json", []byte(sessionJSON), 0644); err != nil {
@@ -249,42 +207,19 @@ include "dms/colors.kdl"
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("chown %s:%s '%s/session.json'", u.UserName, u.UserName, dmsStateDir)); err != nil {
 		return fmt.Errorf("chown DMS session.json: %w", err)
 	}
-	// DMS default apps: the Settings → Default Apps tab is a frontend for the
-	// freedesktop defaults — terminal via ~/.config/xdg-terminals.list
-	// (xdg-terminal-exec; DMS writes `<Id>.desktop` lines), everything else
-	// via ~/.config/mimeapps.list [Default Applications] (DMS reads/writes it
-	// through DesktopService). Seeding the standard files = DMS shows the
-	// values as set on first launch. Desktop IDs verified against Alpine
-	// (pkgs.alpinelinux.org contents): firefox.desktop, org.gnome.eog.desktop
-	// (NOT eog.desktop), com.system76.CosmicPlayer.desktop, Alacritty.desktop.
-	// MIME lists = DMS DefaultAppsTab.mimeMapping verbatim.
-	// GLOBAL since dms-config 0.3.0: they ship as /etc/xdg/mimeapps.list +
-	// /etc/xdg/xdg-terminals.list (the GLib / xdg-terminal-exec standard
-	// system layers — every user inherits them live; the DMS Default Apps
-	// tab reads/writes the USER files on first change). Nothing to seed here.
-	// NOTE: no manual theme seeds here (no kdeglobals/gtk settings.ini/dconf
-	// color-scheme/flatpak overrides) — the DMS plugin `dms-theme-sync`
-	// (third-party, GPL-3.0) is the theming authority: it propagates the
-	// DMS appearance (mode/colors/icons) to GTK, Qt, KDE, Flatpak. Manual
-	// seeds would conflict with it. The plugin + enablement are installed
-	// separately (see the plugin round).
-	// gsettings INFRASTRUCTURE — FULLY package-materialized now:
-	// /etc/dconf/profile/user ships in niri-base-config AND its post-install
-	// compiles the (empty) system db at PACKAGE-install time — the edge/
-	// flatpak install runs BEFORE the desktop setup and the dconf writes
-	// need the compiled db (harness run 2026-10-12T22-09-52Z caught the
-	// "Error opening directory" failure; proof 2026-11-23T23-15-08Z
-	// caught the flatpak variant of the same race). Nothing left here —
-	// DMS's theming plugin writes user-level dconf at runtime against the
-	// package-materialized db.
-	// mimeapps.list + xdg-terminals.list ship in dms-config 0.3.0 as the
-	// GLOBAL system-layer defaults (/etc/xdg/... — every user inherits
-	// them live). Nothing to seed here.
-	// DMS 1.6 layout template emits `background-effect { xray false }` — a
-	// niri node added after 25.11 (ext-background-effect-v1, unsupported by
-	// Alpine 3.24 niri) that breaks the whole include (run 2026-09-26,
-	// niri_config_valid). Strip the block: blur is unsupported on this niri
-	// anyway (FIX-niri-dms.md round 6).
+	// default apps: GLOBAL since dms-config 0.3.0 (/etc/xdg/mimeapps.list +
+	// /etc/xdg/xdg-terminals.list — every user inherits; the DMS Default
+	// Apps tab reads/writes the USER files on first change). Nothing to
+	// seed. Desktop IDs verified against Alpine.
+	// no theme seeds: dms-theme-sync owns theming (it propagates to GTK/Qt/
+	// KDE/Flatpak — manual seeds conflict). dconf: fully package-
+	// materialized (profile + compiled db in niri-base-config post-install
+	// — the edge/flatpak install runs BEFORE the desktop setup and the
+	// dconf writes need the compiled db). mimeapps/terminals: /etc/xdg
+	// globals in dms-config. Nothing to seed here.
+	// strip `background-effect { xray false }`: a niri node newer than the
+	// Alpine 3.24 niri — it breaks the whole include (blur unsupported here
+	// anyway).
 	layoutKdl := fmt.Sprintf("/home/%s/.config/niri/dms/layout.kdl", u.UserName)
 	awk := `awk '/background-effect[[:space:]]*\{/{skip=1; next} skip{ if (/\}/) skip=0; next } {print}'`
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("%s '%s' > '%s.tmp' && mv '%s.tmp' '%s'", awk, layoutKdl, layoutKdl, layoutKdl, layoutKdl)); err != nil {

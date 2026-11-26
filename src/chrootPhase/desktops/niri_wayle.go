@@ -7,36 +7,16 @@ import (
 	"strings"
 )
 
-// SetupNiriWayle configures the niriWayle desktop: niri compositor + Wayle
-// shell + Veila lock screen + Raffi launcher + oo7 secrets. Shares
-// greetd/regreet greeter, turnstile user session, pipewire stack, portals
-// and polkit agent with the niri DE.
-//
-// Derived from SetupNiri. Differences:
-//   - NO DMS at all (no dms setup fragments, no DMS settings/plugin/session
-//     seeds, no default-app seeds, no background-effect awk strip — there are
-//     no dms/ includes to strip).
-//   - The user niri config embeds niri's DEFAULT binds (upstream
-//     default-config.kdl) with terminal=alacritty, launcher=raffi and
-//     lock=veila instead of fuzzel/swaylock.
-//   - oo7 PAM login-unlock (greetd stack) + passwd-stack keyring password
-//     re-sync — the gnome-keyring analogue for this DE (step 11). The
-//     secrets daemon itself stays a supervised per-user dinit service
-//     (org.freedesktop.secrets.user); the PAM module talks to its unix-socket listener.
-//   - Wayle session actions ARE wired (step 7b): the dashboard dropdown's
-//     user-row buttons (lock/logout/reboot/poweroff — upstream v0.7.0
-//     source-verified) run installer-seeded commands from
-//     ~/.config/wayle/config.toml (upstream defaults are systemd-only and
-//     dead on FeralOS). Reboot goes through the dinit wrapper
-//     (`sudo -n /usr/bin/reboot`, the proven DMS path) via the zz-power
-//     NOPASSWD rule below; the power bar button is seeded into the bar
-//     layout (upstream's default bar has no session entry point) and opens
-//     the dashboard dropdown where those buttons live.
+// SetupNiriWayle: niri compositor + Wayle shell + Veila lock + Raffi
+// launcher + oo7 secrets. Shares greeter/turnstile/pipewire/portals with
+// the niri DE; no DMS. User niri config = upstream default binds with
+// alacritty/raffi/veila. Secrets via oo7 (PAM login-unlock + passwd
+// re-sync; daemon = supervised user dinit). Wayle session actions seeded
+// in ~/.config/wayle/config.toml (upstream defaults are systemd-only).
 func SetupNiriWayle(conf *config.Config) error {
 	chroot := conf.Internal.ChrootDir
 	u := conf.User
-	// DE rules block (internal_rules desktopEnvironments.niriWayle): greeter
-	// groups + user dinit boot.d infrastructure units live there.
+	// greeter groups + user dinit boot.d units live in the rules.
 	deRules := conf.Internal.DesktopEnvironments[u.DesktopEnvironment]
 
 	fmt.Println("[INFO] Configuring niriWayle desktop environment...")
@@ -44,28 +24,17 @@ func SetupNiriWayle(conf *config.Config) error {
 	// greetd config.toml + greeter.sh are package-shipped (ADR-013):
 	// greetd-config (common) + dms-config/wayle-config (DE-specific script).
 
-	// 3. ReGreet config ships in greetd-config 0.2.0 — 100% static: the
-	// [widget.clock] timezone key is OMITTED (regreet sample: "Remove to
-	// use the system time zone") and the installer sets the system tz from
-	// variables. Nothing to write here.
+	// regreet.toml (greetd-config): static, no timezone key — regreet uses
+	// the system tz. Branding: niri-base-config.
 
-	// 3a. Branding (logo + wallpapers) ships in niri-base-config — nothing
-	// to install here.
-
-	// 3b. Hide the upstream bare `niri` session from regreet (real-hardware
-	// fix): the greeter showed BOTH the upstream niri session and the FeralOS
-	// niriWayle session; NoDisplay hides it (ReGreet 0.2.0 respects the
-	// Desktop Entry Hidden/NoDisplay fields). apk-safe: the local modification
-	// survives niri upgrades as .apk-new.
+	// hide the bare upstream `niri` session from regreet (NoDisplay; the
+	// local edit survives niri upgrades as .apk-new).
 	if _, err := shell.ExecuteCmd(chroot, `grep -q '^NoDisplay=true' /usr/share/wayland-sessions/niri.desktop 2>/dev/null || printf 'NoDisplay=true\n' >> /usr/share/wayland-sessions/niri.desktop`); err != nil {
 		return fmt.Errorf("hide bare niri session from regreet: %w", err)
 	}
 
-	// 4. greeter user + dirs + fontconfig cache: greetd-config 0.2.0
-	// post-install provisions ALL of it (greeter user, /var/lib/greetd
-	// dirs, the fontconfig USER-cache pre-build, ownership).
-	// The greeter niri config stays installer-written: its ONLY variable
-	// is the keyboard layout.
+	// greeter provisioning = greetd-config post-install. The greeter niri
+	// config stays installer-written (only variable: the layout).
 	greeterNiri := fmt.Sprintf(`input {
     keyboard {
         xkb {
@@ -82,12 +51,9 @@ hotkey-overlay {
 		return fmt.Errorf("write greeter niri config: %w", err)
 	}
 
-	// 4c. Login-shell trick (moved from users.go — desktop-owned now, runs
-	// AFTER user creation: chrootPhase step 5 users < step 9 desktops).
-	// wayle-session depends on niri-user-dinit, so the login-shell binary
-	// arrives via that dependency; same rationale as niri.go 4b (niri-
-	// session bash re-exec skip + pkexec /etc/shells acceptance). The three
-	// steps are idempotent.
+	// login-shell trick (per-user, idempotent): passwd shell = the
+	// login-shell proxy so niri-session skips its bash re-exec; re-point
+	// it to fish + list in /etc/shells (pkexec requirement).
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("usermod -s /usr/libexec/login-shell %s", u.UserName)); err != nil {
 		fmt.Printf("[WARNING] Failed to set %s shell to login-shell: %v\n", u.UserName, err)
 	}
@@ -98,16 +64,8 @@ hotkey-overlay {
 		fmt.Printf("[WARNING] Failed to list login-shell in /etc/shells: %v\n", err)
 	}
 
-	// 5. Session startup — wayle-session (wayle-session package) replaces
-	// Alpine's niri-session as the greetd session command; it depends on
-	// niri-user-dinit, so the login-shell trick prerequisites (login-shell +
-	// the `niri` user service) arrive via that dependency. turnstile (PAM)
-	// starts the user dinit at login; wayle-session then starts the session
-	// stack. XDG session env comes from /etc/environment (pam_env in the
-	// turnstiled PAM stack) + the niri config environment block below.
-	// NOTE: XDG_*_DESKTOP stays "niri" (not "niriwayle") — xdg-desktop-portal
-	// resolves niri-portals.conf from XDG_CURRENT_DESKTOP, and the xdg-su
-	// wrapper matches *niri*; the compositor IS niri either way.
+	// session env via /etc/environment (pam_env). XDG_*_DESKTOP stays
+	// "niri": portal resolution + the xdg-su wrapper match on it.
 	environmentFile := fmt.Sprintf(`XDG_SESSION_DESKTOP=niri
 XDG_DATA_DIRS=/home/%s/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share:/usr/share:/home/%s/.nix-profile/share
 `, u.UserName, u.UserName)
@@ -115,27 +73,14 @@ XDG_DATA_DIRS=/home/%s/.local/share/flatpak/exports/share:/var/lib/flatpak/expor
 		return fmt.Errorf("write /etc/environment: %w", err)
 	}
 
-	// 6. xdg-desktop-portal backend — the ADMIN-path override ships in
-	// wayle-config (/etc/xdg-desktop-portal/niri-portals.conf: default=gtk,
-	// wlr Screenshot/ScreenCast, Secret=oo7-portal — the oo7 README pin;
-	// niriWayle has NO gnome-keyring so the org.freedesktop.secrets D-Bus
-	// name must be owned by oo7's portal). XDG precedence: $XDG_CONFIG_HOME
-	// > /etc > /usr/share — with no user file the admin conf wins, same
-	// effective state as the per-user seed it replaces. The Alpine system
-	// niri-portals.conf (default=gnome;gtk) is still shadowed by the
-	// niri-portalsconf 999 dummy in the package list.
+	// portals: the ADMIN-path override ships in wayle-config (oo7-portal
+	// Secret pin — no gnome-keyring here;
+	// precedence user > /etc > /usr/share; the niri-portalsconf 999 dummy
+	// shadows the vendor gnome backend).
 
-	// 7. niri config for the real user — the per-install parts ONLY (input
-	// keymap + the user-path XDG_DATA_DIRS): the STATIC base (prefer-no-csd,
-	// environment minus DATA_DIRS, xwayland-satellite, the full binds set —
-	// upstream defaults + raffi/veila adjustments) ships in wayle-config as
-	// /usr/share/wayle/niri/base.kdl and MERGES per-property (niri
-	// >=25.11 include). User customization = edit THIS file: a binds block
-	// here overrides individual keys over the package base, and the home
-	// file is never package-re-asserted on updates (owner decision
-	// 2026-11-23). Session services (dbus/pipewire/pulse/wireplumber/
-	// polkit-agent/wayle/veila/wayvnc) are supervised by the USER dinit
-	// instance turnstile starts at login — not spawned here.
+	// user niri config = per-install parts only (layout + user-path
+	// XDG_DATA_DIRS); the static base merges from the wayle-config include
+	// (per-property). User edits here win per-key; never package-re-asserted.
 	userNiri := fmt.Sprintf(`// FeralOS niriWayle — user config (installer-written, user-editable).
 // The STATIC base ships in wayle-config and merges per-property:
 //     include "/usr/share/wayle/niri/base.kdl"
@@ -175,64 +120,14 @@ environment {
 		return fmt.Errorf("chown user config: %w", err)
 	}
 
-	// 7b. Wayle config seed — session actions. v0.7.0 source-verified: the
-	// dashboard dropdown's user-row icon buttons (lock/logout/reboot/
-	// poweroff) run `sh -c <dashboard.dropdown_*_command>`; upstream
-	// defaults are systemd-only and DEAD on FeralOS:
-	//   - reboot: `systemctl reboot`. Even the logind path is broken under
-	//     dinit — elogind execs the ABSOLUTE busybox /sbin/reboot after its
-	//     hooks and the SIGTERM makes dinit overwrite REBOOT -> HALT
-	//     (2026-10-12 diagnosis, "system halted" instead of a restart). The
-	//     proven path is the dinit wrapper via the zz-power rule below:
-	//     `sudo -n /usr/bin/reboot` (same command DMS got via
-	//     customPowerActionReboot). OpenRC keeps `loginctl reboot`
-	//     (busybox reboot is fine when dinit does not trap the signal).
-	//   - poweroff: `loginctl poweroff` works under BOTH inits — the
-	//     elogind system-shutdown hook (50-feralos-dinit.sh) execs
-	//     dinit-poweroff and dinit ignores the busybox follow-up SIGUSR2.
-	//   - lock: default `loginctl lock-session` is a no-op on niri (no
-	//     logind Lock handler) — veila owns the session lock.
-	//   - logout: `niri msg action quit --skip-confirmation` — exits the
-	//     compositor; wayle-session's dinit-monitor hold ends and the
-	//     session tears down to the greeter (the Mod+Shift+E path without
-	//     the interactive confirmation prompt). NOT loginctl
-	//     terminate-session: under dinit polkit cannot attribute the
-	//     session (NoSessionForPID) so it would hit an auth prompt, while
-	//     niri's quit action needs no polkit.
-	// Windows-style bottom bar (novice-friendly, user request 2026-10-27,
-	// refined 2026-10-31 with the user's wayle-settings customizations):
-	//   - location=bottom, exclusive=true (default — reserves space, no
-	//     floating), background-opacity 0 (fully transparent bar — only
-	//     buttons visible), rounding md; buttons: variant basic, rounding
-	//     lg, gap 0.25; styling rounding lg (dropdowns/dialogs).
-	//   - left: custom-launcher (Raffi via Mod+D or click) + niri-workspaces
-	//     + window-title (focused window). center: empty. right: systray,
-	//     icon-only status (battery/bluetooth/network/mic/volume),
-	//     notifications, custom-windows (live window list — click opens the
-	//     Raffi window switcher, mirrored by Mod+W), clock (HH:MM),
-	//     dashboard (far right — lock/logout/reboot/poweroff dropdown,
-	//     borders shown).
-	//   - theme: theme-provider = "matugen" — the palette is generated from
-	//     the wallpaper by matugen (installed); no static palette seeded.
-	//     NOTE: matugen needs a wallpaper set (wayle wallpaper config) —
-	//     without one the palette falls back to wayle defaults.
-	//   - notifications popup: bottom-right.
-	//   - dashboard dropdown = session actions (see step 7b rationale above).
-	//     left-click is seeded EXPLICITLY even though v0.7.0's default equals
-	//     it: wayle's config is a layered system (default < config.toml <
-	//     runtime) applied per-leaf-path, so a partial table does NOT lose
-	//     the default (proven live: `wayle config get
-	//     modules.dashboard.left-click` = "dropdown:dashboard" AND a real
-	//     VNC click opened the panel on run 2026-10-28T00-10-10Z) — the
-	//     explicit line only pins the intent against upstream default drift.
-	// wayleConf = 100% static since wayle-config 0.1.1: the dashboard's
-	// reboot command is the package-shipped /usr/bin/feralos-reboot wrapper
-	// (init-agnostic — dinit picks `sudo -n /usr/bin/reboot` via
-	// /run/dinitctl, OpenRC keeps `loginctl reboot`), so the template no
-	// longer branches on EnableDinit. The seed stays installer-written:
-	// /home files are installer-owned (owner decision 2026-11-23) and the
-	// config must remain user-editable — a package-owned seed re-asserted
-	// by every update would override manual changes.
+	// wayle config seed: session actions (upstream v0.7.0 defaults are
+	// systemd-only/dead) + the Windows-style bottom bar. reboot =
+	// feralos-reboot (wrapper; zz-power backs the sudo path), poweroff =
+	// loginctl (works both inits), lock = veila, logout = niri quit
+	// (polkit cannot attribute sessions under dinit). left-click seeded
+	// explicitly to pin the intent (wayle config = layered, per-leaf merge).
+	// Installer-written: $HOME seeds stay installer-owned and user-editable
+	// (a package re-asserting them on update would clobber edits).
 	wayleConf := `[bar]
 location = "bottom"
 background-opacity = 0
@@ -351,31 +246,15 @@ center = []
 		fmt.Printf("[WARNING] Failed to add greeter to greeterGroups: %v\n", err)
 	}
 
-	// 11. oo7 PAM wiring — the gnome-keyring analogue for this DE.
-	//   greetd stack: `auth` stashes the login password in the PAM handle;
-	//   `session auto_start` (appended LAST, after the base-session
-	//   includes, so pam_turnstile/pam_elogind have run and /run/user
-	//   exists) forks as the user and connects to the daemon's PAM
-	//   listener /run/user/$UID/oo7-pam.sock (0600, peer must be root or
-	//   same UID) with a 20x100ms retry window — the supervised
-	//   org.freedesktop.secrets.user daemon (started after dbus.user) listens there and
-	//   unlocks all locked collections with the login password.
-	//   On a missing socket the module also execs /usr/bin/oo7-daemon —
-	//   that path is OUR recovery wrapper (aports oo7-user-dinit), which
-	//   delegates to `dinitctl --user` (start, or restart when the service
-	//   is up but its socket was lost with /run/user): the daemon may only
-	//   ever run as a supervised user-dinit service (user rule — nothing
-	//   unsupervised, ever). Nothing is left to D-Bus activation or
-	//   daemon self-spawn.
-	//   passwd stack: the /etc/pam.d/passwd override adds pam_oo7 after
-	//   base-password so a user-initiated `passwd` re-encrypts every
-	//   keyring with the new password (root resets via chpasswd carry no
-	//   old authtok and cannot sync — universal limitation, same as
-	//   GNOME).
-	//   First use needs no prompt: the daemon auto-creates an EMPTY
-	//   "Login" keyring aliased default; an empty keyring accepts any
-	//   password, so the PAM unlock binds it to the login password and
-	//   the first stored secret persists it encrypted with exactly that.
+	// oo7 PAM wiring (the gnome-keyring analogue): greetd `auth` stashes
+	// the password, `session auto_start` (appended LAST so /run/user
+	// exists) hands it to the daemon's socket listener and unlocks the
+	// keyrings; a missing socket → the module execs /usr/bin/oo7-daemon =
+	// OUR recovery wrapper (dinitctl --user only — never unsupervised).
+	// /etc/pam.d/passwd override: a user `passwd` re-encrypts all keyrings
+	// (root chpasswd resets cannot sync — universal limit).
+	// first use: the daemon auto-creates an empty default keyring — any
+	// password binds it, the first secret persists it encrypted.
 	pamGreetd := "/etc/pam.d/greetd"
 	if _, err := shell.ExecuteCmd(chroot, "grep -q 'auth.*pam_oo7.so' "+pamGreetd+" || echo 'auth       optional pam_oo7.so' >> "+pamGreetd); err != nil {
 		fmt.Printf("[WARNING] Failed to add pam_oo7 auth to greetd PAM: %v\n", err)
@@ -383,11 +262,7 @@ center = []
 	if _, err := shell.ExecuteCmd(chroot, "grep -q 'session.*pam_oo7.so' "+pamGreetd+" || echo 'session    optional pam_oo7.so auto_start' >> "+pamGreetd); err != nil {
 		fmt.Printf("[WARNING] Failed to add pam_oo7 session to greetd PAM: %v\n", err)
 	}
-	// Alpine ships NO /etc/pam.d/passwd (passwd falls back to the vendor
-	// `other` stack); this override shadows ONLY the passwd service.
-	// /etc/pam.d/passwd (the oo7 keyring re-sync override) ships in
-	// wayle-config 0.1.1 — the Go write was a DOUBLE WRITE of identical
-	// content and is gone (caught in the 2026-11-24 desktop-shrink round).
+	// /etc/pam.d/passwd ships in wayle-config (Alpine ships none).
 	// Daemon log level — the INFO line "Received unlock request" is the
 	// end-to-end delivery proof (the harness oo7_pam_unlock runtime check
 	// greps it), but per user directive only enableDebug installs carry
