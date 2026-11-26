@@ -208,6 +208,9 @@ Two real bugs were found by the matrix and fixed (not test noise): `login_readin
 
 - **Owner correction (2026-11-25, second pass)**: xdg-su is a TOOL, not a config — it does ONE thing and gets its OWN package (`xdg-su 0.1.0`, the set-permissions/assemble-cmdline precedent), NOT a `niri-base-config` fold-in. `niri-base-config 0.3.0` = configs only, with `depends="feralos-branding xdg-su"` so both DE installs pull staging + wrapper through the shared layer (no new DE list entries).
 
+- **CONFIRMED LIVE — dinit niriWayle flagship 141/141** (`2026-11-25T23-20-09Z` + comment-pass re-run `2026-11-26T00-54-54Z` 141/141) + **dinit niri (DMS) 137/137** (`2026-11-26T01-32-54Z` after the pkgrel fix). En-route catches: (1) `config_packages_dms` ran on niriWayle too — gated to desktopNiri; (2) the niri-base-config depends edit (feralos-reboot) needed a **pkgrel bump** — the seed skip-if-unchanged kept the old apk and the DMS shutdown check failed on the missing zz-power (same lesson as dbus-audit 0.1.2-r1; `niri-base-config 0.3.0-r1` deployed).
+- **Comment pass (owner request)**: `niri.go` 398→**304**, `niri_wayle.go` 452→**311** (from the original 491/869) — essays and run IDs out (git/CHANGELOG hold the history), the why + gotchas kept one-line each. The remaining bulk = the shipped config strings ($HOME seeds stay installer per D-B).
+
 ## 2026-11-25 — desktop setups shrink: greeter provisioning + regreet + DMS base + global defaults to aports
 
 - **NEW owner rule (2026-11-25)**: AESTHETIC config always MERGES (one shared file for both DEs), FUNCTIONAL config stays separate (per-variant/tool packages).
