@@ -108,13 +108,28 @@ XDG_DATA_DIRS=/home/%s/.local/share/flatpak/exports/share:/var/lib/flatpak/expor
 		return fmt.Errorf("write /etc/environment: %w", err)
 	}
 
-	// 6. xdg-desktop-portal backend — the ADMIN-path override ships in
-	// dms-config 0.3.0 (/etc/xdg-desktop-portal/niri-portals.conf:
-	// default=gtk, wlr Screenshot/ScreenCast, Secret=gnome-keyring — the
-	// DMS flavor; XDG precedence user > /etc > /usr/share, with no user
-	// file the admin conf wins). The Alpine system niri-portals.conf
+	// 6. xdg-desktop-portal backend for the user — the per-user conf STAYS
+	// installer-written: the Secret pin DIFFERS per variant (DMS
+	// =gnome-keyring here; Wayle =oo7-portal via the wayle-config /etc
+	// admin conf) and the smoke CI installs every apk into ONE root — two
+	// packages shipping the same portals path would collide (the hicolor
+	// lesson, run 45301085299). default=gtk keeps the gtk backend as the
+	// generic provider; wlr owns the compositor-native
+	// Screenshot/ScreenCast. The Alpine system niri-portals.conf
 	// (default=gnome;gtk) is still shadowed by the niri-portalsconf 999
 	// dummy in the package list.
+	userPortals := `[preferred]
+default=gtk;
+org.freedesktop.impl.portal.ScreenCast=wlr;
+org.freedesktop.impl.portal.Screenshot=wlr;
+org.freedesktop.impl.portal.Secret=gnome-keyring;
+`
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p /home/%s/.config/xdg-desktop-portal", u.UserName)); err != nil {
+		return fmt.Errorf("mkdir user portals dir: %w", err)
+	}
+	if err := writeFile(chroot, fmt.Sprintf("/home/%s/.config/xdg-desktop-portal/niri-portals.conf", u.UserName), userPortals); err != nil {
+		return fmt.Errorf("write user portals conf: %w", err)
+	}
 
 	// 8. niri config for the real user — keymap, wayland env, XWayland.
 	// Session services live in the user dinit instance started by turnstile
