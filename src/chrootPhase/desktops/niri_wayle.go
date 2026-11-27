@@ -83,17 +83,44 @@ XDG_DATA_DIRS=/home/%s/.local/share/flatpak/exports/share:/var/lib/flatpak/expor
 	// the xdg-desktop-portal-gnome 999 dummy keeps the real gnome backend
 	// out.
 
-	// niri config = 3 files, 3 owners (owner decision 2026-11-26):
-	//   base.kdl   (wayle-config)     static bulk — apk owns it, upgrades
-	//                                  replace it, nobody edits it
-	//   install.kdl (installer, ONCE) per-install values (layout +
-	//                                  XDG_DATA_DIRS) — never re-asserted
-	//   config.kdl (installer once,   the USER file: include lines only —
-	//    then USER)                   edits here merge per-key and survive
-	//                                  apk + installer forever
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p /home/%s/.local/share/dinit", u.UserName)); err != nil {
-		return fmt.Errorf("mkdir user dinit log dir: %w", err)
+	// user niri config = per-install parts only (layout + user-path
+	// XDG_DATA_DIRS); the static base (prefer-no-csd, env, xwayland, the
+	// full binds set) ships in wayle-config and merges PER-PROPERTY via
+	// the absolute include (niri >=25.11). User edits here merge per-key
+	// over the base; never package-re-asserted on updates. Session
+	// services are supervised by the USER dinit instance turnstile starts
+	// at login — not spawned here.
+	userNiri := fmt.Sprintf(`// FeralOS niriWayle — your niri config (installer-written, user-editable).
+// The STATIC base (prefer-no-csd, env, xwayland, the full binds set)
+// ships in wayle-config and merges PER-PROPERTY via this include:
+//     include "/usr/share/wayle/niri/base.kdl"
+// Only the PER-INSTALL parts live here (layout + user-path XDG_DATA_DIRS).
+// To override a single bind, add your own binds block below — only the
+// keys you set change.
+
+include "/usr/share/wayle/niri/base.kdl"
+
+input {
+    keyboard {
+        xkb {
+            rules "evdev"
+            model "pc105"
+            layout "%s"
+        }
+    }
+}
+
+environment {
+    XDG_DATA_DIRS "/home/%s/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share:/usr/share:/home/%s/.nix-profile/share"
+}
+`, u.Keymap, u.UserName, u.UserName)
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p /home/%s/.config/niri", u.UserName)); err != nil {
+		return fmt.Errorf("mkdir user niri config dir: %w", err)
 	}
+	if err := writeFile(chroot, fmt.Sprintf("/home/%s/.config/niri/config.kdl", u.UserName), userNiri); err != nil {
+		return fmt.Errorf("write user niri config: %w", err)
+	}
+	// user dinit log files live under ~/.local/share/dinit (dinit logfile)
 	// Ownership BEFORE the seeds below: the mkdir/writes above ran as root.
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("chown -R %s:%s /home/%s/.config /home/%s/.local", u.UserName, u.UserName, u.UserName, u.UserName)); err != nil {
 		return fmt.Errorf("chown user config: %w", err)

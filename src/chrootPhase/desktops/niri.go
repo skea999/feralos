@@ -109,15 +109,71 @@ org.freedesktop.impl.portal.Secret=gnome-keyring;
 	// ONLY (input keymap + the user-path XDG_DATA_DIRS) + the per-version
 	// DMS fragments (`dms setup` generates them per user — relative
 	// includes, NOT static, NOT package content).
-	// niri config = 3 files, 3 owners (owner decision 2026-11-26):
-	//   base.kdl    (dms-config)        static bulk — apk owns it
-	//   install.kdl (installer, ONCE)   per-install values — never re-asserted
-	//   config.kdl  (installer once,    the USER file: includes only — edits
-	//    then USER)                       merge per-key, survive everything
-	// The dms/*.kdl fragments stay `dms setup`-generated (per-version).
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p /home/%s/.local/share/dinit", u.UserName)); err != nil {
-		return fmt.Errorf("mkdir user dinit log dir: %w", err)
+	// 8. niri config for the real user — keymap, wayland env, XWayland,
+	// and the per-version DMS fragments (dms/*.kdl — GENERATED per user by
+	// `dms setup` via su, see below). The DMS static base
+	// (/usr/share/dms/niri/base.kdl) ships in dms-config and merges
+	// PER-PROPERTY via the absolute include. Session services live in the
+	// user dinit instance started by turnstile at login.
+	userNiri := fmt.Sprintf(`// FeralOS niri (DMS) — your niri config (installer-written, user-editable).
+// The STATIC base ships in dms-config and merges per-property:
+//     include "/usr/share/dms/niri/base.kdl"
+// Only the PER-INSTALL parts live here (layout + user-path XDG_DATA_DIRS).
+
+include "/usr/share/dms/niri/base.kdl"
+
+input {
+    keyboard {
+        xkb {
+            rules "evdev"
+            model "pc105"
+            layout "%s"
+        }
+    }
+}
+
+environment {
+    XDG_DATA_DIRS "/home/%s/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share:/usr/share:/home/%s/.nix-profile/share"
+    QT_QPA_PLATFORM "wayland"
+    QT_QPA_PLATFORMTHEME "xdgdesktopportal"
+    // Hard override: Qt drops client-side decorations (niri's prefer-no-csd
+    // also works via xdg-decoration negotiation; this env guarantees it —
+    // value must be numeric "1", "true" parses to 0 and does NOT disable).
+    QT_WAYLAND_DISABLE_WINDOWDECORATION "1"
+    ELECTRON_OZONE_PLATFORM_HINT "auto"
+    SDL_VIDEO_DRIVER "wayland"
+    CLUTTER_BACKEND "wayland"
+    _JAVA_AWT_WM_NONREPARENTING "1"
+    WINIT_WAYLAND_NO_AVOID_RESIZE "1"
+}
+
+// NOTE: no hotkey-overlay skip-at-startup here — the "Important Hotkeys"
+// overlay is wanted (user request; shows the keybind cheatsheet at login).
+// Do not add a skip block.
+
+// --- XWayland for X11 apps ---
+xwayland-satellite {
+    path "xwayland-satellite"
+}
+
+// Session services (dbus/pipewire/pulse/wireplumber/polkit-agent/dms/wayvnc)
+// are supervised by the USER dinit instance turnstile starts at login — not
+// spawned here (crash-restart + ordering handled by dinit).
+
+// XDG user dirs (Documents/Downloads/...) — idempotent, no-op after first run
+spawn-at-startup "sh" "-c" "command -v xdg-user-dirs-update >/dev/null 2>&1 && xdg-user-dirs-update"
+
+include "dms/binds.kdl"
+include "dms/layout.kdl"
+include "dms/colors.kdl"
+`, u.Keymap, u.UserName, u.UserName)
+	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p /home/%s/.config/niri", u.UserName)); err != nil {
+		return fmt.Errorf("mkdir user niri config dir: %w", err)
 	}
+	if err := writeFile(chroot, fmt.Sprintf("/home/%s/.config/niri/config.kdl", u.UserName), userNiri); err != nil {
+		return fmt.Errorf("write user niri config: %w", err)
+	}
+	// user dinit log files live under ~/.local/share/dinit (dinit logfile)
 	// Ownership BEFORE dms setup: the mkdir/writes above ran as root —
 	// without this, `dms setup` (su <user>) cannot create
 	// .config/niri/dms/ and every fragment setup fails (run 2026-09-26).
