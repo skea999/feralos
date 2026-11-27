@@ -68,7 +68,7 @@ Mod+W (and a click on the bar's **window list** module) opens the Raffi **window
 - Wayle: `~/.config/wayle/config.toml` (installer-seeded session commands + dashboard button — see [Session actions](#session-actions); auto-created otherwise; live reload; GUI `wayle-settings`)
 - Veila: `~/.config/veila/config.toml` (auto-created; themes, widgets)
 - stasis: `/etc/stasis/stasis.rune` (apk-shipped FeralOS plan — see [Locking & idle](#locking--idle); a per-user `~/.config/stasis/stasis.rune` is only a fallback for a missing/broken system file)
-- niri: 3 files (owner decision 2026-11-26) — `config.kdl` = YOUR entry file (include lines only, edits merge per-key, never re-asserted); `install.kdl` = per-install values (layout + XDG_DATA_DIRS, written once by the installer); `/usr/share/wayle/niri/base.kdl` = the static base (wayle-config package).
+- niri (owner decision 2026-11-26, final form 2026-11-27): `/usr/share/wayle/niri/base.kdl` = the static base (wayle-config package — prefer-no-csd, env minus `XDG_DATA_DIRS`, xwayland-satellite, the full binds set; niri ≥25.11 merges most sections PER-PROPERTY across includes, so user edits never re-assert package keys); `~/.config/niri/config.kdl` = the installer-written entry (include of the base + the PER-INSTALL parts only: keymap layout + user-path `XDG_DATA_DIRS`); `/etc/skel/.config/niri/config.kdl` = the SHARED entry (`niri-base-config 0.4.0`) future users get via the adduser skel copy — optional includes of BOTH niri-family bases (the active desktop's base is installed, the other variant is absent by design → its optional include is skipped) + optional `install.kdl` + optional `dms/*.kdl`.
 
 ## Harness
 
