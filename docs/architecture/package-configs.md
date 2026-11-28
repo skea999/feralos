@@ -50,6 +50,7 @@ and `/etc/aide.conf` + daily cron, moved to `complete-security-config 0.1.0-r0`)
 | `/etc/profile.d/20locale.sh` | `locale` from variables (expanded it_IT.UTF-8) |
 | `/etc/conf.d/loadkmap` | `keymap` from variables |
 | `/etc/greetd/regreet.toml` | `timezone` from variables |
+| `/etc/profile.d/nix-feralos.sh` (sh/bash) + `/etc/fish/conf.d/nix-feralos.fish` (fish) — the `XKB_CONFIG_ROOT` exports (nix-installed GUI apps need the host X11 xkb data) | `nix-config 0.1.0-r0` | OWN separately-named files: profile.d + fish conf.d source EVERY file, so NO vendor file is appended or taken over (no drift, no .apk-new, no duplicates — user directive 2026-11-28; the old installer wrote/append-ned `nix-daemon.sh`, `nix.fish`, `/etc/bash/nix.sh` + a profile.d symlink). STILL INSTALLER-WRITTEN (drift-sensitive vendor files or rules-derived): the `/etc/nix/nix.conf` append (flakes + ssl-cert-file + trusted-users — Alpine owns the file) and `/etc/nix/registry.json` (embeds the internal_rules `nix.registryRef` tunable — one source of truth). `depends="nix"`; installed via `NixPackages()` — only when EnableNix. |
 | user niri/wayle configs | keymap + user name + desktop choices from variables |
 | `/etc/hostname`, users, groups, sudoers (user rules) | user/hostname from variables |
 | UKI/kernel cmdline fragments | hardening + debug overrides from variables |
