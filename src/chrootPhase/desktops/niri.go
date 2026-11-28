@@ -105,56 +105,31 @@ XDG_DATA_DIRS=/home/%s/.local/share/flatpak/exports/share:/var/lib/flatpak/expor
 	// PER-PROPERTY via the absolute include. Session services live in the
 	// user dinit instance started by turnstile at login.
 	userNiri := fmt.Sprintf(`// FeralOS niri (DMS) — your niri config (installer-written, user-editable).
-// The STATIC base ships in dms-config and merges per-property:
-//     include "/usr/share/dms/niri/base.kdl"
-// Only the PER-INSTALL parts live here (layout + user-path XDG_DATA_DIRS).
-
-include "/usr/share/dms/niri/base.kdl"
-
-input {
-    keyboard {
-        xkb {
-            rules "evdev"
-            model "pc105"
-            layout "%s"
-        }
-    }
-}
-
-environment {
-    XDG_DATA_DIRS "/home/%s/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share:/usr/share:/home/%s/.nix-profile/share"
-    QT_QPA_PLATFORM "wayland"
-    QT_QPA_PLATFORMTHEME "xdgdesktopportal"
-    // Hard override: Qt drops client-side decorations (niri's prefer-no-csd
-    // also works via xdg-decoration negotiation; this env guarantees it —
-    // value must be numeric "1", "true" parses to 0 and does NOT disable).
-    QT_WAYLAND_DISABLE_WINDOWDECORATION "1"
-    ELECTRON_OZONE_PLATFORM_HINT "auto"
-    SDL_VIDEO_DRIVER "wayland"
-    CLUTTER_BACKEND "wayland"
-    _JAVA_AWT_WM_NONREPARENTING "1"
-    WINIT_WAYLAND_NO_AVOID_RESIZE "1"
-}
-
-// NOTE: no hotkey-overlay skip-at-startup here — the "Important Hotkeys"
-// overlay is wanted (user request; shows the keybind cheatsheet at login).
-// Do not add a skip block.
-
-// --- XWayland for X11 apps ---
-xwayland-satellite {
-    path "xwayland-satellite"
-}
-
-// Session services (dbus/pipewire/pulse/wireplumber/polkit-agent/dms/wayvnc)
-// are supervised by the USER dinit instance turnstile starts at login — not
-// spawned here (crash-restart + ordering handled by dinit).
-
-// XDG user dirs (Documents/Downloads/...) — idempotent, no-op after first run
-spawn-at-startup "sh" "-c" "command -v xdg-user-dirs-update >/dev/null 2>&1 && xdg-user-dirs-update"
-
-include "dms/binds.kdl"
-include "dms/layout.kdl"
-include "dms/colors.kdl"
+	// The STATIC base ships in dms-config and merges PER-PROPERTY (niri >=25.11):
+	//     include "/usr/share/dms/niri/base.kdl"
+	// it carries prefer-no-csd, the session env (Qt/Electron/SDL/Clutter/Java/
+	// Winit overrides), xwayland-satellite and the xdg-user-dirs spawn — user
+	// edits here NEVER re-assert package keys. Only the PER-INSTALL parts live
+	// in THIS file: keymap layout, user-path XDG_DATA_DIRS and the per-user
+	// DMS fragment includes (dms setup generates ~/.config/niri/dms/*.kdl).
+	include "/usr/share/dms/niri/base.kdl"
+	input {
+	    keyboard {
+	        xkb {
+	            rules "evdev"
+	            model "pc105"
+	            layout "%s"
+	        }
+	    }
+	}
+	environment {
+	    XDG_DATA_DIRS "/home/%s/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share:/usr/share:/home/%s/.nix-profile/share"
+	}
+	// NOTE: no hotkey-overlay skip-at-startup — the "Important Hotkeys"
+	// overlay is wanted (user request); the base documents it too.
+	include "dms/binds.kdl"
+	include "dms/layout.kdl"
+	include "dms/colors.kdl"
 `, u.Keymap, u.UserName, u.UserName)
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p /home/%s/.config/niri", u.UserName)); err != nil {
 		return fmt.Errorf("mkdir user niri config dir: %w", err)
