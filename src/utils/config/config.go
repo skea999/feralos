@@ -178,11 +178,9 @@ type DynamicPackageRules struct {
 	KernelCmdline []string          `yaml:"kernelCmdline"`
 
 	// Desktop-owned tunables (consumed by chrootPhase/desktops):
-	// UserServices  — user dinit boot.d infrastructure unit names, verbatim
-	//                 INCLUDING the `.user` suffix (joined with spaces into
-	//                 the shell loop by the niri/niriWayle setup).
 	// GreeterGroups — supplementary groups the `greeter` user joins.
-	UserServices  []string `yaml:"userServices"`
+	// (The user dinit boot.d set is NOT here: boot.d is self-declared by
+	// the *-user-dinit packages — membership = installed package.)
 	GreeterGroups []string `yaml:"greeterGroups"`
 }
 

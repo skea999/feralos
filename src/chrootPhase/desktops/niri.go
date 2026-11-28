@@ -267,20 +267,15 @@ include "dms/colors.kdl"
 	// fallback — turnstiled ships in /etc/dinit.d). Nothing desktop-specific
 	// left here.
 
-	// 13. user session services: enable INFRASTRUCTURE services in boot.d of
-	// the primary user service dir (/usr/lib/dinit.d/user; turnstile's dinit
-	// backend also scans /etc/dinit.d/user, where packages install their
-	// files). The unit list comes from the rules (DE `userServices` —
-	// verbatim `.user` unit names). Session apps (polkit-agent/dms/wayvnc)
-	// are NOT enabled here — upstream "add-wants niri.service" model:
-	// niri-session starts them after niri (aports niri-user-dinit), so the
-	// greetd greeter session (greeter.sh, which never runs niri-session)
-	// never gets desktop apps. Existence-filtered — only installed packages
-	// get enabled.
-	userServices := strings.Join(deRules.UserServices, " ")
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p /usr/lib/dinit.d/user/boot.d && for s in %s; do [ -f /etc/dinit.d/user/$s ] && ln -sf /etc/dinit.d/user/$s /usr/lib/dinit.d/user/boot.d/$s; done", userServices)); err != nil {
-		fmt.Printf("[WARNING] Failed to enable user dinit services: %v\n", err)
-	}
+	// 13. user session services: NOTHING to enable here — boot.d is
+	// self-declared by the packages (owner rule): every *-user-dinit that
+	// must autostart ships its own /usr/lib/dinit.d/user/boot.d link, so
+	// membership = "the package is installed" (the DE package lists
+	// already decide that). Session apps (polkit-agent/dms/wayvnc) are
+	// NOT in boot.d either — upstream "add-wants niri.service" model:
+	// niri-session starts them after niri (aports niri-user-dinit), so
+	// the greetd greeter session (greeter.sh, which never runs
+	// niri-session) never gets desktop apps.
 
 	// 14. Final ownership sweep — user-reported: seeded configs were
 	// root-owned in places. The per-seed chowns cover the FILES, but the

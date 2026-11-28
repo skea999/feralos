@@ -496,12 +496,6 @@ desktopEnvironments:
     # greeter groups: the `greeter` user joins these (usermod -aG, desktop
     # setup) — greetd re-owns /var/lib/greetd 0750 at boot (traversal).
     greeterGroups: [video, input, greetd]
-    # User dinit boot.d infrastructure units (desktop setup links them into
-    # /usr/lib/dinit.d/user/boot.d, existence-filtered). SHAPE: verbatim unit
-    # file names INCLUDING the `.user` suffix — the consumer joins them with
-    # spaces into the shell loop unchanged. Session apps (polkit-agent/dms/
-    # wayvnc) are NOT here — the session script starts them (add-wants model).
-    userServices: ["dbus.user", "pipewire.user", "pipewire-pulse.user", "wireplumber.user", "wait-wayland.user", "org.freedesktop.portal.Desktop.user", "org.freedesktop.portal.Documents.user", "org.freedesktop.impl.portal.PermissionStore.user"]
     # DMS 1.6.x + quickshell 0.3.x ship as NATIVE apk packages (feralos-aports)
     # — the nix stack (dms-shell/quickshell/dgop/nixGL/execfilter) is gone.
     # matugen (dynamic wallpaper theming backend) now ships from OUR repo
@@ -552,10 +546,6 @@ desktopEnvironments:
     # bus = raw-exec fallback through the shim).
     groups: ["video", "input", "audio", "plugdev", "netdev", "lpadmin"]
     greeterGroups: [video, input, greetd]
-    # Same shape as niri's userServices (verbatim `.user` unit names) plus the
-    # oo7 secrets stack: org.freedesktop.secrets (oo7-server daemon) +
-    # org.freedesktop.impl.portal.desktop.oo7 (the oo7 Secret portal).
-    userServices: ["dbus.user", "pipewire.user", "pipewire-pulse.user", "wireplumber.user", "wait-wayland.user", "org.freedesktop.secrets.user", "org.freedesktop.impl.portal.desktop.oo7.user", "org.freedesktop.portal.Desktop.user", "org.freedesktop.portal.Documents.user", "org.freedesktop.impl.portal.PermissionStore.user"]
   cosmic:
     packages: ["cosmic-session", "cosmic-term", "cosmic-greeter", "cosmic-edit", "cosmic-player", "cosmic-store", "cosmic-settings", "cosmic-screenshot", "cosmic-icons", "cosmic-initial-setup", "adwaita-icon-theme", "desktop-file-utils", "hicolor-icon-theme", "elogind", "dbus", "polkit", "ursine", "pipewire", "xdg-desktop-portal-cosmic", "turnstile", "dbus-session-materializer-user-dinit", "cosmic-applets-user-dinit"]
     services: {"cosmic-greeter": "default", "elogind": "default", "dbus": "default", "turnstiled": "default", "ursined": "default"}
