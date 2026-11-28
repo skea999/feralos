@@ -265,6 +265,7 @@ standardPackages:
   # ships /etc/kernel-hooks.d/50-booster.hook — CPU-agnostic UKI assembly)
   - booster
   - booster-hook
+  - efi-sync-hook
   # kmod: real modprobe/depmod at /sbin (replaces the busybox applet link —
   # untracked file, standard Alpine `apk add kmod` flow). WHY: busybox
   # modprobe calls finit_module(flags=MODULE_INIT_COMPRESSED_FILE) on the

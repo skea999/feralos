@@ -33,9 +33,11 @@ func Run(conf *config.Config) error {
 	}
 
 	// 1b. Inject EFI sync hook (dual-disk only, runs after packages installed)
-	if err := internal.InjectEfiSyncHook(conf); err != nil {
-		fmt.Printf("[WARNING] EFI sync hook: %v\n", err)
-	}
+	// the EFI mirror commit hook ships as PACKAGE CONTENT (aports
+	// efi-sync-hook: /etc/apk/commit_hooks.d/copy-efi.sh — self-guarding,
+	// generic linux-* match, and it FIXES the installer-written dead-code
+	// pipeline (grep -qE | grep -q could never match); user decision
+	// 2026-11-28: no installer-written hooks).
 
 	// 1a. List installed packages
 	fmt.Println("[INFO] Installed packages:")
