@@ -211,16 +211,12 @@ func SetupPackages(conf *config.Config) error {
 	allPkgs = append(allPkgs, u.AllPackages...)
 
 	cpuInfo, _ := shell.ExecuteCmdArgs(chroot, "cat", "/proc/cpuinfo")
-	// Microcode package per CPU vendor (rules: microcode map; empty entry =
-	// no microcode for that vendor).
+	// Microcode package per CPU vendor (the microcodeByCPU facts — the
+	// internal_rules microcode map is GONE, the values were constants).
 	if strings.Contains(cpuInfo, "AMD") {
-		if mc := conf.Internal.Microcode["amd"]; mc.Package != "" {
-			allPkgs = append(allPkgs, mc.Package)
-		}
+		allPkgs = append(allPkgs, microcodeByCPU["amd"].Package)
 	} else if strings.Contains(cpuInfo, "GenuineIntel") {
-		if mc := conf.Internal.Microcode["intel"]; mc.Package != "" {
-			allPkgs = append(allPkgs, mc.Package)
-		}
+		allPkgs = append(allPkgs, microcodeByCPU["intel"].Package)
 	}
 
 	firmwarePkgs := DetectFirmwarePackages(chroot)

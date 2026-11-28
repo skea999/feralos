@@ -24,9 +24,9 @@ func BuildUKI(conf *config.Config) error {
 	ucodeImg := ""
 	cpuInfo, _ := shell.ExecuteCmd(chroot, "cat /proc/cpuinfo")
 	if strings.Contains(cpuInfo, "AMD") {
-		ucodeImg = conf.Internal.Microcode["amd"].Image
+		ucodeImg = microcodeByCPU["amd"].Image
 	} else if strings.Contains(cpuInfo, "GenuineIntel") {
-		ucodeImg = conf.Internal.Microcode["intel"].Image
+		ucodeImg = microcodeByCPU["intel"].Image
 	}
 	fmt.Printf("[DEBUG] Microcode: %s\n", ucodeImg)
 

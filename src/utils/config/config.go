@@ -90,17 +90,16 @@ type InternalRules struct {
 	// Tunables (stage-2 rules-ification): hardcoded Go data moved into the
 	// rules file so the installer is tunable by editing ONLY
 	// internal_rules.yaml. The mechanism stays Go.
-	StandardUserGroups      []string                  `yaml:"standardUserGroups"`
-	DinitSkipSessionManaged []string                  `yaml:"dinitSkipSessionManaged"`
-	FeralosRepo             FeralosRepoRules          `yaml:"feralosRepo"`
-	Kernel                  KernelRules               `yaml:"kernel"`
-	Microcode               map[string]MicrocodeRules `yaml:"microcode"`
-	EdgeRepositories        []string                  `yaml:"edgeRepositories"`
-	ResolvNameservers       []string                  `yaml:"resolvNameservers"`
-	MaintenanceCron         MaintenanceCronRules      `yaml:"maintenanceCron"`
-	Limits                  LimitsRules               `yaml:"limits"`
-	Nix                     NixRules                  `yaml:"nix"`
-	BoosterConfig           BoosterRules              `yaml:"boosterConfig"`
+	StandardUserGroups      []string             `yaml:"standardUserGroups"`
+	DinitSkipSessionManaged []string             `yaml:"dinitSkipSessionManaged"`
+	FeralosRepo             FeralosRepoRules     `yaml:"feralosRepo"`
+	Kernel                  KernelRules          `yaml:"kernel"`
+	EdgeRepositories        []string             `yaml:"edgeRepositories"`
+	ResolvNameservers       []string             `yaml:"resolvNameservers"`
+	MaintenanceCron         MaintenanceCronRules `yaml:"maintenanceCron"`
+	Limits                  LimitsRules          `yaml:"limits"`
+	Nix                     NixRules             `yaml:"nix"`
+	BoosterConfig           BoosterRules         `yaml:"boosterConfig"`
 }
 
 // FeralosRepoRules bootstraps the FeralOS apk repository (signing key).
@@ -112,12 +111,6 @@ type FeralosRepoRules struct {
 type KernelRules struct {
 	Package string `yaml:"package"` // apk package name (hooks.go EFI sync hook)
 	Flavor  string `yaml:"flavor"`  // vmlinuz-<flavor>, booster-<flavor>.img, linux-<flavor>.efi
-}
-
-// MicrocodeRules is one CPU-vendor entry (amd / intel) of the microcode map.
-type MicrocodeRules struct {
-	Package string `yaml:"package"` // apk package installed at setup
-	Image   string `yaml:"image"`   // initramfs image path included in the UKI
 }
 
 // MaintenanceCronRules carries the crontab schedules (commands are fixed in Go).
@@ -316,7 +309,7 @@ func LoadInternalRules(conf *Config) error {
 // rules file lost content and would silently produce a broken target (no
 // DNS in resolv.conf, wrong UKI naming, zeroed limits.conf, no user groups,
 // every -openrc package force-converted). Feature-gated keys are NOT
-// validated here (edgeRepositories / nix / microcode are consumed only under
+// validated here (edgeRepositories / nix are consumed only under
 // enableEdgeRepos / enableNix / CPU detection — SetupEdgeRepos and SetupNix
 // enforce their own contracts, and empty microcode gracefully means "no
 // microcode").

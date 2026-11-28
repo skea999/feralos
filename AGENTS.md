@@ -169,7 +169,7 @@ Standard core, pluggable data — installer logic never changes, storage layouts
 
 ## Rules Tunables (stage-2 rules-ification)
 
-**The installer is tunable by editing ONLY `internal_rules.yaml`; the mechanism stays Go.** Tunable keys: `standardUserGroups`, `dinitSkipSessionManaged`, `feralosRepo.keyringUrl`, `kernel.{package,flavor}`, `microcode.{amd,intel}`, `boosterConfig.*`, `edgeRepositories`, `resolvNameservers`, `maintenanceCron.*`, `limits.*`, `nix.{channel,registryRef}`, per-DE `userServices` + `greeterGroups`. `LoadInternalRules` VALIDATES the always-consumed ones (empty = load error); edge/nix/microcode are feature-gated. Guard: `TestRulesCarryRequiredTunables`.
+**The installer is tunable by editing ONLY `internal_rules.yaml`; the mechanism stays Go.** Tunable keys: `standardUserGroups`, `dinitSkipSessionManaged`, `feralosRepo.keyringUrl`, `kernel.{package,flavor}`, `boosterConfig.*`, `edgeRepositories`, `resolvNameservers`, `maintenanceCron.*`, `limits.*`, `nix.{channel,registryRef}`, `greeterGroups`. `LoadInternalRules` VALIDATES the always-consumed ones (empty = load error); edge/nix are feature-gated. Guard: `TestRulesCarryRequiredTunables`.
 
 → Details: `docs/architecture/overview.md#Rules Tunables (stage-2 rules-ification)` (full key list, misplacement moves, byte-identical proof)
 
