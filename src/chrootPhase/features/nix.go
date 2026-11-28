@@ -19,7 +19,7 @@ func NixPackages(conf *config.Config) []string {
 	if !conf.User.EnableNix {
 		return nil
 	}
-	return []string{"nix", "nix-config", "nix-openrc", "nix-bash-completion", "nix-zsh-completion"}
+	return []string{"nix", "nix-openrc", "nix-bash-completion", "nix-zsh-completion"}
 }
 
 // SetupNix installs and configures the Nix package manager.
@@ -116,14 +116,29 @@ trusted-users = root @wheel`
 	}
 
 	fmt.Println("[INFO] Setting Nix environment variables...")
-	// XKB_CONFIG_ROOT (nix-installed GUI apps need the host X11 xkb data):
-	// shipped by the nix-config package (0.1.0) as its OWN separately-named
-	// files — /etc/profile.d/nix-feralos.sh (sh/bash) + /etc/fish/conf.d/
-	// nix-feralos.fish (fish). profile.d and fish conf.d source every file,
-	// so NO vendor file is appended or taken over (no drift, no .apk-new,
-	// no duplicates — user directive 2026-11-28). The old installer writes
-	// here (nix-daemon.sh append, nix.fish, /etc/bash/nix.sh + the
-	// profile.d symlink) are gone.
+	// XKB_CONFIG_ROOT: nix-installed GUI apps need the host X11 xkb data.
+	// Build sandbox: upstream default — /tmp is exec since round 48, the old
+	// scoping workaround (born from the noexec era) is gone.
+	nixEnv := `export XKB_CONFIG_ROOT=/usr/share/X11/xkb`
+	// Append (not overwrite): preserve the PATH/daemon setup the Alpine nix
+	// package ships in /etc/profile.d/nix-daemon.sh.
+	if err := shell.WriteFileAppend(chroot, "/etc/profile.d/nix-daemon.sh", []byte(nixEnv+"\n"), 0644); err != nil {
+		return fmt.Errorf("failed to write nix env: %w", err)
+	}
+
+	nixFishEnv := `set -gx XKB_CONFIG_ROOT /usr/share/X11/xkb`
+	if err := shell.WriteFileAppend(chroot, "/etc/fish/conf.d/nix.fish", []byte(nixFishEnv+"\n"), 0644); err != nil {
+		return fmt.Errorf("failed to write nix fish env: %w", err)
+	}
+
+	nixBashEnv := `export XKB_CONFIG_ROOT=/usr/share/X11/xkb`
+	if err := shell.WriteFile(chroot, "/etc/bash/nix.sh", []byte(nixBashEnv+"\n"), 0644); err != nil {
+		return fmt.Errorf("failed to write nix bash env: %w", err)
+	}
+
+	if _, err := shell.ExecuteCmdArgs(chroot, "ln", "-sf", "/etc/bash/nix.sh", "/etc/profile.d/nix-bash.sh"); err != nil {
+		fmt.Printf("[WARNING] Failed to symlink nix bash env: %v\n", err)
+	}
 
 	// Install Nix packages requested by rules (internal_rules nixPackages).
 	// Same behavior as apk packages: data selects what gets installed.
