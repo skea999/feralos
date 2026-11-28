@@ -1423,6 +1423,24 @@ func (service *Service) Verify(ctx context.Context, cfg *VerifyConfig) (VerifyRe
 	buildDBusActivationChecks(cfg, checks)
 
 	result := VerifyResult{RunDir: cfg.RunDir, Success: true, Checks: map[string]CheckResult{}}
+	// ssh_preflight: GUARANTEED-FIRST fast-fail gate (user request
+	// 2026-11-28). If the target is unreachable over SSH, every other
+	// check would burn its full deadline one by one — minutes of pure
+	// waiting for results that are all going to fail anyway. One cheap
+	// probe on a 20s budget: on failure the verify records the single
+	// preflight failure, marks every other check SKIPPED, and returns
+	// immediately.
+	preflightCtx, cancelPreflight := context.WithTimeout(verifyCtx, 20*time.Second)
+	_, preflightErr := guest.Output(preflightCtx, guestOpts, "echo ok")
+	cancelPreflight()
+	if preflightErr != nil {
+		result.Success = false
+		result.Checks["ssh_preflight"] = CheckResult{Pass: false, Detail: "SSH unreachable: " + preflightErr.Error()}
+		for name := range checks {
+			result.Checks[name] = CheckResult{Pass: false, Detail: "SKIPPED (ssh preflight failed)"}
+		}
+		return result, nil
+	}
 
 	// At-rest footprint: GUARANTEED-FIRST pre-pass (Go map iteration order is
 	// random — these two must measure the pristine post-boot state before any

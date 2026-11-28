@@ -75,3 +75,47 @@ func ensureOO7PamLines(chroot string) error {
 	content := strings.TrimRight(out, "\n") + "\n" + strings.Join(add, "\n") + "\n"
 	return shell.WriteFile(chroot, path, []byte(content), 0644)
 }
+
+// ensureSecretsLogLevel sets RUST_LOG for the oo7 secrets daemon in the
+// ADR-008 config the secrets wrapper sources before exec'ing it (survives
+// user-dinit respawns — dinitctl setenv would apply too late: boot.d
+// starts the daemon before the session scripts run). The harness
+// oo7_pam_unlock runtime proof greps the INFO line "Received unlock
+// request" that ONLY RUST_LOG=info produces (the file ships with the line
+// commented — ERROR-only default); per user directive only enableDebug
+// installs carry INFO logging. Deterministic: an existing RUST_LOG line is
+// rewritten IN PLACE, extra ones collapse, and the file is written back
+// once — nothing is ever appended twice (user directive 2026-11-28).
+const defaultSecretsLogLine = "#RUST_LOG=info" //nolint:gosec // env filter value, not a credential
+
+func ensureSecretsLogLevel(chroot string, enableDebug bool) error {
+	const path = "/etc/dinit.d/config/secrets.conf"
+	out, err := shell.ExecuteCmd(chroot, "cat "+path+" 2>/dev/null || true")
+	if err != nil {
+		return fmt.Errorf("read %s: %w", path, err)
+	}
+	want := defaultSecretsLogLine
+	if enableDebug {
+		want = "RUST_LOG=info"
+	}
+	lines := make([]string, 0, 32)
+	found := false
+	for _, l := range strings.Split(strings.TrimRight(out, "\n"), "\n") {
+		if strings.HasPrefix(l, "RUST_LOG=") || l == defaultSecretsLogLine {
+			if !found {
+				lines = append(lines, want)
+				found = true
+			}
+			continue
+		}
+		lines = append(lines, l)
+	}
+	if !found {
+		lines = append(lines, want)
+	}
+	content := strings.Join(lines, "\n") + "\n"
+	if content == out || (out == "" && want == defaultSecretsLogLine) {
+		return nil
+	}
+	return shell.WriteFile(chroot, path, []byte(content), 0644)
+}

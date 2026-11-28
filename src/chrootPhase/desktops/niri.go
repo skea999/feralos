@@ -250,6 +250,11 @@ include "dms/colors.kdl"
 	if err := ensureOO7PamLines(chroot); err != nil {
 		fmt.Printf("[WARNING] Failed to ensure the oo7 greetd PAM lines: %v\n", err)
 	}
+	// Daemon log level: the INFO delivery line the harness runtime proof
+	// greps (shared helper — same semantics as niriWayle).
+	if err := ensureSecretsLogLevel(chroot, u.EnableDebug); err != nil {
+		fmt.Printf("[WARNING] Failed to set RUST_LOG for the oo7 daemon: %v\n", err)
+	}
 
 	// 12. turnstiled enablement is RULES-DRIVEN: the DE `services` map
 	// carries "turnstiled": "default" (internal_rules.yaml) — services.go

@@ -74,7 +74,7 @@ import (
 // enableDebug), or a no-op otherwise so the shell chain stays well-formed.
 func debugRUSTLogAssert(cfg *VerifyConfig) string {
 	if cfg.EnableDebug {
-		return "grep -q 'RUST_LOG=info' /etc/dinit.d/config/secrets.conf || { echo 'RUST_LOG=info missing from secrets.conf (enableDebug)'; exit 1; };"
+		return "grep -q '^RUST_LOG=info' /etc/dinit.d/config/secrets.conf || { echo 'RUST_LOG=info missing from secrets.conf (enableDebug)'; exit 1; };"
 	}
 	return "true;"
 }

@@ -190,10 +190,8 @@ environment {
 	// daemon, so it survives user-dinit respawns (dinitctl setenv would
 	// apply too late — boot.d starts the daemon before the session
 	// scripts run). Idempotent: set in place or append.
-	if u.EnableDebug {
-		if _, err := shell.ExecuteCmd(chroot, "mkdir -p /etc/dinit.d/config && f=/etc/dinit.d/config/secrets.conf; touch \"$f\"; if grep -q '^RUST_LOG=' \"$f\"; then sed -i 's/^RUST_LOG=.*/RUST_LOG=info/' \"$f\"; else echo 'RUST_LOG=info' >> \"$f\"; fi"); err != nil {
-			fmt.Printf("[WARNING] Failed to set RUST_LOG=info for the oo7 daemon: %v\n", err)
-		}
+	if err := ensureSecretsLogLevel(chroot, u.EnableDebug); err != nil {
+		fmt.Printf("[WARNING] Failed to set RUST_LOG for the oo7 daemon: %v\n", err)
 	}
 
 	// 12. turnstiled enablement is RULES-DRIVEN: the DE `services` map
