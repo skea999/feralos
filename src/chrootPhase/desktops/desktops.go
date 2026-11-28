@@ -81,41 +81,28 @@ func ensureOO7PamLines(chroot string) error {
 // user-dinit respawns — dinitctl setenv would apply too late: boot.d
 // starts the daemon before the session scripts run). The harness
 // oo7_pam_unlock runtime proof greps the INFO line "Received unlock
-// request" that ONLY RUST_LOG=info produces (the file ships with the line
-// commented — ERROR-only default); per user directive only enableDebug
-// installs carry INFO logging. Deterministic: an existing RUST_LOG line is
-// rewritten IN PLACE, extra ones collapse, and the file is written back
-// once — nothing is ever appended twice (user directive 2026-11-28).
-const defaultSecretsLogLine = "#RUST_LOG=info" //nolint:gosec // env filter value, not a credential
-
+// request" that ONLY RUST_LOG=info produces; per user directive only
+// enableDebug installs carry INFO logging. The flip happens IN PLACE on
+// the single shipped marker line — sed touches nothing else and echoes no
+// file content into installer.log (the log_errors check greps it); the
+// guarded printf fallback fires only if the package drifts and the marker
+// line is missing entirely. No shell appends in the normal path (user
+// directive 2026-11-28).
 func ensureSecretsLogLevel(chroot string, enableDebug bool) error {
 	const path = "/etc/dinit.d/config/secrets.conf"
-	out, err := shell.ExecuteCmd(chroot, "cat "+path+" 2>/dev/null || true")
-	if err != nil {
-		return fmt.Errorf("read %s: %w", path, err)
-	}
-	want := defaultSecretsLogLine
+	const active = "RUST_LOG=info"
+	const commented = "#RUST_LOG=info"
 	if enableDebug {
-		want = "RUST_LOG=info"
-	}
-	lines := make([]string, 0, 32)
-	found := false
-	for _, l := range strings.Split(strings.TrimRight(out, "\n"), "\n") {
-		if strings.HasPrefix(l, "RUST_LOG=") || l == defaultSecretsLogLine {
-			if !found {
-				lines = append(lines, want)
-				found = true
-			}
-			continue
+		cmd := "if grep -qxF '" + commented + "' " + path + "; then sed -i 's|^" + commented + "|" + active + "|' " + path +
+			"; elif grep -qxF '" + active + "' " + path + "; then :; else printf '%s\\n' '" + active + "' >> " + path + "; fi"
+		if _, err := shell.ExecuteCmd(chroot, cmd); err != nil {
+			return fmt.Errorf("enable RUST_LOG in %s: %w", path, err)
 		}
-		lines = append(lines, l)
-	}
-	if !found {
-		lines = append(lines, want)
-	}
-	content := strings.Join(lines, "\n") + "\n"
-	if content == out || (out == "" && want == defaultSecretsLogLine) {
 		return nil
 	}
-	return shell.WriteFile(chroot, path, []byte(content), 0644)
+	cmd := "grep -qxF '" + commented + "' " + path + " || sed -i 's|^" + active + "|" + commented + "|' " + path
+	if _, err := shell.ExecuteCmd(chroot, cmd); err != nil {
+		return fmt.Errorf("disable RUST_LOG in %s: %w", path, err)
+	}
+	return nil
 }
