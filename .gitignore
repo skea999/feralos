@@ -42,6 +42,7 @@ tests/harness/iso/
 tests/harness/coverage.out
 tests/harness/skea_harness
 tests/debug_run/debug_run
+tests/vm-desktop/novnc/novnc
 
 # Artifacts - ignore all files, keep .gitkeep for structure
 tests/artifacts/**/*

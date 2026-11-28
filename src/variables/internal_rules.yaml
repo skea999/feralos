@@ -346,8 +346,9 @@ kernel:
 edgeRepositories: [edge/main, edge/community, edge/testing]
 
 # chroot /etc/resolv.conf written BEFORE the first apk update (DNS needed
-# for apk) — chroot_phase.go step 0.
-resolvNameservers: [208.67.222.222, 208.67.220.220]
+# for apk) — chroot_phase.go step 0. Cloudflare + Google: OpenDNS and Quad9
+# are blocked on some provider networks (measured 2026-11-14).
+resolvNameservers: [1.1.1.1, 8.8.8.8]
 
 # Maintenance schedules (crontab lines; command part fixed in Go):
 #   apkAudit   — weekly apk audit (misc.go)

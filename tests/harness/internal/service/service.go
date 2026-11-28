@@ -1060,7 +1060,9 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg *RunConfig,
 			// work via mesa virgl (edge) — the host only needs libvirglrenderer.
 			// If the host lacks the packages, QEMU fails AT STARTUP
 			// (fail loud by design — install them instead of removing this).
-			"-display", "egl-headless,gl=on",
+			// SKEA_QEMU_DISPLAY overrides the backend on hosts with no render
+			// node (no GPU): "sdl,gl=on" on an Xvfb screen, see tests/vm-desktop.
+			"-display", envOr("SKEA_QEMU_DISPLAY", "egl-headless,gl=on"),
 			"-device", "virtio-vga-gl",
 			"-chardev", "socket,id=targetserial,path=" + targetSerialSocketPath + ",server=on,wait=off,logfile=" + targetSerialLog + ",logappend=on",
 			"-serial", "chardev:targetserial",
@@ -1094,6 +1096,8 @@ func (service *Service) bootAndVerifyTarget(ctx context.Context, cfg *RunConfig,
 		if cfg.EnableKVM {
 			args = append(args, "-enable-kvm")
 		}
+		// Extra target devices, e.g. a usb-tablet for VNC clicks (tests/vm-desktop).
+		args = append(args, strings.Fields(os.Getenv("SKEA_QEMU_EXTRA_ARGS"))...)
 		return args
 	}
 
@@ -3957,4 +3961,12 @@ func retriedAttempt(lines []string, i int) bool {
 		return false
 	}
 	return false
+}
+
+// envOr returns the environment variable name, or def when it is unset or empty.
+func envOr(name, def string) string {
+	if v := os.Getenv(name); v != "" {
+		return v
+	}
+	return def
 }

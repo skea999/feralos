@@ -532,7 +532,9 @@ func buildTargetArgs(cfg targetArgsInput) []string {
 		// egl-headless instead of -nographic: the GL device below requires a
 		// GL display backend ("-display none" → "opengl is not available").
 		// Host needs virglrenderer + EGL + qemu-system-modules-opengl.
-		"-display", "egl-headless",
+		// SKEA_QEMU_DISPLAY overrides it on hosts with no render node, as in
+		// the harness (tests/vm-desktop).
+		"-display", envOr("SKEA_QEMU_DISPLAY", "egl-headless"),
 		"-chardev", "socket,id=targetserial,path=" + cfg.SerialSocket + ",server=on,wait=off,logfile=" + cfg.SerialLog + ",logappend=on",
 		"-serial", "chardev:targetserial",
 		"-qmp", "unix:" + cfg.QMPPath + ",server=on,wait=off",
@@ -591,6 +593,8 @@ func buildTargetArgs(cfg targetArgsInput) []string {
 	if cfg.EnableKVM {
 		args = append(args, "-enable-kvm")
 	}
+	// Extra target devices, e.g. a usb-tablet for VNC clicks (tests/vm-desktop).
+	args = append(args, strings.Fields(os.Getenv("SKEA_QEMU_EXTRA_ARGS"))...)
 
 	return args
 }
@@ -849,4 +853,12 @@ func run(args []string) error {
 	_ = instance.wait()
 
 	return nil
+}
+
+// envOr returns the environment variable name, or def when it is unset or empty.
+func envOr(name, def string) string {
+	if v := os.Getenv(name); v != "" {
+		return v
+	}
+	return def
 }

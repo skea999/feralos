@@ -4,10 +4,14 @@ All notable changes to FeralOS will be documented in this file.
 
 ## Known issues (living list — 2026-11-13 snapshot)
 
+- **Wayle bar launcher click does nothing** (found 2026-11-14 in `tests/vm-desktop`): `left-click = "/usr/bin/raffi-toggle"` on the `launcher` custom module never opens raffi, while other bar clicks, `Super+D` and a manual `raffi-toggle` run work; suspect the custom-module click environment.
+
 `log_errors` shows QEMU-only noise (`smartd`/`fsck` whitelisted; netns `mount/umount /run/netns ... Invalid argument` QEMU early-chain noise allowlisted; udevd `/bin/false` module install errors — parport/psmouse/intel_gtt/input_leds/intel_pmc_bxt — from OpenRC udev path, harmless in QEMU, nix pivot fix landed). Resolved 2026-09-30: dinit shutdown ordering — `turnstiled` pam_elogind bus error at shutdown (dinit releases dependencies at dependent stop-start, not exit) fixed via feralos-aports `stop-command` guards on `dbus`/`elogind` (ADR-007, commit `75c566a`; harness 63/63 run 2026-09-30T00-08-04Z).
 
 ## [Unreleased]
 ### Added
+- `tests/vm-desktop/novnc`: browser view of the vm-desktop VM — noVNC 1.7.0 served by a Go WebSocket bridge (same-origin only), no Python websockify
+- `tests/vm-desktop/`: FeralOS desktop as a full VM inside a container on a GPU-less host (boxd `--kvm`), over VNC, with agent screenshot and input tools; harness + debug_run `SKEA_QEMU_DISPLAY` / `SKEA_QEMU_EXTRA_ARGS` (docs/harness/vm-desktop.md)
 - Go installer with btrfsStandardServer layout (2-disk RAID1)
 - Go installer with btrfsStandard layout (single disk, swapfile)
 - Dynamic rules engine (internal_rules.yaml + logic.go)
@@ -53,6 +57,7 @@ All notable changes to FeralOS will be documented in this file.
 - **Harness run phases** — `[harness] phase N/9: …` (1 boot runner → 2 run installer → 3 reboot runner → 4 boot target → 5 run sbctl → 6 run tpm → 7 reboot target → 8 boot target verification → 9 verify target) printed to stdout + `runs/<ts>/harness.log`; all harness progress messages mirrored to stdout; MCP mode diverts progress to stderr (JSON-RPC stream stays clean)
 - **`dinit-shutdown` core package + shutdown commands** — installer dinit core now includes `dinit-shutdown` (`dinit-poweroff/reboot/halt` + the `/usr/sbin/dinit-shutdown --system -p` finalizer the daemon execs to complete any shutdown); conventional commands wired Artix/Chimera-style: `/usr/bin/{poweroff,halt,shutdown}` symlinks → `/usr/sbin/dinit-*` + `/usr/bin/{reboot,soft-reboot}` exec-wrappers (invocation-name detection requires the `dinit-` prefix); new harness check `dinit_shutdown_commands`
 ### Fixed
+- Installer DNS: `resolvNameservers` OpenDNS → `1.1.1.1, 8.8.8.8` — OpenDNS and Quad9 are dropped on some provider networks, which broke every install there at the feralos-aports keyring fetch
 - nix_packages_missing harness check: `grep -oE | sort -u | wc -l` unique-name count (nix profile list prints 3 lines/package, old wc -l overcounted); post-processing strips `\r` + SSH warning prefix, parses last line, FAIL messages embed raw output
 - Nix client commands (`su - user` registry add / profile add / smoke tests) now prefix `NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt` — daemon ssl-cert-file alone didn't cover user-side nix client TLS
 - Pointer copy bug in configurator.go, hardening.go, zswap.go (u := conf.User → u := &conf.User)
@@ -1004,6 +1009,18 @@ Moved verbatim from AGENTS.md "Recent Rounds" on 2026-11-13. Detailed per-round 
 - **Fix** (`b683818`): `linkExists()` probes `name + ".user"` in both boot.d dirs (lib + etc). Released as aports `feralos-dbus-audit-0.1.1-r0` — new source tag `dbus-audit-0.1.1` (tag-per-state policy), `pkgrel` reset to 0, sha512 refreshed, APKBUILD header comment updated to the two-pass reality (8a INSTALL + 16 REPORT); CI `43655883755` green, Pages published.
 - **Validated** (harness `2026-11-15T00-10-41Z`, 32G disk, niriWayle fixture, ~11 min): **114/114** — step-16 REPORT pass "Core session infra (boot.d links)" = **ALL OK** (10 linked + polkit-agent/wayvnc session-scoped by design), ZERO "NOT linked" WARNs; pass 1 (8a) keeps its 10 honest pre-link WARNs by design; apk pulled `0.1.1-r0` live (`Installing feralos-dbus-audit (0.1.1-r0)`); both passes `32 targets, 0 missing, exit=0`; conversion `34 installed, 0 failed`; live boot green.
 - **Note**: pass-1 WARNs are CORRECT output — that pass runs before the desktop linking; only pass-2 WARNs signal a genuine regression.
+
+### 2026-11-14 - vm-desktop: FeralOS as a full VM in a container on a GPU-less host, desktop over VNC — harness 114/114 on processor rendering
+**Agent:** Claude Code (feralos-8a)
+**Summary:** user request — run FeralOS with its desktop inside a podman box on the Medion (no GPU) through boxd, one Containerfile that installs and boots everything. boxd 0.3.0 added `box --kvm` for this (boxd session, owner go). Details: `docs/harness/vm-desktop.md`.
+- **`tests/vm-desktop/`**: `Containerfile` (QEMU 10.0 + OVMF + swtpm + Go + Xvfb + matchbox + x11vnc + xdotool + Mesa), `start.sh` (first call: prepare-runner + `skea_harness run --keep-target-running`; later: debug_run boots the last verified disk; one run per box), `shot.sh` (Xvfb PNG), `input.sh` (xdotool click/move/key/type).
+- **Display without a render node**: `egl-headless` fails with `egl: no drm render node available`; `-display sdl,gl=on` on Xvfb renders virgl on llvmpipe and the guest still sees a virgl GPU, so niri runs. QEMU `-vnc` refuses a GL console (`Display vnc is incompatible with the GL context`) → x11vnc on the Xvfb screen. SDL full-screen does nothing without a window manager → matchbox maximizes the window. QEMU `screendump` keeps the firmware frame with virtio-vga-gl → screenshots come from Xvfb.
+- **Harness + debug_run**: `SKEA_QEMU_DISPLAY` (target `-display` override) and `SKEA_QEMU_EXTRA_ARGS` (extra target devices, here `qemu-xhci` + `usb-tablet` for absolute clicks); both unset by default, behavior unchanged.
+- **Input**: QEMU passes key positions → Xvfb takes the guest layout (`setxkbmap` from `keymap`; US screen + Italian guest typed `'` for `-`); `click` pauses 0.3 s between move and press.
+- **PRODUCT FIX — installer DNS** (`internal_rules.yaml` `resolvNameservers`): OpenDNS `208.67.222.222/220.220` → `1.1.1.1, 8.8.8.8` (user decision). The home network's provider (sunrise.box) drops OpenDNS and Quad9 on port 53 (UDP and TCP; measured from the Medion and x570), so every install there failed at the feralos-aports keyring fetch (`wget: bad address 'skea999.github.io'`) and then `dinit` could not install.
+- **Disk**: the full niriWayle app set overflows the 16G harness default (btrfs `errno=-28`, forced read-only at the Logseq flatpak) → `start.sh` uses 32G.
+- **Validated**: harness run `2026-11-14T05-33-16Z` niriWayle dinit **114/114** on the llvmpipe display (install about 6 minutes with a warm cache); clean-container boot via debug_run: typing `echo ok-[x]{y}@#~/ | tr a-z A-Z` → `OK-[X]{Y}@#~/`, bar clock click opened the Wayle calendar, VNC tunnel through `box` answered `RFB 003.008`. harness + debug_run gofmt/vet/build/test green, `src` config tests green.
+- **New finding (product, not fixed here)**: clicking the Wayle bar launcher (`[[modules.custom]] id = "launcher"`, `left-click = "/usr/bin/raffi-toggle"`) does nothing, while other bar clicks (clock) work, `Super+D` opens raffi, and `raffi-toggle` run by hand as the user with the session sockets starts raffi → the custom-module click path (likely its environment) is the suspect.
 
 ### 2026-11-13 - OpenCode V1→V2 migration + base structure re-alignment + docs restructure
 **Agent:** codebase
