@@ -174,14 +174,14 @@ environment {
 	// (root chpasswd resets cannot sync — universal limit).
 	// first use: the daemon auto-creates an empty default keyring — any
 	// password binds it, the first secret persists it encrypted.
-	pamGreetd := "/etc/pam.d/greetd"
-	if _, err := shell.ExecuteCmd(chroot, "grep -q 'auth.*pam_oo7.so' "+pamGreetd+" || echo 'auth       optional pam_oo7.so' >> "+pamGreetd); err != nil {
-		fmt.Printf("[WARNING] Failed to add pam_oo7 auth to greetd PAM: %v\n", err)
+	// the two pam_oo7 lines are ensured DETERMINISTICALLY in Go (exact-line
+	// dedupe, one write — never shell appends: user directive 2026-11-28,
+	// shared with niri.go since the DMS runs the same oo7 stack now).
+	if err := ensureOO7PamLines(chroot); err != nil {
+		fmt.Printf("[WARNING] Failed to ensure the oo7 greetd PAM lines: %v\n", err)
 	}
-	if _, err := shell.ExecuteCmd(chroot, "grep -q 'session.*pam_oo7.so' "+pamGreetd+" || echo 'session    optional pam_oo7.so auto_start' >> "+pamGreetd); err != nil {
-		fmt.Printf("[WARNING] Failed to add pam_oo7 session to greetd PAM: %v\n", err)
-	}
-	// /etc/pam.d/passwd ships in wayle-config (Alpine ships none).
+	// /etc/pam.d/passwd ships in niri-base-config (SHARED by both niri-family
+	// desktops — one owner per path; Alpine ships none).
 	// Daemon log level — the INFO line "Received unlock request" is the
 	// end-to-end delivery proof (the harness oo7_pam_unlock runtime check
 	// greps it), but per user directive only enableDebug installs carry

@@ -33,6 +33,7 @@ variables:
   enablePodman: true
   enableDinit: true
   flatpakPackages:
+  - app.drey.KeyRack
   - io.github.zarestia_dev.rclone-manager
   - com.github.tchx84.Flatseal
   extraPackages:

@@ -80,23 +80,12 @@ XDG_DATA_DIRS=/home/%s/.local/share/flatpak/exports/share:/var/lib/flatpak/expor
 		return fmt.Errorf("write /etc/environment: %w", err)
 	}
 
-	// per-user portals conf stays installer-written: the Secret pin
-	// differs per variant (gnome-keyring here, oo7-portal in wayle-config)
-	// and the smoke CI would collide same paths (one accumulated root).
-	// default=gtk; wlr owns Screenshot/ScreenCast; the niri-portalsconf
-	// 999 dummy shadows the vendor gnome backend.
-	userPortals := `[preferred]
-default=gtk;
-org.freedesktop.impl.portal.ScreenCast=wlr;
-org.freedesktop.impl.portal.Screenshot=wlr;
-org.freedesktop.impl.portal.Secret=gnome-keyring;
-`
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p /home/%s/.config/xdg-desktop-portal", u.UserName)); err != nil {
-		return fmt.Errorf("mkdir user portals dir: %w", err)
-	}
-	if err := writeFile(chroot, fmt.Sprintf("/home/%s/.config/xdg-desktop-portal/niri-portals.conf", u.UserName), userPortals); err != nil {
-		return fmt.Errorf("write user portals conf: %w", err)
-	}
+	// portals: NO per-user conf anymore — the ADMIN-path conf ships in
+	// niri-base-config (0.4.0-r2, /etc/xdg-desktop-portal/niri-portals.conf,
+	// SHARED by both niri-family desktops: default=gtk, wlr owns
+	// Screenshot/ScreenCast, Secret=oo7-portal). One owner per path (the
+	// smoke CI installs every apk into ONE accumulated root); the old
+	// per-variant Secret pin problem is gone (both DEs run oo7 now).
 
 	// 8. niri config for the real user — keymap, wayland env, XWayland.
 	// Session services live in the user dinit instance started by turnstile
@@ -250,14 +239,16 @@ include "dms/colors.kdl"
 		fmt.Printf("[WARNING] Failed to add greeter to greeterGroups: %v\n", err)
 	}
 
-	// 11. gnome-keyring: unlock the login keyring with the login password
-	// when the PAM session opens (greetd PAM). Only the auth line is added
-	// here — the `session ... auto_start` line already ships in Alpine's
-	// base-session. Secrets themselves are D-Bus activated on demand
-	// (org.freedesktop.secrets service ships with the package).
-	pamGreetd := "/etc/pam.d/greetd"
-	if _, err := shell.ExecuteCmd(chroot, "grep -q 'auth.*pam_gnome_keyring.so' "+pamGreetd+" || echo 'auth       optional pam_gnome_keyring.so' >> "+pamGreetd); err != nil {
-		fmt.Printf("[WARNING] Failed to add pam_gnome_keyring to greetd PAM: %v\n", err)
+	// 11. oo7 secrets (gnome-keyring + seahorse REMOVED from the DE list —
+	// same stack as niriWayle): the login keyrings unlock with the login
+	// password when the greetd PAM session opens. The two pam_oo7 lines
+	// are ensured DETERMINISTICALLY in Go (exact-line dedupe, one write —
+	// never shell appends: user directive 2026-11-28). /etc/pam.d/passwd
+	// (re-sync on password change) ships in niri-base-config; the secrets
+	// daemon = oo7-server-user-dinit (boot.d self-declaration + the
+	// dbus-services override, both shipped by that package).
+	if err := ensureOO7PamLines(chroot); err != nil {
+		fmt.Printf("[WARNING] Failed to ensure the oo7 greetd PAM lines: %v\n", err)
 	}
 
 	// 12. turnstiled enablement is RULES-DRIVEN: the DE `services` map
