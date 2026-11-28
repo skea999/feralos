@@ -120,14 +120,11 @@ environment {
 	if err := writeFile(chroot, fmt.Sprintf("/home/%s/.config/niri/config.kdl", u.UserName), userNiri); err != nil {
 		return fmt.Errorf("write user niri config: %w", err)
 	}
-	// user dinit log files live under ~/.local/share/dinit (dinit logfile)
-	// — dinit does NOT mkdir the parent ("Stage: opening log file — No
-	// such file or directory") and the session chain dies on it (niri
-	// depends-on dbus.user; run 2026-11-27T18-40-51Z, live-debugged).
-	// Future users get the empty dir from the niri-base-config skel.
-	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("mkdir -p /home/%s/.local/share/dinit", u.UserName)); err != nil {
-		return fmt.Errorf("mkdir user dinit log dir: %w", err)
-	}
+	// user dinit log files live under ~/.local/share/dinit (dinit logfile):
+	// dinit does NOT mkdir the parent, so the empty dir ships in the
+	// niri-base-config skel (0.4.0-r1) — busybox adduser copies empty
+	// skel dirs, so EVERY user (install-time via the adduser skel copy +
+	// future users) gets it; nothing to create here.
 	// Ownership BEFORE the seeds below: the mkdir/writes above ran as root.
 	if _, err := shell.ExecuteCmd(chroot, fmt.Sprintf("chown -R %s:%s /home/%s/.config /home/%s/.local", u.UserName, u.UserName, u.UserName, u.UserName)); err != nil {
 		return fmt.Errorf("chown user config: %w", err)
