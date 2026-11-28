@@ -408,13 +408,19 @@ grep -q 'system-db:local' /etc/dconf/profile/user || { echo "FAIL: dconf profile
 grep -q 'managed=true' /etc/NetworkManager/conf.d/10-manage.conf || { echo "FAIL: NM manage conf missing"; fail=1; }
 grep -q 'iface lo inet loopback' /etc/network/interfaces || { echo "FAIL: lo-only interfaces missing"; fail=1; }
 test -L /usr/share/wallpapers/feralos-default.png || { echo "FAIL: wallpaper link missing"; fail=1; }
+grep -q 'password optional pam_oo7.so' /etc/pam.d/passwd || { echo "FAIL: oo7 passwd override missing"; fail=1; }
+grep -q 'password include base-password' /etc/pam.d/passwd || { echo "FAIL: oo7 passwd base include missing"; fail=1; }
+grep -q 'auth       optional pam_oo7.so' /etc/pam.d/greetd || { echo "FAIL: oo7 greetd PAM auth line missing"; fail=1; }
+grep -q 'session    optional pam_oo7.so auto_start' /etc/pam.d/greetd || { echo "FAIL: oo7 greetd PAM session line missing"; fail=1; }
+test -f /etc/xdg-desktop-portal/niri-portals.conf || { echo "FAIL: portals admin conf missing"; fail=1; }
+grep -q 'Secret=oo7-portal' /etc/xdg-desktop-portal/niri-portals.conf || { echo "FAIL: oo7 portal pin missing"; fail=1; }
 readlink /usr/share/wallpapers/feralos-default.png | grep -q 'feralos/branding/feralos-wallpaper-1080p.png' || { echo "FAIL: wallpaper link target wrong"; fail=1; }
 readlink /usr/share/wallpapers/feralos-default-3440x1440.png | grep -q 'feralos/branding/feralos-wallpaper-1440p.png' || { echo "FAIL: UW wallpaper link target wrong"; fail=1; }
 readlink /usr/share/icons/hicolor/scalable/apps/feralos-logo.svg | grep -q 'feralos/branding/feralos-logo.svg' || { echo "FAIL: hicolor link target wrong"; fail=1; }
 apk info -e xdg-su >/dev/null 2>&1 || { echo "FAIL: xdg-su package missing (rides niri-base-config depends)"; fail=1; }
 test -x /usr/bin/xdg-su || { echo "FAIL: xdg-su wrapper missing"; fail=1; }
 grep -q 'alacritty -e su' /usr/bin/xdg-su || { echo "FAIL: xdg-su wrapper not the niri alacritty+su wrapper"; fail=1; }
-[ $fail -eq 0 ] && echo 'niri base config packages OK (dconf profile + NM manage + lo interfaces + wallpaper links + hicolor identity + xdg-su wrapper)'
+[ $fail -eq 0 ] && echo 'niri base config packages OK (dconf profile + NM manage + lo interfaces + wallpaper + logo links + oo7 passwd PAM + greetd PAM lines + portals admin + skel entry)'
 exit $fail`
 		// dms-config is the niri (DMS) variant's greeter package — NOT
 		// installed on niriWayle (which carries wayle-config): gate it.
@@ -640,12 +646,6 @@ echo 'dbus activation units live OK'
 		// .nix-profile/share (nix XDG gap fix). Init-agnostic: turnstile
 		// spawns the same user dinit under OpenRC too.
 		checks["user_session_env"] = fmt.Sprintf("pid=$(pgrep -u %s -x pipewire | head -n1); [ -n \"$pid\" ] || { echo 'no pipewire process (user dinit down?)'; exit 1; }; tr '\\0' '\\n' < /proc/$pid/environ | grep -q '^XDG_DATA_DIRS=.*flatpak/exports' || { echo 'XDG_DATA_DIRS missing flatpak exports in user service env'; exit 1; }; tr '\\0' '\\n' < /proc/$pid/environ | grep -q '^XDG_DATA_DIRS=.*\\.nix-profile/share' || { echo 'XDG_DATA_DIRS missing nix profile in user service env'; exit 1; }; echo 'session env OK (pam_env -> user dinit chain delivers XDG_DATA_DIRS)'", cfg.InstalledUser)
-		// gnome-keyring: package + D-Bus secrets service + PAM unlock lines
-		// in greetd. NIRI-ONLY: niriWayle has NO gnome-keyring (oo7 handles
-		// secrets there).
-		if cfg.DesktopEnvironment == desktopNiri {
-			checks["gnome_keyring"] = "apk info -e gnome-keyring && test -f /usr/share/dbus-1/services/org.freedesktop.secrets.service && grep -q pam_gnome_keyring /etc/pam.d/greetd"
-		}
 		// Runtime checks — the verification boot runs the REAL user session:
 		// the harness injected a test-only greetd [initial_session]
 		// (enableNiriTestAutologin, VM discarded after run) because nobody
@@ -741,47 +741,10 @@ echo 'dbus activation units live OK'
 		checks["niri_screenshot"] = fmt.Sprintf("uid=$(id -u %s); i=0; while [ $i -lt 60 ]; do s=$(ls /run/user/$uid/niri*.sock 2>/dev/null | head -1); if [ -n \"$s\" ]; then b=$(ls /home/%s/Pictures/Screenshots/*.png 2>/dev/null | wc -l); XDG_RUNTIME_DIR=/run/user/$uid WAYLAND_DISPLAY=wayland-1 NIRI_SOCKET=\"$s\" niri msg action screenshot-screen >/dev/null 2>&1; sleep 1; a=$(ls /home/%s/Pictures/Screenshots/*.png 2>/dev/null | wc -l); if [ \"$a\" -gt \"$b\" ]; then n=$(ls -t /home/%s/Pictures/Screenshots/*.png 2>/dev/null | head -1); if ! head -c 8 \"$n\" | od -An -tx1 | grep -q '89 50 4e 47 0d 0a 1a 0a'; then echo \"screenshot NOT a valid PNG: $n\"; exit 1; fi; echo \"screenshot OK (valid PNG): $n ($(wc -c < \"$n\") bytes)\"; exit 0; fi; fi; sleep 1; i=$((i+1)); 		done; echo 'screenshot failed'; exit 1", cfg.InstalledUser, cfg.InstalledUser, cfg.InstalledUser, cfg.InstalledUser)
 	}
 	// niriWayle-only checks — Wayle shell, Veila lock daemon, Raffi
-	// launcher, oo7 secrets. niri has no counterpart here (and vice versa:
-	// the DMS checks above are niri-only).
-	if cfg.DesktopEnvironment == desktopNiriWayle {
-		// wayle-config (ADR-013 wave C): the niriWayle STATIC system pieces
-		// are package-owned — the init-agnostic reboot wrapper + the oo7
-		// /etc/pam.d/passwd override (Alpine ships none). The $HOME seeds
-		// (wayle config.toml, niri config.kdl) stay installer-written by
-		// design: home files are installer-owned AND user-editable — a
-		// package re-asserting them on update would clobber manual changes
-		// (owner decision 2026-11-23, same principle that keeps the
-		// vendor-file appends installer-run-ONCE).
-		checks["config_packages_wayle"] = `fail=0
-apk info -e wayle-config >/dev/null 2>&1 || { echo "FAIL: wayle-config not installed"; fail=1; }
-test -x /usr/bin/feralos-reboot || { echo "FAIL: feralos-reboot wrapper missing"; fail=1; }
-grep -q '/run/dinitctl' /usr/bin/feralos-reboot || { echo "FAIL: wrapper dinit path missing"; fail=1; }
-grep -q 'exec loginctl reboot' /usr/bin/feralos-reboot || { echo "FAIL: wrapper OpenRC path missing"; fail=1; }
-grep -q 'password optional pam_oo7.so' /etc/pam.d/passwd || { echo "FAIL: oo7 passwd override missing"; fail=1; }
-grep -q 'password include base-password' /etc/pam.d/passwd || { echo "FAIL: oo7 passwd base include missing"; fail=1; }
-test -f /usr/share/wayle/niri/base.kdl || { echo "FAIL: niri base.kdl missing"; fail=1; }
-grep -q '^prefer-no-csd' /usr/share/wayle/niri/base.kdl || { echo "FAIL: base.kdl prefer-no-csd missing"; fail=1; }
-grep -q 'Mod+T' /usr/share/wayle/niri/base.kdl || { echo "FAIL: base.kdl binds missing"; fail=1; }
-test -f /etc/xdg-desktop-portal/niri-portals.conf || { echo "FAIL: portals admin conf missing"; fail=1; }
-grep -q 'Secret=oo7-portal' /etc/xdg-desktop-portal/niri-portals.conf || { echo "FAIL: oo7 portal pin missing"; fail=1; }
-[ $fail -eq 0 ] && echo 'wayle config packages OK (reboot wrapper + oo7 passwd PAM + niri base.kdl + portals admin)'
-exit $fail`
-		// wayle_running: the Wayle shell process (bar/notifications/OSD/
-		// wallpaper) alive for the session user. Poll 90s like the other
-		// session checks — the shell starts after greetd + turnstile +
-		// user dinit + niri.
-		checks["wayle_running"] = fmt.Sprintf("i=0; while [ $i -lt 90 ]; do pgrep -u %s -f '/usr/bin/wayle' >/dev/null && { echo 'wayle shell running'; exit 0; }; sleep 1; i=$((i+1)); done; echo 'wayle not running'; exit 1", cfg.InstalledUser)
-		// veila_daemon: the Veila lock-screen daemon behind `veila lock`
-		// (stasis idle plan + Super+Alt+L keybind + dashboard dropdown).
-		// Runs through the veilad-session env wrapper (WAYLAND_DISPLAY/
-		// NIRI_SOCKET resolution — the user-dinit env carries neither;
-		// upstream's veilad.service PassEnvironment's the same variables).
-		checks["veila_daemon"] = fmt.Sprintf("test -f /etc/dinit.d/user/scripts/veilad-session && grep -q 'command = /etc/dinit.d/user/scripts/veilad-session' /etc/dinit.d/user/veila.user && grep -q 'exec veilad' /etc/dinit.d/user/scripts/veilad-session && i=0; while [ $i -lt 90 ]; do pgrep -u %s -f 'veilad' >/dev/null && { echo 'veila daemon running (veilad-session wrapper)'; exit 0; }; sleep 1; i=$((i+1)); done; echo 'veilad not running'; exit 1", cfg.InstalledUser)
-		// raffi_installed: launcher package + binary on PATH + the toggle
-		// script (feralos-aports raffi-toggle; raffi r1 depends on it —
-		// Mod+D and the Wayle bar button both toggle, they never spawn
-		// raffi directly).
-		checks["raffi_installed"] = "apk info -e raffi raffi-toggle && test -x /usr/bin/raffi && test -x /usr/bin/raffi-toggle && echo 'raffi + raffi-toggle installed'"
+	// oo7 secrets trio — SHARED by both niri-family desktops (2026-11-28:
+	// the DMS runs the same oo7 stack as niriWayle — gnome-keyring +
+	// seahorse are gone from the niri DE list).
+	if cfg.DesktopEnvironment == desktopNiriWayle || cfg.DesktopEnvironment == desktopNiri {
 		// oo7_secrets: gnome-keyring replacement — suite core + PAM module
 		// packages present (the unlock wiring has its own runtime check
 		// below).
@@ -790,7 +753,7 @@ exit $fail`
 		// secrets GUI — Flathub flatpak, NOT an apk (seahorse conflicts
 		// with oo7-server on org.freedesktop.secrets.service; nixpkgs too
 		// old at 0.4.0). Asserts the system flatpak install AND the
-		// Secret portal pin (oo7 README config: niriWayle has no
+		// Secret portal pin (oo7 README config: no
 		// gnome-keyring, so Secret must resolve to oo7-portal explicitly).
 		// No DMI guard: flatpak + the portals conf are real on every host.
 		checks["keyrack_flatpak"] = "flatpak info app.drey.KeyRack >/dev/null 2>&1 && grep -q 'org.freedesktop.impl.portal.Secret=oo7-portal' /etc/xdg-desktop-portal/niri-portals.conf && echo 'Key Rack flatpak installed + Secret=oo7-portal pinned'"
@@ -819,6 +782,43 @@ exit $fail`
 		//   - the daemon's live PAM listener socket
 		//   - python3 present (remote PAM login client)
 		checks["oo7_pam_unlock"] = fmt.Sprintf("uid=$(id -u %s); i=0; while [ $i -lt 30 ]; do test -S /run/user/$uid/oo7-pam.sock && break; sleep 1; i=$((i+1)); done; test -f /usr/lib/security/pam_oo7.so || { echo 'pam_oo7.so missing'; exit 1; }; grep -q 'auth.*pam_oo7.so' /etc/pam.d/greetd || { echo 'greetd auth line missing'; exit 1; }; grep -q 'session.*pam_oo7.so' /etc/pam.d/greetd || { echo 'greetd session line missing'; exit 1; }; grep -q 'password.*pam_oo7.so' /etc/pam.d/passwd || { echo 'passwd override missing'; exit 1; }; test -f /usr/bin/oo7-daemon && test -x /usr/bin/oo7-daemon || { echo 'oo7-daemon recovery wrapper missing/not executable'; exit 1; }; grep -q 'dinitctl --user start' /usr/bin/oo7-daemon || { echo 'recovery wrapper does not delegate to dinitctl --user start (unsupervised daemon risk)'; exit 1; }; test -f /etc/dinit.d/config/secrets.conf || { echo 'secrets.conf missing'; exit 1; }; %s test -S /run/user/$uid/oo7-pam.sock || { echo 'oo7 PAM listener socket missing'; exit 1; }; command -v python3 >/dev/null || { echo 'python3 missing (remote PAM login client needs it)'; exit 1; }; echo 'oo7 PAM static wiring OK'", cfg.InstalledUser, debugRUSTLogAssert(cfg))
+	}
+	// launcher, oo7 secrets, session-action seeds: niriWayle-only pieces.
+	if cfg.DesktopEnvironment == desktopNiriWayle {
+		// wayle-config (ADR-013 wave C): the niriWayle STATIC system pieces
+		// are package-owned — the init-agnostic reboot wrapper + the oo7
+		// /etc/pam.d/passwd override (Alpine ships none). The $HOME seeds
+		// (wayle config.toml, niri config.kdl) stay installer-written by
+		// design: home files are installer-owned AND user-editable — a
+		// package re-asserting them on update would clobber manual changes
+		// (owner decision 2026-11-23, same principle that keeps the
+		// vendor-file appends installer-run-ONCE).
+		checks["config_packages_wayle"] = `fail=0
+apk info -e wayle-config >/dev/null 2>&1 || { echo "FAIL: wayle-config not installed"; fail=1; }
+test -x /usr/bin/feralos-reboot || { echo "FAIL: feralos-reboot wrapper missing"; fail=1; }
+grep -q '/run/dinitctl' /usr/bin/feralos-reboot || { echo "FAIL: wrapper dinit path missing"; fail=1; }
+grep -q 'exec loginctl reboot' /usr/bin/feralos-reboot || { echo "FAIL: wrapper OpenRC path missing"; fail=1; }
+test -f /usr/share/wayle/niri/base.kdl || { echo "FAIL: niri base.kdl missing"; fail=1; }
+grep -q '^prefer-no-csd' /usr/share/wayle/niri/base.kdl || { echo "FAIL: base.kdl prefer-no-csd missing"; fail=1; }
+grep -q 'Mod+T' /usr/share/wayle/niri/base.kdl || { echo "FAIL: base.kdl binds missing"; fail=1; }
+[ $fail -eq 0 ] && echo 'wayle config packages OK (reboot wrapper + niri base.kdl)'
+exit $fail`
+		// wayle_running: the Wayle shell process (bar/notifications/OSD/
+		// wallpaper) alive for the session user. Poll 90s like the other
+		// session checks — the shell starts after greetd + turnstile +
+		// user dinit + niri.
+		checks["wayle_running"] = fmt.Sprintf("i=0; while [ $i -lt 90 ]; do pgrep -u %s -f '/usr/bin/wayle' >/dev/null && { echo 'wayle shell running'; exit 0; }; sleep 1; i=$((i+1)); done; echo 'wayle not running'; exit 1", cfg.InstalledUser)
+		// veila_daemon: the Veila lock-screen daemon behind `veila lock`
+		// (stasis idle plan + Super+Alt+L keybind + dashboard dropdown).
+		// Runs through the veilad-session env wrapper (WAYLAND_DISPLAY/
+		// NIRI_SOCKET resolution — the user-dinit env carries neither;
+		// upstream's veilad.service PassEnvironment's the same variables).
+		checks["veila_daemon"] = fmt.Sprintf("test -f /etc/dinit.d/user/scripts/veilad-session && grep -q 'command = /etc/dinit.d/user/scripts/veilad-session' /etc/dinit.d/user/veila.user && grep -q 'exec veilad' /etc/dinit.d/user/scripts/veilad-session && i=0; while [ $i -lt 90 ]; do pgrep -u %s -f 'veilad' >/dev/null && { echo 'veila daemon running (veilad-session wrapper)'; exit 0; }; sleep 1; i=$((i+1)); done; echo 'veilad not running'; exit 1", cfg.InstalledUser)
+		// raffi_installed: launcher package + binary on PATH + the toggle
+		// script (feralos-aports raffi-toggle; raffi r1 depends on it —
+		// Mod+D and the Wayle bar button both toggle, they never spawn
+		// raffi directly).
+		checks["raffi_installed"] = "apk info -e raffi raffi-toggle && test -x /usr/bin/raffi && test -x /usr/bin/raffi-toggle && echo 'raffi + raffi-toggle installed'"
 		// wayle_session_actions: the Wayle session-action seed (installer
 		// step 7b). v0.7.0 source-verified: the dashboard dropdown's
 		// user-row buttons run `sh -c <dashboard.dropdown_*_command>` —
